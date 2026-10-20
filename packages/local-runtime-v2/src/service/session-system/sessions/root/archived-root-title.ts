@@ -1,3 +1,5 @@
+import { isChineseLocale, resolveLocale as resolveHostLocale } from '@mavis/shared/i18n';
+
 const DEFAULT_ROOT_TITLE = 'Main';
 
 export const ARCHIVE_TITLE_RECENT_MESSAGE_LIMIT = 30;
@@ -28,13 +30,11 @@ export function buildArchivedRootTitle(input: {
 }
 
 export function archivedRootPrefix(locale: string | undefined): string {
-  return locale?.split('-')[0]?.toLowerCase() === 'zh' ? '记忆归档：' : 'Memory archive: ';
+  return isChineseLocale(locale) ? '记忆归档：' : 'Memory archive: ';
 }
 
 export function resolveArchiveTitleLocale(): string {
-  const electronLocale = process.env.MAVIS_ELECTRON_LOCALE?.trim();
-  if (electronLocale === 'en' || electronLocale === 'zh') return electronLocale;
-  return Intl.DateTimeFormat().resolvedOptions().locale || 'en';
+  return resolveHostLocale();
 }
 
 export function buildArchiveTitlePrompts(
@@ -42,17 +42,16 @@ export function buildArchiveTitlePrompts(
   transcript: string,
   systemPrompt?: string,
 ): { readonly systemPrompt: string; readonly userPrompt: string } {
-  const isZh = locale.split('-')[0]?.toLowerCase() === 'zh';
   return {
     systemPrompt: systemPrompt ?? archiveTitleSystemPrompt(locale),
-    userPrompt: isZh
+    userPrompt: isChineseLocale(locale)
       ? `以下是一段对话片段，请概括核心主题。\n\n<对话片段>\n${transcript}\n</对话片段>`
       : `Summarize the core topic of this excerpt.\n\n<excerpt>\n${transcript}\n</excerpt>`,
   };
 }
 
 export function archiveTitleSystemPrompt(locale: string): string {
-  return locale.split('-')[0]?.toLowerCase() === 'zh'
+  return isChineseLocale(locale)
     ? ARCHIVE_TITLE_SYSTEM_PROMPT_ZH
     : ARCHIVE_TITLE_SYSTEM_PROMPT_EN;
 }

@@ -1,5 +1,5 @@
 import type { TuiCustomStatusLineConfig } from '@mavis/config';
-import { getRuntimeLocaleLanguage } from '@mavis/shared/runtime-i18n';
+import { isChineseLocale, resolveLocale } from '@mavis/shared/i18n';
 import { formatContextWindow } from '../../application/context-window.js';
 import type { Component } from '../rendering/component.js';
 import { stripAnsi, truncateToWidth, visibleWidth } from '../rendering/text.js';
@@ -391,8 +391,8 @@ function fitStatusSegments(segments: readonly StatusSegment[], width: number): s
   return fitLine(render(), width);
 }
 
-function lightweightModeLabels(locale = Intl.DateTimeFormat().resolvedOptions().locale): string[] {
-  return getRuntimeLocaleLanguage(locale) === 'zh'
+function lightweightModeLabels(locale = resolveLocale()): string[] {
+  return isChineseLocale(locale)
     ? ['轻量模式', '轻量', '轻']
     : ['Lightweight', 'Light', 'Lite'];
 }

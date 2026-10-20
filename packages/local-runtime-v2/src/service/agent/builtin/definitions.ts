@@ -3,6 +3,7 @@ import {
   type AgentCapabilityConfig,
   type ResolvedAgentCapabilities,
 } from '@mavis/config';
+import { resolveLocale as resolveHostLocale } from '@mavis/shared/i18n';
 
 import type {
   AgentAppMode,
@@ -101,7 +102,7 @@ export function toSurfaceRenderInput(input: BuiltinSurfaceRenderInput): BuiltinR
 }
 
 export function defaultLocale(): string {
-  return Intl.DateTimeFormat().resolvedOptions().locale || 'en';
+  return resolveHostLocale();
 }
 
 export function canonicalBuiltinName(name: string): string {

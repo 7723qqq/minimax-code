@@ -1,3 +1,5 @@
+import { isChineseLocale } from './i18n/locale.js';
+
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
@@ -101,8 +103,8 @@ function formatDate(
 ): string {
   const month = padTwo(parts.month);
   const day = padTwo(parts.day);
-  if (!includeYear) return locale === 'zh' ? `${month}-${day}` : `${month}/${day}`;
-  return locale === 'zh' ? `${parts.year}-${month}-${day}` : `${month}/${day}/${parts.year}`;
+  if (!includeYear) return isChineseLocale(locale) ? `${month}-${day}` : `${month}/${day}`;
+  return isChineseLocale(locale) ? `${parts.year}-${month}-${day}` : `${month}/${day}/${parts.year}`;
 }
 
 function formatDateTime(
@@ -119,7 +121,7 @@ function calendarDayIndex(parts: ZonedDateParts): number {
 
 function formatWeekday(parts: ZonedDateParts, locale: ProductTimeLocale): string {
   const weekday = new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay();
-  const labels = locale === 'zh' ? ZH_WEEKDAYS : EN_WEEKDAYS;
+  const labels = isChineseLocale(locale) ? ZH_WEEKDAYS : EN_WEEKDAYS;
   return labels[weekday] ?? labels[0];
 }
 
@@ -139,12 +141,12 @@ function formatSocialTime(
   }
 
   const elapsedMs = nowMs - timestampMs;
-  if (elapsedMs < MINUTE_MS) return locale === 'zh' ? '刚刚' : 'Now';
+  if (elapsedMs < MINUTE_MS) return isChineseLocale(locale) ? '刚刚' : 'Now';
   if (isSameDay(timestamp, now)) return formatTime(timestamp);
 
   const dayDelta = calendarDayIndex(now) - calendarDayIndex(timestamp);
   if (dayDelta === 1) {
-    const yesterday = locale === 'zh' ? '昨天' : 'Yesterday';
+    const yesterday = isChineseLocale(locale) ? '昨天' : 'Yesterday';
     return `${yesterday} ${formatTime(timestamp)}`;
   }
   if (dayDelta > 1 && dayDelta < RECENT_CALENDAR_DAYS) {
@@ -168,18 +170,18 @@ function formatCommunityTime(
   if (timestampMs > nowMs) return formatDate(timestamp, locale, !sameYear);
 
   const elapsedMs = nowMs - timestampMs;
-  if (elapsedMs < MINUTE_MS) return locale === 'zh' ? '刚刚' : 'Now';
+  if (elapsedMs < MINUTE_MS) return isChineseLocale(locale) ? '刚刚' : 'Now';
   if (elapsedMs < HOUR_MS) {
     const minutes = Math.floor(elapsedMs / MINUTE_MS);
-    return locale === 'zh' ? `${minutes}分钟前` : `${minutes}m`;
+    return isChineseLocale(locale) ? `${minutes}分钟前` : `${minutes}m`;
   }
   if (elapsedMs < DAY_MS) {
     const hours = Math.floor(elapsedMs / HOUR_MS);
-    return locale === 'zh' ? `${hours}小时前` : `${hours}h`;
+    return isChineseLocale(locale) ? `${hours}小时前` : `${hours}h`;
   }
   if (elapsedMs < FOUR_DAYS_MS) {
     const days = Math.floor(elapsedMs / DAY_MS);
-    return locale === 'zh' ? `${days}天前` : `${days}d`;
+    return isChineseLocale(locale) ? `${days}天前` : `${days}d`;
   }
 
   return formatDate(timestamp, locale, !sameYear);

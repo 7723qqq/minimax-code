@@ -21,6 +21,64 @@ import { compareVersions, releaseCli } from '../scripts/release-cli.mjs';
 import { compareRuns, exitCodeForStatus, renderReport, spread, validateRun, validateRequest, validateToolOutput, median, selectScenarios } from '../scripts/perf/report.mjs';
 import { copyMcodeToolsArtifact, downloadMcodeToolsArtifact, MCODE_TOOLS_ARTIFACT } from '../scripts/lib/mcode-tools-artifact.mjs';
 import { checkWindowsSourceLocation, runWindowsSourceLocationCheck } from '../scripts/check-windows-source-location.mjs';
+import { findChineseComments } from '../scripts/check-source-comments.mjs';
+
+test('comment language gate reports Chinese comments and ignores product strings', t => {
+  const root = mkdtempSync(path.join(tmpdir(), 'comment-gate-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const write = (relative, content) => {
+    const file = path.join(root, relative);
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, content);
+  };
+
+  // Line comment, JSDoc block and trailing comment are all in scope.
+  write('packages/a/src/line.ts', 'export const a = 1; // 中文行注释\n');
+  write('packages/a/src/block.ts', '/**\n * 中文块注释\n */\nexport const b = 2;\n');
+  write('packages/a/src/trailing.ts', 'export const c = 1; /* 中文尾注释 */\n');
+
+  // Product strings, templates and regular expressions are out of scope.
+  write('packages/a/src/strings.ts', "export const d = '中文产品字符串';\n");
+  write('packages/a/src/template.ts', 'export const e = `中文 ${1} 模板`;\n');
+  write('packages/a/src/regex.ts', "export const f = /[\\u4e00-\\u9fff]/u;\n");
+  write('packages/a/src/english.ts', '// English only\nexport const g = 3;\n');
+
+  // An i18n catalog keeps Chinese in strings, which the gate never reads; a
+  // Chinese *comment* there is still a violation, because comments are English.
+  write('packages/a/src/i18n/catalog.zh-Hans.ts', "export const zh = { k: '中文' };\n");
+  write('packages/a/src/i18n/other.zh-Hans.ts', "// 中文注释\nexport const zh = { k: '中文' };\n");
+
+  // Vendored upstream code keeps its own language policy.
+  write('third_party/upstream/src/x.ts', '// 中文注释属于上游\n');
+
+  const violations = findChineseComments({
+    root,
+    packageRoots: ['packages/a', 'third_party/upstream'],
+  });
+  const files = violations.map(violation => violation.file).sort();
+  assert.deepEqual(files, [
+    'packages/a/src/block.ts',
+    'packages/a/src/i18n/other.zh-Hans.ts',
+    'packages/a/src/line.ts',
+    'packages/a/src/trailing.ts',
+  ]);
+  assert.match(violations.find(v => v.file.endsWith('line.ts')).text, /中文行注释/u);
+});
+
+test('comment language gate ignores backslash-escaped CJK ranges in patterns', t => {
+  const root = mkdtempSync(path.join(tmpdir(), 'comment-gate-regex-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const file = path.join(root, 'packages/a/src/pattern.ts');
+  mkdirSync(path.dirname(file), { recursive: true });
+  // An escape sequence is not Chinese text; the gate must not flag the source
+  // of a CJK range used by a product feature.
+  writeFileSync(
+    file,
+    "// Matches Han characters.\nexport const han = /[\\u3400-\\u4dbf\\u4e00-\\u9fff]/u;\n",
+  );
+
+  assert.deepEqual(findChineseComments({ root, packageRoots: ['packages/a'] }), []);
+});
 
 test('Windows source preflight accepts local NTFS without parsing fsutil display text', () => {
   for (const fsutilOutput of ['E: - Fixed Drive\r\n', 'E: - Festplatte\r\n', new Error('Error 5: Access is denied')]) {
@@ -732,7 +790,7 @@ test('documentation and archive profiles preserve their required validation gate
   const full = f.run(['--list']).stdout.trim().split('\n');
   const docs = f.run(['--profile', 'docs', '--list']);
   assert.equal(docs.status, 0, docs.stderr);
-  assert.deepEqual(docs.stdout.trim().split('\n'), ['check:source', 'check:tsconfig', 'export source preview', 'test:release-tools']);
+  assert.deepEqual(docs.stdout.trim().split('\n'), ['check:source', 'check:comments', 'check:tsconfig', 'export source preview', 'test:release-tools']);
   const archive = f.run(['--profile', 'archive', '--list']);
   assert.equal(archive.status, 0, archive.stderr);
   assert.deepEqual(archive.stdout.trim().split('\n'), full.filter(g => g !== 'export source preview'));
@@ -959,6 +1017,7 @@ test('Windows contract profile selects focused gates', () => {
     assert.equal(result.status, 0, result.stderr);
     assert.deepEqual(result.stdout.trim().split('\n'), [
       'check:source',
+      'check:comments',
       'check:tsconfig',
       'export source preview',
       'test:release-tools',
@@ -995,7 +1054,7 @@ test('suite runner pins its locale, preserves gate arguments and canonicalizes W
     copyFileSync(new URL(`../${file}`, import.meta.url), path.join(root, file));
   writeFileSync(path.join(root, 'test/vitest-suites.json'), JSON.stringify({ suites: { fixture: ['test/example.test.ts'] } }));
   writeFileSync(path.join(root, 'node_modules/vitest/package.json'), JSON.stringify({ bin: { vitest: 'cli.cjs' } }));
-  writeFileSync(path.join(root, 'node_modules/vitest/cli.cjs'), 'console.log(JSON.stringify({args:process.argv.slice(2),temp:process.env.TEMP,tmp:process.env.TMP,cwd:process.cwd(),lang:process.env.LANG,language:process.env.LANGUAGE,lcAll:process.env.LC_ALL,lcMessages:process.env.LC_MESSAGES,locale:Intl.DateTimeFormat().resolvedOptions().locale})); process.exit(17);');
+  writeFileSync(path.join(root, 'node_modules/vitest/cli.cjs'), 'console.log(JSON.stringify({args:process.argv.slice(2),temp:process.env.TEMP,tmp:process.env.TMP,cwd:process.cwd(),lang:process.env.LANG,language:process.env.LANGUAGE,lcAll:process.env.LC_ALL,lcMessages:process.env.LC_MESSAGES,mcodeLocale:process.env.MCODE_LOCALE})); process.exit(17);');
   const alias = path.join(root, 'temporary-alias');
   symlinkSync(path.join(root, 'temporary'), alias, process.platform === 'win32' ? 'junction' : 'dir');
   for (const platform of ['linux', 'darwin', 'win32']) {
@@ -1028,9 +1087,11 @@ test('suite runner pins its locale, preserves gate arguments and canonicalizes W
         language: child.language,
         lcAll: child.lcAll,
         lcMessages: child.lcMessages,
-        locale: child.locale,
+        // `Intl` follows the operating system, not these variables, so the
+        // runtime's own override is the pin that actually holds on every host.
+        mcodeLocale: child.mcodeLocale,
       },
-      { lang: 'C', language: 'C', lcAll: 'C', lcMessages: 'C', locale: 'en-US' },
+      { lang: 'C', language: 'C', lcAll: 'C', lcMessages: 'C', mcodeLocale: 'en' },
     );
   }
 });

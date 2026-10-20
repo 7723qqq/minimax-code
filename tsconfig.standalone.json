@@ -262,6 +262,9 @@
       "@mavis/shared/global-events": [
         "./packages/shared/src/global-events.ts"
       ],
+      "@mavis/shared/i18n": [
+        "./packages/shared/src/i18n/index.ts"
+      ],
       "@mavis/shared/image-dimensions": [
         "./packages/shared/src/image-dimensions.ts"
       ],

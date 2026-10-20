@@ -39,6 +39,7 @@ const preview = path.join(temporary ?? tmpdir(), "minimax-code-source.tar.gz");
 
 const steps = [
   { name: "check:source", script: "check:source", docs: true, windows: true },
+  { name: "check:comments", script: "check:comments", docs: true, windows: true },
   { name: "check:tsconfig", script: "check:tsconfig", docs: true, windows: true },
   {
     name: "export source preview",

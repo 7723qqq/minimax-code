@@ -1,4 +1,4 @@
-import { translateRuntimeText } from '@mavis/shared/runtime-i18n';
+import { RUNTIME_CATALOG, resolveLocaleName, translate } from '@mavis/shared/i18n';
 
 export function mcodePrefixActivationScheduledMessage(
   _environment: NodeJS.ProcessEnv = process.env,
@@ -83,8 +83,15 @@ export function mcodePrefixVersionedInstalledMessage(
   version: string,
   environment: NodeJS.ProcessEnv = process.env,
 ): string {
-  const locale = environment.LC_ALL || environment.LC_MESSAGES || environment.LANG;
-  return translateRuntimeText(locale, 'update.versionedInstalled').replace('{version}', version);
+  // Locale resolution and `{version}` interpolation both come from the shared
+  // module; the previous version read LC_ALL/LC_MESSAGES/LANG by hand and then
+  // patched the template with a single `.replace`.
+  return translate(
+    RUNTIME_CATALOG,
+    resolveLocaleName(undefined, environment),
+    'update.versionedInstalled',
+    { version },
+  );
 }
 
 export function mcodePrefixNotStagedMessage(

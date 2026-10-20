@@ -20,6 +20,12 @@ const environment = { ...process.env };
 // language and cover localized rendering through explicit locale inputs. Pin
 // every locale source before Vitest starts so both workers and subprocesses are
 // deterministic on developer machines and in CI.
+//
+// The POSIX variables alone are not enough: `Intl.DateTimeFormat()` reads the
+// operating-system locale, not `LANG`, so a zh-CN host still rendered Chinese
+// and failed English assertions. `MCODE_LOCALE` is the runtime's own override
+// and outranks `Intl`, which makes the pin effective on every platform.
+environment.MCODE_LOCALE = "en";
 environment.LANG = "C";
 environment.LANGUAGE = "C";
 environment.LC_ALL = "C";

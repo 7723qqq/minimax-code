@@ -100,6 +100,10 @@
       "types": "./src/runtime-i18n/index.ts",
       "import": "./dist/runtime-i18n/index.js"
     },
+    "./i18n": {
+      "types": "./src/i18n/index.ts",
+      "import": "./dist/i18n/index.js"
+    },
     "./product-time": {
       "types": "./src/product-time.ts",
       "import": "./dist/product-time.js"
@@ -269,6 +273,9 @@
       ],
       "runtime-i18n": [
         "src/runtime-i18n/index.ts"
+      ],
+      "i18n": [
+        "src/i18n/index.ts"
       ],
       "product-time": [
         "src/product-time.ts"
