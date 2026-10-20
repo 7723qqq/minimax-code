@@ -1,6 +1,6 @@
 import { isSameResolvedPath } from '@mavis/permission';
 import { KeyedOperationLane } from '@mavis/shared/keyed-operation-lane';
-import { translateRuntimeText, type RuntimeTranslationKey } from '@mavis/shared/runtime-i18n';
+import { translateRuntimeText, type RuntimeTranslationKey } from '@mavis/shared/i18n';
 import { createInternalTurnId } from '@mavis/shared/turn-identity';
 
 import type {
