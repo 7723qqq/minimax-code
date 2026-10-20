@@ -11,6 +11,7 @@
 import type { OutboundMediaRef } from '@mavis/shared';
 
 import { readFirstString } from '../../../api/http-helpers.js';
+import { telegramText } from './telegram-copy.js';
 
 import type {
   ChannelAttachmentDownloadInput,
@@ -494,7 +495,12 @@ export class TelegramPlatformAdapter implements LocalChannelPlatformAdapter {
       const name = ref.name || basenamePath(ref.path) || ref.kind;
       logger.warn({ err, kind: ref.kind, name, chatId }, 'Telegram media send failed');
       try {
-        await sender.sendText(chatId, `[媒体发送失败: ${name}]`, undefined, messageThreadId);
+        await sender.sendText(
+          chatId,
+          telegramText('attachment.sendFailed', { name }),
+          undefined,
+          messageThreadId,
+        );
       } catch {
         /* placeholder is best-effort too */
       }

@@ -14,6 +14,7 @@ const EN_WECHAT_COPY = {
   'attachment.audio': '[Audio]',
   'attachment.video': '[Video]',
   'attachment.file': '[File] {name}',
+  'attachment.sendFailed': '[Media send failed: {name} — {message}]',
   'questionnaire.freeTextHint': '(Reply with free text to answer)',
   'questionnaire.replyHint':
     'Reply with option numbers to select (separate multiple choices or questions with commas, e.g. 1,3). If no option fits, reply with free text.',
@@ -28,6 +29,7 @@ const ZH_HANS_WECHAT_COPY = {
   'attachment.audio': '[语音]',
   'attachment.video': '[视频]',
   'attachment.file': '[文件] {name}',
+  'attachment.sendFailed': '[媒体发送失败: {name} — {message}]',
   'questionnaire.freeTextHint': '（请直接输入文字作答）',
   'questionnaire.replyHint':
     '请回复编号选择（多选/多题用逗号分隔，中英文逗号均可，如 1,3 或 1，3）；无合适项可直接输入文字作答。',

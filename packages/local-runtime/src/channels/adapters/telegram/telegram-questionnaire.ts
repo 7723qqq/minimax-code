@@ -1,4 +1,5 @@
 import type { ChannelRenderableQuestionnaire } from '../../questionnaire-bridge.js';
+import { telegramText } from './telegram-copy.js';
 import { TELEGRAM_CALLBACK_DATA_MAX_BYTES, utf8ByteLength } from './telegram-keyboard.js';
 
 /**
@@ -78,12 +79,19 @@ export function formatTelegramQuestionnairePrompt(
   renderable: ChannelRenderableQuestionnaire,
 ): string {
   const lines: string[] = [];
-  lines.push(renderable.title ? `Questionnaire: ${renderable.title}` : 'Questionnaire');
+  lines.push(
+    renderable.title
+      ? telegramText('questionnaire.titleLine', { title: renderable.title })
+      : telegramText('questionnaire.titleOnly'),
+  );
   for (const [index, step] of renderable.steps.entries()) {
     lines.push('');
-    lines.push(`Q${index + 1}: ${step.question}`);
+    lines.push(
+      telegramText('questionnaire.stepLine', { index: index + 1, question: step.question }),
+    );
     if (step.description) lines.push(step.description);
-    if (step.selectionMode === 'multiple') lines.push('Choose one or more options below.');
+    if (step.selectionMode === 'multiple')
+      lines.push(telegramText('questionnaire.chooseMultiple'));
   }
   return lines.join('\n').trim();
 }
@@ -96,15 +104,20 @@ export function formatTelegramStepPrompt(
   if (!step) return formatTelegramQuestionnairePrompt(renderable);
   const lines: string[] = [];
   if (renderable.title) {
-    lines.push(`问卷：${renderable.title}`);
+    lines.push(telegramText('questionnaire.titleLine', { title: renderable.title }));
     lines.push('');
   }
-  lines.push(`问题 ${stepIndex + 1}/${renderable.steps.length}`);
+  lines.push(
+    telegramText('questionnaire.stepCounter', {
+      index: stepIndex + 1,
+      total: renderable.steps.length,
+    }),
+  );
   lines.push('');
   lines.push(step.question);
   if (step.description) lines.push(step.description);
   if (step.selectionMode === 'multiple') {
-    lines.push('（Telegram 目前按单选逐题处理，请先选择一个最合适的选项）');
+    lines.push(telegramText('questionnaire.multipleHint'));
   }
   return lines.join('\n').trim();
 }

@@ -19,14 +19,18 @@ const RUNTIME_CATALOG: CatalogSet<typeof EN_RUNTIME_TRANSLATIONS> = createCatalo
  * Translate one runtime key for a locale tag.
  *
  * `locale` accepts a full BCP 47 tag (`zh-CN`), a bare language (`zh`), or
- * `null`/`undefined` to use the host locale. An unknown or missing key falls
- * back to English and finally to the key itself; this function never throws.
+ * `null`/`undefined` to use the host locale. `values` fills `{name}`
+ * placeholders through the same interpolation every catalog uses, so callers
+ * never concatenate sentences or replace tokens by hand. An unknown or missing
+ * key falls back to English and finally to the key itself; this function never
+ * throws.
  */
 export function translateRuntimeText(
   locale: string | null | undefined,
   key: RuntimeTranslationKey,
+  values?: Readonly<Record<string, string | number>>,
 ): string {
-  return translate(RUNTIME_CATALOG, resolveLocaleName(locale), key);
+  return translate(RUNTIME_CATALOG, resolveLocaleName(locale), key, values);
 }
 
 export { RUNTIME_CATALOG, EN_RUNTIME_TRANSLATIONS, ZH_HANS_RUNTIME_TRANSLATIONS };

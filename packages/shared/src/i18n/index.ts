@@ -17,10 +17,13 @@
  *
  * Product copy lives in per-feature catalogs built with `createCatalogSet` and
  * read through `translate`: the runtime, composer, session-mutation, status-line,
- * permission-reason, product-time, shell, archive-title, IM receipt, Feishu,
- * WeChat, Telegram and code-review strings. A module may keep its catalog local
- * when the copy belongs to that surface; the contract is the catalog, not the
- * file location.
+ * permission-reason, product-time, shell, archive-title, IM receipt, queue,
+ * outbound-failure, Feishu, WeChat, Telegram, tool-summary and code-review
+ * strings. A module may keep its catalog local when the copy belongs to that
+ * surface; the contract is the catalog, not the file location. Copy shared by
+ * two packages (the archive-title prefix, the channel access-control notice)
+ * lives in the runtime catalog here, because a package-local copy is what lets
+ * the two definitions drift.
  *
  * Deliberately outside the catalog, and required to keep their own language:
  *
@@ -28,6 +31,11 @@
  *     system prompt and its `<excerpt>` wrapper;
  *   - model-facing instruction text, such as the review correction and XML
  *     escaping guidance and the system-reminder evolution blocks;
+ *   - tool descriptions, tool errors and diagnostics that the model reads as
+ *     input rather than the app rendering as UI;
+ *   - conversation content, such as quoted-message transcripts and the
+ *     attachment labels inside them, which must not change with the reader's UI
+ *     language;
  *   - vendored `third_party/**` code;
  *   - CJK ranges inside regular expressions, which are data, not copy;
  *   - test fixtures and assertions.

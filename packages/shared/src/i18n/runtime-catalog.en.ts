@@ -15,6 +15,13 @@ export const EN_RUNTIME_TRANSLATIONS = {
   'plan.implementation.display': 'Implement this plan',
   'questionnaire.noAnswer': 'No answer',
   'questionnaire.others': 'Others',
+  // Cross-package runtime copy: the prefix is read by local-runtime's
+  // synchronous archive title and by local-runtime-v2's model-generated one, so
+  // it lives here instead of in either package's own catalog.
+  'archiveTitle.prefix': 'Memory archive: ',
+  'channel.accessControlDenied':
+    "You don't have permission to chat with this Agent. Please contact the owner to grant access.",
+  'channel.accessControlGuide': 'Configuration guide: {url}',
   'update.versionedInstalled':
     'MCode {version} is installed. New MCode sessions will use it; running sessions can continue normally.',
 } as const;

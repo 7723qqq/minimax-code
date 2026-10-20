@@ -17,6 +17,7 @@ import {
   resolveLocaleName,
 } from '../../src/i18n/locale.js';
 import { EN_RUNTIME_TRANSLATIONS } from '../../src/i18n/runtime-catalog.en.js';
+import { translateRuntimeText } from '../../src/i18n/runtime-catalog.js';
 import { ZH_HANS_RUNTIME_TRANSLATIONS } from '../../src/i18n/runtime-catalog.zh-Hans.js';
 
 describe('locale resolution', () => {
@@ -187,5 +188,24 @@ describe('runtime catalog completeness', () => {
         placeholders(EN_RUNTIME_TRANSLATIONS[key]),
       );
     }
+  });
+
+  it('fills placeholders through the same interpolation as every catalog', () => {
+    expect(
+      translateRuntimeText('en', 'channel.accessControlGuide', { url: 'https://example.test/g' }),
+    ).toBe('Configuration guide: https://example.test/g');
+    expect(
+      translateRuntimeText('zh-CN', 'channel.accessControlGuide', { url: 'https://example.test/g' }),
+    ).toBe('配置指南：https://example.test/g');
+  });
+
+  it('serves the archive title prefix both runtime packages compose', () => {
+    // local-runtime and local-runtime-v2 read this one key; a package-local copy
+    // is what let the two titles drift apart.
+    expect(translateRuntimeText('en', 'archiveTitle.prefix')).toBe('Memory archive: ');
+    expect(translateRuntimeText('zh-CN', 'archiveTitle.prefix')).toBe('记忆归档：');
+    expect(translateRuntimeText(undefined, 'archiveTitle.prefix')).toBe(
+      translateRuntimeText(resolveLocale(), 'archiveTitle.prefix'),
+    );
   });
 });

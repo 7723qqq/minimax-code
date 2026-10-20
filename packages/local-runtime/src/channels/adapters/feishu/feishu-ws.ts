@@ -70,8 +70,6 @@ export type FeishuPendingReactionStore = Map<string, { reactionId: string; creat
 
 /** Pending-ack entries older than this are swept (reply never delivered). */
 const PENDING_REACTION_TTL_MS = 10 * 60_000;
-const FEISHU_RESOURCE_ERROR_REPLY =
-  '抱歉，这个文件暂时没能接收成功。请尝试将文件名中的中文改为英文或数字，保留扩展名后重新发送。';
 
 /**
  * Revoke the 👀 `OnIt` inbound ack reaction after the final reply for
@@ -332,13 +330,14 @@ async function handleFeishuResourceError(input: {
   const { sender } = input;
   if (!sender) return;
   let replyDelivered = false;
+  const resourceErrorReply = feishuText('resource.receiveFailed');
   const pendingThinking = input.pendingThinkingStore?.get(input.chatId);
   if (pendingThinking) {
     input.pendingThinkingStore?.delete(input.chatId);
     try {
       await sender.patchCard(
         pendingThinking.messageId,
-        buildReplyCard(FEISHU_RESOURCE_ERROR_REPLY),
+        buildReplyCard(resourceErrorReply),
       );
       replyDelivered = true;
     } catch {
@@ -347,7 +346,7 @@ async function handleFeishuResourceError(input: {
   }
   if (!replyDelivered) {
     try {
-      await sender.sendText(input.chatId, FEISHU_RESOURCE_ERROR_REPLY, 'chat_id', input.thread);
+      await sender.sendText(input.chatId, resourceErrorReply, 'chat_id', input.thread);
       replyDelivered = true;
     } catch (err) {
       logger.warn(

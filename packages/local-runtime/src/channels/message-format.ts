@@ -19,10 +19,34 @@
  * 2000-line source-file size cap.
  */
 import { parseMediaTags, placeholderMediaTags } from '@mavis/shared';
+import { createCatalogSet, resolveLocaleName, translate } from '@mavis/shared/i18n';
 import { ToolCallStatus, type ToolCall } from '@mavis/agent-core/protocol/agent-message';
 import { resolveLocalRuntimeLocale } from '../runtime/locale.js';
 
 const STRUCTURED_TAG_START_RE = /<(media|genui|deliver-assets)\b[^>]*(?:>|$)/giu;
+
+/**
+ * Tool-call summary copy.
+ *
+ * The header was the last Chinese literal on the outbound IM path; the summary
+ * is appended to the channel reply, so it belongs to the same locale decision as
+ * the rest of the reply.
+ */
+const EN_TOOL_SUMMARY_COPY = {
+  'toolCalls.header': '🔧 Tool calls',
+} as const;
+
+const ZH_HANS_TOOL_SUMMARY_COPY = {
+  'toolCalls.header': '🔧 工具调用',
+} as const satisfies Readonly<Record<keyof typeof EN_TOOL_SUMMARY_COPY, string>>;
+
+const TOOL_SUMMARY_CATALOG = createCatalogSet(EN_TOOL_SUMMARY_COPY, {
+  'zh-Hans': ZH_HANS_TOOL_SUMMARY_COPY,
+});
+
+function toolSummaryText(locale: string): string {
+  return translate(TOOL_SUMMARY_CATALOG, resolveLocaleName(locale), 'toolCalls.header');
+}
 
 /**
  * Format tool calls into a readable summary.
@@ -32,8 +56,11 @@ const STRUCTURED_TAG_START_RE = /<(media|genui|deliver-assets)\b[^>]*(?:>|$)/giu
  *   - webfetch → boxofficecn.com ✓
  *   - read → src/index.ts ✓
  */
-export function formatToolSummary(toolCalls: Map<string, ToolCall>): string {
-  const lines: string[] = ['🔧 工具调用'];
+export function formatToolSummary(
+  toolCalls: Map<string, ToolCall>,
+  locale: string = resolveLocalRuntimeLocale(),
+): string {
+  const lines: string[] = [toolSummaryText(locale)];
 
   for (const tc of toolCalls.values()) {
     const icon =

@@ -21,12 +21,19 @@ const EN_TELEGRAM_COPY = {
   'questionnaire.expiredBody': 'Questionnaire expired',
   'questionnaire.submittedTitle': '✅ Submitted',
   'questionnaire.titleLine': 'Questionnaire: {title}',
+  'questionnaire.titleOnly': 'Questionnaire',
+  'questionnaire.stepLine': 'Q{index}: {question}',
+  'questionnaire.chooseMultiple': 'Choose one or more options below.',
   'questionnaire.selectionLine': 'Selected: {labels}',
   'questionnaire.noSelection': '—',
+  'questionnaire.stepCounter': 'Question {index}/{total}',
+  'questionnaire.multipleHint':
+    '(Telegram handles one single choice per question for now; pick the option that fits best)',
   'attachment.image': '[Image]',
   'attachment.audio': '[Audio]',
   'attachment.video': '[Video]',
   'attachment.file': '[File] {name}',
+  'attachment.sendFailed': '[Media send failed: {name}]',
 } as const;
 
 const ZH_HANS_TELEGRAM_COPY = {
@@ -40,12 +47,18 @@ const ZH_HANS_TELEGRAM_COPY = {
   'questionnaire.expiredBody': '问卷已过期',
   'questionnaire.submittedTitle': '✅ 已提交',
   'questionnaire.titleLine': '问卷：{title}',
+  'questionnaire.titleOnly': '问卷',
+  'questionnaire.stepLine': '问题 {index}：{question}',
+  'questionnaire.chooseMultiple': '请选择一个或多个选项。',
   'questionnaire.selectionLine': '已选：{labels}',
   'questionnaire.noSelection': '—',
+  'questionnaire.stepCounter': '问题 {index}/{total}',
+  'questionnaire.multipleHint': '（Telegram 目前按单选逐题处理，请先选择一个最合适的选项）',
   'attachment.image': '[图片]',
   'attachment.audio': '[语音]',
   'attachment.video': '[视频]',
   'attachment.file': '[文件] {name}',
+  'attachment.sendFailed': '[媒体发送失败: {name}]',
 } as const satisfies Readonly<Record<keyof typeof EN_TELEGRAM_COPY, string>>;
 
 const TELEGRAM_CATALOG = createCatalogSet(EN_TELEGRAM_COPY, {

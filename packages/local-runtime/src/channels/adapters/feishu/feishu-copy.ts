@@ -46,6 +46,9 @@ const EN_FEISHU_COPY = {
   'toast.handled': 'Handled',
   'toast.questionnaireTerminal': 'This questionnaire was already handled or expired',
   'toast.questionnaireSubmitted': 'Submitted',
+  'toast.submitFailed': 'Submission failed. Please try again later.',
+  'resource.receiveFailed':
+    'Sorry, this file could not be received. Please rename it to use English letters or digits, keep the extension, and send it again.',
 } as const;
 
 const ZH_HANS_FEISHU_COPY = {
@@ -84,6 +87,9 @@ const ZH_HANS_FEISHU_COPY = {
   'toast.handled': '已处理',
   'toast.questionnaireTerminal': '该问卷已处理或已过期',
   'toast.questionnaireSubmitted': '已提交',
+  'toast.submitFailed': '提交失败，请稍后再试',
+  'resource.receiveFailed':
+    '抱歉，这个文件暂时没能接收成功。请尝试将文件名中的中文改为英文或数字，保留扩展名后重新发送。',
 } as const satisfies Readonly<Record<keyof typeof EN_FEISHU_COPY, string>>;
 
 const FEISHU_CATALOG = createCatalogSet(EN_FEISHU_COPY, { 'zh-Hans': ZH_HANS_FEISHU_COPY });

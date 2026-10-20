@@ -295,7 +295,7 @@ async function handleFormSubmit(input: {
       ok: false,
       requestId,
       error: err instanceof Error ? err.message : String(err),
-      toast: { type: 'error', content: '提交失败，请稍后再试' },
+      toast: { type: 'error', content: feishuText('toast.submitFailed') },
     });
   }
   const agentName = pending.request.requester?.agentName ?? input.agentName;
@@ -322,7 +322,7 @@ async function handleFormSubmit(input: {
         ok: false,
         requestId,
         error: outcome.code ?? 'QUESTIONNAIRE_REPLY_RETRYABLE',
-        toast: { type: 'error', content: '提交失败，请稍后再试' },
+        toast: { type: 'error', content: feishuText('toast.submitFailed') },
       });
     }
     // Accepted and terminal outcomes consume the pending entry before the
@@ -359,7 +359,7 @@ async function handleFormSubmit(input: {
       ok: false,
       requestId,
       error: err instanceof Error ? err.message : String(err),
-      toast: { type: 'error', content: '提交失败，请稍后再试' },
+      toast: { type: 'error', content: feishuText('toast.submitFailed') },
     });
   }
 }

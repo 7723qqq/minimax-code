@@ -1,31 +1,10 @@
 import {
-  createCatalogSet,
   isChineseLocale,
   resolveLocale as resolveHostLocale,
-  resolveLocaleName,
-  translate,
+  translateRuntimeText,
 } from '@mavis/shared/i18n';
 
 const DEFAULT_ROOT_TITLE = 'Main';
-
-/**
- * Session-title prefix for archived root sessions.
- *
- * The Chinese form uses a full-width colon and no trailing space, while the
- * English form uses an ASCII colon and one space, so the whole prefix is a
- * catalog value rather than a label plus a shared separator.
- */
-const EN_ARCHIVE_TITLE_COPY = {
-  'prefix.archivedRoot': 'Memory archive: ',
-} as const;
-
-const ZH_HANS_ARCHIVE_TITLE_COPY = {
-  'prefix.archivedRoot': '记忆归档：',
-} as const satisfies Readonly<Record<keyof typeof EN_ARCHIVE_TITLE_COPY, string>>;
-
-const ARCHIVE_TITLE_CATALOG = createCatalogSet(EN_ARCHIVE_TITLE_COPY, {
-  'zh-Hans': ZH_HANS_ARCHIVE_TITLE_COPY,
-});
 
 export const ARCHIVE_TITLE_RECENT_MESSAGE_LIMIT = 30;
 export const ARCHIVE_TITLE_PER_MESSAGE_CHAR_CAP = 500;
@@ -54,8 +33,17 @@ export function buildArchivedRootTitle(input: {
   return `${archivedRootPrefix(input.locale)}${label}`;
 }
 
+/**
+ * Session-title prefix for archived root sessions.
+ *
+ * Read from the shared runtime catalog because local-runtime composes the same
+ * title for its synchronous fallback; a package-local copy let the two drift.
+ * The Chinese form uses a full-width colon and no trailing space while the
+ * English form uses an ASCII colon and one space, so the separator is part of
+ * the value rather than something a caller appends.
+ */
 export function archivedRootPrefix(locale: string | undefined): string {
-  return translate(ARCHIVE_TITLE_CATALOG, resolveLocaleName(locale), 'prefix.archivedRoot');
+  return translateRuntimeText(locale, 'archiveTitle.prefix');
 }
 
 export function resolveArchiveTitleLocale(): string {
