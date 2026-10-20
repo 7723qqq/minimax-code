@@ -89,6 +89,36 @@ function readIntlLocale(): string | undefined {
   }
 }
 
+/**
+ * IANA timezone of the host, used for calendar day boundaries.
+ *
+ * Kept here rather than in the callers because it is another host-environment
+ * fact read from the same `Intl` call, and because a partial or missing value
+ * must degrade predictably.
+ */
+export function resolveTimeZone(fallback = 'UTC'): string {
+  try {
+    return new Intl.DateTimeFormat().resolvedOptions().timeZone || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Raw host date options for diagnostic metadata.
+ *
+ * Returns `undefined` when the platform refuses to report them, so a caller can
+ * distinguish "unknown" from "unset" instead of inventing a default.
+ */
+export function resolveHostDateOptions(): { timeZone?: string; locale?: string } | undefined {
+  try {
+    const options = new Intl.DateTimeFormat().resolvedOptions();
+    return { timeZone: options.timeZone, locale: options.locale };
+  } catch {
+    return undefined;
+  }
+}
+
 function readEnvironmentLocale(environment: EnvironmentLike): string | undefined {
   for (const key of LOCALE_ENV_KEYS) {
     const value = usable(environment[key]);

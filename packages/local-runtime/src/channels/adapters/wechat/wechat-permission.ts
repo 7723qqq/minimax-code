@@ -26,6 +26,7 @@ import type {
   ChannelPermissionBehavior,
   ChannelRenderablePermission,
 } from '../../permission-bridge.js';
+import { wechatText } from './wechat-copy.js';
 
 /**
  * Render a pending permission ask as a plain-text WeChat message body:
@@ -40,7 +41,10 @@ import type {
  * with `formatQuestionnaireText`).
  */
 export function formatPermissionText(renderable: ChannelRenderablePermission): string {
-  const lines: string[] = ['【权限请求】', `工具：${renderable.toolName}`];
+  const lines: string[] = [
+    wechatText('permission.header'),
+    wechatText('permission.tool', { tool: renderable.toolName }),
+  ];
   if (renderable.toolDescription && renderable.toolDescription !== renderable.toolName) {
     lines.push(renderable.toolDescription);
   }
@@ -55,7 +59,7 @@ export function formatPermissionText(renderable: ChannelRenderablePermission): s
     }
   }
   lines.push('');
-  lines.push('回复 /allow 允许本次 · /always 始终允许 · /deny 拒绝');
+  lines.push(wechatText('permission.actions'));
   return lines.join('\n');
 }
 

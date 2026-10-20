@@ -4,9 +4,9 @@ import type { RuntimeTranslations } from './runtime-catalog.en.js';
  * Simplified Chinese runtime catalog.
  *
  * `satisfies RuntimeTranslations` is the completeness check: a key present in
- * the English catalog but absent here fails `pnpm typecheck`. The previous
- * `runtime-i18n/zh-Hans.ts` used the same assertion, but each of the other four
- * catalogs did not, which is how gaps reached production.
+ * the English catalog but absent here fails `pnpm typecheck`. Only some of the
+ * catalogs this module replaced carried that assertion, which is how gaps
+ * reached production.
  */
 export const ZH_HANS_RUNTIME_TRANSLATIONS = {
   'plan.entry.title': '进入计划模式',

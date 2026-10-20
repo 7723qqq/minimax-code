@@ -1,5 +1,10 @@
 import type { TuiCustomStatusLineConfig } from '@mavis/config';
-import { isChineseLocale, resolveLocale } from '@mavis/shared/i18n';
+import {
+  createCatalogSet,
+  resolveLocale,
+  resolveLocaleName,
+  translate,
+} from '@mavis/shared/i18n';
 import { formatContextWindow } from '../../application/context-window.js';
 import type { Component } from '../rendering/component.js';
 import { stripAnsi, truncateToWidth, visibleWidth } from '../rendering/text.js';
@@ -391,10 +396,40 @@ function fitStatusSegments(segments: readonly StatusSegment[], width: number): s
   return fitLine(render(), width);
 }
 
+/**
+ * Shell copy that is not part of the status-line picker.
+ *
+ * The lightweight badge is rendered at three widths, so the catalog holds one
+ * key per width instead of an inline array that had to be kept in sync with the
+ * English one by hand.
+ */
+const EN_SHELL_COPY = {
+  'lightweight.full': 'Lightweight',
+  'lightweight.short': 'Light',
+  'lightweight.tiny': 'Lite',
+} as const;
+
+const ZH_HANS_SHELL_COPY = {
+  'lightweight.full': '轻量模式',
+  'lightweight.short': '轻量',
+  'lightweight.tiny': '轻',
+} as const satisfies Readonly<Record<keyof typeof EN_SHELL_COPY, string>>;
+
+const SHELL_CATALOG = createCatalogSet(EN_SHELL_COPY, { 'zh-Hans': ZH_HANS_SHELL_COPY });
+
+function shellText(
+  locale: string,
+  key: keyof typeof EN_SHELL_COPY,
+): string {
+  return translate(SHELL_CATALOG, resolveLocaleName(locale), key);
+}
+
 function lightweightModeLabels(locale = resolveLocale()): string[] {
-  return isChineseLocale(locale)
-    ? ['轻量模式', '轻量', '轻']
-    : ['Lightweight', 'Light', 'Lite'];
+  return [
+    shellText(locale, 'lightweight.full'),
+    shellText(locale, 'lightweight.short'),
+    shellText(locale, 'lightweight.tiny'),
+  ];
 }
 
 function renderSessionTitle(state: TuiShellState, maxWidth?: number): string {

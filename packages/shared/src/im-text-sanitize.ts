@@ -1,3 +1,6 @@
+import { createCatalogSet, translate } from './i18n/catalog.js';
+import { resolveLocaleName } from './i18n/locale.js';
+
 /**
  * Shared IM-outbound text sanitizers for agent-emitted XML tags that have
  * no native IM representation.
@@ -41,6 +44,41 @@
  */
 
 /**
+ * Media placeholders shown to IM users in place of agent-emitted tags.
+ *
+ * These strings used to be Chinese-only, so an English-locale deployment showed
+ * Chinese placeholders. The catalog follows the runtime locale; the tag
+ * rewriting itself is unchanged.
+ */
+const EN_MEDIA_PLACEHOLDER_COPY = {
+  'media.tagged': '[Media: {label}]',
+  'media.plain': '[Media]',
+  'assets.count': '[{count} delivered assets]',
+  'assets.plain': '[Delivered assets]',
+} as const;
+
+const ZH_HANS_MEDIA_PLACEHOLDER_COPY = {
+  'media.tagged': '[媒体: {label}]',
+  'media.plain': '[媒体]',
+  'assets.count': '[{count} 个交付资产]',
+  'assets.plain': '[交付资产]',
+} as const satisfies Readonly<Record<keyof typeof EN_MEDIA_PLACEHOLDER_COPY, string>>;
+
+const MEDIA_PLACEHOLDER_CATALOG = createCatalogSet(EN_MEDIA_PLACEHOLDER_COPY, {
+  'zh-Hans': ZH_HANS_MEDIA_PLACEHOLDER_COPY,
+});
+
+type MediaPlaceholderKey = keyof typeof EN_MEDIA_PLACEHOLDER_COPY;
+
+function placeholderText(
+  locale: string | undefined,
+  key: MediaPlaceholderKey,
+  values?: Readonly<Record<string, string | number>>,
+): string {
+  return translate(MEDIA_PLACEHOLDER_CATALOG, resolveLocaleName(locale), key, values);
+}
+
+/**
  * Pull an attribute value out of a tag-open string.
  *
  * Handles double-quoted (`attr="value"`), single-quoted (`attr='value'`)
@@ -77,12 +115,12 @@ function srcToFilename(src: string | undefined): string | undefined {
  *   2. basename of `src` (query stripped)
  *   3. `[Media]` fallback
  */
-function mediaTagPlaceholder(tagOpen: string): string {
+function mediaTagPlaceholder(tagOpen: string, locale?: string): string {
   const caption = readAttr(tagOpen, 'caption')?.trim();
-  if (caption) return `[媒体: ${caption}]`;
+  if (caption) return placeholderText(locale, 'media.tagged', { label: caption });
   const filename = srcToFilename(readAttr(tagOpen, 'src'))?.trim();
-  if (filename) return `[媒体: ${filename}]`;
-  return '[媒体]';
+  if (filename) return placeholderText(locale, 'media.tagged', { label: filename });
+  return placeholderText(locale, 'media.plain');
 }
 
 /**
@@ -126,7 +164,7 @@ const DELIVER_ASSETS_RE = /<deliver-assets(?:\s+[^>]*)?>[\s\S]*?<\/deliver-asset
  * block. Stray `<media>` tags outside any wrapper get the per-tag
  * placeholder pass after that.
  */
-export function placeholderMediaTags(text: string): string {
+export function placeholderMediaTags(text: string, locale?: string): string {
   if (!text) return text;
   let out = text;
 
@@ -137,11 +175,13 @@ export function placeholderMediaTags(text: string): string {
       .replace(/^<deliver-assets(?:\s+[^>]*)?>/iu, '')
       .replace(/<\/deliver-assets>\s*$/iu, '');
     const n = countDeliverChildren(inner);
-    return n > 0 ? `[${n} 个交付资产]` : '[交付资产]';
+    return n > 0
+      ? placeholderText(locale, 'assets.count', { count: n })
+      : placeholderText(locale, 'assets.plain');
   });
 
   // 2. Standalone <media …/> tags → per-tag placeholder.
-  out = out.replace(MEDIA_TAG_RE, (match) => mediaTagPlaceholder(match));
+  out = out.replace(MEDIA_TAG_RE, (match) => mediaTagPlaceholder(match, locale));
 
   return out;
 }

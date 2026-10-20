@@ -20,6 +20,7 @@
  */
 import { parseMediaTags, placeholderMediaTags } from '@mavis/shared';
 import { ToolCallStatus, type ToolCall } from '@mavis/agent-core/protocol/agent-message';
+import { resolveLocalRuntimeLocale } from '../runtime/locale.js';
 
 const STRUCTURED_TAG_START_RE = /<(media|genui|deliver-assets)\b[^>]*(?:>|$)/giu;
 
@@ -95,9 +96,12 @@ export function formatToolResultFallback(toolCalls: Map<string, ToolCall>): stri
   return lines.join('\n\n').trim();
 }
 
-export function sanitizeChannelReplyText(text: string): string {
+export function sanitizeChannelReplyText(
+  text: string,
+  locale: string = resolveLocalRuntimeLocale(),
+): string {
   const parsed = parseMediaTags(text);
-  return stripRawStructuredTags(placeholderMediaTags(parsed.text)).trim();
+  return stripRawStructuredTags(placeholderMediaTags(parsed.text, locale)).trim();
 }
 
 function stripRawStructuredTags(text: string): string {

@@ -87,6 +87,7 @@ import {
 import type { LocalChannelImReceipt, LocalImRouteMetadata } from './channel-im-receipts.js';
 import { type ChannelAgentReadScopeResolver } from './agent-owner-compatibility.js';
 import { validateImBindingTargetSession } from './im-binding-target-validation.js';
+import { createCatalogSet, translate } from '@mavis/shared/i18n';
 
 export { LocalChannelRootlessError } from './rootless-route-resolver.js';
 export { LocalChannelLaneQueue } from './channel-lane-queue.js';
@@ -2242,16 +2243,47 @@ function mapAccessDenial(
 /**
  * Channel language convention (matches the archon-side `channelLanguage`
  * contract): Telegram replies in English, every other IM platform in Chinese.
- * Kept local to the infra so the `/compact` two-stage receipts don't pull in a
- * heavier i18n dependency for two strings.
+ * The copy itself lives in a catalog; only the selection rule stays here.
  */
 function channelPrefersZh(platform: ChannelPlatform): boolean {
   return platform !== 'telegram';
 }
 
+/**
+ * `/compact` receipts.
+ *
+ * The selection rule above is transport-based, so `zh` maps straight onto a
+ * catalog name instead of a BCP 47 tag.
+ */
+const EN_COMPACTION_RECEIPT_COPY = {
+  'compaction.started': '🔄 Compacting context…',
+  'compaction.ok': '✨ Context compacted.',
+  'compaction.nothing': '📭 Nothing to compact.',
+  'compaction.busy': '⏳ Session is busy, try again later (or /stop).',
+  'compaction.unsupported': '⚠️ This session does not support compaction.',
+} as const;
+
+const ZH_HANS_COMPACTION_RECEIPT_COPY = {
+  'compaction.started': '🔄 正在压缩上下文…',
+  'compaction.ok': '✨ 上下文已压缩',
+  'compaction.nothing': '📭 暂无可压缩的上下文',
+  'compaction.busy': '⏳ 会话正在处理中，请稍后再试（可先 /stop）',
+  'compaction.unsupported': '⚠️ 当前会话不支持压缩',
+} as const satisfies Readonly<Record<keyof typeof EN_COMPACTION_RECEIPT_COPY, string>>;
+
+const COMPACTION_RECEIPT_CATALOG = createCatalogSet(EN_COMPACTION_RECEIPT_COPY, {
+  'zh-Hans': ZH_HANS_COMPACTION_RECEIPT_COPY,
+});
+
+type CompactionReceiptKey = keyof typeof EN_COMPACTION_RECEIPT_COPY;
+
+function compactionReceiptText(zh: boolean, key: CompactionReceiptKey): string {
+  return translate(COMPACTION_RECEIPT_CATALOG, zh ? 'zh-Hans' : 'en', key);
+}
+
 /** Two-stage `/compact` "started" line — sent only when a compaction genuinely begins. */
 function compactionStartReply(zh: boolean): string {
-  return zh ? '🔄 正在压缩上下文…' : '🔄 Compacting context…';
+  return compactionReceiptText(zh, 'compaction.started');
 }
 
 /**
@@ -2263,16 +2295,14 @@ function compactionStartReply(zh: boolean): string {
 function compactionReply(code: string, zh: boolean): string {
   switch (code) {
     case 'OK':
-      return zh ? '✨ 上下文已压缩' : '✨ Context compacted.';
+      return compactionReceiptText(zh, 'compaction.ok');
     case 'NOTHING_TO_COMPACT':
-      return zh ? '📭 暂无可压缩的上下文' : '📭 Nothing to compact.';
+      return compactionReceiptText(zh, 'compaction.nothing');
     case 'SESSION_BUSY':
-      return zh
-        ? '⏳ 会话正在处理中，请稍后再试（可先 /stop）'
-        : '⏳ Session is busy, try again later (or /stop).';
+      return compactionReceiptText(zh, 'compaction.busy');
     case 'COMPACTION_UNSUPPORTED':
     default:
-      return zh ? '⚠️ 当前会话不支持压缩' : '⚠️ This session does not support compaction.';
+      return compactionReceiptText(zh, 'compaction.unsupported');
   }
 }
 

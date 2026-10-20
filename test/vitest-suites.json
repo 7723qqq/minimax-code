@@ -224,7 +224,10 @@
       "packages/local-runtime-v2/src/service/turn-system/execution/turn-execution.service.test.ts",
       "packages/local-runtime-v2/test/integration/session-stop-cascade.integration.test.ts",
       "packages/local-runtime/test/unit/local-background-task-user-stop-cascade.test.ts",
-      "packages/local-runtime/test/unit/local-task-append.test.ts"
+      "packages/local-runtime/test/unit/local-task-append.test.ts",
+      "packages/local-runtime/test/unit/channel-localized-copy.test.ts",
+      "packages/shared/test/unit/product-time.test.ts",
+      "packages/local-runtime-v2/test/unit/session-system/archived-root-title.test.ts"
     ],
     "status-contract": [
       "packages/tui/test/unit/tui-build-mode-contract.test.ts"

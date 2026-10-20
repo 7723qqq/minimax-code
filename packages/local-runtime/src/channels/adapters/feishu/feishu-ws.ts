@@ -12,6 +12,7 @@ import {
   type FeishuWsAttachmentDownloader,
 } from './feishu-inbound-attachments.js';
 import type { FeishuSender } from './feishu-sender.js';
+import { feishuText } from './feishu-copy.js';
 import { imLogger as logger } from '../../../common/im-logger.js';
 
 export type { FeishuWsAttachmentDownloader } from './feishu-inbound-attachments.js';
@@ -388,10 +389,10 @@ function ensureInboundText(text: string, refs: ChannelInboundAttachmentRef[] | u
   // Empty body + media-only message — feed the agent a stable placeholder so
   // it has *something* to react to. Mirrors historical `lark.ts` behaviour.
   const primary = refs[0]!;
-  if (primary.type === 'image') return '[图片]';
-  if (primary.type === 'audio') return '[语音]';
-  if (primary.type === 'video') return '[视频]';
-  return `[文件] ${primary.name ?? primary.key ?? ''}`.trim();
+  if (primary.type === 'image') return feishuText('attachment.image');
+  if (primary.type === 'audio') return feishuText('attachment.audio');
+  if (primary.type === 'video') return feishuText('attachment.video');
+  return feishuText('attachment.file', { name: primary.name ?? primary.key ?? '' }).trim();
 }
 
 /**

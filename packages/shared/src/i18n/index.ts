@@ -15,10 +15,25 @@
  * Those modules keep their public export names; only their internals changed, so
  * TUI rendering and permission prompts are unaffected by the migration.
  *
- * Deliberately not translated here: bundled runtime prompts, skill assets,
- * IM channel card templates and other product strings whose language is a
- * product decision rather than a host-locale decision. Those keep their own
- * source language, as required by AGENTS.md and CONTRIBUTING.md.
+ * Product copy lives in per-feature catalogs built with `createCatalogSet` and
+ * read through `translate`: the runtime, composer, session-mutation, status-line,
+ * permission-reason, product-time, shell, archive-title, IM receipt, Feishu,
+ * WeChat, Telegram and code-review strings. A module may keep its catalog local
+ * when the copy belongs to that surface; the contract is the catalog, not the
+ * file location.
+ *
+ * Deliberately outside the catalog, and required to keep their own language:
+ *
+ *   - bundled runtime prompts and skill assets, including the archive-title
+ *     system prompt and its `<excerpt>` wrapper;
+ *   - model-facing instruction text, such as the review correction and XML
+ *     escaping guidance and the system-reminder evolution blocks;
+ *   - vendored `third_party/**` code;
+ *   - CJK ranges inside regular expressions, which are data, not copy;
+ *   - test fixtures and assertions.
+ *
+ * WeChat is a special case: it exposes no client-language signal, so its copy
+ * still defaults to zh-Hans even though it is catalogued.
  */
 
 export {

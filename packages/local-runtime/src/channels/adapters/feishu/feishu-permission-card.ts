@@ -3,6 +3,7 @@ import type {
   ChannelRenderablePermission,
 } from '../../permission-bridge.js';
 import { DEFAULT_BOT_NAME, makeHeader } from './feishu-card-header.js';
+import { feishuText } from './feishu-copy.js';
 
 /**
  * Feishu / Lark **permission card** encoder + card-action decoder.
@@ -66,13 +67,13 @@ function clampLine(s: string, max = 300): string {
 export function permissionResolvedLabel(behavior: ChannelPermissionBehavior): string {
   switch (behavior) {
     case 'allow':
-      return '已允许(本次)';
+      return feishuText('permission.allowedOnce');
     case 'always':
-      return '已始终允许';
+      return feishuText('permission.allowedAlways');
     case 'deny':
-      return '已拒绝';
+      return feishuText('permission.denied');
     default:
-      return '已处理';
+      return feishuText('permission.handled');
   }
 }
 
@@ -93,8 +94,8 @@ export function buildPermissionCard(
   botName: string = DEFAULT_BOT_NAME,
 ): Record<string, unknown> {
   const lines: string[] = [
-    `**🔐 工具授权请求**`,
-    `**工具**: \`${escapeMarkdownCode(renderable.toolName)}\``,
+    feishuText('permission.title'),
+    feishuText('permission.tool', { tool: escapeMarkdownCode(renderable.toolName) }),
   ];
   if (renderable.toolDescription?.trim()) {
     lines.push(
@@ -102,13 +103,13 @@ export function buildPermissionCard(
     );
   }
   if (renderable.reason.trim()) {
-    lines.push(`**原因**: ${escapeMarkdownCode(clampLine(renderable.reason))}`);
+    lines.push(feishuText('permission.reason', { reason: escapeMarkdownCode(clampLine(renderable.reason)) }));
   }
   const rules = (renderable.ruleContents ?? [])
     .map((r) => clampLine(r))
     .filter((r) => r.length > 0);
   if (rules.length > 0) {
-    lines.push(`**将授予**:`);
+    lines.push(feishuText('permission.grant'));
     for (const rule of rules) lines.push(`- \`${escapeMarkdownCode(rule)}\``);
   }
 
@@ -142,7 +143,7 @@ export function buildPermissionCard(
       title: botName,
       subtitle: 'permission',
       template: 'orange',
-      tagText: '授权',
+      tagText: feishuText('permission.tag'),
       tagColor: 'orange',
       // `icon: 'lock_outlined'` removed: the orange template + "Permission" tag
       // already anchor the header visually; the lock_outlined standard_icon
@@ -166,17 +167,17 @@ export function buildPermissionCard(
             {
               tag: 'column',
               width: 'auto',
-              elements: [button('仅本次允许', 'allow', 'primary')],
+              elements: [button(feishuText('permission.allowOnce'), 'allow', 'primary')],
             },
             {
               tag: 'column',
               width: 'auto',
-              elements: [button('始终允许', 'always', 'default')],
+              elements: [button(feishuText('permission.always'), 'always', 'default')],
             },
             {
               tag: 'column',
               width: 'auto',
-              elements: [button('拒绝', 'deny', 'danger')],
+              elements: [button(feishuText('permission.deny'), 'deny', 'danger')],
             },
           ],
         },
@@ -203,7 +204,7 @@ export function buildPermissionResolvedCard(
     `${statusIcon} **${permissionResolvedLabel(behavior)}** · \`${escapeMarkdownCode(renderable.toolName)}\``,
   ];
   if (resolvedByOpenId && resolvedByOpenId.trim()) {
-    lines.push(`<font color='grey'>操作人 <at id=${resolvedByOpenId.trim()}></at></font>`);
+    lines.push(feishuText('permission.actor', { id: resolvedByOpenId.trim() }));
   }
   return {
     schema: '2.0',
@@ -214,7 +215,7 @@ export function buildPermissionResolvedCard(
       title: botName,
       subtitle: 'permission',
       template: allowed ? 'green' : 'red',
-      tagText: allowed ? '已授权' : '已拒绝',
+      tagText: feishuText(allowed ? 'permission.tagAuthorized' : 'permission.tagDenied'),
       tagColor: allowed ? 'green' : 'red',
     }),
     body: {
