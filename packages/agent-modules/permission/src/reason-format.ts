@@ -12,7 +12,7 @@
  * a TypeScript error.
  */
 
-import { createCatalogSet, translate } from '@mavis/shared/i18n';
+import { createCatalogSet, isChineseLocale, translate } from '@mavis/shared/i18n';
 
 import type { UserLocaleHint } from './locale-detect.js';
 import type {
@@ -27,7 +27,7 @@ import type {
 export type Lang = 'en' | 'zh';
 
 export function localeOrDefault(locale: UserLocaleHint): Lang {
-  return locale === 'zh' ? 'zh' : 'en';
+  return isChineseLocale(locale) ? 'zh' : 'en';
 }
 
 const EN_REASON_COPY = {
@@ -139,7 +139,7 @@ function text(lang: Lang, key: ReasonKey, values?: Readonly<Record<string, strin
 }
 
 function catalogName(lang: Lang): string {
-  return lang === 'zh' ? 'zh-Hans' : 'en';
+  return isChineseLocale(lang) ? 'zh-Hans' : 'en';
 }
 
 function actionLabel(lang: Lang, behavior: PermissionBehavior): string {
