@@ -1,3 +1,5 @@
+import { reviewLifecycleState } from '@mavis/shared/turn-message-class';
+
 import type { TuiMessage } from '../runtime/stream-events.js';
 import {
   createPassingReviewResult,
@@ -17,10 +19,11 @@ export interface TuiReviewMessageProjection {
 export function projectTuiReviewMessage(
   message: TuiMessage,
 ): TuiReviewMessageProjection | undefined {
-  if (message.kind === 'review_start') {
+  const state = reviewLifecycleState(message.kind);
+  if (state === 'running') {
     return { status: 'running', title: 'Reviewing local changes…', content: '' };
   }
-  if (message.kind === 'review_aborted' || message.kind === 'review_interrupted') {
+  if (state === 'cancelled') {
     return {
       status: 'cancelled',
       title: 'Code review interrupted',
@@ -28,7 +31,7 @@ export function projectTuiReviewMessage(
     };
   }
   const outcome = reviewOutcomeFromOrigin(message.origin);
-  if (message.kind === 'review_failed' && !outcome) {
+  if (state === 'failed' && !outcome) {
     return {
       status: 'failed',
       title: 'Code review failed',
@@ -43,7 +46,7 @@ export function projectTuiReviewMessage(
     };
   }
   const parsed = parseTuiReviewResult(message.content ?? '');
-  if (outcome === 'needs_changes' || message.kind === 'review_result') {
+  if (outcome === 'needs_changes' || state === 'completed') {
     if (!parsed) {
       return {
         status: 'failed',

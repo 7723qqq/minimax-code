@@ -1,3 +1,5 @@
+import { isTurnResponseMessage } from '@mavis/shared/turn-message-class';
+
 import type { TuiStreamEvent } from '../../../runtime/stream-events.js';
 
 interface OutputSample {
@@ -20,9 +22,10 @@ export class TuiTurnOutputRate {
     if (
       turnId !== this.turnId ||
       event.type !== 'message' ||
-      event.message.role !== 'assistant' ||
-      !event.message.id ||
-      event.message.kind
+      // Only a real model response contributes a decode sample. A lifecycle
+      // frame has no provider decode window and would drag the rate to zero.
+      !isTurnResponseMessage(event.message) ||
+      !event.message.id
     )
       return this.value;
     const outputTokens = event.message.usage?.outputTokens;

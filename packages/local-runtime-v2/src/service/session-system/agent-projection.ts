@@ -10,6 +10,7 @@ import {
 } from '@mavis/agent-core/protocol';
 import { RespDataType, Role, type AgentMessage } from '@mavis/agent-core/protocol/agent-message';
 import type { CompactionTokenUsage } from '@mavis/shared/global-events';
+import type { CompactionLifecycleKind } from '@mavis/shared/turn-message-class';
 
 import type { MessageRepository } from './messages/repo/contract.js';
 import type { QueryCollapseProjector } from './query-collapse-projector.js';
@@ -985,7 +986,7 @@ function finishReason(message: AgentMessage): string | undefined {
 async function writeCompactionFact(
   options: SessionSystemAgentProjectionOptions,
   input: SessionCompactionDisplayInput,
-  kind: 'compaction_start' | 'compaction' | 'compaction_failed',
+  kind: CompactionLifecycleKind,
 ): Promise<void> {
   const contextUsage = readCommittedContextUsage(input, kind);
   const message = {
@@ -1022,7 +1023,7 @@ async function writeCompactionFact(
 
 function readCommittedContextUsage(
   input: SessionCompactionDisplayInput,
-  kind: 'compaction_start' | 'compaction' | 'compaction_failed',
+  kind: CompactionLifecycleKind,
 ): SessionPostCompactionContextUsage | undefined {
   return kind === 'compaction' && isRecord(input.metadata)
     ? readContextUsage(input.metadata.contextUsage)
