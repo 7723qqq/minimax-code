@@ -33,6 +33,7 @@ environment.LC_MESSAGES = "C";
 if (process.platform === "win32") {
   environment.TEMP = environment.TMP = realpathSync.native(tmpdir());
 }
+const inActions = process.env.GITHUB_ACTIONS === "true";
 const result = spawnSync(
   process.execPath,
   [
@@ -46,12 +47,29 @@ const result = spawnSync(
     ...(process.platform === "win32" ? ["--maxWorkers", "1"] : []),
     // GitHub parses this reporter's `::error file=` lines into annotations, so a
     // red matrix names the failing tests instead of reporting only an exit code.
-    ...(process.env.GITHUB_ACTIONS === "true"
-      ? ["--reporter=default", "--reporter=github-actions"]
-      : []),
+    ...(inActions ? ["--reporter=default", "--reporter=github-actions"] : []),
     ...files,
   ],
-  { stdio: "inherit", cwd: repositoryRoot, env: environment },
+  {
+    // Actions logs are not readable from every environment, so a failing suite
+    // is captured and its tail re-emitted as an annotation. Local runs keep
+    // streaming output unchanged.
+    stdio: inActions ? ["inherit", "pipe", "pipe"] : "inherit",
+    cwd: repositoryRoot,
+    env: environment,
+    ...(inActions ? { maxBuffer: 64 * 1024 * 1024 } : {}),
+  },
 );
+if (inActions) {
+  const stdout = result.stdout?.toString() ?? "";
+  const stderr = result.stderr?.toString() ?? "";
+  if (stdout) process.stdout.write(stdout);
+  if (stderr) process.stderr.write(stderr);
+  if ((result.status ?? 1) !== 0) {
+    const tail = (stderr || stdout).slice(-3000);
+    const escaped = tail.replace(/%/gu, "%25").replace(/\r/gu, "").replace(/\n/gu, "%0A");
+    console.error(`::error title=Vitest suite ${name} failed::${escaped}`);
+  }
+}
 if (result.error) throw result.error;
 process.exitCode = result.status ?? 1;
