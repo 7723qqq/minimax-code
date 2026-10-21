@@ -7,6 +7,21 @@ This changelog covers important changes that directly affect MCode TUI users. It
 
 Internal refactors, test-only changes, and changes limited to other product surfaces are excluded.
 
+## Unreleased
+
+### Added
+
+- `/settings` gains an interface-language row. The choice is saved as `locale` in
+  `tui-settings.json`, beside `tuiMode` and `theme`, and applies to the whole process: status line,
+  permission prompts, session titles and times, and the localized channel replies. It outranks
+  `MAVIS_ELECTRON_LOCALE` and `MCODE_LOCALE`, because it is a choice made in the interface; removing
+  the key or writing a malformed tag falls back to the environment chain as before, and a
+  well-formed tag without a catalog (for example `fr-FR`) renders English.
+- Interface copy now comes from one catalog pipeline across the status line, permission prompts,
+  transcript and composer, session list, help, review cards and channel replies, so the language
+  chosen in `/settings` applies to every screen instead of only the surfaces that had been
+  translated one by one.
+
 ## 0.6.5 · 2026-10-09
 
 ### Fixed

@@ -38,7 +38,7 @@ const ZH_HANS_STATUS_LINE_COPY = {
   filtered: '清空搜索后才能排序',
   custom: '使用已配置的命令，保存后才启动；预览不会执行命令。',
   close: 'Enter / Esc 关闭',
-} as const;
+} as const satisfies Readonly<Record<keyof typeof EN_STATUS_LINE_COPY, string>>;
 
 const EN_ITEM_DESCRIPTIONS = {
   'current-dir': 'Current working directory',
@@ -74,7 +74,7 @@ const ZH_HANS_ITEM_DESCRIPTIONS = {
   'context-remaining': '剩余上下文窗口',
   'context-meter': '剩余上下文刻度条',
   'custom-command': '已配置的自定义命令输出',
-} as const;
+} as const satisfies Readonly<Record<keyof typeof EN_ITEM_DESCRIPTIONS, string>>;
 
 const STATUS_LINE_CATALOG = createCatalogSet(EN_STATUS_LINE_COPY, {
   'zh-Hans': ZH_HANS_STATUS_LINE_COPY,
@@ -99,6 +99,13 @@ export function statusLineText(key: keyof typeof EN_STATUS_LINE_COPY, locale?: s
   return statusLineTextFor(key, locale);
 }
 
+/**
+ * Describe one status-line item in the user's language.
+ *
+ * `item` is the configured item id; the description catalog is typed against
+ * the item union, so a newly added item without a description is a compile
+ * error rather than a missing sentence in the picker.
+ */
 export function statusLineItemDescription(
   item: Exclude<TuiStatusLineItem, 'build-mode'>,
   locale?: string,
