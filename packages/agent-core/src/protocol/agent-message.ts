@@ -19,6 +19,8 @@
  * before reporting upstream).
  */
 
+import type { TurnLifecycleKind } from '@mavis/shared/turn-message-class';
+
 /**
  * Logical type tag for `RespData` envelope frames. Daemon SSE wraps each
  * frame in `{ type, agent_message?, agent_message_chunk? }` and the type
@@ -93,16 +95,11 @@ export interface ToolCall {
  * All three frames share one `msg_id` (compactionId). Persistence upserts by msg_id, replacing the
  * previous frame in place, so the session ultimately contains one compaction message whose kind is
  * the latest state.
+ *
+ * The literal union is owned by `@mavis/shared/turn-message-class` so the wire type, the TUI
+ * projection and every consumer classify frames from one definition.
  */
-export type MessageKind =
-  | 'compaction_start'
-  | 'compaction'
-  | 'compaction_failed'
-  | 'review_start'
-  | 'review_result'
-  | 'review_failed'
-  | 'review_aborted'
-  | 'review_interrupted';
+export type MessageKind = TurnLifecycleKind;
 
 /** Speaker role on a message. */
 export const Role = {

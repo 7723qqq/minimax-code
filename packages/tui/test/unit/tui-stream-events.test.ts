@@ -267,6 +267,25 @@ describe("Minimax Code stream event projection", () => {
     });
   });
 
+  it("keeps a lifecycle frame from being projected as a failed response", () => {
+    // A lifecycle frame has no finish reason, but the wire projection must not
+    // turn one into a stream error even if a producer attaches a generic one.
+    const projected = projectTuiSessionStreamFrame({
+      cursor: "cursor-compaction",
+      dataJson: JSON.stringify({
+        type: 2,
+        agent_message: {
+          msg_id: "compaction-attempt-2",
+          turn_id: "turn-compact",
+          role: "assistant",
+          kind: "compaction_start",
+        },
+      }),
+    });
+    expect(projected).toMatchObject({ type: "message" });
+    expect(projected).not.toMatchObject({ type: "error" });
+  });
+
   it("preserves provider-reported output token usage for live throughput", () => {
     expect(
       normalizeTuiMessage({

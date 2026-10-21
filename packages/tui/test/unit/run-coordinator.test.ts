@@ -472,6 +472,70 @@ describe('TuiRunCoordinator', () => {
     );
   });
 
+  it('does not spend the response budget on a runtime lifecycle frame', async () => {
+    // Regression: the automatic compaction checkpoint is persisted as a
+    // `role: 'assistant'` frame, so `--max-steps 1` used to be consumed before
+    // the real response existed and the run failed with `limit_exceeded`.
+    const runtime = createRuntime(async function* () {
+      yield {
+        type: 'message',
+        message: { id: 'compaction-1', role: 'assistant', kind: 'compaction_start' },
+      } as const;
+      yield {
+        type: 'message',
+        message: {
+          id: 'compaction-1',
+          role: 'assistant',
+          kind: 'compaction',
+          content: '## Goal\ninternal checkpoint text',
+          tokensBefore: 9_000,
+          tokensAfter: 400,
+        },
+      } as const;
+      yield {
+        type: 'message',
+        message: { id: 'response-1', role: 'assistant', content: 'The real answer.' },
+      } as const;
+    });
+
+    const result = await new TuiRunCoordinator(runtime).execute({
+      ...request('turn-compaction-budget'),
+      policy: { maxSteps: 1, requireAnswer: true },
+    });
+
+    expect(result.status).toBe('succeeded');
+    expect(result.outcome.answer).toBe('The real answer.');
+    expect(runtime.abortSession).not.toHaveBeenCalled();
+  });
+
+  it('keeps a lifecycle frame from replacing the answer already produced', async () => {
+    const runtime = createRuntime(async function* () {
+      yield {
+        type: 'message',
+        message: { id: 'response-1', role: 'assistant', content: 'The real answer.' },
+      } as const;
+      yield {
+        type: 'message',
+        message: {
+          id: 'compaction-1',
+          role: 'assistant',
+          kind: 'compaction',
+          content: '## Goal\ninternal checkpoint text',
+        },
+      } as const;
+    });
+
+    await expect(
+      new TuiRunCoordinator(runtime).execute({
+        ...request('turn-compaction-answer'),
+        policy: { requireAnswer: true },
+      }),
+    ).resolves.toMatchObject({
+      status: 'succeeded',
+      outcome: { answer: 'The real answer.' },
+    });
+  });
+
   it('fails automation when a tool call has no final assistant response', async () => {
     const runtime = createRuntime(async function* () {
       yield { type: 'delta', role: 'assistant', content: 'I will inspect it.' } as const;

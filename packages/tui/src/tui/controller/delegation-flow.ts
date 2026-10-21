@@ -1,3 +1,5 @@
+import { isTurnResponseMessage } from '@mavis/shared/turn-message-class';
+
 import type {
   TuiActiveRunSnapshot,
   TuiDelegationPort,
@@ -838,14 +840,25 @@ function isSessionLifecycleEvent(
 function latestSuccessfulTurnId(messages: readonly TuiMessage[]): string | undefined {
   const latestTurnId = [...messages].reverse().find((message) => message.turnId)?.turnId;
   if (!latestTurnId) return undefined;
-  return messages.some(
-    (message) =>
-      message.turnId === latestTurnId &&
-      message.role === 'assistant' &&
-      message.finishReason?.toLocaleLowerCase() === 'stop',
-  )
+  return messages.some((message) => {
+    if (message.turnId !== latestTurnId) return false;
+    // Lifecycle frames never carry a finish reason, but they do share the
+    // assistant role; require an actual response before declaring the turn done.
+    if (!isTurnResponseMessage(message)) return false;
+    return message.kind === 'final' || isFinalFinishReason(message.finishReason);
+  })
     ? latestTurnId
     : undefined;
+}
+
+const FINAL_FINISH_REASONS: ReadonlySet<string> = new Set([
+  'stop',
+  'end_turn',
+  'stop_sequence',
+]);
+
+function isFinalFinishReason(value: string | undefined): boolean {
+  return value !== undefined && FINAL_FINISH_REASONS.has(value.toLocaleLowerCase());
 }
 
 function sameBackgroundTasks(

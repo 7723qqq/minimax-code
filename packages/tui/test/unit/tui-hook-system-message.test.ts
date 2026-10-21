@@ -176,4 +176,49 @@ describe('Hook-only TUI messages', () => {
       }),
     ).not.toContain(marker);
   });
+
+  it('keeps compaction checkpoint text out of the exported transcript', () => {
+    const checkpoint = '## Goal\nHOOK_DISPLAY_ONLY_SENTINEL internal checkpoint';
+    const messages = [
+      { id: 'user-1', role: 'user' as const, content: 'Please continue.', turnId: 'turn-1' },
+      {
+        id: 'compaction-1',
+        role: 'assistant' as const,
+        kind: 'compaction' as const,
+        content: checkpoint,
+        turnId: 'turn-1',
+      },
+      { id: 'answer-1', role: 'assistant' as const, content: 'OK', turnId: 'turn-1' },
+    ];
+    const markdown = formatTuiSessionMarkdown(messages, {
+      sessionId: 'session-1',
+      exportedAtMs: 1,
+    });
+
+    expect(markdown).toContain('### Assistant');
+    expect(markdown).toContain('OK');
+    // The lifecycle frame is reported as activity, never as assistant content.
+    expect(markdown).toContain('- Context compacted');
+    expect(markdown).not.toContain('internal checkpoint');
+    expect(markdown).not.toContain('## Goal');
+  });
+
+  it('never renders compaction checkpoint text as the live assistant reply', () => {
+    const { transcript, projection } = harness();
+    projection.beginTurn('turn-1', 1);
+    projection.applyStreamEvent('turn-1', {
+      type: 'message',
+      message: {
+        id: 'compaction-1',
+        turnId: 'turn-1',
+        role: 'assistant',
+        kind: 'compaction',
+        content: '## Goal\ninternal checkpoint body',
+        timestamp: 2,
+      },
+    });
+
+    expect(transcript.snapshot().some((cell) => cell.kind === 'assistant')).toBe(false);
+    expect(formatTuiTranscriptMarkdown(transcript)).not.toContain('internal checkpoint');
+  });
 });

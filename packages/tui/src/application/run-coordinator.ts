@@ -1,4 +1,5 @@
 import type { CliSendMessageReq } from '@mavis/local-runtime-v2/cli-service';
+import { isTurnLifecycleMessage, isTurnResponseMessage } from '@mavis/shared/turn-message-class';
 
 import type { TuiTransportAttachment } from '../types/invocation.js';
 import { TuiFailure } from '../failure.js';
@@ -238,8 +239,7 @@ export class TuiRunCoordinator {
             await observeBestEffort(observe, event);
             break;
           }
-          if (isCompletedAssistantMessage(event)) {
-            usageIncomplete ||= isTurnCompactionMessage(event.message, request.turnId);
+          if (isTurnResponseEvent(event)) {
             const responseUsage = responseUsageFromMessage(event.message, request.turnId);
             if (responseUsage) upsertResponseUsage(usageResponses, responseUsage);
             if (
@@ -279,6 +279,10 @@ export class TuiRunCoordinator {
           } else if (isAssistantTextDelta(event)) {
             assistantDraft += event.content;
           }
+          // A lifecycle frame is not a response step, but its auxiliary LLM call
+          // still spends tokens this turn never reports per response.
+          if (isCompletedAssistantMessage(event) && isTurnLifecycleMessage(event.message))
+            usageIncomplete ||= isTurnCompactionMessage(event.message, request.turnId);
           const eventFailure = failureFromEvent(event);
           if (eventFailure) {
             status = eventFailure.status;
@@ -464,10 +468,22 @@ function toSendMessageRequest(
   };
 }
 
+/** Any settled `message` event, including runtime lifecycle frames. */
 function isCompletedAssistantMessage(
   event: TuiStreamEvent,
 ): event is Extract<TuiStreamEvent, { type: 'message' }> {
   return event.type === 'message' && event.message.role === 'assistant';
+}
+
+/**
+ * The single admission test for a response step. It composes the event shape
+ * check with the shared classifier so a lifecycle frame can never be counted as
+ * a model response, spent against `--max-steps`, or selected as the answer.
+ */
+function isTurnResponseEvent(
+  event: TuiStreamEvent,
+): event is Extract<TuiStreamEvent, { type: 'message' }> {
+  return isCompletedAssistantMessage(event) && isTurnResponseMessage(event.message);
 }
 
 function isAssistantTextDelta(

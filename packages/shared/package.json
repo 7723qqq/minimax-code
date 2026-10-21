@@ -60,6 +60,10 @@
       "types": "./src/turn-identity.ts",
       "import": "./dist/turn-identity.js"
     },
+    "./turn-message-class": {
+      "types": "./src/turn-message-class.ts",
+      "import": "./dist/turn-message-class.js"
+    },
     "./global-events": {
       "types": "./src/global-events.ts",
       "import": "./dist/global-events.js"
@@ -243,6 +247,9 @@
       ],
       "turn-identity": [
         "src/turn-identity.ts"
+      ],
+      "turn-message-class": [
+        "src/turn-message-class.ts"
       ],
       "global-events": [
         "src/global-events.ts"

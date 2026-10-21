@@ -1,3 +1,10 @@
+import {
+  compactionLifecycleState,
+  isTurnLifecycleMessage,
+  isTurnResponseMessage,
+  isTurnTranscriptResponseMessage,
+} from '@mavis/shared/turn-message-class';
+
 import { simplifyAssistantContentForTerminal } from '../../application/assistant-content.js';
 import { sanitizeTerminalText } from '../rendering/terminal-text.js';
 import type { TranscriptCell } from './model.js';
@@ -71,7 +78,12 @@ export function formatTuiSessionMarkdown(
   messages: readonly TuiMessage[],
   metadata: TuiSessionMarkdownExportMetadata,
 ): string {
-  const visibleMessages = messages.filter(isUserFacingSessionMessage);
+  // Activity-only frames (compaction, review) contribute no content but do
+  // contribute their one-line status, so grouping runs over every message and
+  // the per-message branch decides what text may appear.
+  const visibleMessages = messages.filter(
+    (message) => isUserFacingSessionMessage(message) || isActivityOnlyMessage(message),
+  );
   const turns = groupSessionMessages(visibleMessages);
   const title = cleanMarkdownText(
     redactTuiCredentials(metadata.title?.trim() || transcriptText('export.title.session')),
@@ -104,7 +116,7 @@ export function formatTuiSessionMarkdown(
         if (content) lines.push(content, '');
         continue;
       }
-      if (message.role === 'assistant') {
+      if (isTurnTranscriptResponseMessage(message)) {
         if (content) lines.push(transcriptText('export.subheading.assistant'), '', content, '');
       }
 
@@ -173,8 +185,18 @@ export function redactTuiCredentials(value: string): string {
   return redactTuiSensitiveText(value);
 }
 
+/**
+ * Session export keeps user turns and model responses. Lifecycle frames are
+ * rendered separately as Activity lines, so they must not also appear as an
+ * `### Assistant` section carrying their internal placeholder text.
+ */
 function isUserFacingSessionMessage(message: TuiMessage): boolean {
-  return message.role === 'user' || message.role === 'assistant';
+  return message.role === 'user' || isTurnTranscriptResponseMessage(message);
+}
+
+/** Lifecycle frames that must still surface their one-line Activity status. */
+function isActivityOnlyMessage(message: TuiMessage): boolean {
+  return message.role === 'assistant' && isTurnLifecycleMessage(message);
 }
 
 function groupSessionMessages(messages: readonly TuiMessage[]): TuiMessage[][] {
@@ -212,7 +234,9 @@ function exportSessionMessageContent(message: TuiMessage): string {
     .filter((content) => content.trim());
   const content = parts?.length ? parts.join('\n\n') : (message.content ?? '');
   const visible =
-    message.role === 'assistant' ? simplifyAssistantContentForTerminal(content) : content;
+    message.role === 'assistant' && isTurnResponseMessage(message)
+      ? simplifyAssistantContentForTerminal(content)
+      : content;
   const attachmentLines = (message.attachments ?? []).map((attachment) => {
     const kind =
       attachment.type === 'image'
@@ -254,6 +278,11 @@ function formatSessionActivity(message: TuiMessage): string[] {
   if (message.finishReason === 'error') {
     activity.push(transcriptText('export.activity.responseFailed'));
   }
+  const compaction = compactionLifecycleState(message.kind);
+  if (compaction === 'running') activity.push(transcriptText('export.activity.compactionStarted'));
+  if (compaction === 'completed') activity.push(transcriptText('export.activity.compacted'));
+  if (compaction === 'failed') activity.push(transcriptText('export.activity.compactionFailed'));
+  if (message.finishReason === 'error') activity.push(transcriptText('export.activity.responseFailed'));
   if (message.finishReason === 'aborted' || message.finishReason === 'cancelled') {
     activity.push(transcriptText('export.activity.responseCancelled'));
   }
