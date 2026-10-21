@@ -67,7 +67,7 @@ async function readTuiAccount(
 export async function requireTuiAgentAccess(
   runtime: TuiLoginStatusPort,
   sessionId?: string,
-  message = MINIMAX_CODE_HEADLESS_LOGIN_REQUIRED_MESSAGE,
+  message = applicationText('application.login.requiredHeadless'),
   onAccount?: (account: TuiAccountStatus) => void,
   options?: TuiAccountStatusOptions,
 ): Promise<TuiAccountStatus> {
@@ -81,7 +81,7 @@ export async function requireTuiAgentAccess(
 export async function requireTuiAccountLogin(
   runtime: TuiLoginStatusPort,
   sessionId?: string,
-  message = MINIMAX_CODE_HEADLESS_LOGIN_REQUIRED_MESSAGE,
+  message = applicationText('application.login.requiredHeadless'),
   onAccount?: (account: TuiAccountStatus) => void,
 ): Promise<TuiAccountStatus> {
   const account = await readTuiAccount(runtime, sessionId, onAccount, { requireManagedAuth: true });
