@@ -1071,12 +1071,16 @@ test('suite runner pins its locale, preserves gate arguments and canonicalizes W
         TEMP: alias,
         TMP: alias,
         TMPDIR: alias,
+        GITHUB_ACTIONS: 'true',
       },
     });
     assert.equal(result.status, 17, result.stderr);
     const child = JSON.parse(result.stdout);
     assert.deepEqual(child.args, ['run', '--config', 'vitest.oss.config.mjs',
-      ...(platform === 'win32' ? ['--maxWorkers', '1'] : []), 'test/example.test.ts']);
+      ...(platform === 'win32' ? ['--maxWorkers', '1'] : []),
+      // In Actions the failing tests are annotated; this check pins that the
+      // reporters are added there and nowhere else.
+      '--reporter=default', '--reporter=github-actions', 'test/example.test.ts']);
     assert.equal(realpathSync(child.cwd), realpathSync(root));
     const expected = platform === 'win32' ? realpathSync.native(alias) : alias;
     assert.equal(child.temp, expected);
@@ -1094,6 +1098,22 @@ test('suite runner pins its locale, preserves gate arguments and canonicalizes W
       { lang: 'C', language: 'C', lcAll: 'C', lcMessages: 'C', mcodeLocale: 'en' },
     );
   }
+  // Outside Actions there is no annotation channel, so the plain reporter stays.
+  const plainEnvironment = { ...process.env, TEMP: alias, TMP: alias, TMPDIR: alias };
+  delete plainEnvironment.GITHUB_ACTIONS;
+  const plain = spawnSync(
+    process.execPath,
+    [path.join(root, 'scripts/run-vitest-suite.mjs'), 'fixture'],
+    { encoding: 'utf8', env: plainEnvironment },
+  );
+  assert.equal(plain.status, 17, plain.stderr);
+  assert.deepEqual(JSON.parse(plain.stdout).args, [
+    'run',
+    '--config',
+    'vitest.oss.config.mjs',
+    ...(process.platform === 'win32' ? ['--maxWorkers', '1'] : []),
+    'test/example.test.ts',
+  ]);
 });
 
 test('public support forms preserve destination URLs and separate Desktop from CLI reports', () => {
