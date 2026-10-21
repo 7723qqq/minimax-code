@@ -105,7 +105,12 @@ if (fromDist) {
   await extractTar({ file: archive, cwd: sourceRoot, strip: 1 });
 }
 
-const version = JSON.parse(readFileSync(path.join(sourceRoot, "package.json"), "utf8")).version;
+// The npm archive keeps the runtime files at the package root (`cli.js`,
+// `chunks/`, `assets/`), matching an installed package; `dist/` is the same
+// layout under the source build. Both are staged under the synthetic `dist/`
+// directory the bundle expects.
+const payloadRoot = fromDist ? path.join(repo, "dist") : sourceRoot;
+const version = JSON.parse(readFileSync(path.join(payloadRoot, "package.json"), "utf8")).version;
 const SYNTHETIC_ROOT = "C:\\__mcode_sea__";
 const SYNTHETIC_URL = "file:///C:/__mcode_sea__/dist/cli.js";
 const SENTINEL_FUSE = "NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2";
@@ -121,7 +126,7 @@ mkdirSync(outDir, { recursive: true });
 
 // 1. Rewrite the ESM output so it compiles as CommonJS.
 const stageDist = path.join(workDir, "stage", "dist");
-cpSync(path.join(sourceRoot, "dist"), stageDist, { recursive: true });
+cpSync(payloadRoot, stageDist, { recursive: true });
 
 function listFiles(directory, predicate = () => true) {
   const found = [];
