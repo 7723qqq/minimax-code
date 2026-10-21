@@ -243,6 +243,12 @@ try {
 }
 if (failed) {
   console.error(`\nVerification failed at: ${failed}`);
+  // The workflow step only reports an exit code, and the job log is not
+  // readable from every environment, so name the gate as an annotation. This is
+  // metadata about the gate, not the gate's own output.
+  if (process.env.GITHUB_ACTIONS === "true") {
+    console.error(`::error title=Verification gate ${failed} failed::${failed}`);
+  }
   process.exitCode = 1;
 } else {
   const skipped = steps
