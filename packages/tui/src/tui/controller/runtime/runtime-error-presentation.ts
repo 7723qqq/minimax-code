@@ -3,6 +3,7 @@ import {
   LLM_ERROR_CODES,
 } from '@mavis/shared/llm-error-classifier';
 import { tuiErrorDiagnostic } from '../../../user-facing-failure.js';
+import { controllerText } from '../copy.js';
 
 const AUTH_ERROR_CODES = new Set<number>([401, LLM_ERROR_CODES.LLM_AUTH_ERROR]);
 const RATE_LIMIT_ERROR_CODES = new Set<number>([
@@ -57,13 +58,16 @@ export function resolveTuiRuntimeFailure(
   const detail = runtimeFailureDetail(message, metadata.errorDetail);
   const provider = runtimeFailureProvider(metadata);
   const diagnostics = `${detail}${provider}`;
-  const code = errorCode === undefined ? '' : `\nCode: ${String(errorCode)}`;
+  const code =
+    errorCode === undefined
+      ? ''
+      : controllerText('runtime.error.codeDetail', { code: String(errorCode) });
   const retryable =
     (errorCode !== undefined && FORCE_RETRY_ERROR_CODES.has(errorCode)) ||
     metadata.retryable !== false;
   if (errorCode === 403) {
     return {
-      content: `Access denied.${diagnostics}${code}\nCheck account and model permissions before sending again. Your prompt is preserved.`,
+      content: controllerText('runtime.error.accessDenied', { diagnostics, code }),
       retryable: false,
     };
   }
@@ -78,8 +82,8 @@ export function resolveTuiRuntimeFailure(
     return {
       content:
         metadata.errorSource === 'byok_upstream'
-          ? `The model provider rejected its credentials.${diagnostics}${code}\nCheck the selected provider API key and endpoint, then resend the message. Your prompt is preserved.`
-          : `The service rejected request authentication.${diagnostics}${code}\nIf the problem persists, report this error and its code. Your prompt is preserved.`,
+          ? controllerText('runtime.error.credentialsRejected', { diagnostics, code })
+          : controllerText('runtime.error.authRejected', { diagnostics, code }),
       retryable: false,
     };
   }
@@ -88,12 +92,18 @@ export function resolveTuiRuntimeFailure(
     // Deterministic provider rejections (#425): the same history fails the
     // same way on every resend, so /retry is never the next step. Show the
     // upstream reason, which the generic branches below would hide.
-    const reasonLine = rejection.reason ? `\nReason: ${rejection.reason}` : '';
+    const reasonLine = rejection.reason
+      ? controllerText('runtime.error.reasonDetail', { reason: rejection.reason })
+      : '';
     return {
       content:
         rejection.kind === 'image_limit'
-          ? `The model provider rejected the request: the conversation carries too many images.${reasonLine}${provider}${code}\nResending fails the same way. Run /compact to summarize earlier history, or /new to start a fresh Session. Your prompt is preserved.`
-          : `The model provider rejected the request as invalid.${reasonLine}${provider}${code}\nResending the same conversation fails the same way. Run /compact to summarize earlier history, or /new to start a fresh Session. Your prompt is preserved.`,
+          ? controllerText('runtime.error.imageLimit', { reason: reasonLine, provider, code })
+          : controllerText('runtime.error.invalidRequest', {
+              reason: reasonLine,
+              provider,
+              code,
+            }),
       retryable: false,
     };
   }
@@ -102,15 +112,15 @@ export function resolveTuiRuntimeFailure(
     (message && /\b(?:rate.?limit(?:ed)?|too many requests|HTTP\s*429)\b/iu.test(message))
   ) {
     return {
-      content: `The model provider is rate limiting requests.${diagnostics}${code}\n${
-        retryable ? 'Wait a moment, then run /retry.' : 'Wait a moment, then resend the message.'
-      } Your prompt is preserved.`,
+      content: retryable
+        ? controllerText('runtime.error.rateLimitedRetryable', { diagnostics, code })
+        : controllerText('runtime.error.rateLimitedFinal', { diagnostics, code }),
       retryable,
     };
   }
   if (errorCode !== undefined && QUOTA_ERROR_CODES.has(errorCode)) {
     return {
-      content: `Usage limit reached.${diagnostics}${code}\nCheck /usage or switch provider, then resend the message. Your prompt is preserved.`,
+      content: controllerText('runtime.error.usageLimit', { diagnostics, code }),
       retryable: false,
     };
   }
@@ -119,37 +129,31 @@ export function resolveTuiRuntimeFailure(
     /\b(?:usage limit|credits? exhausted|insufficient (?:credits?|balance))\b/iu.test(message)
   ) {
     return {
-      content: `Usage limit reached.${diagnostics}${code}\nCheck /usage or switch provider, then resend the message. Your prompt is preserved.`,
+      content: controllerText('runtime.error.usageLimit', { diagnostics, code }),
       retryable: false,
     };
   }
   if (errorCode !== undefined && PROVIDER_RETRY_ERROR_CODES.has(errorCode)) {
     return {
-      content: `The model provider is temporarily unavailable.${diagnostics}${code}\n${
-        retryable
-          ? 'Run /retry to resend your last message.'
-          : 'Check the selected provider settings before sending again.'
-      } Your prompt is preserved.`,
+      content: retryable
+        ? controllerText('runtime.error.providerUnavailableRetryable', { diagnostics, code })
+        : controllerText('runtime.error.providerUnavailableFinal', { diagnostics, code }),
       retryable,
     };
   }
   if (message && /\b(?:provider|model)\b.*\bunavailable\b/iu.test(message)) {
     return {
-      content: `The model provider is temporarily unavailable.${diagnostics}${code}\n${
-        retryable
-          ? 'Run /retry to resend your last message.'
-          : 'Check the selected provider settings before sending again.'
-      } Your prompt is preserved.`,
+      content: retryable
+        ? controllerText('runtime.error.providerUnavailableRetryable', { diagnostics, code })
+        : controllerText('runtime.error.providerUnavailableFinal', { diagnostics, code }),
       retryable,
     };
   }
   if (message && /^(?:terminated|connection (?:closed|terminated))\.?$/iu.test(message)) {
     return {
-      content: `The model connection ended before the response was completed.${diagnostics}${code}\n${
-        retryable
-          ? 'Run /retry to resend your last message.'
-          : 'Check the connection before sending the message again.'
-      } Your prompt is preserved.`,
+      content: retryable
+        ? controllerText('runtime.error.connectionEndedRetryable', { diagnostics, code })
+        : controllerText('runtime.error.connectionEndedFinal', { diagnostics, code }),
       retryable,
     };
   }
@@ -158,13 +162,13 @@ export function resolveTuiRuntimeFailure(
     (message && /\b(?:content (?:filter|review)|safety|policy violation)\b/iu.test(message))
   ) {
     return {
-      content: `The response was stopped by content safety checks.${diagnostics}${code}\nRevise the message before sending it again. Your prompt is preserved.`,
+      content: controllerText('runtime.error.contentSafety', { diagnostics, code }),
       retryable: false,
     };
   }
   if (errorCode === LLM_ERROR_CODES.LLM_MIGRATION_ERROR) {
     return {
-      content: `The model did not respond for too long.${diagnostics}${code}\nWait a moment, then resend the message. Your prompt is preserved.`,
+      content: controllerText('runtime.error.modelTimeout', { diagnostics, code }),
       retryable: false,
     };
   }
@@ -172,16 +176,20 @@ export function resolveTuiRuntimeFailure(
   const diagnostic = reason ? tuiErrorDiagnostic(reason) : undefined;
   return {
     content: diagnostic
-      ? `The response failed.\nReason: ${diagnostic}${provider}${code}\n${
-          retryable
-            ? 'Run /retry to resend your last message.'
-            : 'Check the error details or selected provider settings before sending again.'
-        } Your prompt is preserved.`
-      : `The response failed.${provider}${code}\n${
-          retryable
-            ? 'Run /retry to resend your last message.'
-            : 'Check the selected provider settings before sending again.'
-        } Your prompt is preserved.`,
+      ? retryable
+        ? controllerText('runtime.error.responseFailedWithReasonRetryable', {
+            reason: diagnostic,
+            provider,
+            code,
+          })
+        : controllerText('runtime.error.responseFailedWithReasonFinal', {
+            reason: diagnostic,
+            provider,
+            code,
+          })
+      : retryable
+        ? controllerText('runtime.error.responseFailedRetryable', { provider, code })
+        : controllerText('runtime.error.responseFailedFinal', { provider, code }),
     retryable,
   };
 }
@@ -202,13 +210,15 @@ function requestRejection(
 
 function runtimeFailureDetail(message: string | undefined, rawDetail: string | undefined): string {
   const detail = rawDetail ? tuiErrorDiagnostic(rawDetail) : '';
-  return detail && detail !== message ? `\nReason: ${detail}` : '';
+  return detail && detail !== message
+    ? controllerText('runtime.error.reasonDetail', { reason: detail })
+    : '';
 }
 
 function runtimeFailureProvider(metadata: TuiRuntimeFailureMetadata): string {
   if (metadata.errorSource !== 'byok_upstream') return '';
   const providerId = metadata.errorProviderId
     ? tuiErrorDiagnostic(metadata.errorProviderId)
-    : 'configured';
-  return `\nProvider: ${providerId}`;
+    : controllerText('runtime.error.providerConfigured');
+  return controllerText('runtime.error.providerDetail', { provider: providerId });
 }

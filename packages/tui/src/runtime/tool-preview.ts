@@ -3,6 +3,7 @@ import type {
   TuiStructuredPreviewBlock,
   TuiStructuredPreviewState,
 } from '../types/runtime-models.js';
+import { tuiRuntimeText } from './copy.js';
 
 const MAX_INLINE_PREVIEW_BYTES = 64 * 1024;
 const MAX_INLINE_DIFF_LINES = 400;
@@ -67,7 +68,7 @@ function buildWriteBlocks(input: Readonly<Record<string, unknown>>): TuiStructur
       {
         kind: 'summary',
         ...(path ? { path } : {}),
-        message: 'Binary content cannot be previewed safely.',
+        message: tuiRuntimeText('runtime.preview.binaryOmitted'),
         reason: 'binary',
         byteCount,
       },
@@ -78,7 +79,9 @@ function buildWriteBlocks(input: Readonly<Record<string, unknown>>): TuiStructur
       {
         kind: 'summary',
         ...(path ? { path } : {}),
-        message: `File preview omitted because it is ${formatByteCount(byteCount)}.`,
+        message: tuiRuntimeText('runtime.preview.tooLarge', {
+          size: formatByteCount(byteCount),
+        }),
         reason: 'too-large',
         byteCount,
       },

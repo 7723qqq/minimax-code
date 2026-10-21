@@ -2,6 +2,7 @@ import { Buffer } from 'node:buffer';
 import type { TuiTextClipboardWriter } from '../../host/clipboard-text.js';
 import type { Terminal } from '../engine/public.js';
 import type { TerminalCapabilities } from './terminal-capabilities.js';
+import { shellText } from '../shell/copy.js';
 
 const ESC = '\u001B';
 const BEL = '\u0007';
@@ -20,7 +21,7 @@ export function createTuiTextClipboardWriter(options: {
   return async (text) => {
     const payload = Buffer.from(text, 'utf8').toString('base64');
     if (payload.length > MAX_OSC52_ENCODED_LENGTH) {
-      throw new Error('The response is too large for the remote terminal clipboard.');
+      throw new Error(shellText('platform.clipboard.tooLarge'));
     }
     options.terminal.write(`${ESC}]52;c;${payload}${BEL}`);
   };

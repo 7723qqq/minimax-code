@@ -17,6 +17,7 @@ import {
   getDefaultTuiKeybindingRegistry,
   type TuiKeybindingRegistry,
 } from '../../shell/keybindings.js';
+import { helpText } from './copy.js';
 
 export interface TuiHelpPanelOptions {
   commands: readonly TuiCommand[];
@@ -101,7 +102,7 @@ export class TuiHelpPanel implements Component {
           }
         : undefined;
     return panelLayout(width, height, this.renderFooter(position)).render({
-      title: 'Help',
+      title: helpText('title'),
       body: visible,
     });
   }
@@ -116,7 +117,7 @@ export class TuiHelpPanel implements Component {
       })),
       {
         keys: 'Enter',
-        description: queueEnabled ? 'Send; while MCode works it sends next' : 'Send while idle',
+        description: queueEnabled ? helpText('sendWhileWorking') : helpText('sendWhileIdle'),
       },
     ];
     const commandLabelWidth = columnWidth(this.commands.map(formatTuiCommandUsage), width, 12);
@@ -127,14 +128,14 @@ export class TuiHelpPanel implements Component {
     );
 
     return [
-      `  ${chalk.bold.hex(colors.text)('Keyboard shortcuts')}`,
+      `  ${chalk.bold.hex(colors.text)(helpText('keyboardShortcuts'))}`,
       ...shortcuts.map((shortcut) =>
         formatHelpRow(shortcut.keys, shortcut.description, shortcutLabelWidth, width, (value) =>
           chalk.hex(colors.signal)(value),
         ),
       ),
       '',
-      `  ${chalk.bold.hex(colors.text)('Slash commands')}`,
+      `  ${chalk.bold.hex(colors.text)(helpText('slashCommands'))}`,
       ...this.commands.map((command) => {
         const usage = formatTuiCommandUsage(command);
         return formatHelpRow(usage, command.description, commandLabelWidth, width, (value) =>
@@ -147,11 +148,19 @@ export class TuiHelpPanel implements Component {
   private renderFooter(position?: { first: number; last: number; total: number }): string {
     const keybindings = this.options.keybindings ?? getDefaultTuiKeybindingRegistry();
     const closeKey = formatTuiKeybinding('app.interrupt', keybindings);
-    const close = closeKey === 'Esc' ? 'Esc close' : `Esc close · ${closeKey} to close`;
+    const close =
+      closeKey === 'Esc' ? helpText('escClose') : helpText('escCloseWithKey', { key: closeKey });
     const range = position
-      ? `showing ${String(position.first)}-${String(position.last)} of ${String(position.total)}`
+      ? helpText('showingRange', {
+          a: position.first,
+          b: position.last,
+          n: position.total,
+        })
       : '';
-    const scroll = `↑↓ / ${formatTuiKeybinding('interaction.scroll-up', keybindings)} / ${formatTuiKeybinding('interaction.scroll-down', keybindings)} scroll`;
+    const scroll = helpText('scrollHint', {
+      up: formatTuiKeybinding('interaction.scroll-up', keybindings),
+      down: formatTuiKeybinding('interaction.scroll-down', keybindings),
+    });
     return renderTuiActionHint([range, scroll, close].filter(Boolean).join(' · '));
   }
 

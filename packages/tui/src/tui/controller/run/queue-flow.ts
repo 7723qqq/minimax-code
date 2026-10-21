@@ -25,6 +25,7 @@ import {
   rebuildSessionMutationTransport,
   visibleSessionMutationContent,
 } from '../../features/session-mutation/transport.js';
+import { controllerText } from '../copy.js';
 
 export interface TuiQueueFlowOptions {
   readonly runtime: TuiQueuePort;
@@ -380,7 +381,7 @@ export class TuiQueueFlow {
     const model = this.options.selectedModel?.();
     const session = await this.options.controller.waitForCurrentSession();
     if (transfer?.snapshot.sessionId && transfer.snapshot.sessionId !== session.sessionId) {
-      throw new Error('The active Session changed before this message could enter the queue.');
+      throw new Error(controllerText('run.queue.sessionChanged'));
     }
     const queuedDraft = this.options.composerDraft.prepareQueueSubmission
       ? await this.options.composerDraft.prepareQueueSubmission(draft)
@@ -404,7 +405,7 @@ export class TuiQueueFlow {
           ? { reviewRequest: transfer.snapshot.reviewRequest }
           : {}),
       });
-      if (!result.itemId) throw new Error('Runtime did not return a queue item id.');
+      if (!result.itemId) throw new Error(controllerText('run.queue.missingItemId'));
     } catch (error) {
       await this.options.composerDraft.releasePreparedQueueSubmission?.(draft, queuedDraft);
       throw error;
@@ -469,7 +470,7 @@ export class TuiQueueFlow {
       )
       .at(-1);
     if (!sessionId || !latest) {
-      this.options.setHint('No waiting message to remove.');
+      this.options.setHint(controllerText('run.queue.noWaitingMessage'));
       this.options.onChanged();
       this.options.requestRender();
       return false;
@@ -534,7 +535,7 @@ export class TuiQueueFlow {
       );
     if (!next) return false;
     if (next.attachments?.length) {
-      this.options.setHint('Steer accepts text only. Attachments will run next.');
+      this.options.setHint(controllerText('run.queue.steerTextOnly'));
       this.options.onChanged();
       this.options.requestRender();
       return false;
@@ -575,7 +576,7 @@ export class TuiQueueFlow {
       return false;
     }
     if (cached?.reviewRequest) {
-      this.options.setHint('Review commands cannot be edited in the Queue.');
+      this.options.setHint(controllerText('run.queue.reviewNotEditable'));
       this.options.onChanged();
       this.options.requestRender();
       return false;
@@ -689,7 +690,7 @@ export class TuiQueueFlow {
     this.options.transcript.remove(`queue:${itemId}`);
     this.updatePanel();
     this.options.restoreSubmission(snapshot);
-    this.options.setHint('Message restored to Composer.');
+    this.options.setHint(controllerText('run.queue.restoredToComposer'));
     this.options.onChanged();
     this.options.requestRender();
     void this.refresh(sessionId).catch(() => undefined);

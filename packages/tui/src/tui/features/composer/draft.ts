@@ -8,7 +8,8 @@ import {
   MINIMAX_CODE_MAX_ATTACHMENT_COUNT,
   MINIMAX_CODE_MAX_TOTAL_ATTACHMENT_BYTES,
 } from '../../../application/attachment-policy.js';
-import { tuiAttachmentLabel, type ResolveTuiAttachmentOptions } from './attachments.js';
+import { tuiAttachmentLabel, formatBytes, type ResolveTuiAttachmentOptions } from './attachments.js';
+import { composerText } from './copy.js';
 import type { TuiClipboardImageLease } from '../../../host/clipboard-image.js';
 
 export interface TuiComposerDraftSnapshot {
@@ -134,7 +135,7 @@ export class TuiComposerDraft {
     options: Pick<ResolveTuiAttachmentOptions, 'source'> = {},
   ): Promise<void> {
     if (!reference.trim()) {
-      this.options.append('Cannot add an empty attachment path.', 'warning');
+      this.options.append(composerText('attachmentEmptyPath'), 'warning');
       return;
     }
     const draftGeneration = this.draftGeneration;
@@ -146,7 +147,7 @@ export class TuiComposerDraft {
     if (draftGeneration !== this.draftGeneration || this.options.isStopped?.()) return;
     if (this.attachments.some((item) => item.filePath === attachment.filePath)) {
       this.options.append(
-        `Already attached for the next message: ${attachment.fileName}`,
+        composerText('attachmentAlreadyAttached', { fileName: attachment.fileName }),
         'warning',
       );
       return;
@@ -332,7 +333,7 @@ export class TuiComposerDraft {
     if (current.length >= MINIMAX_CODE_MAX_ATTACHMENT_COUNT) {
       if (warn) {
         this.options.append(
-          'You can attach up to 10 files. Remove one before adding another.',
+          composerText('attachmentLimitFiles', { count: MINIMAX_CODE_MAX_ATTACHMENT_COUNT }),
           'warning',
         );
       }
@@ -342,7 +343,9 @@ export class TuiComposerDraft {
     if (totalBytes + attachment.sizeBytes > MINIMAX_CODE_MAX_TOTAL_ATTACHMENT_BYTES) {
       if (warn) {
         this.options.append(
-          'Attachments can total up to 100 MB. Remove an attachment or choose a smaller file.',
+          composerText('attachmentLimitSize', {
+            limit: formatBytes(MINIMAX_CODE_MAX_TOTAL_ATTACHMENT_BYTES),
+          }),
           'warning',
         );
       }

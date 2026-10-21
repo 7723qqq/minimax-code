@@ -42,6 +42,7 @@ import {
   rebuildSessionMutationTransport,
   visibleSessionMutationContent,
 } from '../../features/session-mutation/transport.js';
+import { controllerProductText } from './copy.js';
 import type {
   TuiRewindPreview,
   TuiRewindResult,
@@ -293,7 +294,7 @@ export class TuiSessionMutationFlow {
           explorer.setLoadError(
             formatTuiActionFailure(error, {
               summary: sessionMutationText('sessionMutation.error.loadHistory'),
-              nextStep: 'Press Enter to retry.',
+              nextStep: controllerProductText('sessionMutation.pressEnterToRetry'),
               preservation: sessionMutationText('sessionMutation.error.sessionUnchanged'),
             }),
           );
@@ -627,7 +628,7 @@ export class TuiSessionMutationFlow {
       const current = this.getEditInvocation(sequence);
       if (!current || !this.isCurrentMutation(current)) return this.invalidateMutation(sequence);
       if (!targetMessage || targetMessage.role !== 'user') {
-        throw new Error('The selected committed user message could not be loaded.');
+        throw new Error(controllerProductText('sessionMutation.loadTargetFailed'));
       }
       this.beginEditing(sequence, current, targetMessage);
     } catch (error) {
@@ -1336,11 +1337,14 @@ export class TuiSessionMutationFlow {
         return;
       }
       this.options.append(
-        formatTuiActionFailure(forkError ?? new Error('Runtime fork request failed.'), {
-          summary: sessionMutationText('sessionMutation.error.forkRequest'),
-          nextStep: sessionMutationText('sessionMutation.error.forkRetry'),
-          preservation: sessionMutationText('sessionMutation.error.sourceUnchanged'),
-        }),
+        formatTuiActionFailure(
+          forkError ?? new Error(controllerProductText('sessionMutation.forkRequestFailed')),
+          {
+            summary: sessionMutationText('sessionMutation.error.forkRequest'),
+            nextStep: sessionMutationText('sessionMutation.error.forkRetry'),
+            preservation: sessionMutationText('sessionMutation.error.sourceUnchanged'),
+          },
+        ),
         'warning',
       );
       current.confirmation?.setBusy(false);
@@ -1671,7 +1675,11 @@ class TuiSessionMutationRewindConfirmation implements TuiFeatureScreen, Componen
           : sessionMutationTemplate('sessionMutation.confirm.fileCounts', { ready, skipped })
       }`,
       ...(ready === 0 && this.options.scope === 'conversation_and_files'
-        ? [chalk.hex(colors.warning)('No file changes can be safely rewound at this point.')]
+        ? [
+            chalk.hex(colors.warning)(
+              sessionMutationText('sessionMutation.outcome.noSafeFiles'),
+            ),
+          ]
         : []),
       ...(this.error ? [chalk.hex(colors.warning)(sanitizeTerminalText(this.error))] : []),
     ];

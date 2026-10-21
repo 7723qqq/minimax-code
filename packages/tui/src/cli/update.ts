@@ -7,6 +7,7 @@ import {
 } from '../update/messages.js';
 import { schedulePendingMcodePrefixUpdate } from '../update/prefix-update.js';
 import type { McodeUpdatePhase } from '../update/progress.js';
+import { cliText } from './copy.js';
 
 const UPDATE_ANIMATION_INTERVAL_MS = 80;
 const UPDATE_ACTIVITY_INTERVAL_MS = 15_000;
@@ -53,10 +54,7 @@ export async function runMcodeUpdate(
     return;
   }
   if (plan.kind === 'manual') {
-    write(
-      'MCode could not identify the owner of this installation. ' +
-        `Update manually with:\n  ${plan.command}\n`,
-    );
+    write(`${cliText('cli.update.manual', { command: plan.command })}\n`);
     return;
   }
 
@@ -153,7 +151,7 @@ class McodeUpdateCliProgress {
     const outputActivity = this.latestOutputAtMs
       ? `; last output ${Math.max(0, Math.floor((Date.now() - this.latestOutputAtMs) / 1000))}s ago`
       : '; waiting for output';
-    const phase = this.phase ? phaseLabel(this.phase) : 'Updating MCode';
+    const phase = this.phase ? phaseLabel(this.phase) : cliText('cli.update.updating');
     this.writePersistent(
       `${this.processLabel} is still running (${elapsedSeconds}s elapsed${outputActivity}) · ${phase}.`,
     );
@@ -170,18 +168,18 @@ class McodeUpdateCliProgress {
     const elapsed = elapsedSeconds > 0 ? ` · ${elapsedSeconds}s` : '';
     const phase = this.phase ? ` · ${phaseLabel(this.phase)}` : '';
     const output = this.latestOutput ? ` · ${this.latestOutput}` : '';
-    this.write(`\r\u001B[2K${frame} Updating MCode${phase}${elapsed}${output}`);
+    this.write(`\r\u001B[2K${frame} ${cliText('cli.update.updating')}${phase}${elapsed}${output}`);
   }
 }
 
 function phaseLabel(phase: McodeUpdatePhase): string {
-  if (phase === 'checking') return 'Checking for updates';
-  if (phase === 'downloading') return 'Downloading release';
-  if (phase === 'staging') return 'Preparing isolated update';
-  if (phase === 'installing') return 'Installing package';
-  if (phase === 'validating') return 'Validating installed version';
-  if (phase === 'activating') return 'Activating new version';
-  return 'Completing update';
+  if (phase === 'checking') return cliText('cli.update.phase.checking');
+  if (phase === 'downloading') return cliText('cli.update.phase.downloading');
+  if (phase === 'staging') return cliText('cli.update.phase.staging');
+  if (phase === 'installing') return cliText('cli.update.phase.installing');
+  if (phase === 'validating') return cliText('cli.update.phase.validating');
+  if (phase === 'activating') return cliText('cli.update.phase.activating');
+  return cliText('cli.update.phase.completed');
 }
 
 function updateProcessLabel(
@@ -201,24 +199,28 @@ function renderAvailableUpdate(
   plan: Extract<McodeUpdatePlan, { kind: 'available' | 'package-manager' }>,
 ): string {
   if (plan.kind === 'available') {
-    return (
-      `MCode ${plan.latestVersion} is available on ${plan.channel} ` +
-      `(current ${plan.currentVersion}).\n`
-    );
+    return `${cliText('cli.update.available', {
+      version: plan.latestVersion,
+      channel: plan.channel,
+      currentVersion: plan.currentVersion,
+    })}\n`;
   }
-  return (
-    `MCode ${plan.latestVersion} is available on @${plan.packageTag} ` +
-    `(current ${plan.currentVersion}, installed through ${plan.source.replace('-global', '')}).\n` +
-    `Command: ${plan.command.display}\n`
-  );
+  const available = cliText('cli.update.availablePackage', {
+    version: plan.latestVersion,
+    packageTag: plan.packageTag,
+    currentVersion: plan.currentVersion,
+    source: plan.source.replace('-global', ''),
+  });
+  const command = cliText('cli.update.command', { command: plan.command.display });
+  return `${available}\n${command}\n`;
 }
 
 function renderNonInteractiveInstruction(
   plan: Extract<McodeUpdatePlan, { kind: 'available' | 'package-manager' }>,
 ): string {
   return plan.kind === 'package-manager'
-    ? `No interactive confirmation is available. Run: ${plan.command.display}`
-    : 'No interactive confirmation is available. Run `mcode update` from a terminal to install it.';
+    ? cliText('cli.update.nonInteractiveCommand', { command: plan.command.display })
+    : cliText('cli.update.nonInteractive');
 }
 
 async function confirmInTerminal(message: string): Promise<boolean> {

@@ -2,6 +2,7 @@ import { fuzzyFilter } from "../fuzzy.js";
 import { getKeybindings } from "../keybindings.js";
 import type { Component } from "../tui.js";
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from "../utils.js";
+import { tuiText } from "../../copy.js";
 import { Input } from "./input.js";
 
 export interface SettingItem {
@@ -239,8 +240,8 @@ export class SettingsList implements Component {
 			truncateToWidth(
 				this.theme.hint(
 					this.searchEnabled
-						? "  Type to search · Enter/Space to change · Esc to cancel"
-						: "  Enter/Space to change · Esc to cancel",
+						? `  ${tuiText("settingsList.hint.search")}`
+						: `  ${tuiText("settingsList.hint.change")}`,
 				),
 				width,
 			),

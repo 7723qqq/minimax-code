@@ -45,6 +45,7 @@ import type { TranscriptInspectionReport } from '../../transcript/model.js';
 import { formatTuiActionFailure } from '../../../user-facing-failure.js';
 import type { TuiKeybindingRegistry } from '../../shell/keybindings.js';
 import { TuiBashAutocomplete } from '../../commands/bash-autocomplete.js';
+import { controllerText } from '../copy.js';
 
 const MIN_HELP_ROWS = 4;
 const RESERVED_HELP_CHROME_ROWS = 6;
@@ -332,8 +333,8 @@ export class TuiActiveRunFlow {
     const session = this.options.requireSession();
     if (!session) return;
     const panel = new TuiReportInspectionPanel({
-      title: 'Context',
-      loadingMessage: 'Loading context details…',
+      title: controllerText('run.context.title'),
+      loadingMessage: controllerText('run.context.loading'),
       maxRows: () => {
         const rows = Number.isFinite(this.options.terminal.rows) ? this.options.terminal.rows : 24;
         return Math.max(4, rows - 4);
@@ -368,10 +369,10 @@ export class TuiActiveRunFlow {
       }
       panel.setError(
         isRuntimeMethodNotImplemented(error)
-          ? 'Context inspection is not supported by this Runtime.'
+          ? controllerText('run.context.unsupported')
           : formatTuiActionFailure(error, {
-              summary: "Couldn't load context details.",
-              nextStep: 'Retry /context.',
+              summary: controllerText('run.context.loadFailed'),
+              nextStep: controllerText('run.context.retryCommand'),
             }),
       );
     }
@@ -410,7 +411,7 @@ export class TuiActiveRunFlow {
     if (!session) return false;
     const content = rawContent.trim();
     if (!content) {
-      this.options.append('Usage: /steer <message>');
+      this.options.append(controllerText('run.steer.usage'));
       return false;
     }
     const requestId = `run_action_${Date.now().toString(36)}_${Math.random()
@@ -458,8 +459,8 @@ export class TuiActiveRunFlow {
       this.options.controller.removeOptimisticUserMessage(requestId);
       this.options.append(
         snapshot?.state === 'decision-blocked'
-          ? 'Resolve the pending Runtime decision first.'
-          : 'Steer is not available for the current work.',
+          ? controllerText('run.steer.decisionBlocked')
+          : controllerText('run.steer.unavailable'),
         'warning',
       );
       return false;
@@ -488,9 +489,9 @@ export class TuiActiveRunFlow {
       }
       this.options.append(
         formatTuiActionFailure(error, {
-          summary: "Couldn't steer current work.",
-          nextStep: 'Retry /steer.',
-          preservation: 'Your message was not applied.',
+          summary: controllerText('run.steer.failed'),
+          nextStep: controllerText('run.steer.retryCommand'),
+          preservation: controllerText('run.steer.notApplied'),
         }),
         'warning',
       );
@@ -518,8 +519,8 @@ export class TuiActiveRunFlow {
     } catch (error) {
       this.options.append(
         formatTuiActionFailure(error, {
-          summary: 'Steer was accepted, but this view could not refresh.',
-          nextStep: 'Reopen the session to sync it.',
+          summary: controllerText('run.steer.refreshFailed'),
+          nextStep: controllerText('run.steer.reopenToSync'),
         }),
         'warning',
       );

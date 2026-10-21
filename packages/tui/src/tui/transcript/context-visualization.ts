@@ -2,6 +2,7 @@ import type { Component } from '../rendering/component.js';
 import { truncateToWidth } from '../rendering/text.js';
 import { sanitizeTerminalText } from '../rendering/terminal-text.js';
 import { tuiChalk as chalk, tuiColors as colors } from '../theme/runtime.js';
+import { transcriptText, type TranscriptCopyKey } from '../features/transcript/copy.js';
 import type {
   TranscriptContextComponent,
   TranscriptContextComponentKind,
@@ -16,13 +17,13 @@ const COMPONENT_KINDS: readonly TranscriptContextComponentKind[] = [
   'MESSAGES',
   'OTHER',
 ];
-const COMPONENT_LABELS: Record<TranscriptContextComponentKind, string> = {
-  SYSTEM_PROMPT: 'System prompt',
-  MEMORY: 'Memory',
-  TOOLS: 'Tools',
-  SKILLS: 'Skills',
-  MESSAGES: 'Messages',
-  OTHER: 'Other',
+const COMPONENT_LABEL_KEYS: Record<TranscriptContextComponentKind, TranscriptCopyKey> = {
+  SYSTEM_PROMPT: 'context.component.systemPrompt',
+  MEMORY: 'context.component.memory',
+  TOOLS: 'context.component.tools',
+  SKILLS: 'context.component.skills',
+  MESSAGES: 'context.component.messages',
+  OTHER: 'context.component.other',
 };
 const MAX_CONTENT_WIDTH = 128;
 const WIDE_GRID_MIN_WIDTH = 80;
@@ -53,7 +54,7 @@ export class ContextVisualization implements Component {
   render(rawWidth: number): string[] {
     const width = Math.min(MAX_CONTENT_WIDTH, Math.max(0, Math.floor(rawWidth)));
     if (width === 0) return [];
-    if (width < 8) return [truncateToWidth('Context', width, '…')];
+    if (width < 8) return [truncateToWidth(transcriptText('context.title'), width, '…')];
 
     const components = normalizeComponents(this.data.components, this.data.usedTokens);
     const lines = [...this.header(), ''];
@@ -67,7 +68,7 @@ export class ContextVisualization implements Component {
   }
 
   private header(): string[] {
-    const title = chalk.bold.hex(colors.text)('Context');
+    const title = chalk.bold.hex(colors.text)(transcriptText('context.title'));
     const health = contextHealth(this.data.utilization);
     const healthLabel = chalk.bold.hex(health.color)(health.label);
     const heading = `${title}${chalk.hex(colors.dim)(' · ')}${healthLabel}`;
@@ -133,7 +134,7 @@ export class ContextVisualization implements Component {
       if (component.tokens <= 0) continue;
       const color = componentColor(component.kind);
       lines.push(
-        `${chalk.hex(color)(GRID_FILLED)} ${chalk.hex(colors.text)(COMPONENT_LABELS[component.kind])}: ${chalk.hex(
+        `${chalk.hex(color)(GRID_FILLED)} ${chalk.hex(colors.text)(componentLabel(component.kind))}: ${chalk.hex(
           colors.dim,
         )(`${formatCompact(component.tokens)} tokens`)}`,
       );
@@ -191,14 +192,22 @@ function normalizeComponents(
 
 function contextHealth(utilization: number | null): { label: string; color: string } {
   if (utilization === null || !Number.isFinite(utilization)) {
-    return { label: 'Window unavailable', color: colors.dim };
+    return { label: transcriptText('context.health.windowUnavailable'), color: colors.dim };
   }
   const ratio = clampRatio(utilization);
-  if (ratio >= 0.95) return { label: 'Nearly full', color: colors.error };
-  if (ratio >= 0.85) return { label: 'Running low', color: colors.error };
-  if (ratio >= 0.7) return { label: 'Keep an eye on it', color: colors.warning };
-  if (ratio >= 0.45) return { label: 'Comfortable', color: colors.signal };
-  return { label: 'Plenty of room', color: colors.success };
+  if (ratio >= 0.95)
+    return { label: transcriptText('context.health.nearlyFull'), color: colors.error };
+  if (ratio >= 0.85)
+    return { label: transcriptText('context.health.runningLow'), color: colors.error };
+  if (ratio >= 0.7)
+    return { label: transcriptText('context.health.keepAnEyeOnIt'), color: colors.warning };
+  if (ratio >= 0.45)
+    return { label: transcriptText('context.health.comfortable'), color: colors.signal };
+  return { label: transcriptText('context.health.plentyOfRoom'), color: colors.success };
+}
+
+function componentLabel(kind: TranscriptContextComponentKind): string {
+  return transcriptText(COMPONENT_LABEL_KEYS[kind]);
 }
 
 function formatBasis(basis: TranscriptContextVisualization['basis']): string {
@@ -271,7 +280,7 @@ function gridCategories(
     component.tokens > 0
       ? [
           {
-            label: COMPONENT_LABELS[component.kind],
+            label: componentLabel(component.kind),
             tokens: component.tokens,
             color: componentColor(component.kind),
           },

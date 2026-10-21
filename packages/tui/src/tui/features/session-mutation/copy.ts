@@ -32,6 +32,12 @@ const SESSION_MUTATION_CATALOG = createCatalogSet(SESSION_MUTATION_COPY, {
  */
 export const sessionHistoryText = createCatalogText(SESSION_HISTORY_CATALOG, resolveLocaleName);
 
+/**
+ * Session mutation copy lookup.
+ *
+ * Reads the fork, edit and rewind catalog through the shared kernel, so a
+ * missing translation falls back to English rather than rendering a gap.
+ */
 export const sessionMutationText = createCatalogText(SESSION_MUTATION_CATALOG, resolveLocaleName);
 
 /**
@@ -43,6 +49,12 @@ export function sessionMutationLocale(): string {
   return resolveLocale();
 }
 
+/**
+ * Look up one Session mutation key and fill its placeholders.
+ *
+ * `locale` accepts a full BCP 47 tag, a bare language, or `null`/`undefined`
+ * to use the host locale.
+ */
 export function sessionMutationTemplate(
   key: SessionMutationCopyKey,
   values: Readonly<Record<string, string | number>>,
@@ -51,4 +63,5 @@ export function sessionMutationTemplate(
   return sessionMutationText(key, values, locale);
 }
 
+/** Key types re-exported so callers import them from the catalog module. */
 export type { SessionHistoryCopyKey, SessionMutationCopyKey };

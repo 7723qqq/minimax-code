@@ -1,6 +1,7 @@
 import { Ajv } from 'ajv';
 
 import type { TuiTurnRunOutcome } from '../application/turn-run-outcome.js';
+import { headlessText } from './copy.js';
 
 export type ExecResultStatus = 'succeeded' | 'failed' | 'timeout' | 'cancelled' | 'limit_exceeded';
 
@@ -65,13 +66,17 @@ export function validateExecOutput(
 ): OutputValidation {
   if (!schema) return { ok: true, value: answer ?? null };
   if (!answer?.trim()) {
-    return { ok: false, kind: 'empty', message: 'Structured output was empty.' };
+    return { ok: false, kind: 'empty', message: headlessText('headless.contract.outputEmpty') };
   }
   let value: unknown;
   try {
     value = JSON.parse(answer);
   } catch {
-    return { ok: false, kind: 'invalid_json', message: 'Structured output was not valid JSON.' };
+    return {
+      ok: false,
+      kind: 'invalid_json',
+      message: headlessText('headless.contract.outputInvalidJson'),
+    };
   }
   const ajv = new Ajv({ allErrors: true, strict: false });
   const validate = ajv.compile(schema);
@@ -79,7 +84,9 @@ export function validateExecOutput(
     return {
       ok: false,
       kind: 'schema_mismatch',
-      message: `Structured output did not match --output-schema: ${ajv.errorsText(validate.errors, { separator: '; ' })}`,
+      message: headlessText('headless.contract.outputSchemaMismatch', {
+        errors: ajv.errorsText(validate.errors, { separator: '; ' }),
+      }),
     };
   }
   return { ok: true, value };
@@ -152,7 +159,7 @@ function normalizeOutcome(
       error: outcome.error ?? {
         category: 'runtime',
         code: 'INTERACTION_NOT_AVAILABLE',
-        message: 'The Runtime requested interaction from a non-interactive Exec host.',
+        message: headlessText('headless.contract.interactionUnavailable'),
         retryable: false,
       },
     };

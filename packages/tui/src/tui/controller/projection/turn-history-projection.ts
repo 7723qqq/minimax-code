@@ -1,6 +1,7 @@
 import type { TuiMessage } from '../../../runtime/port.js';
 import { buildTuiMessageParts } from '../../../runtime/stream-events.js';
 import type { TranscriptStore } from '../../transcript/store.js';
+import { transcriptText } from '../../features/transcript/copy.js';
 import { isQuestionnaireTool, type TuiToolProjection } from './turn-tool-projection.js';
 import type { TuiTodoProjection } from './turn-todo-projection.js';
 import type { TuiUserProjection } from './turn-user-projection.js';
@@ -49,10 +50,10 @@ export function hydrateTuiHistory(options: HydrateTuiHistoryOptions): void {
             : 'succeeded';
       const title =
         message.kind === 'compaction_start'
-          ? 'Compacting context'
+          ? transcriptText('cell.title.compacting')
           : message.kind === 'compaction_failed'
-            ? 'Context compaction failed'
-            : 'Context compacted';
+            ? transcriptText('cell.title.compactionFailed')
+            : transcriptText('cell.title.contextCompacted');
       transcript.upsert({
         id: `history:compaction:${messageId}`,
         kind: 'compaction',

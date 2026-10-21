@@ -41,6 +41,7 @@ import {
   type TuiTerminalNotificationKind,
 } from '../../platform/terminal-notifications.js';
 import { formatTuiActionFailure, tuiErrorDiagnostic } from '../../../user-facing-failure.js';
+import { controllerText } from '../copy.js';
 
 const EVENT_BUS_RECONNECT_BASE_DELAY_MS = 250;
 const EVENT_BUS_RECONNECT_MAX_DELAY_MS = 10_000;
@@ -460,12 +461,12 @@ export class TuiRuntimeEventFlow {
           errorKind: reconnectErrorKind,
         });
         recordStreamFailure(
-          new Error('Runtime event stream ended before the CLI stopped.'),
+          new Error(controllerText('runtime.event.streamEndedEarly')),
           reconnectErrorKind,
         );
         this.options.stateStore.dispatch({
           type: 'connection/disconnected',
-          error: 'Runtime event stream ended.',
+          error: controllerText('runtime.event.streamEnded'),
         });
         this.options.onChanged();
         observability.recordEventStream({
@@ -486,8 +487,8 @@ export class TuiRuntimeEventFlow {
         this.options.stateStore.dispatch({
           type: 'connection/disconnected',
           error: formatTuiActionFailure(error, {
-            summary: 'Connection lost.',
-            nextStep: 'Reconnecting…',
+            summary: controllerText('runtime.event.connectionLost'),
+            nextStep: controllerText('runtime.event.reconnecting'),
           }),
         });
         this.options.onChanged();
@@ -646,10 +647,10 @@ export class TuiRuntimeEventFlow {
     if (matchesCurrentSession && event.type === 'content.retry.exceeded') {
       this.options.append(
         event.variant === 'auth'
-          ? 'Content review authentication expired. Run /login, then retry.'
+          ? controllerText('runtime.event.contentReviewAuthExpired')
           : event.variant === 'network'
-            ? 'Content review did not return a usable result, so this response stopped. Unreviewed output was withheld. Retry; if this persists, use /feedback to report the review failure.'
-            : 'Content review withdrew this response. Rephrase your request, then retry.',
+            ? controllerText('runtime.event.contentReviewNoResult')
+            : controllerText('runtime.event.contentReviewWithdrew'),
         'warning',
       );
       this.options.onChanged();
@@ -826,8 +827,8 @@ export class TuiRuntimeEventFlow {
         } catch (error) {
           this.options.append(
             formatTuiActionFailure(error, {
-              summary: "Couldn't recover the live response view.",
-              nextStep: 'Reopen the session to load its saved messages.',
+              summary: controllerText('runtime.event.recoverFailed'),
+              nextStep: controllerText('runtime.event.reopenToLoadMessages'),
             }),
             'warning',
           );
@@ -927,7 +928,7 @@ export class TuiRuntimeEventFlow {
     if (!itemId || !status) return false;
     if (status === 'admission-rejected') {
       const failedReason =
-        queueFailureReason(event).failedReason ?? 'Message was not added to the Queue. Retry.';
+        queueFailureReason(event).failedReason ?? controllerText('runtime.event.queueNotAdded');
       if (restoreToComposer) this.options.restoreFailedQueueItem?.(itemId);
       await this.options.releaseQueueItem(itemId);
       if (restoreToComposer) this.options.append(failedReason, 'error');
@@ -1046,7 +1047,9 @@ export class TuiRuntimeEventFlow {
       automationHistoryError = automationHistoryReconciliationError(historyOutcome);
       if (automationHistoryError) {
         this.options.append(
-          `${automationHistoryError.message} Reopen the Session to retry synchronization.`,
+          controllerText('runtime.event.historyReconcileFailed', {
+            message: automationHistoryError.message,
+          }),
           'error',
         );
       }
@@ -1058,7 +1061,7 @@ export class TuiRuntimeEventFlow {
     if (outcome.status === 'timeout') {
       if (!deferredSettlement) this.appendTerminalError(event);
       this.options.append(
-        'Runtime state refresh timed out after the response stopped. Reopen the Session to retry synchronization.',
+        controllerText('runtime.event.refreshTimedOut'),
         'error',
       );
       if (!deferredSettlement) return false;
@@ -1066,9 +1069,9 @@ export class TuiRuntimeEventFlow {
       if (!deferredSettlement) this.appendTerminalError(event);
       this.options.append(
         formatTuiActionFailure(outcome.error, {
-          summary: "Couldn't refresh the saved response state.",
-          nextStep: 'Reopen the session to retry.',
-          preservation: 'Your prompt is preserved.',
+          summary: controllerText('runtime.event.refreshFailed'),
+          nextStep: controllerText('runtime.event.reopenToRetry'),
+          preservation: controllerText('common.promptPreserved'),
         }),
         'error',
       );
@@ -1216,7 +1219,9 @@ export class TuiRuntimeEventFlow {
         reconciled ||= refreshed;
       } catch (error) {
         refreshFailures.push({ part: 'history', error });
-        incompleteParts.push(`History: ${tuiErrorDiagnostic(error)}`);
+        incompleteParts.push(
+          controllerText('runtime.event.historyPart', { reason: tuiErrorDiagnostic(error) }),
+        );
       }
     }
 
@@ -1226,7 +1231,9 @@ export class TuiRuntimeEventFlow {
         reconciled = true;
       } catch (error) {
         refreshFailures.push({ part: 'queue', error });
-        incompleteParts.push(`Queue: ${tuiErrorDiagnostic(error)}`);
+        incompleteParts.push(
+          controllerText('runtime.event.queuePart', { reason: tuiErrorDiagnostic(error) }),
+        );
       }
     }
 
@@ -1235,7 +1242,11 @@ export class TuiRuntimeEventFlow {
       reconciled = true;
     } catch (error) {
       refreshFailures.push({ part: 'session-metadata', error });
-      incompleteParts.push(`Session metadata: ${tuiErrorDiagnostic(error)}`);
+      incompleteParts.push(
+        controllerText('runtime.event.sessionMetadataPart', {
+          reason: tuiErrorDiagnostic(error),
+        }),
+      );
     }
 
     if (incompleteParts.length > 0) {
@@ -1243,7 +1254,7 @@ export class TuiRuntimeEventFlow {
       this.captureRuntimeBridgeFailure(
         new AggregateError(
           refreshFailures.map(({ error }) => error),
-          `Runtime session refresh failed for ${failedParts}.`,
+          controllerText('runtime.event.sessionRefreshFailed', { parts: failedParts }),
         ),
         'refresh-session-projection',
         {
@@ -1253,7 +1264,9 @@ export class TuiRuntimeEventFlow {
         },
       );
       this.options.append(
-        `Couldn't fully refresh this session (${incompleteParts.join('; ')}). Reopen the session to retry.`,
+        controllerText('runtime.event.partialRefreshFailed', {
+          parts: incompleteParts.join('; '),
+        }),
         'warning',
       );
     }
@@ -1273,15 +1286,15 @@ function queueFailureReason(event: TuiQueueUpdatedEvent): Pick<TuiQueuedMessage,
   const failedReason =
     event.status === 'admission-rejected'
       ? formatQueueFailure(
-          'Message was not added to the Queue',
+          controllerText('runtime.event.queueFailureSummary'),
           event.failedReason ?? event.admissionReason ?? event.reason,
-          'Wait for the current response or retry.',
+          controllerText('runtime.event.queueFailureNextStep'),
         )
       : event.status === 'failed'
         ? formatQueueFailure(
-            'Message failed before it could start',
+            controllerText('runtime.event.messageFailedSummary'),
             event.failedReason ?? event.reason,
-            'Retry from the Queue.',
+            controllerText('runtime.event.messageFailedNextStep'),
           )
         : undefined;
   return failedReason ? { failedReason } : {};

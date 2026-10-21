@@ -37,6 +37,8 @@ import {
 } from '../theme/runtime.js';
 import { highlightTuiShellCommand } from '../theme/shell-command.js';
 import { renderShellBlock } from './shell-block.js';
+import { transcriptText } from '../features/transcript/copy.js';
+import { tuiText } from '../copy.js';
 
 const ASSISTANT_ANCHOR_WIDTH = 2;
 const ASSISTANT_ANCHOR_MARKER = '●';
@@ -52,6 +54,23 @@ const MIN_SHELL_COMMAND_WIDTH = 12;
  * that already sit in native scrollback, so frame cost stays bounded in long sessions.
  */
 const APPEND_ONLY_RETAINED_ROWS = { high: 3_000, low: 1_500 } as const;
+
+/**
+ * Noun for a read group, in its singular and plural form.
+ *
+ * The English wording used to be derived by trimming the last character of
+ * the plural, which only works for English. The catalog owns both forms so
+ * each language can supply the pair it needs.
+ */
+const GROUP_NOUN_KEYS = {
+  operations: { one: 'view.group.noun.operations.one', many: 'view.group.noun.operations.many' },
+  searches: { one: 'view.group.noun.search.one', many: 'view.group.noun.search.many' },
+  paths: { one: 'view.group.noun.path.one', many: 'view.group.noun.path.many' },
+  files: { one: 'view.group.noun.file.one', many: 'view.group.noun.file.many' },
+} as const;
+
+/** Read-group categories that own a noun in the transcript catalog. */
+type TranscriptGroupNoun = keyof typeof GROUP_NOUN_KEYS;
 
 export class TranscriptView implements Component {
   private readonly unitCache = new Map<
@@ -204,7 +223,7 @@ export class TranscriptView implements Component {
       projection.hiddenTurns > 0 && !trimmed
         ? [
             chalk.hex(colors.muted)(
-              `↑ ${projection.hiddenTurns} earlier turns omitted from live projection`,
+              transcriptText('view.hiddenTurns', { count: projection.hiddenTurns }),
             ),
             ' ',
           ]
@@ -545,22 +564,19 @@ function renderReadGroup(
   const action = renderGroupAction(cells, running > 0);
   const failure =
     failed === entries.length
-      ? chalk.hex(colors.error)(' · failed')
+      ? chalk.hex(colors.error)(transcriptText('view.group.failedSuffix'))
       : failed > 0
-        ? chalk.hex(colors.error)(` · ${failed} failed`)
+        ? chalk.hex(colors.error)(transcriptText('view.group.failedCountSuffix', { count: failed }))
         : '';
   const operationCount = new Set(
     cells.map((cell) => JSON.stringify([normalizeToolName(cell.title), cell.content])),
   ).size;
   const groupLabel = groupNoun(cells);
-  const noun =
-    operationCount === 1
-      ? groupLabel === 'searches'
-        ? 'search'
-        : groupLabel.slice(0, -1)
-      : groupLabel;
+  const noun = transcriptText(GROUP_NOUN_KEYS[groupLabel][operationCount === 1 ? 'one' : 'many']);
   const attempts =
-    cells.length > operationCount ? chalk.hex(colors.muted)(` · ${cells.length} calls`) : '';
+    cells.length > operationCount
+      ? chalk.hex(colors.muted)(transcriptText('view.group.callsSuffix', { count: cells.length }))
+      : '';
   const header = `${marker} ${chalk.bold.hex(colors.text)(`${action} ${operationCount} ${noun}`)}${failure}${attempts}`;
   const lines = renderToolRow(connectedToNext ? '├' : '└', header, width);
   const groupRail = connectedToNext ? '│ ' : '  ';
@@ -667,7 +683,7 @@ function renderCell(
         : chalk.hex(running ? colors.accent : colors.success)(running ? '•' : '✓');
     const heading = chalk.bold.hex(
       failed ? colors.error : cancelled ? colors.warning : colors.text,
-    )(sanitizeTerminalText(cell.title ?? 'Code review'));
+    )(sanitizeTerminalText(cell.title ?? transcriptText('cell.title.codeReview')));
     const lines = [...new Text(`${marker} ${heading}`, 2, 0).render(width)];
     if (cell.content.trim()) {
       lines.push(
@@ -684,10 +700,10 @@ function renderCell(
     const label = chalk.bold.hex(failed ? colors.error : colors.muted)(
       cell.title ??
         (running
-          ? 'Compacting context'
+          ? transcriptText('cell.title.compacting')
           : failed
-            ? 'Context compaction failed'
-            : 'Context compacted'),
+            ? transcriptText('cell.title.compactionFailed')
+            : transcriptText('cell.title.contextCompacted')),
     );
     const tokenDelta =
       cell.status === 'succeeded' &&
@@ -703,9 +719,14 @@ function renderCell(
   }
 
   if (cell.kind === 'turn-duration') {
-    const label = cell.status === 'cancelled' ? 'Interrupted after' : 'Completed in';
+    const label =
+      cell.status === 'cancelled'
+        ? transcriptText('cell.turnDuration.interrupted')
+        : transcriptText('cell.turnDuration.completed');
     const outputRate = isPositiveFinite(cell.outputTokensPerSecond)
-      ? ` · ⚡ ${cell.outputTokensPerSecondEstimated === true ? '~' : ''}${formatTokensPerSecond(cell.outputTokensPerSecond)} tok/s`
+      ? transcriptText('cell.turnDuration.tokenRate', {
+          value: `${cell.outputTokensPerSecondEstimated === true ? '~' : ''}${formatTokensPerSecond(cell.outputTokensPerSecond)}`,
+        })
       : '';
     const summary = chalk.hex(colors.muted)(
       `  └ ${label} ${formatTuiDuration((cell.durationMs ?? 0) / 1_000)}${outputRate}`,
@@ -718,7 +739,7 @@ function renderCell(
     const failed = cell.status === 'failed';
     const marker = failed ? chalk.hex(colors.error)('×') : chalk.hex(colors.accent)('•');
     const label = running
-      ? chalk.bold.hex(colors.muted)('Thinking…')
+      ? chalk.bold.hex(colors.muted)(transcriptText('cell.title.thinkingRunning'))
       : chalk.bold.hex(failed ? colors.error : colors.muted)(formatThinkingSummary(cell));
     const lines = renderToolRow(connectedToNext ? '├' : '└', `${marker} ${label}`, width);
     const displayMode = resolveDisplayMode(cell);
@@ -848,11 +869,17 @@ function renderCell(
   }
 
   if (cell.kind === 'error') {
-    return [...new Text(chalk.hex(colors.error)(`× Error  ${cell.content}`), 2, 0).render(width)];
+    return [
+      ...new Text(
+        chalk.hex(colors.error)(`${transcriptText('cell.error.heading')}  ${cell.content}`),
+        2,
+        0,
+      ).render(width),
+    ];
   }
 
   if (cell.kind === 'warning') {
-    const title = sanitizeTerminalText(cell.title ?? 'Warning');
+    const title = sanitizeTerminalText(cell.title ?? transcriptText('cell.title.warning'));
     const content = sanitizeTerminalText(cell.content);
     return [...new Text(chalk.hex(colors.warning)(`! ${title}  ${content}`), 2, 0).render(width)];
   }
@@ -893,14 +920,14 @@ function renderDelegatedAgent(
 ): string[] {
   const presentation =
     cell.status === 'running' || cell.status === 'pending'
-      ? { marker: chalk.hex(colors.accent)('●'), label: 'Running' }
+      ? { marker: chalk.hex(colors.accent)('●'), label: transcriptText('tool.action.running') }
       : cell.status === 'succeeded'
-        ? { marker: chalk.hex(colors.success)('✓'), label: 'Done' }
+        ? { marker: chalk.hex(colors.success)('✓'), label: transcriptText('view.delegation.done') }
         : cell.status === 'cancelled'
-          ? { marker: chalk.hex(colors.muted)('■'), label: 'Stopped' }
-          : { marker: chalk.hex(colors.error)('×'), label: 'Failed' };
-  const agent = sanitizeDelegationLabel(cell.title, 'sub-agent');
-  const task = sanitizeDelegationLabel(cell.content, 'Delegated task');
+          ? { marker: chalk.hex(colors.muted)('■'), label: transcriptText('view.delegation.stopped') }
+          : { marker: chalk.hex(colors.error)('×'), label: transcriptText('view.delegation.failed') };
+  const agent = sanitizeDelegationLabel(cell.title, tuiText('agentTeam.fallback.agentName'));
+  const task = sanitizeDelegationLabel(cell.content, tuiText('agentTeam.fallback.task'));
   const summary = `${presentation.marker} ${chalk.bold.hex(colors.text)(agent)} ${chalk.hex(
     colors.muted,
   )(presentation.label)}${task ? chalk.hex(colors.muted)(` · ${task}`) : ''}`;
@@ -957,7 +984,7 @@ function renderUserMessage(cell: TranscriptCell, width: number): string[] {
   // A cancelled user row (prompt restored to the composer on abort) stays in
   // the history with a muted marker, matching the cancelled-todo precedent.
   if (cell.status === 'cancelled') {
-    return [chalk.hex(colors.muted)('× Cancelled'), ...rows];
+    return [chalk.hex(colors.muted)(transcriptText('cell.user.cancelled')), ...rows];
   }
   return rows;
 }
@@ -1002,12 +1029,16 @@ function pendingSteerPresentation(status: TranscriptCell['status']): {
   color: string;
 } {
   if (status === 'pending' || status === 'running') {
-    return { marker: '↳', label: 'Next', color: colors.signal };
+    return { marker: '↳', label: transcriptText('view.pendingSteer.next'), color: colors.signal };
   }
   if (status === 'failed') {
-    return { marker: '×', label: 'May not have applied', color: colors.error };
+    return {
+      marker: '×',
+      label: transcriptText('view.pendingSteer.mayNotHaveApplied'),
+      color: colors.error,
+    };
   }
-  return { marker: '×', label: 'Not applied', color: colors.muted };
+  return { marker: '×', label: transcriptText('view.pendingSteer.notApplied'), color: colors.muted };
 }
 
 function trimTerminalLineEnd(line: string): string {
@@ -1039,10 +1070,10 @@ function renderUserAttachments(cell: TranscriptCell, width: number): string[] {
   });
 }
 
-function transcriptAttachmentKind(attachment: TranscriptAttachment): 'Image' | 'Video' | 'File' {
-  if (attachment.type === 'image') return 'Image';
-  if (attachment.mimeType.startsWith('video/')) return 'Video';
-  return 'File';
+function transcriptAttachmentKind(attachment: TranscriptAttachment): string {
+  if (attachment.type === 'image') return transcriptText('view.attachment.image');
+  if (attachment.mimeType.startsWith('video/')) return transcriptText('view.attachment.video');
+  return transcriptText('view.attachment.file');
 }
 
 function formatAttachmentBytes(sizeBytes: number): string {
@@ -1141,10 +1172,19 @@ function renderExecutionDetailPreview(
 
   const omitted = rendered.length - maxLines;
   const prefix = chalk.hex(colors.dim)(rawPrefix);
-  const direction = edge === 'head' ? 'more' : 'earlier';
   const omission = sourceTruncated
-    ? `${direction} content`
-    : `${omitted} ${direction} ${omitted === 1 ? 'line' : 'lines'}`;
+    ? edge === 'head'
+      ? transcriptText('detail.omission.moreContent')
+      : transcriptText('detail.omission.earlierContent')
+    : edge === 'head'
+      ? transcriptText(
+          omitted === 1 ? 'detail.omission.moreLines.one' : 'detail.omission.moreLines.many',
+          { count: omitted },
+        )
+      : transcriptText(
+          omitted === 1 ? 'detail.omission.earlierLines.one' : 'detail.omission.earlierLines.many',
+          { count: omitted },
+        );
   const hint = chalk.hex(colors.muted)(`… ${omission}${expandHint ? ` · ${expandHint}` : ''}`);
   const hintLine = truncateToWidth(
     `${prefix}${hint}`,
@@ -1163,8 +1203,13 @@ function renderTodoCell(cell: TranscriptCell, width: number, connectedToNext: bo
   const active = items.some((item) => item.status === 'in_progress');
   const pending = items.some((item) => item.status === 'pending');
   const marker = chalk.hex(active || pending ? colors.accent : colors.success)('•');
-  const cancelledLabel = cancelled > 0 ? chalk.hex(colors.muted)(` · ${cancelled} cancelled`) : '';
-  const header = `${marker} ${chalk.bold.hex(colors.text)(`Todo list ${completed}/${items.length}`)}${cancelledLabel}`;
+  const cancelledLabel =
+    cancelled > 0
+      ? chalk.hex(colors.muted)(` · ${transcriptText('cell.todo.cancelled', { count: cancelled })}`)
+      : '';
+  const header = `${marker} ${chalk.bold.hex(colors.text)(
+    transcriptText('cell.todo.title', { completed, total: items.length }),
+  )}${cancelledLabel}`;
   const lines = renderToolRow(connectedToNext ? '├' : '└', header, width);
   const rail = connectedToNext ? '│   ' : '    ';
 
@@ -1229,7 +1274,11 @@ function renderPermissionReceipt(cell: TranscriptCell, width: number): string[] 
   const denied = cell.detail?.startsWith('Denied') ?? false;
   const color = denied ? colors.error : resolveTuiDecisionColor('permission', true);
   const marker = denied ? '×' : '✓';
-  const title = cell.detail ?? `Resolved: ${cell.title ?? 'tool action'}`;
+  const title =
+    cell.detail ??
+    transcriptText('cell.permission.resolved', {
+      title: cell.title ?? transcriptText('cell.permission.toolFallback'),
+    });
   const heading = truncateToWidth(
     `${chalk.bold.hex(color)(marker)} ${chalk.bold.hex(colors.text)(title)}`,
     Math.max(0, width),
@@ -1253,7 +1302,9 @@ function renderQuestionReceipt(cell: TranscriptCell, width: number): string[] {
     const marker = resolved ? '✓' : '◆';
     const color = resolved ? colors.success : colors.signal;
     const heading = truncateToWidth(
-      `${chalk.bold.hex(color)(marker)} ${chalk.bold.hex(colors.text)(cell.title ?? 'Plan Review')}`,
+      `${chalk.bold.hex(color)(marker)} ${chalk.bold.hex(colors.text)(
+        cell.title ?? transcriptText('cell.question.planReview'),
+      )}`,
       Math.max(0, width),
       '',
     );
@@ -1267,10 +1318,14 @@ function renderQuestionReceipt(cell: TranscriptCell, width: number): string[] {
 
   const presentation =
     cell.status === 'resolved'
-      ? { marker: '✓', title: cell.title ?? 'Answers sent', color: colors.success }
+      ? {
+          marker: '✓',
+          title: cell.title ?? transcriptText('cell.title.answersSent'),
+          color: colors.success,
+        }
       : cell.status === 'pending'
-        ? { marker: '●', title: 'Sending answers…', color: colors.accent }
-        : { marker: '◆', title: 'Answers so far', color: colors.signal };
+        ? { marker: '●', title: transcriptText('view.question.sendingAnswers'), color: colors.accent }
+        : { marker: '◆', title: transcriptText('cell.question.answersSoFar'), color: colors.signal };
   const heading = truncateToWidth(
     `${chalk.bold.hex(presentation.color)(presentation.marker)} ${chalk.bold.hex(colors.text)(presentation.title)}`,
     Math.max(0, width),
@@ -1315,7 +1370,7 @@ function isReadToolCell(cell: TranscriptCell): boolean {
   );
 }
 
-function groupNoun(cells: readonly TranscriptCell[]): string {
+function groupNoun(cells: readonly TranscriptCell[]): TranscriptGroupNoun {
   const titles = new Set(
     cells
       .map((cell) => cell.title?.trim().toLocaleLowerCase().replaceAll('-', '_'))
@@ -1333,12 +1388,16 @@ function renderGroupAction(cells: readonly TranscriptCell[], running: boolean): 
       .map((cell) => cell.title?.trim().toLocaleLowerCase().replaceAll('-', '_'))
       .filter((title): title is string => Boolean(title)),
   );
-  if (readGroupCategories(titles).size > 1) return running ? 'Exploring' : 'Explored';
-  if (titles.has('grep') || titles.has('search')) return running ? 'Searching' : 'Searched';
-  if (titles.has('glob') || titles.has('list') || titles.has('list_files')) {
-    return running ? 'Listing' : 'Listed';
+  if (readGroupCategories(titles).size > 1) {
+    return running ? transcriptText('view.group.exploring') : transcriptText('view.group.explored');
   }
-  return running ? 'Reading' : 'Read';
+  if (titles.has('grep') || titles.has('search')) {
+    return running ? transcriptText('tool.action.searching') : transcriptText('tool.action.searched');
+  }
+  if (titles.has('glob') || titles.has('list') || titles.has('list_files')) {
+    return running ? transcriptText('tool.action.listing') : transcriptText('tool.action.listed');
+  }
+  return running ? transcriptText('tool.action.reading') : transcriptText('tool.action.read');
 }
 
 function readGroupCategories(titles: ReadonlySet<string>): Set<'read' | 'search' | 'list'> {
@@ -1356,9 +1415,11 @@ function readGroupCategories(titles: ReadonlySet<string>): Set<'read' | 'search'
 
 function renderGroupedToolProgress(cell: TranscriptCell): string {
   const title = cell.title?.trim().toLocaleLowerCase().replaceAll('-', '_');
-  if (title === 'grep' || title === 'search') return 'searching';
-  if (title === 'glob' || title === 'list' || title === 'list_files') return 'listing';
-  return 'reading';
+  if (title === 'grep' || title === 'search') return transcriptText('view.group.progress.searching');
+  if (title === 'glob' || title === 'list' || title === 'list_files') {
+    return transcriptText('view.group.progress.listing');
+  }
+  return transcriptText('view.group.progress.reading');
 }
 
 function isSameExecutionTurn(left: TranscriptCell, right: TranscriptCell): boolean {
@@ -1395,8 +1456,10 @@ function formatToolAction(
   const definition = resolveTranscriptToolDefinition(normalized);
   if (definition) {
     if (definition.family === 'read' && isImageReadContent(content)) {
-      if (status === 'failed') return 'Image read failed';
-      return running ? 'Reading Image' : 'Read Image';
+      if (status === 'failed') return transcriptText('tool.action.imageReadFailed');
+      return running
+        ? transcriptText('tool.action.readingImage')
+        : transcriptText('tool.action.readImage');
     }
     const action =
       status === 'failed'
@@ -1429,9 +1492,11 @@ function isImageReadContent(content: string | undefined): boolean {
 }
 
 function formatBackgroundBashAction(status: TranscriptCell['status']): string {
-  if (status === 'failed') return 'Background task failed';
-  if (status === 'pending' || status === 'running') return 'Starting background task';
-  return 'Started background task';
+  if (status === 'failed') return transcriptText('tool.action.backgroundTaskFailed');
+  if (status === 'pending' || status === 'running') {
+    return transcriptText('tool.action.startingBackgroundTask');
+  }
+  return transcriptText('tool.action.startedBackgroundTask');
 }
 
 function styleToolAction(
@@ -1451,10 +1516,20 @@ function styleToolAction(
 function formatThinkingSummary(cell: TranscriptCell): string {
   const durationMs =
     cell.durationMs ?? Math.max(0, Math.floor(cell.updatedAtMs - cell.createdAtMs));
-  const duration = durationMs > 0 ? ` for ${formatDuration(durationMs)}` : '';
-  if (cell.status === 'cancelled') return `Thought${duration} before interruption`;
-  if (cell.status === 'failed') return `Thought${duration} before failure`;
-  return `Thought${duration}`;
+  const duration = durationMs > 0 ? formatDuration(durationMs) : '';
+  if (cell.status === 'cancelled') {
+    return duration
+      ? transcriptText('cell.thinking.thoughtForBeforeInterruption', { duration })
+      : transcriptText('cell.thinking.thoughtBeforeInterruption');
+  }
+  if (cell.status === 'failed') {
+    return duration
+      ? transcriptText('cell.thinking.thoughtForBeforeFailure', { duration })
+      : transcriptText('cell.thinking.thoughtBeforeFailure');
+  }
+  return duration
+    ? transcriptText('cell.thinking.thoughtFor', { duration })
+    : transcriptText('cell.thinking.thought');
 }
 
 function formatDuration(durationMs: number): string {

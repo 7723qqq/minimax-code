@@ -8,6 +8,7 @@ import {
   tuiChalk as chalk,
   tuiColors as colors,
 } from '../../theme/runtime.js';
+import { historyText } from './copy.js';
 
 export interface TuiHistorySearchPanelOptions {
   readonly entries: readonly string[];
@@ -59,7 +60,7 @@ export class TuiHistorySearchPanel implements Component, Focusable {
     const matches = this.matches();
     this.selectedIndex = Math.min(this.selectedIndex, Math.max(0, matches.length - 1));
     this.searchInput.focused = this.focused;
-    const title = chalk.bold.hex(colors.signal)('Search prompt history');
+    const title = chalk.bold.hex(colors.signal)(historyText('searchTitle'));
     const searchWidth = Math.max(1, safeWidth - visibleWidth(title) - 2);
     const search = this.searchInput.render(searchWidth)[0] ?? '';
     const visible = matches.slice(0, 6);
@@ -72,7 +73,7 @@ export class TuiHistorySearchPanel implements Component, Focusable {
             : chalk.hex(colors.muted)(sanitizeTerminalText(decodePluginMentions(entry).text));
           return fit(`${prefix}${value}`, safeWidth);
         })
-      : [fit(chalk.hex(colors.muted)('  No matching prompts'), safeWidth)];
+      : [fit(chalk.hex(colors.muted)(`  ${historyText('noMatches')}`), safeWidth)];
     return [
       fit(`${title}  ${search}`, safeWidth),
       ...rows,
@@ -83,7 +84,9 @@ export class TuiHistorySearchPanel implements Component, Focusable {
   private matches(): string[] {
     const query = this.searchInput.getValue().trim().toLocaleLowerCase();
     if (!query) return [...this.options.entries];
-    return this.options.entries.filter((entry) => decodePluginMentions(entry).text.toLocaleLowerCase().includes(query));
+    return this.options.entries.filter((entry) =>
+      decodePluginMentions(entry).text.toLocaleLowerCase().includes(query),
+    );
   }
 
   private move(direction: -1 | 1): void {

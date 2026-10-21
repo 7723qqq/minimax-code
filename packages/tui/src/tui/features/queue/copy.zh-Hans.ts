@@ -1,0 +1,55 @@
+import type { QueueCopyKey } from './copy.en.js';
+
+/**
+ * Simplified Chinese copy for the message queue panels.
+ *
+ * The `satisfies` clause is the completeness check: a key present in the
+ * English catalog but absent here fails `pnpm typecheck`.
+ */
+export const ZH_HANS_QUEUE_COPY = {
+  'queue.summary.paused': '已暂停 · 待处理 {n} 条。准备好后继续。',
+  'queue.summary.running': '将在当前回复之后按此顺序执行。',
+  'queue.empty.waitingToContinue': '后台任务正在等待继续。',
+  'queue.empty.noMessages': '没有后续消息。',
+  'queue.edit.title': '编辑下一条消息',
+  'queue.edit.attachmentsUnchanged': '附件保持不变 · {names}',
+  'queue.confirm.removeTitle': '移除这条下一消息？',
+  'queue.hint.save': 'Enter 保存 · Esc 取消',
+  'queue.hint.remove': 'Enter 删除 · Esc 保留',
+  'queue.hint.list': '{continue}↑↓ 选择 · Enter {action}{restore}{removal} · Esc 关闭',
+  'queue.hint.continue': 'c 继续队列 · ',
+  'queue.hint.action.retry': '重试',
+  'queue.hint.action.edit': '编辑',
+  'queue.hint.restore': ' · r 恢复',
+  'queue.hint.removal.discard': ' · e 编辑 · d 丢弃',
+  'queue.hint.removal.remove': ' · d 删除',
+  'queue.status.continued': '队列已继续。',
+  'queue.status.continueFailed': '队列无法继续。请检查当前回复或服务商设置。',
+  'queue.action.continueRetry': '请检查服务商设置后重试。',
+  'queue.error.continueFailed': '无法继续队列。',
+  'queue.error.alreadyStarted': '该消息已经开始执行。',
+  'queue.error.emptyMessage': '下一条消息不能为空。',
+  'queue.error.updatePreserved': '你的原始消息未发生变化。',
+  'queue.error.updateFailed': '无法更新这条下一消息。',
+  'queue.action.updateRetry': '请重试。',
+  'queue.action.removeRetry': '请在队列中重试。',
+  'queue.error.removeFailed': '无法移除这条下一消息。',
+  'queue.status.updated': '下一条消息已更新。',
+  'queue.status.removed': '下一条消息已移除。',
+  'queue.status.retrying': '正在重试消息…',
+  'queue.status.accepted': '消息已接受。',
+  'queue.status.pendingRetry': '消息仍在等待重试。',
+  'queue.error.retryFailed': '无法重试这条消息。',
+  'queue.action.retryLater': '请稍后重试。',
+  'queue.error.retryPreserved': '它仍保留在队列中。',
+  'queue.status.restoring': '正在恢复消息…',
+  'queue.status.restored': '消息已恢复到输入框。',
+  'queue.action.restoreRetry': '请重新打开队列以查看状态。',
+  'queue.error.restoreFailed': '无法恢复这条消息。',
+  'queue.pausedSend.paused': '队列已暂停 · 待处理 {n} 条',
+  'queue.pausedSend.question': '这条消息要如何继续当前会话？',
+  'queue.pausedSend.keepQueue': '先发送这条消息，再继续队列',
+  'queue.pausedSend.clearQueue': '清空我排队的消息并发送这条消息',
+  'queue.pausedSend.keepDraft': '保留我的草稿',
+  'queue.pausedSend.hint': '↑↓ 选择 · Enter 确认 · Esc 保留草稿',
+} as const satisfies Readonly<Record<QueueCopyKey, string>>;

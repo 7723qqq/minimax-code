@@ -1,4 +1,5 @@
 import { parsePluginMentions } from '@mavis/shared/plugin-mention';
+import { resolveLocale } from '@mavis/shared/i18n';
 import {
   createTuiCommandCatalog,
   matchTuiCommandInput,
@@ -11,7 +12,11 @@ import type { TuiComposerDraft } from '../../features/composer/draft.js';
 import type { TuiWorkspaceRoots } from '../../features/composer/workspace-roots.js';
 import { TuiLoginRegionPicker } from '../../features/auth/login-region-picker.js';
 import { TuiPermissionModePicker } from '../../features/interaction/permission-mode-picker.js';
-import { TuiSettingsPicker } from '../../features/settings/picker.js';
+import {
+  TuiSettingsPicker,
+  tuiLanguageFromLocale,
+  tuiLanguageHint,
+} from '../../features/settings/picker.js';
 import { TuiHotkeysPicker } from '../../features/settings/hotkeys-picker.js';
 import { submittedEditorContent, submittedEditorTransport, type Editor } from '../../widgets/editor/editor.js';
 import type { TuiInteractionSurface } from '../../shell/interaction-surface.js';
@@ -55,6 +60,8 @@ import type { TuiAttachment, TuiTransportAttachment } from '../../../types/invoc
 import { sessionMutationText } from '../../features/session-mutation/copy.js';
 import { parseTuiBashInput } from '../../commands/bash-input.js';
 import type { TuiBashFlow } from './bash-flow.js';
+import { controllerText } from '../copy.js';
+import { controllerProductText } from './copy.js';
 
 export interface TuiCommandFlowOptions {
   readonly bashFlow?: TuiBashFlow;
@@ -93,6 +100,7 @@ export interface TuiCommandFlowOptions {
   readonly showStatusLine?: () => void;
   readonly showTheme?: () => void;
   readonly persistTuiMode?: (mode: TuiMode) => void;
+  readonly persistLocale?: (locale: string) => void;
   readonly queueEnabled: boolean;
   readonly liveRunId: () => string | undefined;
   readonly runtimeStopping: () => boolean;
@@ -334,25 +342,23 @@ export class TuiCommandFlow {
       return 'consumed';
     }
     if (this.shellSubmissionPending || this.options.bashFlow?.isRunning()) {
-      this.options.setHint('Shell command running · Esc or Ctrl+C to cancel');
+      this.options.setHint(controllerProductText('command.shellRunning'));
       return this.restoreSeed(seed, input);
     }
     const bash = !submitOptions.forceMessage && parseTuiBashInput(input);
     if (bash && this.options.bashFlow) {
       if (this.options.isStopped?.()) return this.restoreSeed(seed, input);
       if (!bash.command) {
-        this.options.setHint('Type a command after !');
+        this.options.setHint(controllerProductText('command.typeCommandAfterBang'));
         return this.restoreSeed(seed, input);
       }
       if (seedHasResources(seed) || this.options.composerDraft.hasContent()) {
-        this.options.setHint('Remove attachments before running a shell command');
+        this.options.setHint(controllerProductText('command.removeAttachmentsForShell'));
         return this.restoreSeed(seed, input);
       }
       const snapshot = this.options.controller.snapshot();
       if (this.isAgentBusyForShell()) {
-        this.options.setHint(
-          'Wait for the current response or interaction before running a shell command',
-        );
+        this.options.setHint(controllerProductText('command.waitBeforeShell'));
         return this.restoreSeed(seed, input);
       }
       this.shellSubmissionPending = true;
@@ -360,13 +366,11 @@ export class TuiCommandFlow {
         if (seed) await this.options.composerDraft.completeSubmission(seed.resources);
         if (this.options.isStopped?.()) return 'consumed';
         if (this.options.controller.snapshot().session?.sessionId !== snapshot.session?.sessionId) {
-          this.options.setHint('Session changed; submit the shell command again');
+          this.options.setHint(controllerProductText('command.sessionChangedResubmitShell'));
           return this.restoreSeed(seed, input);
         }
         if (this.isAgentBusyForShell()) {
-          this.options.setHint(
-            'Wait for the current response or interaction before running a shell command',
-          );
+          this.options.setHint(controllerProductText('command.waitBeforeShell'));
           return this.restoreSeed(seed, input);
         }
         await this.options.bashFlow.run(
@@ -454,7 +458,7 @@ export class TuiCommandFlow {
       return 'consumed';
     }
     if (this.shellSubmissionPending || this.options.bashFlow?.isRunning()) {
-      this.options.setHint('Shell command running · Esc or Ctrl+C to cancel');
+      this.options.setHint(controllerProductText('command.shellRunning'));
       return this.restoreSeed(seed, input);
     }
     if (!preservePreparingHint) this.options.setHint(undefined);
@@ -467,8 +471,8 @@ export class TuiCommandFlow {
     ) {
       this.options.setHint(
         chat.retiringTurnId
-          ? 'Runtime is still stopping; your draft is preserved.'
-          : 'Stopping the current response. Your draft is preserved.',
+          ? controllerProductText('common.runtimeStopping')
+          : controllerText('common.stoppingDraftPreserved'),
       );
       this.options.onChanged();
       return this.restoreSeed(seed, input);
@@ -499,7 +503,7 @@ export class TuiCommandFlow {
         this.options.editor.setText(input);
         this.options.surfaceHost.setChatFocus(this.options.editor);
       }
-      this.options.setHint('Resolve the pending Agent interaction first.');
+      this.options.setHint(controllerProductText('command.resolvePendingInteraction'));
       this.options.interactionFlow.showPending();
       this.options.onChanged();
       return this.restoreSeed(seed, input);
@@ -552,8 +556,8 @@ export class TuiCommandFlow {
           this.options.planModeFlow?.rejectSubmission(submission.submissionId);
           this.options.setHint(
             currentChat.retiringTurnId
-              ? 'Runtime is still stopping; your draft is preserved.'
-              : 'Stopping the current response. Your draft is preserved.',
+              ? controllerProductText('common.runtimeStopping')
+              : controllerText('common.stoppingDraftPreserved'),
           );
           this.options.onChanged();
           return {
@@ -562,7 +566,7 @@ export class TuiCommandFlow {
         }
         if (this.options.interactionFlow.hasPending()) {
           this.options.planModeFlow?.rejectSubmission(submission.submissionId);
-          this.options.setHint('Resolve the pending Agent interaction first.');
+          this.options.setHint(controllerProductText('command.resolvePendingInteraction'));
           this.options.interactionFlow.showPending();
           this.options.onChanged();
           return {
@@ -615,7 +619,7 @@ export class TuiCommandFlow {
               this.options.planModeFlow?.rejectSubmission(submission.submissionId);
               this.appendProtectedActionError(
                 error,
-                "Couldn't send guidance to the active response.",
+                controllerProductText('command.guidanceSendFailed'),
               );
               return {
                 disposition: await this.restorePreparedSubmission(seed, submission, input),
@@ -676,7 +680,7 @@ export class TuiCommandFlow {
             }
             return { disposition: 'consumed' };
           }
-          this.options.setHint('Wait for the current response or press Esc to interrupt');
+          this.options.setHint(controllerProductText('command.waitOrInterrupt'));
           this.options.onChanged();
           return {
             disposition: await this.restorePreparedSubmission(seed, submission, input),
@@ -1073,7 +1077,7 @@ export class TuiCommandFlow {
       },
       goal: async ({ args }) => {
         if (!this.options.goalFlow) {
-          this.options.append('Goal support is unavailable in this host.', 'warning');
+          this.options.append(controllerProductText('command.goalUnavailable'), 'warning');
           return 'retained';
         }
         return this.options.goalFlow.execute(args);
@@ -1081,7 +1085,7 @@ export class TuiCommandFlow {
       plan: async ({ args }) => {
         const action = args.trim().toLocaleLowerCase();
         if (!this.options.planModeFlow) {
-          this.options.append('Plan Mode is unavailable in this host.', 'warning');
+          this.options.append(controllerProductText('command.planModeUnavailable'), 'warning');
           return;
         }
         if (action === 'view') {
@@ -1089,7 +1093,7 @@ export class TuiCommandFlow {
           return;
         }
         if (action !== 'status' && this.options.interactionFlow.hasPending()) {
-          this.options.setHint('Resolve the pending Agent interaction before changing Plan Mode.');
+          this.options.setHint(controllerProductText('command.resolveBeforePlanMode'));
           this.options.interactionFlow.showPending();
           this.options.onChanged();
           return;
@@ -1099,7 +1103,7 @@ export class TuiCommandFlow {
         else if (action === 'off' || action === 'default') this.options.planModeFlow.set('default');
         else if (action === 'status') this.options.planModeFlow.showStatus();
         else {
-          this.options.append('Usage: /plan [on | off | status | view]', 'warning');
+          this.options.append(controllerProductText('command.planUsage'), 'warning');
           return 'retained';
         }
       },
@@ -1204,7 +1208,7 @@ export class TuiCommandFlow {
         if (!args) {
           const sessionId = this.options.controller.snapshot().session?.sessionId;
           if (!sessionId) {
-            this.options.setHint('Start or resume a Session before renaming it.');
+            this.options.setHint(controllerProductText('command.renameNeedsSession'));
             this.options.onChanged();
             return 'consumed';
           }
@@ -1215,16 +1219,16 @@ export class TuiCommandFlow {
         }
         const renamed = await this.options.controller.renameCurrentSession(args);
         const title = renamed.title?.trim() || args.trim();
-        this.options.setHint(`Session renamed to “${title}”.`);
+        this.options.setHint(controllerProductText('command.sessionRenamed', { title }));
         this.options.onChanged();
       },
       archive: async () => {
         if (this.hasLiveRun()) {
-          this.options.append('Stop the running turn before archiving this Session.', 'warning');
+          this.options.append(controllerProductText('command.stopBeforeArchive'), 'warning');
           return 'retained';
         }
         const sessionId = this.options.controller.snapshot().session?.sessionId;
-        if (!sessionId) throw new Error('No active session.');
+        if (!sessionId) throw new Error(controllerText('common.noActiveSession'));
         await this.options.controller.archiveCurrentSession();
         await this.options.sessionFlow.archiveCurrentProjection(sessionId);
       },
@@ -1235,7 +1239,7 @@ export class TuiCommandFlow {
       status: () => this.options.featureFlow.showAccountStatus(),
       tasks: async () => {
         if (!this.options.showTasks) {
-          this.options.setHint('Background task view is unavailable in this host.');
+          this.options.setHint(controllerProductText('command.backgroundTasksUnavailable'));
           this.options.onChanged();
           return;
         }
@@ -1243,7 +1247,7 @@ export class TuiCommandFlow {
       },
       permission: async ({ args }) => {
         if (!this.options.permissionModeFlow) {
-          this.options.append('Permission mode is unavailable in this host.', 'warning');
+          this.options.append(controllerProductText('command.permissionModeUnavailable'), 'warning');
           return;
         }
         const action = args.trim().toLocaleLowerCase();
@@ -1262,7 +1266,7 @@ export class TuiCommandFlow {
         } as const;
         const mode = modes[action as keyof typeof modes];
         if (!mode) {
-          this.options.append('Usage: /permission [status | ask | auto | full]', 'warning');
+          this.options.append(controllerProductText('command.permissionUsage'), 'warning');
           return 'retained';
         }
         await this.options.permissionModeFlow.set(mode);
@@ -1276,7 +1280,7 @@ export class TuiCommandFlow {
       context: async () => this.options.activeRunFlow.showContext(),
       steer: async ({ raw }) => {
         if (this.options.interactionFlow.hasPending()) {
-          this.options.setHint('Resolve the pending Agent interaction before steering.');
+          this.options.setHint(controllerProductText('command.resolveBeforeSteering'));
           this.options.interactionFlow.showPending();
           this.options.onChanged();
           return 'retained';
@@ -1296,30 +1300,30 @@ export class TuiCommandFlow {
       hotkeys: () => this.showHotkeysPicker(),
       reload: async () => {
         if (!this.options.reloadTui) {
-          this.options.append('TUI reload is unavailable in this host.', 'warning');
+          this.options.append(controllerProductText('command.tuiReloadUnavailable'), 'warning');
           return 'retained';
         }
         if (this.options.interactionFlow.hasPending()) {
-          this.options.setHint('Resolve the pending Agent interaction before reloading TUI.');
+          this.options.setHint(controllerProductText('command.resolveBeforeReload'));
           this.options.interactionFlow.showPending();
           this.options.onChanged();
           return 'retained';
         }
         if (this.options.runProjection.snapshot().queuedCount > 0) {
-          this.options.setHint('Clear the Queue before reloading TUI.');
+          this.options.setHint(controllerProductText('command.clearQueueBeforeReload'));
           this.options.onChanged();
           return 'retained';
         }
-        this.options.setHint('Reloading TUI configuration…');
+        this.options.setHint(controllerProductText('command.reloadingTui'));
         this.options.onChanged();
         try {
           await this.options.reloadTui();
-          this.options.setHint('TUI configuration reloaded.');
+          this.options.setHint(controllerProductText('command.tuiReloaded'));
         } catch (error) {
           this.options.append(
             formatTuiActionFailure(error, {
-              summary: "Couldn't reload TUI configuration.",
-              nextStep: 'Resolve the reported configuration or plugin refresh error, then retry /reload.',
+              summary: controllerProductText('command.reloadFailed'),
+              nextStep: controllerProductText('command.reloadFailedNextStep'),
             }),
             'warning',
           );
@@ -1338,15 +1342,15 @@ export class TuiCommandFlow {
           const added = this.options.workspaceRoots.list().length > before;
           this.options.append(
             added
-              ? `Added workspace directory: ${root.path}\nIt is available to @ path completion and future Runs in this CLI process.`
-              : `Workspace directory is already available: ${root.path}`,
+              ? controllerProductText('command.workspaceAdded', { path: root.path })
+              : controllerProductText('command.workspaceAlreadyAvailable', { path: root.path }),
           );
           this.options.activeRunFlow.refreshAutocomplete();
         } catch (error) {
           this.options.append(
             formatTuiActionFailure(error, {
-              summary: "Couldn't add that workspace folder.",
-              nextStep: 'Check the path and permissions, then retry.',
+              summary: controllerProductText('command.addDirFailed'),
+              nextStep: controllerProductText('command.addDirFailedNextStep'),
             }),
             'warning',
           );
@@ -1356,7 +1360,7 @@ export class TuiCommandFlow {
         if (this.options.interactionFlow.hasPending()) {
           this.options.interactionFlow.showPending();
         } else {
-          this.options.append('No pending Agent interaction.');
+          this.options.append(controllerProductText('command.noPendingInteraction'));
         }
       },
       permissions: async () => this.options.featureFlow.showPermissions(),
@@ -1367,11 +1371,13 @@ export class TuiCommandFlow {
       stop: async () => {
         const hadLiveTurn = this.hasLiveRun();
         await this.options.abortLiveTurn();
-        if (!hadLiveTurn) this.options.append('No turn is currently running.');
+        if (!hadLiveTurn) {
+          this.options.append(controllerProductText('command.noTurnRunning'));
+        }
       },
       queue: async () => {
         if (this.options.interactionFlow.hasPending()) {
-          this.options.setHint('Resolve the pending Agent interaction before managing the Queue.');
+          this.options.setHint(controllerProductText('command.resolveBeforeQueue'));
           this.options.interactionFlow.showPending();
           this.options.onChanged();
           return;
@@ -1404,7 +1410,7 @@ export class TuiCommandFlow {
 
   private async retryLastFailedMessage(): Promise<TuiCommandSubmitDisposition> {
     if (this.options.isLlmRetrying?.()) {
-      this.options.setHint('The model request is already retrying.');
+      this.options.setHint(controllerProductText('command.modelRequestRetrying'));
       this.options.onChanged();
       return 'consumed';
     }
@@ -1421,7 +1427,7 @@ export class TuiCommandFlow {
     const sessionId = this.options.controller.snapshot().session?.sessionId;
     const session = this.options.controller.snapshot().session;
     if (!sessionId || !this.isSessionRetryable(session)) {
-      this.options.append('There is no failed response to retry in this Session.', 'warning');
+      this.options.append(controllerProductText('command.noFailedResponseToRetry'), 'warning');
       return 'consumed';
     }
 
@@ -1526,7 +1532,7 @@ export class TuiCommandFlow {
   private showLoginRegionPicker(): void {
     if (!this.options.auth) {
       this.pendingLoginContinuation = undefined;
-      this.options.append('MiniMax authentication is unavailable in this host.', 'warning');
+      this.options.append(controllerProductText('command.authUnavailable'), 'warning');
       return;
     }
     if (this.loginRegionPicker) this.options.surface.close(this.loginRegionPicker);
@@ -1555,7 +1561,7 @@ export class TuiCommandFlow {
       }
     } catch {
       this.options.append(
-        "Couldn't verify MiniMax sign-in. Check the connection, then retry /checkin.",
+        controllerProductText('command.checkinVerifyFailed'),
         'warning',
       );
       return;
@@ -1567,7 +1573,7 @@ export class TuiCommandFlow {
   private showPermissionModePicker(): void {
     const flow = this.options.permissionModeFlow;
     if (!flow) {
-      this.options.append('Permission mode is unavailable in this host.', 'warning');
+      this.options.append(controllerProductText('command.permissionModeUnavailable'), 'warning');
       return;
     }
     const currentMode = flow.snapshot().mode;
@@ -1604,11 +1610,12 @@ export class TuiCommandFlow {
     }
     const picker = new TuiSettingsPicker(
       this.options.surfaceHost.getChatMode(),
+      tuiLanguageFromLocale(resolveLocale()),
       (mode) => {
         if (this.settingsPicker !== picker) return false;
         const previousMode = this.options.surfaceHost.getChatMode();
         if (!this.options.surfaceHost.setChatMode(mode)) {
-          this.options.setHint('Close active overlays before changing TUI mode.');
+          this.options.setHint(controllerProductText('command.closeOverlaysFirst'));
           this.options.onChanged();
           return false;
         }
@@ -1618,16 +1625,43 @@ export class TuiCommandFlow {
           this.options.surfaceHost.setChatMode(previousMode);
           this.options.append(
             formatTuiActionFailure(error, {
-              summary: "Couldn't save the TUI mode.",
-              nextStep: 'Check the MCode data directory permissions, then retry /settings.',
-              preservation: `The TUI remains in ${previousMode} mode.`,
+              summary: controllerProductText('command.saveModeFailed'),
+              nextStep: controllerProductText('command.saveModeFailedNextStep'),
+              preservation: controllerProductText('command.saveModeFailedPreservation', {
+                previousMode,
+              }),
             }),
             'warning',
           );
           this.options.onChanged();
           return false;
         }
-        this.options.setHint(`TUI mode: ${mode}`);
+        this.options.setHint(controllerProductText('command.tuiMode', { mode }));
+        this.options.onChanged();
+        return true;
+      },
+      (language) => {
+        if (this.settingsPicker !== picker) return false;
+        try {
+          // The launcher's writer also applies the locale to the running
+          // process, so the next render already uses the new language; history
+          // rows that were drawn earlier keep the language they were drawn in.
+          this.options.persistLocale?.(language);
+        } catch (error) {
+          this.options.append(
+            formatTuiActionFailure(error, {
+              summary: controllerProductText('command.saveLanguageFailed'),
+              nextStep: controllerProductText('command.saveLanguageFailedNextStep'),
+              preservation: controllerProductText('command.saveLanguageFailedPreservation'),
+            }),
+            'warning',
+          );
+          this.options.onChanged();
+          return false;
+        }
+        this.options.setHint(
+          tuiLanguageHint(tuiLanguageFromLocale(language)),
+        );
         this.options.onChanged();
         return true;
       },
@@ -1646,7 +1680,7 @@ export class TuiCommandFlow {
       !this.options.getTuiKeybindingOverrides ||
       !this.options.saveTuiKeybindingOverrides
     ) {
-      this.options.append('TUI keyboard customization is unavailable in this host.', 'warning');
+      this.options.append(controllerProductText('command.hotkeysUnavailable'), 'warning');
       return;
     }
     if (this.hotkeysPicker) {
@@ -1658,7 +1692,7 @@ export class TuiCommandFlow {
       getUserOverrides: this.options.getTuiKeybindingOverrides,
       saveUserOverrides: async (overrides) => {
         if (this.hasLiveRun() || this.options.interactionFlow.hasPending()) {
-          throw new Error('Stop the active Turn and resolve pending interactions before saving.');
+          throw new Error(controllerProductText('command.hotkeysNeedsIdle'));
         }
         await this.options.saveTuiKeybindingOverrides?.(overrides);
       },
@@ -1674,10 +1708,14 @@ export class TuiCommandFlow {
 
   private async runAuthCommand(operation: 'login' | 'logout', region?: MavisRegion): Promise<void> {
     if (!this.options.auth) {
-      this.options.append('MiniMax authentication is unavailable in this host.', 'warning');
+      this.options.append(controllerProductText('command.authUnavailable'), 'warning');
       return;
     }
-    this.options.setHint(operation === 'login' ? 'Starting MiniMax sign-in…' : 'Signing out…');
+    this.options.setHint(
+      operation === 'login'
+        ? controllerProductText('command.startingSignIn')
+        : controllerProductText('command.signingOut'),
+    );
     this.options.onChanged();
     try {
       const result =
@@ -1687,15 +1725,16 @@ export class TuiCommandFlow {
                 progress.verificationUriComplete ?? progress.verificationUri,
               );
               this.options.append(
-                `Complete MiniMax login in your browser:\n` +
-                  `${authorizationUrl}\n` +
-                  `Code: ${progress.userCode}`,
+                controllerProductText('command.completeLoginInBrowser', {
+                  url: authorizationUrl,
+                  code: progress.userCode,
+                }),
               );
-              this.options.setHint('Waiting for authorization…');
+              this.options.setHint(controllerProductText('command.waitingForAuthorization'));
               this.options.onChanged();
               void this.openExternalTarget(authorizationUrl).catch(() => {
                 this.options.append(
-                  "Couldn't open the default browser. Open the authorization URL above manually.",
+                  controllerProductText('command.couldNotOpenBrowser'),
                   'warning',
                 );
                 this.options.onChanged();
@@ -1737,11 +1776,14 @@ export class TuiCommandFlow {
       if (operation === 'login') this.pendingLoginContinuation = undefined;
       this.options.append(
         formatTuiActionFailure(error, {
-          summary: operation === 'login' ? "Sign-in wasn't completed." : "Couldn't sign out.",
+          summary:
+            operation === 'login'
+              ? controllerProductText('command.signInNotCompleted')
+              : controllerProductText('command.signOutFailed'),
           nextStep:
             operation === 'login'
-              ? 'Resolve the reported connection or service error before retrying sign-in.'
-              : 'Check the connection, then retry /logout.',
+              ? controllerProductText('command.signInNotCompletedNextStep')
+              : controllerProductText('command.signOutFailedNextStep'),
         }),
         'error',
       );
@@ -1752,13 +1794,15 @@ export class TuiCommandFlow {
   }
 
   private async openLogoutPage(logoutUrl: string): Promise<void> {
-    this.options.append(`Finish signing out in your browser:\n${logoutUrl}`);
+    this.options.append(
+      controllerProductText('command.finishSignOutInBrowser', { url: logoutUrl }),
+    );
     this.options.onChanged();
     try {
       await this.openExternalTarget(logoutUrl);
     } catch {
       this.options.append(
-        "Couldn't open the default browser. Open the sign-out URL above manually.",
+        controllerProductText('command.couldNotOpenSignOutPage'),
         'warning',
       );
       this.options.onChanged();
@@ -1789,8 +1833,8 @@ export class TuiCommandFlow {
         ? error.message
         : (message ??
             formatTuiActionFailure(error, {
-              summary: "Couldn't complete this action.",
-              nextStep: 'Retry.',
+              summary: controllerProductText('command.couldNotCompleteAction'),
+              nextStep: controllerProductText('command.couldNotCompleteActionNextStep'),
             })),
       error instanceof TuiLoginRequiredError ? 'warning' : 'error',
     );
@@ -1846,29 +1890,29 @@ function reconcileRecoveredTransportAttachments(
 function prepareSubmissionFailureMessage(error: unknown): string {
   if (error instanceof TuiLoginRequiredError) return error.message;
   return formatTuiActionFailure(error, {
-    summary: "Couldn't prepare this message.",
-    nextStep: 'Remove unavailable attachments, then retry.',
-    preservation: 'Your draft is preserved.',
+    summary: controllerText('common.prepareMessageFailed'),
+    nextStep: controllerProductText('command.prepareFailedNextStep'),
+    preservation: controllerText('common.draftPreserved'),
   });
 }
 
 function submitFailureMessage(error: unknown): string {
   if (error instanceof TuiLoginRequiredError) return error.message;
   if (error instanceof TuiFailure && error.category === 'config') {
-    return "Couldn't send this message with the current configuration. Run /doctor, then retry. Your draft is preserved.";
+    return controllerProductText('command.sendWithCurrentConfigFailed');
   }
   return formatTuiActionFailure(error, {
-    summary: "Couldn't send this message.",
-    nextStep: 'Retry.',
-    preservation: 'Your draft is preserved.',
+    summary: controllerText('common.sendMessageFailed'),
+    nextStep: controllerText('common.retry'),
+    preservation: controllerText('common.draftPreserved'),
   });
 }
 
 function queueSubmissionFailureMessage(error: unknown): string {
   return formatTuiActionFailure(error, {
-    summary: "Couldn't add this message to the Queue.",
-    nextStep: 'Retry after the current response finishes.',
-    preservation: 'Your draft is preserved.',
+    summary: controllerProductText('command.queueAddFailed'),
+    nextStep: controllerProductText('command.queueAddFailedNextStep'),
+    preservation: controllerText('common.draftPreserved'),
   });
 }
 

@@ -8,6 +8,7 @@ import type {
 } from '../runtime/port.js';
 import type { TuiMessage, TuiStreamEvent } from '../runtime/stream-events.js';
 import type { TuiRunRuntime } from '../application/run-coordinator.js';
+import { applicationText } from '../application/copy.js';
 
 export type ExecRunSupervisorRuntime = TuiConversationPort &
   TuiSessionTurnPort &
@@ -196,7 +197,7 @@ export class ExecRunSupervisor {
         type: 'session-status',
         status: 'error',
         turnId,
-        message: session.errorMessage ?? 'Runtime turn failed.',
+        message: session.errorMessage ?? applicationText('app.turnFailed'),
       };
       return { progressed: historyProgressed, recoverable: false, terminal: true };
     }

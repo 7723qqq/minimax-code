@@ -3,6 +3,7 @@ import { sanitizeTerminalText } from '../../rendering/terminal-text.js';
 import { formatTuiToolSummary } from './tool-summary.js';
 import type { TranscriptCell } from '../model.js';
 import { normalizeToolName, resolveTranscriptToolDefinition } from '../tool-definitions.js';
+import { transcriptText } from '../../features/transcript/copy.js';
 
 export type TranscriptPresentationTone = 'neutral' | 'accent' | 'success' | 'warning' | 'error';
 
@@ -51,12 +52,15 @@ export function transcriptCellRawText(cell: TranscriptCell): string {
 }
 
 function transcriptCellTitle(cell: TranscriptCell): string {
-  if (cell.kind === 'shell') return 'Shell';
-  if (cell.kind === 'user') return 'You';
-  if (cell.kind === 'assistant') return 'Response';
-  if (cell.kind === 'assistant-preamble') return 'Preamble';
-  if (cell.kind === 'review') return cell.title ?? 'Code review';
-  if (cell.kind === 'thinking') return cell.status === 'running' ? 'Thinking…' : 'Thinking';
+  if (cell.kind === 'shell') return transcriptText('shell.title');
+  if (cell.kind === 'user') return transcriptText('cell.title.you');
+  if (cell.kind === 'assistant') return transcriptText('cell.title.response');
+  if (cell.kind === 'assistant-preamble') return transcriptText('cell.title.preamble');
+  if (cell.kind === 'review') return cell.title ?? transcriptText('cell.title.codeReview');
+  if (cell.kind === 'thinking')
+    return cell.status === 'running'
+      ? transcriptText('cell.title.thinkingRunning')
+      : transcriptText('cell.title.thinking');
   if (cell.kind === 'tool') {
     const definition = resolveTranscriptToolDefinition(cell.title);
     if (definition) {
@@ -67,17 +71,23 @@ function transcriptCellTitle(cell: TranscriptCell): string {
     return titleCase(normalizeToolName(cell.title));
   }
   if (cell.kind === 'permission')
-    return cell.status === 'resolved' ? 'Permission resolved' : 'Approval needed';
+    return cell.status === 'resolved'
+      ? transcriptText('cell.title.permissionResolved')
+      : transcriptText('cell.title.approvalNeeded');
   if (cell.kind === 'question')
-    return cell.status === 'resolved' ? 'Answers sent' : 'Agent question';
-  if (cell.kind === 'turn-duration') return 'Run duration';
-  if (cell.kind === 'compaction') return cell.title ?? 'Context compacted';
-  if (cell.kind === 'usage') return 'Usage';
-  if (cell.kind === 'inspection') return cell.inspection?.title ?? cell.title ?? 'Inspection';
-  if (cell.kind === 'warning') return sanitizeTerminalText(cell.title ?? 'Warning');
-  if (cell.kind === 'error') return 'Error';
-  if (cell.kind === 'diff') return 'Changes';
-  if (cell.kind === 'final-summary') return 'Summary';
+    return cell.status === 'resolved'
+      ? transcriptText('cell.title.answersSent')
+      : transcriptText('cell.title.agentQuestion');
+  if (cell.kind === 'turn-duration') return transcriptText('cell.title.runDuration');
+  if (cell.kind === 'compaction') return cell.title ?? transcriptText('cell.title.contextCompacted');
+  if (cell.kind === 'usage') return transcriptText('usage.title');
+  if (cell.kind === 'inspection')
+    return cell.inspection?.title ?? cell.title ?? transcriptText('cell.title.inspection');
+  if (cell.kind === 'warning')
+    return sanitizeTerminalText(cell.title ?? transcriptText('cell.title.warning'));
+  if (cell.kind === 'error') return transcriptText('cell.title.error');
+  if (cell.kind === 'diff') return transcriptText('cell.title.changes');
+  if (cell.kind === 'final-summary') return transcriptText('cell.title.summary');
   return cell.title ?? titleCase(cell.kind);
 }
 

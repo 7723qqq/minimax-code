@@ -3,6 +3,7 @@ import { truncateToWidth } from '../rendering/text.js';
 import { sanitizeTerminalText } from '../rendering/terminal-text.js';
 import { renderTuiActionHint, tuiChalk as chalk, tuiColors as colors } from '../theme/runtime.js';
 import type { TuiTodoItem, TuiTodoStatus } from '../todo/model.js';
+import { shellText } from './copy.js';
 import { formatTuiKeybinding, type TuiKeybindingRegistry } from './keybindings.js';
 
 const COMPACT_TODO_LIMIT = 3;
@@ -56,7 +57,12 @@ export class TuiTodoPanel implements Component {
     if (completed === this.items.length) {
       return [
         truncateToWidth(
-          `  ${chalk.hex(colors.success)(`✓ Todo list ${completed}/${this.items.length} completed`)}`,
+          `  ${chalk.hex(colors.success)(
+            `✓ ${shellText('todo.summary.completed', {
+              completed,
+              total: this.items.length,
+            })}`,
+          )}`,
           safeWidth,
           chalk.hex(colors.muted)('…'),
         ),
@@ -106,17 +112,25 @@ interface TodoSummary {
 }
 
 function renderExpandedHeader(summary: TodoSummary & { readonly remaining: number }): string {
-  const progress = chalk.bold.hex(colors.text)(`Todo list ${summary.completed}/${summary.total}`);
+  const progress = chalk.bold.hex(colors.text)(
+    shellText('todo.summary.progress', { completed: summary.completed, total: summary.total }),
+  );
   const action =
     summary.width < CLOSE_ACTION_MIN_COLUMNS
       ? summary.shortcut
-      : `${summary.shortcut} ${summary.width < COMPACT_ACTION_MIN_COLUMNS ? 'close' : 'compact'}`;
+      : shellText(
+          summary.width < COMPACT_ACTION_MIN_COLUMNS
+            ? 'todo.summary.actionClose'
+            : 'todo.summary.actionCompact',
+          { key: summary.shortcut },
+        );
   if (summary.width < FULL_SUMMARY_MIN_COLUMNS) {
-    return `  ${progress}${renderTuiActionHint(` · ${action}`)}`;
+    return `  ${progress}${renderTuiActionHint(shellText('todo.summary.expandedShort', { action }))}`;
   }
-  const skipped = summary.cancelled > 0 ? ` · ${summary.cancelled} skipped` : '';
+  const skipped =
+    summary.cancelled > 0 ? shellText('todo.count.skipped', { n: summary.cancelled }) : '';
   return `  ${progress}${renderTuiActionHint(
-    ` · ${summary.remaining} remaining${skipped} · ${action}`,
+    shellText('todo.summary.expandedFull', { remaining: summary.remaining, skipped, action }),
   )}`;
 }
 
@@ -124,18 +138,35 @@ function renderCompactSummary(
   summary: TodoSummary & { readonly pending: number; readonly hidden: number },
 ): string {
   if (summary.width < COMPACT_ACTION_MIN_COLUMNS && summary.hidden > 0) {
-    return `  ${renderTuiActionHint(`… +${summary.hidden} · ${summary.shortcut} expand`)}`;
+    return `  ${renderTuiActionHint(
+      shellText('todo.summary.hiddenShort', { count: summary.hidden, key: summary.shortcut }),
+    )}`;
   }
   if (summary.width < FULL_SUMMARY_MIN_COLUMNS && summary.hidden > 0) {
     return `  ${renderTuiActionHint(
-      `… +${summary.hidden} · ${summary.completed}/${summary.total} · ${summary.shortcut} expand`,
+      shellText('todo.summary.hiddenCompact', {
+        count: summary.hidden,
+        completed: summary.completed,
+        total: summary.total,
+        key: summary.shortcut,
+      }),
     )}`;
   }
-  const hidden = summary.hidden > 0 ? `… +${summary.hidden} more · ` : '';
-  const skipped = summary.cancelled > 0 ? ` · ${summary.cancelled} skipped` : '';
-  const action = summary.hidden > 0 ? ` · ${summary.shortcut} expand` : '';
+  const hidden =
+    summary.hidden > 0 ? shellText('todo.summary.hiddenPrefix', { count: summary.hidden }) : '';
+  const skipped =
+    summary.cancelled > 0 ? shellText('todo.count.skipped', { n: summary.cancelled }) : '';
+  const action =
+    summary.hidden > 0 ? shellText('todo.summary.action', { key: summary.shortcut }) : '';
   return `  ${renderTuiActionHint(
-    `${hidden}${summary.completed}/${summary.total} done${skipped} · ${summary.pending} pending${action}`,
+    shellText('todo.summary.compact', {
+      hidden,
+      completed: summary.completed,
+      total: summary.total,
+      skipped,
+      pending: summary.pending,
+      action,
+    }),
   )}`;
 }
 

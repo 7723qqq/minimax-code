@@ -3,10 +3,14 @@ import type { Component } from '../../rendering/component.js';
 import { truncateToWidth } from '../../rendering/text.js';
 import { tuiChalk as chalk, tuiColors as colors } from '../../theme/runtime.js';
 import { questionnaireFrameContentWidth, renderQuestionnaireFrame } from './decision-frame.js';
+import { interactionText, type InteractionCopyKey } from './copy.js';
 
 export type TuiPlanEntryAction = 'confirm' | 'decline';
 
-const OPTIONS = ['Continue with plan', 'Deny'] as const;
+const OPTIONS: readonly InteractionCopyKey[] = [
+  'planEntry.option.confirm',
+  'planEntry.option.decline',
+];
 
 export class TuiPlanEntryPanel implements Component {
   private selectedIndex = 0;
@@ -59,12 +63,14 @@ export class TuiPlanEntryPanel implements Component {
     if (this.submitting) {
       return renderQuestionnaireFrame(
         {
-          title: 'Plan mode',
+          title: interactionText('planEntry.title'),
           body: [
             chalk.bold.hex(colors.text)(
-              this.submitting === 'confirm' ? 'Continuing with plan…' : 'Keeping Default mode…',
+              this.submitting === 'confirm'
+                ? interactionText('planEntry.status.continuing')
+                : interactionText('planEntry.status.keepingDefault'),
             ),
-            chalk.hex(colors.muted)('Waiting for MiniMax Code to continue the conversation.'),
+            chalk.hex(colors.muted)(interactionText('waiting.continueConversation')),
           ],
         },
         safeWidth,
@@ -73,23 +79,26 @@ export class TuiPlanEntryPanel implements Component {
     }
     return renderQuestionnaireFrame(
       {
-        title: 'Use Plan mode?',
+        title: interactionText('planEntry.question'),
         body: [
           truncateToWidth(
-            chalk.hex(colors.muted)('Plan mode structures complex tasks before execution.'),
+            chalk.hex(colors.muted)(interactionText('planEntry.description')),
             contentWidth,
           ),
           '',
-          ...OPTIONS.map((label, index) => {
+          ...OPTIONS.map((key, index) => {
             const action = index === 0 ? 'confirm' : 'decline';
             const available = this.availableActions.has(action);
-            const renderedLabel = available ? label : `${label} (unavailable)`;
+            const label = interactionText(key);
+            const renderedLabel = available
+              ? label
+              : interactionText('planEntry.option.unavailable', { label });
             return index === this.selectedIndex
               ? `${chalk.bold.hex(colors.signal)('›')} ${chalk.bold.hex(available ? colors.text : colors.muted)(renderedLabel)}`
               : `  ${chalk.hex(colors.muted)(renderedLabel)}`;
           }),
         ],
-        footer: '↑/↓ select · Enter confirm · Esc deny',
+        footer: interactionText('planEntry.footer'),
       },
       safeWidth,
       'signal',

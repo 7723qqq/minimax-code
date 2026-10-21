@@ -26,6 +26,7 @@ import {
   type McodePackageManagerRunOptions,
 } from './install-source.js';
 import { compareMcodeVersions } from './release.js';
+import { tuiUpdateText } from './copy.js';
 import { reportMcodeUpdatePhase } from './progress.js';
 import {
   mcodePrefixNonPrefixPlanMessage,
@@ -338,13 +339,13 @@ export class McodeUpdateApplication {
       return result.applied
         ? {
             applied: true,
-            message:
-              `MCode ${result.latestVersion} is installed. ` +
-              'Restart running MCode sessions to use it.',
+            message: mcodePrefixVersionedInstalledMessage(result.latestVersion, this.environment),
           }
         : {
             applied: false,
-            message: `MCode ${result.currentVersion} is already active.`,
+            message: tuiUpdateText('update.versionedAlreadyActive', {
+              version: result.currentVersion,
+            }),
           };
     }
 
@@ -357,7 +358,10 @@ export class McodeUpdateApplication {
     const installedVersion = this.dependencies.readInstalledPackageVersion();
     if (installedVersion !== plan.latestVersion) {
       throw new Error(
-        `MCode update installed ${installedVersion || '<unknown>'}; expected ${plan.latestVersion}.`,
+        tuiUpdateText('update.installedVersionMismatch', {
+          installedVersion: installedVersion || '<unknown>',
+          latestVersion: plan.latestVersion,
+        }),
       );
     }
     reportMcodeUpdatePhase(options, 'completed', false);

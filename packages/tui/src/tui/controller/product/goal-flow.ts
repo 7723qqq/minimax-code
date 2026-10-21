@@ -13,6 +13,8 @@ import {
 } from '../../features/goal/banner.js';
 import type { TuiSurfaceHost } from '../../shell/surface-host.js';
 import type { Editor } from '../../widgets/editor/editor.js';
+import { controllerText } from '../copy.js';
+import { controllerProductText } from './copy.js';
 
 export type TuiGoalCommandDisposition = 'consumed' | 'retained';
 
@@ -36,8 +38,7 @@ export interface TuiGoalFlowOptions {
 }
 
 /** Suffix for Goal hints issued while a response is still running. */
-export const TUI_GOAL_LIVE_RUN_HINT_SUFFIX =
-  'The current response keeps running; press Esc to interrupt it.';
+export const TUI_GOAL_LIVE_RUN_HINT_SUFFIX = controllerProductText('goal.liveRunHintSuffix');
 
 export class TuiGoalFlow {
   private refreshSequence = 0;
@@ -65,15 +66,15 @@ export class TuiGoalFlow {
       if (!sessionId) {
         this.options.append(
           intent.kind === 'create'
-            ? "Couldn't create a Session for this Goal. Retry after the Runtime recovers."
-            : 'Start or resume a Session before managing its Goal.',
+            ? controllerProductText('goal.createSessionFailed')
+            : controllerProductText('goal.needsSession'),
           'warning',
         );
         return 'retained';
       }
       const operationSequence = ++this.refreshSequence;
       if (!this.options.runtime.isGoalEnabled()) {
-        this.options.append('Thread Goal is disabled in the current Runtime.', 'warning');
+        this.options.append(controllerProductText('goal.disabled'), 'warning');
         return 'retained';
       }
       const existing = await this.options.runtime.getGoal(sessionId);
@@ -89,7 +90,7 @@ export class TuiGoalFlow {
         );
       }
       if (!existing) {
-        this.options.append('No Goal exists for the active Session.', 'warning');
+        this.options.append(controllerProductText('goal.noGoal'), 'warning');
         return 'consumed';
       }
       if (intent.kind === 'view') {
@@ -103,7 +104,9 @@ export class TuiGoalFlow {
         if (this.canProjectOperation(sessionId, operationSequence)) {
           this.options.banner.setGoal(updated);
           this.options.setHint(
-            intent.tokenBudget === null ? 'Goal budget cleared.' : 'Goal budget updated.',
+            intent.tokenBudget === null
+              ? controllerProductText('goal.budgetCleared')
+              : controllerProductText('goal.budgetUpdated'),
           );
           this.options.onChanged();
         }
@@ -112,7 +115,7 @@ export class TuiGoalFlow {
       if (intent.kind === 'edit') {
         this.options.editor.setText(`/goal ${existing.objective}`);
         this.options.surfaceHost.setChatFocus(this.options.editor);
-        this.options.setHint('Edit the Goal objective, then press Enter.');
+        this.options.setHint(controllerProductText('goal.editObjective'));
         this.options.onChanged();
         return 'consumed';
       }
@@ -120,14 +123,14 @@ export class TuiGoalFlow {
         await this.options.runtime.clearGoal(sessionId);
         if (this.canProjectOperation(sessionId, operationSequence)) {
           this.options.banner.setGoal(undefined);
-          this.options.setHint(this.withLiveRunNotice('Goal cleared.'));
+          this.options.setHint(this.withLiveRunNotice(controllerProductText('goal.cleared')));
           this.options.onChanged();
         }
         return 'consumed';
       }
       if (intent.kind === 'resume' && existing.status === 'budget_limited') {
         this.options.append(
-          'This Goal exhausted its execution budget. Clear it, then start a new Goal.',
+          controllerProductText('goal.budgetExhausted'),
           'warning',
         );
         return 'consumed';
@@ -137,7 +140,9 @@ export class TuiGoalFlow {
       if (this.canProjectOperation(sessionId, operationSequence)) {
         this.options.banner.setGoal(updated);
         this.options.setHint(
-          status === 'paused' ? this.withLiveRunNotice('Goal paused.') : 'Goal resumed.',
+          status === 'paused'
+            ? this.withLiveRunNotice(controllerProductText('goal.paused'))
+            : controllerProductText('goal.resumed'),
         );
         this.options.onChanged();
       }
@@ -162,7 +167,7 @@ export class TuiGoalFlow {
       const updated = await this.options.runtime.patchGoal(sessionId, { status: 'active' });
       if (this.options.currentSessionId() === sessionId) {
         this.options.banner.setGoal(updated);
-        this.options.setHint('Goal resumed.');
+        this.options.setHint(controllerProductText('goal.resumed'));
         this.options.onChanged();
       }
       return 'resumed';
@@ -233,7 +238,7 @@ export class TuiGoalFlow {
     if (existing && existing.status !== 'complete') {
       if (captured.attachments.length > 0) {
         this.options.append(
-          'Goal kickoff attachments are immutable. Remove the attachments to edit this Goal, or clear it and start a new Goal.',
+          controllerProductText('goal.attachmentsImmutable'),
           'warning',
         );
         return 'retained';
@@ -244,7 +249,7 @@ export class TuiGoalFlow {
       });
       if (this.canProjectOperation(sessionId, operationSequence)) {
         this.options.banner.setGoal(updated);
-        this.options.setHint('Goal objective updated.');
+        this.options.setHint(controllerProductText('goal.objectiveUpdated'));
         this.options.onChanged();
       }
       return 'consumed';
@@ -262,14 +267,14 @@ export class TuiGoalFlow {
       });
       if (this.canProjectOperation(sessionId, operationSequence)) {
         this.options.banner.setGoal(created);
-        this.options.setHint('Goal started.');
+        this.options.setHint(controllerProductText('goal.started'));
         this.options.onChanged();
       }
       await this.options.composerDraft.completeSubmission(reserved).catch((error: unknown) => {
         this.options.append(
           formatTuiActionFailure(error, {
-            summary: "Couldn't clean up the submitted Goal attachments.",
-            nextStep: 'The Goal was still created.',
+            summary: controllerProductText('goal.cleanupFailed'),
+            nextStep: controllerProductText('goal.cleanupFailedNextStep'),
           }),
           'warning',
         );
@@ -288,9 +293,9 @@ export class TuiGoalFlow {
   private appendFailure(error: unknown): void {
     this.options.append(
       formatTuiActionFailure(error, {
-        summary: "Couldn't update the Goal.",
-        nextStep: 'Retry /goal after the Runtime recovers.',
-        preservation: 'Your draft is preserved.',
+        summary: controllerProductText('goal.updateFailed'),
+        nextStep: controllerProductText('goal.updateFailedNextStep'),
+        preservation: controllerText('common.draftPreserved'),
       }),
       'error',
     );

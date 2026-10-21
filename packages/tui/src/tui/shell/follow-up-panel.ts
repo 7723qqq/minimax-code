@@ -3,6 +3,7 @@ import { truncateToWidth, visibleWidth } from '../rendering/text.js';
 import { renderTuiActionHint, tuiChalk as chalk, tuiColors as colors } from '../theme/runtime.js';
 import { sanitizeTerminalText } from '../rendering/terminal-text.js';
 import { formatTuiKeybinding, type TuiKeybindingRegistry } from './keybindings.js';
+import { shellText } from './copy.js';
 
 const MAX_VISIBLE_WAITING_ITEMS = 4;
 
@@ -50,7 +51,7 @@ export class TuiFollowUpPanel implements Component {
         ? [
             truncateToWidth(
               chalk.hex(colors.warning)(
-                `Queue paused · ${this.summary.pendingCount} pending · /queue to continue`,
+                shellText('followUp.queuePaused', { n: this.summary.pendingCount }),
               ),
               safeWidth,
             ),
@@ -63,7 +64,9 @@ export class TuiFollowUpPanel implements Component {
 
 function renderFailedItem(item: TuiFollowUpPanelItem, width: number): string[] {
   const reason = sanitizeTerminalText(item.failedReason ?? '').trim();
-  const title = `Couldn't send${reason ? ` · ${reason}` : ''}`;
+  const title = reason
+    ? shellText('followUp.sendFailedWithReason', { reason })
+    : shellText('followUp.sendFailed');
   return [
     truncateToWidth(
       `${chalk.bold.hex(colors.error)('×')} ${chalk.bold.hex(colors.error)(title)}`,
@@ -81,19 +84,21 @@ function renderWaitingItems(
   paused = false,
 ): string[] {
   if (items.length === 0) return [];
-  const manage = '/queue manage';
-  const sendTiming = paused ? 'paused' : 'after current response';
-  const restore = `${formatTuiKeybinding('run.restore-waiting-option', keybindings)} restore latest`;
+  const manage = shellText('followUp.manageQueue');
+  const sendTiming = shellText(paused ? 'followUp.sendPaused' : 'followUp.sendAfterResponse');
+  const restore = shellText('followUp.restoreLatest', {
+    key: formatTuiKeybinding('run.restore-waiting-option', keybindings),
+  });
   if (items.length === 1 && items[0]) {
     return [
-      ...renderWaitingHeader('Next', sendTiming, restore, manage, width),
+      ...renderWaitingHeader(shellText('followUp.next'), sendTiming, restore, manage, width),
       renderItemLine(items[0], chalk.hex(colors.line)('└'), '', width),
     ];
   }
   const visible = items.slice(0, MAX_VISIBLE_WAITING_ITEMS);
   const hiddenCount = items.length - visible.length;
   const header = renderWaitingHeader(
-    `Queue · ${items.length} next`,
+    shellText('followUp.queueNext', { n: items.length }),
     sendTiming,
     restore,
     manage,
@@ -110,7 +115,9 @@ function renderWaitingItems(
   if (hiddenCount > 0) {
     rows.push(
       truncateToWidth(
-        `${chalk.hex(colors.line)('└')}  ${chalk.hex(colors.muted)(`+${hiddenCount} more`)}`,
+        `${chalk.hex(colors.line)('└')}  ${chalk.hex(colors.muted)(
+          shellText('followUp.moreCount', { hiddenCount }),
+        )}`,
         width,
         chalk.hex(colors.muted)('…'),
       ),
@@ -151,7 +158,7 @@ function itemPreview(item: TuiFollowUpPanelItem): string {
     .map((name) => sanitizeTerminalText(name).replace(/\s+/gu, ' ').trim())
     .filter(Boolean);
   const attachmentSuffix = attachments.length > 0 ? ` · ${attachments.join(', ')}` : '';
-  return `${content || '(attachment-only message)'}${attachmentSuffix}`;
+  return `${content || shellText('followUp.attachmentOnly')}${attachmentSuffix}`;
 }
 
 function renderItemLine(

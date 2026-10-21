@@ -14,9 +14,11 @@ import { TuiSelectionScrollView } from '../widgets/selection-scroll-view.js';
 import {
   tuiAgentTeamElapsedMs,
   tuiAgentTeamMemberLabel,
+  tuiAgentTeamStatusLabel,
   type TuiAgentTeamMember,
   type TuiAgentTeamSnapshot,
 } from './model.js';
+import { tuiText } from '../copy.js';
 
 export interface TuiAgentTeamPanelOptions {
   readonly snapshot: () => TuiAgentTeamSnapshot;
@@ -121,7 +123,9 @@ export class TuiAgentTeamPanel implements TuiFeatureScreen {
     const snapshot = this.options.snapshot();
     this.syncSelection(snapshot.members);
     this.bodyViewport.setActiveRow(this.selectedIndex);
-    if (snapshot.members.length === 0) return [chalk.hex(colors.dim)('No delegated agents')];
+    if (snapshot.members.length === 0) {
+      return [chalk.hex(colors.dim)(tuiText('agentTeam.empty'))];
+    }
     return snapshot.members
       .map((member, index) =>
         renderMember(
@@ -140,10 +144,9 @@ export class TuiAgentTeamPanel implements TuiFeatureScreen {
     if (width === 0) return [];
     return [
       renderPanelDivider(width),
-      ...renderPanelFooter(
-        '↑↓ select · PgUp/PgDn scroll · Enter open transcript · Esc return',
-        panelContentWidth(width),
-      ).map((line) => renderPanelRow(line, width)),
+      ...renderPanelFooter(tuiText('agentTeam.footer.hint'), panelContentWidth(width)).map((line) =>
+        renderPanelRow(line, width),
+      ),
       renderPanelBottom(width),
     ];
   }
@@ -168,13 +171,13 @@ export class TuiAgentTeamPanel implements TuiFeatureScreen {
 function formatHeader(snapshot: TuiAgentTeamSnapshot): string {
   const { summary } = snapshot;
   return [
-    `Agents · ${String(summary.total)} total`,
-    summary.running ? `${String(summary.running)} running` : undefined,
-    summary.waiting ? `${String(summary.waiting)} waiting` : undefined,
-    summary.queued ? `${String(summary.queued)} queued` : undefined,
-    summary.done ? `${String(summary.done)} done` : undefined,
-    summary.failed ? `${String(summary.failed)} failed` : undefined,
-    summary.stopped ? `${String(summary.stopped)} stopped` : undefined,
+    tuiText('agentTeam.header.summary', { count: summary.total }),
+    summary.running ? tuiText('count.running', { count: summary.running }) : undefined,
+    summary.waiting ? tuiText('count.waiting', { count: summary.waiting }) : undefined,
+    summary.queued ? tuiText('count.queued', { count: summary.queued }) : undefined,
+    summary.done ? tuiText('count.done', { count: summary.done }) : undefined,
+    summary.failed ? tuiText('count.failed', { count: summary.failed }) : undefined,
+    summary.stopped ? tuiText('count.stopped', { count: summary.stopped }) : undefined,
   ]
     .filter((value): value is string => Boolean(value))
     .join(' · ');
@@ -191,10 +194,13 @@ function renderMember(
   const name = (selected ? chalk.bold.hex(colors.signal) : chalk.hex(colors.text))(
     tuiAgentTeamMemberLabel(member, snapshot),
   );
-  const status = colorStatus(member.status, statusLabel(member.status));
-  const current = member.sessionId === activeSessionId ? chalk.hex(colors.signal)('current') : '';
+  const status = colorStatus(member.status, tuiAgentTeamStatusLabel(member.status));
+  const current =
+    member.sessionId === activeSessionId
+      ? chalk.hex(colors.signal)(tuiText('agentTeam.marker.current'))
+      : '';
   const elapsed = formatElapsed(tuiAgentTeamElapsedMs(member, snapshot.capturedAtMs));
-  const tools = member.toolCount ? `${String(member.toolCount)} tools` : '';
+  const tools = member.toolCount ? tuiText('count.tools', { count: member.toolCount }) : '';
   if (width < 54) {
     return `${rail} ${status} ${chalk.hex(colors.muted)(member.activity)} · ${name}`;
   }
@@ -202,11 +208,6 @@ function renderMember(
   return `${rail} ${name} ${status} ${chalk.hex(colors.muted)(
     [member.activity, task].filter(Boolean).join(' · '),
   )} ${chalk.hex(colors.dim)([tools, elapsed, current].filter(Boolean).join(' · '))}`;
-}
-
-function statusLabel(status: TuiAgentTeamMember['status']): string {
-  if (status === 'done') return 'Done';
-  return `${status.charAt(0).toLocaleUpperCase()}${status.slice(1)}`;
 }
 
 function colorStatus(status: TuiAgentTeamMember['status'], label: string): string {

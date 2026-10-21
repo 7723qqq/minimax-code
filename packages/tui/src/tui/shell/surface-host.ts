@@ -1,5 +1,6 @@
 import { getLayoutNode, LAYOUT_NODE, type LayoutNode, type TuiMode } from '../engine/public.js';
 import { type Component, disposeComponents } from '../rendering/component.js';
+import { shellText } from './copy.js';
 import type {
   TuiFeaturePresentationSource,
   TuiRegularFeaturePresentationHandle,
@@ -121,7 +122,7 @@ export class TuiSurfaceHost implements Component {
       if (rollbackErrors.length > 0) {
         throw new AggregateError(
           [error, ...rollbackErrors],
-          'TUI mode change failed and could not fully restore the feature presentation.',
+          shellText('shell.surfaceHost.modeChangeFailed'),
         );
       }
       throw error;

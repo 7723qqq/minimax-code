@@ -500,5 +500,5 @@ function fitLine(value: string, width: number): string {
 }
 
 function renderBusyFooter(label: string): string {
-  return `${chalk.hex(colors.signal)(`⠋ ${label}`)}${chalk.hex(colors.dim)(' · ')}${renderTuiActionHint('Esc cancel')}`;
+  return `${chalk.hex(colors.signal)(`⠋ ${label}`)}${chalk.hex(colors.dim)(' · ')}${renderTuiActionHint(sessionHistoryText('loadingHint'))}`;
 }

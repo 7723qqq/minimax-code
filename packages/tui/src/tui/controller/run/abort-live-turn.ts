@@ -4,6 +4,7 @@ import type { TuiRunProjection } from '../../state/run-projection.js';
 import type { TuiChatController } from '../chat-controller.js';
 import { formatTuiActionFailure } from '../../../user-facing-failure.js';
 import { DEFAULT_CANCELLATION_SETTLEMENT_TIMEOUT_MS } from '../../../application/run-coordinator.js';
+import { controllerText } from '../copy.js';
 
 export function createTuiAbortLiveTurn(options: {
   controller: TuiChatController;
@@ -37,9 +38,9 @@ export function createTuiAbortLiveTurn(options: {
       } catch (error) {
         options.append(
           formatTuiActionFailure(error, {
-            summary: "Couldn't stop delegated agents.",
-            nextStep: 'Retry Esc.',
-            preservation: 'They may still be running.',
+            summary: controllerText('run.abort.delegatedStopFailed'),
+            nextStep: controllerText('common.retryEsc'),
+            preservation: controllerText('run.abort.mayStillBeRunning'),
           }),
           'error',
         );
@@ -47,10 +48,9 @@ export function createTuiAbortLiveTurn(options: {
       }
       if (receipt.failedSessionIds.length > 0 || receipt.activeSessionIds.length > 0) {
         options.append(
-          `Some delegated agents did not stop cleanly: ${[
-            ...receipt.failedSessionIds,
-            ...receipt.activeSessionIds,
-          ].join(', ')}`,
+          controllerText('run.abort.delegatedNotStopped', {
+            sessions: [...receipt.failedSessionIds, ...receipt.activeSessionIds].join(', '),
+          }),
           'warning',
         );
       }
@@ -65,7 +65,7 @@ export function createTuiAbortLiveTurn(options: {
         abortedRoot = await options.controller.abort();
         delegatedStopped = await stoppingDelegation;
         if (!abortedRoot && !delegatedStopped) {
-          options.append('Runtime did not confirm that the active response stopped.', 'warning');
+          options.append(controllerText('run.abort.runtimeNotConfirmed'), 'warning');
         }
       } finally {
         options.setTransientHint(undefined);
@@ -105,7 +105,7 @@ export function createTuiAbortLiveTurn(options: {
     const runtimeTurnId = options.latestRuntimeTurnId();
     if (!runtimeTurnId || !snapshot.session?.sessionId) return false;
     const sessionId = snapshot.session.sessionId;
-    options.setTransientHint('Stopping the current response. Your draft is preserved.');
+    options.setTransientHint(controllerText('common.stoppingDraftPreserved'));
     options.runProjection.markRuntimeTurnStopping(runtimeTurnId);
     options.updateChrome();
     options.requestRender();
@@ -118,7 +118,7 @@ export function createTuiAbortLiveTurn(options: {
       });
       const delegatedStopped = await stoppingDelegation;
       if (!rootStopped && !delegatedStopped) {
-        options.append('Runtime did not confirm that the active response stopped.', 'warning');
+        options.append(controllerText('run.abort.runtimeNotConfirmed'), 'warning');
       }
       const active = await options.getActiveRun(sessionId).catch(() => undefined);
       const settled =
@@ -144,9 +144,9 @@ export function createTuiAbortLiveTurn(options: {
       options.setTransientHint(undefined);
       options.append(
         formatTuiActionFailure(error, {
-          summary: "Couldn't stop the current response.",
-          nextStep: 'Retry Esc.',
-          preservation: 'It may still be running.',
+          summary: controllerText('run.abort.stopFailed'),
+          nextStep: controllerText('common.retryEsc'),
+          preservation: controllerText('run.abort.mayStillBeRunning'),
         }),
         'error',
       );
@@ -175,9 +175,9 @@ function fireRestore(
     // Esc handling must survive a restore failure; report it instead.
     options.append(
       formatTuiActionFailure(error, {
-        summary: "Couldn't return the aborted prompt to the composer.",
-        nextStep: 'Retry Esc, or recall the prompt with Up.',
-        preservation: 'The session transcript is unchanged.',
+        summary: controllerText('run.abort.restoreFailed'),
+        nextStep: controllerText('run.abort.retryEscOrRecall'),
+        preservation: controllerText('run.abort.transcriptUnchanged'),
       }),
       'warning',
     );

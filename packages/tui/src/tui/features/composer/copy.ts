@@ -15,4 +15,5 @@ const COMPOSER_CATALOG = createCatalogSet(COMPOSER_COPY, {
  */
 export const composerText = createCatalogText(COMPOSER_CATALOG, resolveLocaleName);
 
+/** Key type re-exported so callers import it from the catalog module. */
 export type { ComposerCopyKey };

@@ -25,11 +25,12 @@ import {
 } from './effort.js';
 
 import { contextWindowOptions, formatContextWindow } from './context-window.js';
+import { modelText } from './copy.js';
 
 const modelPickerTheme = {
   ...baseTheme,
   groupLabel: (text: string) => chalk.bold.hex(colors.text)(text),
-  noMatch: () => chalk.hex(colors.dim)('  No matching models'),
+  noMatch: () => chalk.hex(colors.dim)(`  ${modelText('noMatchingModels')}`),
 };
 const MODEL_CONTROL_ROWS = 3;
 
@@ -38,7 +39,6 @@ const CONNECT_CODEX_ITEM_VALUE = '\u0000connect-codex';
 const ADD_PROVIDER_ITEM_VALUE = '\u0000add-provider';
 /** Favorite rows repeat a provider row, so they need a distinct list value. */
 const FAVORITE_ROW_PREFIX = '\u0000favorite\u0000';
-const FAVORITE_UPDATE_FAILED = "Couldn't update favorites. Press ctrl+s to retry.";
 
 interface ModelGroup {
   readonly label: string;
@@ -206,7 +206,7 @@ export class TuiModelPicker implements Component, Focusable {
       this.searchInput.render(Math.max(1, layout.contentWidth - visibleWidth(searchPrompt)))[0] ??
       '';
     const header = [
-      ...(layout.bodyHeight >= 10 ? [chalk.hex(colors.muted)('Available models')] : []),
+      ...(layout.bodyHeight >= 10 ? [chalk.hex(colors.muted)(modelText('availableModels'))] : []),
       ...(layout.bodyHeight >= 3 && this.availability.unavailableHint
         ? [chalk.hex(colors.warning)(sanitizeTerminalText(this.availability.unavailableHint))]
         : []),
@@ -217,7 +217,7 @@ export class TuiModelPicker implements Component, Focusable {
       ...(layout.bodyHeight >= 4 &&
       this.visibleModels().length === 0 &&
       (this.availability.onAddProvider || this.availability.codexOAuth)
-        ? [chalk.hex(colors.muted)('No matching models')]
+        ? [chalk.hex(colors.muted)(modelText('noMatchingModels'))]
         : []),
     ];
     const controls = this.renderModelControl().slice(
@@ -231,7 +231,7 @@ export class TuiModelPicker implements Component, Focusable {
         ...(this.visibleModels().length === 0 &&
         !this.availability.onAddProvider &&
         !this.availability.codexOAuth
-          ? [chalk.hex(colors.muted)('No matching models')]
+          ? [chalk.hex(colors.muted)(modelText('noMatchingModels'))]
           : this.list.renderViewport(
               layout.contentWidth,
               Math.max(1, layout.bodyHeight - header.length - controls.length),
@@ -269,7 +269,7 @@ export class TuiModelPicker implements Component, Focusable {
       const current = this.favoriteKeys.filter((candidate) => candidate !== key);
       if (!favorite) current.splice(Math.min(previousIndex, current.length), 0, key);
       this.favoriteKeys = current;
-      this.favoriteStatus = FAVORITE_UPDATE_FAILED;
+      this.favoriteStatus = modelText('favoritesUpdateFailed');
       this.list = this.createList();
       this.availability.requestRender?.();
     };
@@ -306,7 +306,7 @@ export class TuiModelPicker implements Component, Focusable {
     const higherUsage = model.contextWindowOptionHints?.[String(choice)] === 'higher_usage';
     return [
       `${chalk.hex(colors.muted)('Context')} ${labels.join('  ')} ${chalk.hex(colors.dim)('(Tab to switch)')}`,
-      ...(higherUsage ? [chalk.hex(colors.warning)('Higher usage with this context window.')] : []),
+      ...(higherUsage ? [chalk.hex(colors.warning)(modelText('higherContextUsage'))] : []),
     ];
   }
 
@@ -380,7 +380,7 @@ export class TuiModelPicker implements Component, Focusable {
     items.push({
       value: ADD_PROVIDER_ITEM_VALUE,
       label: '+ Add 3rd-party provider…',
-      description: 'Configure an API Key provider and add its models',
+      description: modelText('addProviderDescription'),
       groupLabel: 'Providers',
     });
     if (this.availability.codexOAuth) {
@@ -462,38 +462,37 @@ export class TuiModelPicker implements Component, Focusable {
     }
     const model = this.focusedModel();
     const switchable = model?.thinkingConfig?.mode === 'switchable';
-    const contextHint = model && contextWindowOptions(model).length > 1 ? ' · tab context' : '';
+    const contextHint =
+      model && contextWindowOptions(model).length > 1 ? modelText('hintContext') : '';
     const deleteHint =
       (model && this.availability.onToggleFavorite
         ? this.isFavorite(model)
-          ? ' · ctrl+s unfavorite'
-          : ' · ctrl+s favorite'
+          ? modelText('hintUnfavorite')
+          : modelText('hintFavorite')
         : '') +
       (model && isCustomProviderModel(model) && this.availability.onDeleteProvider
-        ? ' · ctrl+d delete provider'
+        ? modelText('hintDeleteProvider')
         : '');
     if (supportsTuiEffort(model)) {
-      return `↑↓ select · type to search · ←/→ effort · enter apply${contextHint}${deleteHint} · esc cancel`;
+      return modelText('hintEffort', { context: contextHint, delete: deleteHint });
     }
     return switchable
-      ? `↑↓ select · type to search · ←/→ thinking · enter apply${contextHint}${deleteHint} · esc cancel`
-      : `↑↓ select · type to search · enter apply${contextHint}${deleteHint} · esc cancel`;
+      ? modelText('hintThinking', { context: contextHint, delete: deleteHint })
+      : modelText('hintPlain', { context: contextHint, delete: deleteHint });
   }
 
   private renderDeleteConfirmation(width: number, height?: number): string[] {
     const providerId = this.deletingProviderId;
     const providerModels = this.models.filter((model) => model.providerId === providerId);
     const providerName =
-      providerModels[0]?.providerName?.trim() || providerId || 'Unknown provider';
+      providerModels[0]?.providerName?.trim() || providerId || modelText('unknownProvider');
     const modelCount = providerModels.length;
     return renderPanelFrame(
       {
-        title: 'Delete provider?',
+        title: modelText('deleteProviderTitle'),
         body: [
           sanitizeTerminalText(providerName),
-          chalk.hex(colors.muted)(
-            `This removes its saved credentials and all ${modelCount} configured model${modelCount === 1 ? '' : 's'}.`,
-          ),
+          chalk.hex(colors.muted)(modelText('deleteProviderModels', { count: modelCount })),
           ...(this.deleteStatus
             ? [
                 this.deleteStatus.tone === 'error'
@@ -502,7 +501,7 @@ export class TuiModelPicker implements Component, Focusable {
               ]
             : []),
         ],
-        footer: 'Enter delete provider · Esc cancel',
+        footer: modelText('deleteProviderFooter'),
       },
       width,
       height,
@@ -520,7 +519,7 @@ export class TuiModelPicker implements Component, Focusable {
     const providerId = this.deletingProviderId;
     if (!providerId || !this.availability.onDeleteProvider) return;
     this.busy = true;
-    this.deleteStatus = { tone: 'info', text: 'Deleting provider…' };
+    this.deleteStatus = { tone: 'info', text: modelText('deletingProvider') };
     this.availability.requestRender?.();
     try {
       await this.availability.onDeleteProvider(providerId);
@@ -531,8 +530,8 @@ export class TuiModelPicker implements Component, Focusable {
         tone: 'error',
         text: formatTuiActionFailure(error, {
           summary: "Couldn't delete provider.",
-          nextStep: 'Retry, or press Esc to cancel.',
-          preservation: 'The provider and its models are unchanged.',
+          nextStep: modelText('deleteProviderRetry'),
+          preservation: modelText('deleteProviderUnchanged'),
         }),
       };
     } finally {
@@ -551,7 +550,7 @@ export class TuiModelPicker implements Component, Focusable {
     }
     return [
       '',
-      `${chalk.hex(colors.muted)('Think effort')} ${chalk.hex(colors.dim)('(←/→ to switch)')}`,
+      `${chalk.hex(colors.muted)(modelText('thinkEffort'))} ${chalk.hex(colors.dim)('(←/→ to switch)')}`,
       options
         .map((option) =>
           option === choice
@@ -609,21 +608,24 @@ function codexOAuthAction(state: Exclude<McodeCodexOAuthState, 'hidden'>): {
   readonly description: string;
 } {
   if (state === 'connected') {
-    return { label: '✓ OpenAI Codex connected', description: 'OAuth credentials are ready' };
+    return {
+      label: '✓ OpenAI Codex connected',
+      description: modelText('oauthCredentialsReady'),
+    };
   }
   if (state === 'pending') {
     return {
       label: '↻ Continue OpenAI Codex sign-in…',
-      description: 'Open the browser sign-in again',
+      description: modelText('reopenBrowserSignIn'),
     };
   }
   if (state === 'failed') {
     return {
       label: '↻ Retry OpenAI Codex sign-in…',
-      description: 'The previous sign-in failed',
+      description: modelText('previousSignInFailed'),
     };
   }
-  return { label: '+ Connect OpenAI Codex…', description: 'Sign in with OpenAI OAuth' };
+  return { label: '+ Connect OpenAI Codex…', description: modelText('signInWithOpenAiOauth') };
 }
 
 function modelKey(model: TuiModel): ModelKey {
@@ -671,7 +673,7 @@ function formatModelDescription(model: TuiModel, unavailable: boolean): string {
   const efforts = normalizeTuiEffortOptions(model.effortOptions);
   return [
     sanitizeTerminalText(`${model.providerId}/${model.modelId}`),
-    unavailable ? 'Login required' : undefined,
+    unavailable ? modelText('loginRequired') : undefined,
     model.variant && model.variant !== 'thinking' ? sanitizeTerminalText(model.variant) : undefined,
     efforts.length > 0 ? `${String(efforts.length)} efforts` : undefined,
     model.contextLimit ? `${formatContextWindow(model.contextLimit)} ctx` : undefined,

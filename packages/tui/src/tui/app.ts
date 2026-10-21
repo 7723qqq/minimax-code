@@ -14,6 +14,7 @@ import {
   resolveTuiInteractionMaxRows,
 } from './app-composition.js';
 import { TranscriptView } from './transcript/view.js';
+import { tuiText } from './copy.js';
 import { TuiChatController, type TuiChatSnapshot } from './controller/chat-controller.js';
 import { TuiChromeFlow } from './controller/product/chrome-flow.js';
 import type { TuiDraftLifecycle } from './features/composer/draft-lifecycle.js';
@@ -430,7 +431,7 @@ export function createTuiApp(options: CreateTuiAppOptions): TuiApp {
         restoredAbortTurnIds.add(turnId);
         markAbortedUserRowCancelled(transcript, turnId);
         draftLifecycle?.recordRestoredSubmission(retainedFiltered);
-        chromeFlow?.setHint('Stopped · message restored to the Composer.');
+        chromeFlow?.setHint(tuiText('app.messageRestored'));
         updateChrome(controller.snapshot());
         tui.requestRender();
         return;
@@ -501,7 +502,7 @@ export function createTuiApp(options: CreateTuiAppOptions): TuiApp {
       // The restored text already carries the submission's content; a pending
       // retry for it would merge the same text again on the next hydrate.
       draftLifecycle?.recordRestoredSubmission(restoredSubmission);
-      chromeFlow?.setHint('Stopped · message restored to the Composer.');
+      chromeFlow?.setHint(tuiText('app.messageRestored'));
       // The funnel's updateChrome tail ran during the settle wait, before this
       // hint was set; push the chrome once more so the hint is not left
       // unpresented.
@@ -645,6 +646,7 @@ export function createTuiApp(options: CreateTuiAppOptions): TuiApp {
     surfaceHost,
     showTasks: () => delegationFlow.showTasks(),
     persistTuiMode: options.persistTuiMode,
+    persistLocale: options.persistLocale,
     showStatusLine: () =>
       showTuiStatusLineSetup({
         statusLine: status,

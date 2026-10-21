@@ -24,6 +24,7 @@ import {
 } from '../../../update/progress.js';
 import { redactTuiCredentials } from '../../transcript/export.js';
 import { presentTuiFailure } from '../../../user-facing-failure.js';
+import { updateText } from './copy.js';
 
 const UPDATE_ANIMATION_INTERVAL_MS = 80;
 const UPDATE_SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'] as const;
@@ -181,9 +182,9 @@ export class TuiUpdatePanel implements Component, Focusable {
         this.setState({ status: 'paused', reason: sanitizeTerminalText(error.message) });
       } else {
         const presentation = presentTuiFailure(error, {
-          summary: "The update couldn't be installed.",
-          nextStep: 'Retry, or close this panel and try again later.',
-          preservation: 'The previous MCode version is still active.',
+          summary: updateText('update.error.installFailed'),
+          nextStep: updateText('update.error.installNextStep'),
+          preservation: updateText('update.error.installPreserved'),
         });
         this.detailsExpanded = false;
         this.setState({
@@ -207,9 +208,9 @@ export class TuiUpdatePanel implements Component, Focusable {
       if (this.disposed) return;
       this.restarting = false;
       const presentation = presentTuiFailure(error, {
-        summary: "MCode couldn't restart automatically.",
-        nextStep: 'Close this terminal and start MCode again.',
-        preservation: 'The update is already installed.',
+        summary: updateText('update.error.restartFailed'),
+        nextStep: updateText('update.error.restartNextStep'),
+        preservation: updateText('update.error.restartPreserved'),
       });
       this.detailsExpanded = false;
       this.setState({
@@ -224,18 +225,18 @@ export class TuiUpdatePanel implements Component, Focusable {
     const { currentVersion, latestVersion } = this.options.plan;
     return [
       renderDecisionHeading(
-        'MCode update available',
+        updateText('update.review.title'),
         sourceLabel(this.options.plan),
         width,
         'signal',
       ),
       chalk.bold.hex(colors.text)(fit(`${currentVersion} → ${latestVersion}`, width)),
       '',
-      renderAction('Update now', this.selectedAction === 0, width),
-      renderAction('Not now', this.selectedAction === 1, width),
+      renderAction(updateText('update.review.updateNow'), this.selectedAction === 0, width),
+      renderAction(updateText('update.review.notNow'), this.selectedAction === 1, width),
       ...this.renderDetails(width),
       '',
-      renderTuiActionHint(fit('↑↓ choose · Enter confirm · d details · Esc close', width)),
+      renderTuiActionHint(fit(updateText('update.review.hint'), width)),
     ];
   }
 
@@ -247,21 +248,25 @@ export class TuiUpdatePanel implements Component, Focusable {
       : this.recentOutput.slice(-Math.min(2, this.recentOutput.length));
     return [
       renderDecisionHeading(
-        `${frame} Updating MCode`,
+        updateText('update.applying.title', { frame }),
         elapsedSeconds > 0 ? `${elapsedSeconds}s` : undefined,
         width,
         'signal',
       ),
       chalk.hex(colors.muted)(
         fit(
-          `${phaseLabel(this.state.status === 'applying' ? this.state.phase : 'installing')} ${this.options.plan.latestVersion} with ${sourceLabel(this.options.plan)}`,
+          updateText('update.applying.progress', {
+            phase: phaseLabel(this.state.status === 'applying' ? this.state.phase : 'installing'),
+            version: this.options.plan.latestVersion,
+            source: sourceLabel(this.options.plan),
+          }),
           width,
         ),
       ),
       ...(output.length > 0
         ? [
             '',
-            chalk.hex(colors.dim)('Latest output'),
+            chalk.hex(colors.dim)(updateText('update.applying.latestOutput')),
             ...output.flatMap((line) => renderWrapped(line, width, colors.muted)),
           ]
         : []),
@@ -271,9 +276,9 @@ export class TuiUpdatePanel implements Component, Focusable {
         fit(
           this.state.status === 'applying' && this.state.cancellable
             ? this.state.cancelRequested
-              ? 'Cancelling safely… · d details'
-              : 'Esc cancel safely · d details'
-            : 'Finishing safely · cancellation is locked · d details',
+              ? updateText('update.applying.cancelling')
+              : updateText('update.applying.cancelHint')
+            : updateText('update.applying.finishing'),
           width,
         ),
       ),
@@ -283,44 +288,56 @@ export class TuiUpdatePanel implements Component, Focusable {
   private renderPaused(width: number): string[] {
     const reason = this.state.status === 'paused' ? this.state.reason : 'MCode is busy.';
     return [
-      renderDecisionHeading('Update paused', sourceLabel(this.options.plan), width, 'signal'),
+      renderDecisionHeading(
+        updateText('update.paused.title'),
+        sourceLabel(this.options.plan),
+        width,
+        'signal',
+      ),
       ...renderWrapped(reason, width, colors.warning),
       '',
-      chalk.bold.hex(colors.signal)('› Check again'),
-      renderTuiActionHint(fit('Enter retry · Esc close', width)),
+      chalk.bold.hex(colors.signal)(updateText('update.paused.checkAgain')),
+      renderTuiActionHint(fit(updateText('update.hint.retryClose'), width)),
     ];
   }
 
   private renderCancelled(width: number): string[] {
     return [
       renderDecisionHeading(
-        'Update cancelled safely',
+        updateText('update.cancelled.title'),
         sourceLabel(this.options.plan),
         width,
         'success',
       ),
-      ...renderWrapped('The previous MCode installation remains active.', width, colors.muted),
+      ...renderWrapped(updateText('update.cancelled.previousActive'), width, colors.muted),
       '',
-      chalk.bold.hex(colors.signal)('› Try again'),
-      renderTuiActionHint(fit('Enter retry · Esc close', width)),
+      chalk.bold.hex(colors.signal)(updateText('update.cancelled.tryAgain')),
+      renderTuiActionHint(fit(updateText('update.hint.retryClose'), width)),
     ];
   }
 
   private renderFailure(width: number): string[] {
     const message =
-      this.state.status === 'failed' ? this.state.message : "The update couldn't be installed.";
+      this.state.status === 'failed'
+        ? this.state.message
+        : updateText('update.error.installFailed');
     const diagnostic =
       this.state.status === 'failed' && this.state.diagnostic
         ? redactTuiCredentials(sanitizeTerminalText(this.state.diagnostic))
         : undefined;
     return [
-      renderDecisionHeading('× Update failed', sourceLabel(this.options.plan), width, 'error'),
+      renderDecisionHeading(
+        updateText('update.failed.title'),
+        sourceLabel(this.options.plan),
+        width,
+        'error',
+      ),
       ...renderWrapped(message, width, colors.error),
       ...(diagnostic ? renderWrapped(diagnostic, width, colors.muted) : []),
       ...this.renderDetails(width),
       '',
-      chalk.bold.hex(colors.signal)('› Retry'),
-      renderTuiActionHint(fit('Enter retry · d details · Esc close', width)),
+      chalk.bold.hex(colors.signal)(updateText('update.failed.retry')),
+      renderTuiActionHint(fit(updateText('update.failed.hint'), width)),
     ];
   }
 
@@ -328,7 +345,7 @@ export class TuiUpdatePanel implements Component, Focusable {
     const outcome = this.state.status === 'succeeded' ? this.state.outcome : undefined;
     return [
       renderDecisionHeading(
-        `✓ MCode updated to ${this.options.plan.latestVersion}`,
+        updateText('update.success.title', { version: this.options.plan.latestVersion }),
         undefined,
         width,
         'success',
@@ -336,9 +353,11 @@ export class TuiUpdatePanel implements Component, Focusable {
       ...(outcome ? renderWrapped(outcome.message, width, colors.muted) : []),
       '',
       chalk.bold.hex(colors.signal)(
-        this.restarting ? '⠋ Restarting MCode…' : '› Restart MCode now',
+        this.restarting
+          ? updateText('update.success.restarting')
+          : updateText('update.success.restartNow'),
       ),
-      renderTuiActionHint(fit('Enter restart · Esc restart later', width)),
+      renderTuiActionHint(fit(updateText('update.success.hint'), width)),
     ];
   }
 
@@ -347,8 +366,12 @@ export class TuiUpdatePanel implements Component, Focusable {
     const command =
       this.options.plan.kind === 'package-manager'
         ? this.options.plan.command.display
-        : 'Signature + checksum + staging + atomic activation';
-    return ['', chalk.hex(colors.dim)('Details'), ...renderWrapped(command, width, colors.muted)];
+        : updateText('update.details.pipeline');
+    return [
+      '',
+      chalk.hex(colors.dim)(updateText('update.details.title')),
+      ...renderWrapped(command, width, colors.muted),
+    ];
   }
 
   private acceptOutput(chunk: string): void {
@@ -410,18 +433,18 @@ export class TuiUpdatePanel implements Component, Focusable {
 }
 
 function phaseLabel(phase: McodeUpdatePhase): string {
-  if (phase === 'checking') return 'Checking';
-  if (phase === 'downloading') return 'Downloading';
-  if (phase === 'staging') return 'Staging';
-  if (phase === 'validating') return 'Validating';
-  if (phase === 'activating') return 'Activating';
-  if (phase === 'completed') return 'Completed';
-  return 'Installing';
+  if (phase === 'checking') return updateText('update.phase.checking');
+  if (phase === 'downloading') return updateText('update.phase.downloading');
+  if (phase === 'staging') return updateText('update.phase.staging');
+  if (phase === 'validating') return updateText('update.phase.validating');
+  if (phase === 'activating') return updateText('update.phase.activating');
+  if (phase === 'completed') return updateText('update.phase.completed');
+  return updateText('update.phase.installing');
 }
 
 function sourceLabel(plan: ActionableMcodeUpdatePlan): string {
   return plan.source === 'managed-installer'
-    ? 'Official installer'
+    ? updateText('update.source.officialInstaller')
     : plan.source.replace('-global', '');
 }
 

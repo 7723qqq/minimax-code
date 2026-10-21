@@ -13,6 +13,7 @@ import { isQuestionnaireComplete } from '../../interaction/questionnaire.js';
 import { sanitizeTerminalText } from '../../rendering/terminal-text.js';
 import { tuiChalk as chalk, tuiColors as colors } from '../../theme/runtime.js';
 import { questionnaireFrameContentWidth, renderQuestionnaireFrame } from './decision-frame.js';
+import { interactionText } from './copy.js';
 
 export interface TuiQuestionnairePickerOptions {
   /** Called immediately after the final answer is recorded. */
@@ -244,11 +245,11 @@ export class TuiQuestionnairePicker implements Component, Focusable {
     if (this.submitting) {
       return renderQuestionnaireFrame(
         {
-          title: 'Ask',
+          title: interactionText('questionnaire.title'),
           meta: progressMeta,
           body: [
-            chalk.bold.hex(colors.text)('Sending answers…'),
-            chalk.hex(colors.muted)('Waiting for MiniMax Code to continue the conversation.'),
+            chalk.bold.hex(colors.text)(interactionText('questionnaire.status.sending')),
+            chalk.hex(colors.muted)(interactionText('waiting.continueConversation')),
           ],
         },
         safeWidth,
@@ -258,12 +259,12 @@ export class TuiQuestionnairePicker implements Component, Focusable {
     if (this.dismissing) {
       return renderQuestionnaireFrame(
         {
-          title: 'Ask',
+          title: interactionText('questionnaire.title'),
           meta: progressMeta,
           body: [
-            chalk.bold.hex(colors.text)('Closing question…'),
+            chalk.bold.hex(colors.text)(interactionText('questionnaire.status.closing')),
             fitLine(
-              chalk.hex(colors.muted)('Waiting for MiniMax Code to dismiss the pending request.'),
+              chalk.hex(colors.muted)(interactionText('waiting.dismissPending')),
               contentWidth,
             ),
           ],
@@ -275,16 +276,14 @@ export class TuiQuestionnairePicker implements Component, Focusable {
     if (this.confirmDismiss) {
       return renderQuestionnaireFrame(
         {
-          title: 'Cancel this question?',
+          title: interactionText('questionnaire.confirm.cancelTitle'),
           body: [
             fitLine(
-              chalk.hex(colors.muted)(
-                'The pending request and its unsent answers will be discarded.',
-              ),
+              chalk.hex(colors.muted)(interactionText('questionnaire.confirm.cancelDescription')),
               contentWidth,
             ),
           ],
-          footer: fitLine('Enter cancel question · Esc keep answering', contentWidth),
+          footer: fitLine(interactionText('questionnaire.confirm.footer'), contentWidth),
         },
         safeWidth,
         'warning',
@@ -293,10 +292,13 @@ export class TuiQuestionnairePicker implements Component, Focusable {
     if (!this.step) {
       return renderQuestionnaireFrame(
         {
-          title: 'Ask',
+          title: interactionText('questionnaire.title'),
           meta: progressMeta,
           body: [
-            fitLine(chalk.hex(colors.muted)('All questionnaire steps are answered.'), contentWidth),
+            fitLine(
+              chalk.hex(colors.muted)(interactionText('questionnaire.status.answered')),
+              contentWidth,
+            ),
           ],
         },
         safeWidth,
@@ -333,7 +335,11 @@ export class TuiQuestionnairePicker implements Component, Focusable {
       ...(answered
         ? [
             fitLine(
-              chalk.hex(colors.success)(`Saved answer · ${sanitizeTerminalText(answered.rawText)}`),
+              chalk.hex(colors.success)(
+                interactionText('questionnaire.savedAnswer', {
+                  rawText: sanitizeTerminalText(answered.rawText),
+                }),
+              ),
               contentWidth,
             ),
           ]
@@ -344,7 +350,7 @@ export class TuiQuestionnairePicker implements Component, Focusable {
     if (this.mode === 'text') {
       return renderQuestionnaireFrame(
         {
-          title: 'Ask',
+          title: interactionText('questionnaire.title'),
           meta: progressMeta,
           navigation: progress,
           body: [
@@ -352,9 +358,14 @@ export class TuiQuestionnairePicker implements Component, Focusable {
             ...this.input.render(contentWidth).map((line) => fitLine(line, contentWidth)),
           ],
           footer: fitLine(
-            `Type your answer · Enter ${
-              isLastUnansweredQuestion(this.state, this.step.id) ? 'send' : 'next'
-            } · Esc ${(this.step.options?.length ?? 0) > 0 ? 'back' : 'cancel'}`,
+            interactionText('questionnaire.footer.typeAnswer', {
+              action: this.answerAction(this.step.id),
+              escape: interactionText(
+                (this.step.options?.length ?? 0) > 0
+                  ? 'questionnaire.action.back'
+                  : 'questionnaire.action.cancel',
+              ),
+            }),
             contentWidth,
           ),
         },
@@ -365,19 +376,25 @@ export class TuiQuestionnairePicker implements Component, Focusable {
     if (!isMultipleSelection(this.step.selectionMode)) {
       return renderQuestionnaireFrame(
         {
-          title: 'Ask',
+          title: interactionText('questionnaire.title'),
           meta: progressMeta,
           navigation: progress,
           body: [...lines, ...this.renderSingleOptions(this.step.options ?? [], contentWidth)],
           footer: fitLine(
             buildQuestionnaireFooter(
               contentWidth,
-              `↑↓ move · 1-${Math.min(
-                9,
-                (this.step.options?.length ?? 0) + (this.step.allowOther ? 1 : 0),
-              )} select · Enter ${
-                isLastUnansweredQuestion(this.state, this.step.id) ? 'send' : 'next'
-              }`,
+              interactionText('questionnaire.footer.select', {
+                count: String(
+                  Math.min(
+                    9,
+                    (this.step.options?.length ?? 0) + (this.step.allowOther ? 1 : 0),
+                  ),
+                ),
+                action: this.answerAction(this.step.id),
+              }),
+              interactionText('questionnaire.footer.enterAction', {
+                action: this.answerAction(this.step.id),
+              }),
               allowsBackNavigation(this.state),
             ),
             contentWidth,
@@ -391,7 +408,7 @@ export class TuiQuestionnairePicker implements Component, Focusable {
     const options = this.step.options ?? [];
     return renderQuestionnaireFrame(
       {
-        title: 'Ask',
+        title: interactionText('questionnaire.title'),
         meta: progressMeta,
         navigation: progress,
         body: [
@@ -402,9 +419,10 @@ export class TuiQuestionnairePicker implements Component, Focusable {
         footer: fitLine(
           buildQuestionnaireFooter(
             contentWidth,
-            `↑↓ move · Space toggle · Enter ${
-              isLastUnansweredQuestion(this.state, this.step.id) ? 'send' : 'next'
-            }`,
+            interactionText('questionnaire.footer.toggle', { action: this.answerAction(this.step.id) }),
+            interactionText('questionnaire.footer.enterAction', {
+              action: this.answerAction(this.step.id),
+            }),
             allowsBackNavigation(this.state),
           ),
           contentWidth,
@@ -446,8 +464,9 @@ export class TuiQuestionnairePicker implements Component, Focusable {
       ...(this.step?.allowOther
         ? [
             {
-              label: 'Other…',
-              description: this.step.otherPlaceholder ?? 'Type another answer',
+              label: interactionText('questionnaire.other'),
+              description:
+                this.step.otherPlaceholder ?? interactionText('questionnaire.otherPlaceholder'),
               number: options.length + 1,
             },
           ]
@@ -464,7 +483,14 @@ export class TuiQuestionnairePicker implements Component, Focusable {
       width,
     );
     if (visibleChoices.start > 0) {
-      lines.push(fitLine(chalk.hex(colors.dim)(`  … ${visibleChoices.start} more above`), width));
+      lines.push(
+        fitLine(
+          chalk.hex(colors.dim)(
+            `  ${interactionText('questionnaire.moreAbove', { n: String(visibleChoices.start) })}`,
+          ),
+          width,
+        ),
+      );
     }
     for (const [offset, choice] of visibleChoices.items.entries()) {
       const index = visibleChoices.start + offset;
@@ -484,7 +510,11 @@ export class TuiQuestionnairePicker implements Component, Focusable {
     if (visibleChoices.end < choices.length) {
       lines.push(
         fitLine(
-          chalk.hex(colors.dim)(`  … ${choices.length - visibleChoices.end} more below`),
+          chalk.hex(colors.dim)(
+            `  ${interactionText('questionnaire.moreBelow', {
+              n: String(choices.length - visibleChoices.end),
+            })}`,
+          ),
           width,
         ),
       );
@@ -509,7 +539,14 @@ export class TuiQuestionnairePicker implements Component, Focusable {
       options.slice(start, end).map((option) => this.optionLabel(option)),
       width,
     );
-    if (start > 0) lines.push(fitLine(chalk.hex(colors.dim)(`  … ${start} more above`), width));
+    if (start > 0) {
+      lines.push(
+        fitLine(
+          chalk.hex(colors.dim)(`  ${interactionText('questionnaire.moreAbove', { n: String(start) })}`),
+          width,
+        ),
+      );
+    }
     for (let index = start; index < end; index += 1) {
       const option = options[index];
       if (!option) continue;
@@ -527,7 +564,14 @@ export class TuiQuestionnairePicker implements Component, Focusable {
       );
     }
     if (end < options.length) {
-      lines.push(fitLine(chalk.hex(colors.dim)(`  … ${options.length - end} more below`), width));
+      lines.push(
+        fitLine(
+          chalk.hex(colors.dim)(
+            `  ${interactionText('questionnaire.moreBelow', { n: String(options.length - end) })}`,
+          ),
+          width,
+        ),
+      );
     }
     return lines;
   }
@@ -535,7 +579,7 @@ export class TuiQuestionnairePicker implements Component, Focusable {
   private renderMultiOther(index: number, width: number): string {
     const selected = index === this.multiIndex;
     const prefix = `${selected ? '→' : ' '}   o  `;
-    const label = 'Other…';
+    const label = interactionText('questionnaire.other');
     return highlightQuestionnaireOption(
       selected
         ? `${chalk.bold.hex(colors.signal)(prefix)}${chalk.bold.hex(colors.signal)(label)}`
@@ -553,8 +597,17 @@ export class TuiQuestionnairePicker implements Component, Focusable {
     option: NonNullable<ActiveTuiQuestionnaire['request']['steps'][number]['options']>[number],
   ): string {
     return this.goalAutoReplyRemainingSeconds() !== undefined && option.recommended === true
-      ? `${option.label} (Recommended)`
+      ? interactionText('questionnaire.recommended', { label: option.label })
       : option.label;
+  }
+
+  /** The verb the footer uses for this step: sending the last answer, or moving on. */
+  private answerAction(stepId: string): string {
+    return interactionText(
+      isLastUnansweredQuestion(this.state, stepId)
+        ? 'questionnaire.action.send'
+        : 'questionnaire.action.next',
+    );
   }
 
   private configureStep(): void {
@@ -691,13 +744,13 @@ function renderGoalAutoReplyCountdown(remainingSeconds: number, width: number): 
   const message =
     remainingSeconds === 0
       ? `${chalk.hex(colors.orbit)('◷')} ${chalk.hex(colors.muted)(
-          'Time is up · applying the recommended option…',
+          interactionText('questionnaire.countdown.timeUp'),
         )}`
       : `${chalk.hex(colors.orbit)('◷')} ${chalk.hex(colors.muted)(
-          'Auto-continue in ',
+          interactionText('questionnaire.countdown.before'),
         )}${chalk.bold.hex(colors.text)(formatCountdown(remainingSeconds))}${chalk.hex(
           colors.muted,
-        )(' with the recommended option')}`;
+        )(interactionText('questionnaire.countdown.after'))}`;
   return new Text(message, 0, 0).render(width);
 }
 
@@ -713,8 +766,16 @@ function renderQuestionnaireProgressMeta(
 ): string | undefined {
   if (state.request.presentation?.showProgress === false) return undefined;
   const total = state.request.steps.length;
-  if (total <= 1) return `${Math.min(total, currentStepIndex + 1)} of ${total}`;
-  return `${state.answers.size}/${total} answered`;
+  if (total <= 1) {
+    return interactionText('questionnaire.progress.single', {
+      current: String(Math.min(total, currentStepIndex + 1)),
+      total: String(total),
+    });
+  }
+  return interactionText('questionnaire.progress.answered', {
+    answered: String(state.answers.size),
+    total: String(total),
+  });
 }
 
 function renderQuestionnaireProgress(
@@ -743,7 +804,9 @@ function renderQuestionnaireProgress(
   );
   const items = steps.slice(start, end).map((step, offset) => {
     const index = start + offset;
-    const label = sanitizeTerminalText(step.header ?? `Question ${index + 1}`).trim();
+    const label = sanitizeTerminalText(
+      step.header ?? interactionText('questionnaire.questionLabel', { index: String(index + 1) }),
+    ).trim();
     const marker = index === currentStepIndex ? '●' : state.answers.has(step.id) ? '✓' : '○';
     const truncatedLabel = truncateToWidth(label, Math.max(1, chipWidth - 4), '');
     const rendered = ` ${marker} ${truncatedLabel} `;
@@ -886,13 +949,19 @@ function allowsBackNavigation(state: ActiveTuiQuestionnaire): boolean {
   );
 }
 
-function buildQuestionnaireFooter(width: number, primary: string, canGoBack: boolean): string {
-  const primaryAction = /Enter (?:send|next)/u.exec(primary)?.[0] ?? 'Enter';
-  const full = `${primary}${canGoBack ? ' · Tab/←/→ questions' : ''} · Esc cancel`;
-  const compact = `${primary} · Esc cancel`;
-  const narrow = `${primaryAction} · Esc cancel`;
-  const narrower = 'Enter · Esc cancel';
-  const tiny = 'Enter · Esc';
+function buildQuestionnaireFooter(
+  width: number,
+  primary: string,
+  primaryAction: string,
+  canGoBack: boolean,
+): string {
+  const full = canGoBack
+    ? interactionText('questionnaire.footer.full', { primary })
+    : interactionText('questionnaire.footer.compact', { primary });
+  const compact = interactionText('questionnaire.footer.compact', { primary });
+  const narrow = interactionText('questionnaire.footer.narrow', { primaryAction });
+  const narrower = interactionText('questionnaire.footer.enterEscCancel');
+  const tiny = interactionText('questionnaire.footer.enterEsc');
   return (
     [full, compact, narrow, narrower, tiny].find((candidate) => visibleWidth(candidate) <= width) ??
     tiny

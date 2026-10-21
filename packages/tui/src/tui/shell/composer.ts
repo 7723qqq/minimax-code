@@ -10,7 +10,8 @@ import {
   getDefaultTuiKeybindingRegistry,
   type TuiKeybindingRegistry,
 } from './keybindings.js';
-import { TUI_TIPS, selectTuiTipAt, type TuiTip } from './tips.js';
+import { buildTuiTips, selectTuiTipAt, type TuiTip } from './tips.js';
+import { shellText, type ShellCopyKey } from './copy.js';
 
 export type TuiComposerMode = 'message' | 'goal' | 'working' | 'follow-up' | 'blocked';
 
@@ -81,7 +82,7 @@ export class TuiComposer implements Component {
               this.options.supportsShiftEnter?.() === true,
               this.options.showTips !== false,
               this.options.now?.() ?? Date.now(),
-              this.options.tips ?? TUI_TIPS,
+              this.options.tips ?? buildTuiTips(),
               this.options.keybindings,
             )}`,
             safeWidth,
@@ -204,15 +205,23 @@ function composerLabels(
   if (hint) return [sanitizeTerminalText(hint)];
   if (state.mode === 'blocked') {
     return state.attention === 'question'
-      ? ['Reply required · choose an answer', 'Reply required']
-      : ['Reply required · choose an action', 'Reply required'];
+      ? [shellText('composer.header.replyRequiredAnswer'), shellText('composer.header.replyRequired')]
+      : [shellText('composer.header.replyRequiredAction'), shellText('composer.header.replyRequired')];
   }
   const submit = formatTuiKeybinding('tui.input.submit', keybindings);
   if (state.mode === 'goal') {
     if (attachment) {
-      return [`Goal · ${attachment} · ${submit} start`, `Goal · ${submit} start`, 'Goal'];
+      return [
+        shellText('composer.label.goalWithAttachment', { attachment, submit }),
+        shellText('composer.label.goalStart', { submit }),
+        shellText('composer.header.goal'),
+      ];
     }
-    return [`Goal · ${submit} start · Esc cancel`, `Goal · ${submit} start`, 'Goal'];
+    return [
+      shellText('composer.label.goalStartEscCancel', { submit }),
+      shellText('composer.label.goalStart', { submit }),
+      shellText('composer.header.goal'),
+    ];
   }
   const inputIntent = state.inputIntent;
   // Run controls (steer, interrupt) live on the activity line; this row only explains the draft.
@@ -227,43 +236,51 @@ function composerLabels(
     }
     if (attachment) {
       return [
-        `Message · ${attachment} · ${steer} steer · ${queue} queue`,
-        `Message · ${steer} steer · ${queue} queue`,
-        `${steer} steer · ${queue} queue`,
-        `${queue} queue`,
-        'Message',
+        shellText('composer.label.messageFollowUpAttachment', { attachment, steer, queue }),
+        shellText('composer.label.messageFollowUp', { steer, queue }),
+        shellText('composer.label.steerQueue', { steer, queue }),
+        shellText('composer.label.queueOnly', { queue }),
+        shellText('composer.header.message'),
       ];
     }
     return [
-      `Message · ${steer} steer · ${queue} queue`,
-      `${steer} steer · ${queue} queue`,
-      `${queue} queue`,
-      'Message',
+      shellText('composer.label.messageFollowUp', { steer, queue }),
+      shellText('composer.label.steerQueue', { steer, queue }),
+      shellText('composer.label.queueOnly', { queue }),
+      shellText('composer.header.message'),
     ];
   }
   if (state.mode === 'working') {
-    return ['Working'];
+    return [shellText('composer.header.working')];
   }
   const longDraft = (state.draftLineCount ?? 0) > 1 || (state.draftCharacterCount ?? 0) > 1_000;
   if (longDraft) {
     const edit = formatTuiKeybinding('composer.external-editor', keybindings);
     return [
-      `Long draft · ${edit} edit · ${submit} send`,
-      `Long draft · ${edit} edit`,
-      'Long draft',
+      shellText('composer.label.longDraftEditSend', { edit, submit }),
+      shellText('composer.label.longDraftEdit', { edit }),
+      shellText('composer.header.longDraft'),
     ];
   }
   if (inputIntent && inputIntent.kind !== 'empty') {
     return composerInputIntentLabels(inputIntent, attachment, supportsShiftEnter, keybindings);
   }
   if (attachment) {
-    return [`${attachment} · ${submit} send`, attachment, 'Message'];
+    return [
+      shellText('composer.label.attachmentSend', { attachment, submit }),
+      attachment,
+      shellText('composer.header.message'),
+    ];
   }
   if (state.surface === 'welcome') {
-    return ['Start · @ file or Plugin · / autocomplete', 'Start below'];
+    return [shellText('composer.header.start'), shellText('composer.header.startBelow')];
   }
   const newline = composerNewlineKeybinding(supportsShiftEnter, keybindings);
-  return [`Message · ${submit} send · ${newline} newline`, `Message · ${submit} send`, 'Message'];
+  return [
+    shellText('composer.label.messageSendNewline', { submit, newline }),
+    shellText('composer.label.messageSend', { submit }),
+    shellText('composer.header.message'),
+  ];
 }
 
 function composerNewlineKeybinding(
@@ -285,70 +302,111 @@ function composerInputIntentLabels(
   followUp?: { readonly steer: string; readonly queue: string },
 ): readonly string[] {
   const intentKind = intent.kind;
-  if (intentKind === 'empty') return ['Message'];
+  if (intentKind === 'empty') return [shellText('composer.header.message')];
   const presentation = COMPOSER_INPUT_INTENT_PRESENTATION[intentKind];
-  const attachmentPart = attachment ? ` · ${attachment}` : '';
-  const detailedTitle = `${presentation.title}${presentation.qualifier ? ` · ${presentation.qualifier}` : ''}`;
-  const detailedSubject = `${detailedTitle}${attachmentPart}`;
-  const compactSubject = `${presentation.title}${attachmentPart}`;
+  const title = shellText(presentation.title);
+  const detailedTitle = presentation.qualifier
+    ? shellText('composer.label.intentWithQualifier', {
+        title,
+        qualifier: shellText(presentation.qualifier),
+      })
+    : title;
+  const detailedSubject = attachment
+    ? shellText('composer.label.intentWithAttachment', { title: detailedTitle, attachment })
+    : detailedTitle;
+  const compactSubject = attachment
+    ? shellText('composer.label.intentWithAttachment', { title, attachment })
+    : title;
   if (followUp && presentation.action !== 'run') {
     return [
-      `${detailedSubject} · ${followUp.steer} steer · ${followUp.queue} queue`,
-      `${presentation.title} · ${followUp.steer} steer · ${followUp.queue} queue`,
-      `${followUp.steer} steer · ${followUp.queue} queue`,
-      `${followUp.queue} queue`,
-      presentation.title,
+      shellText('composer.label.intentFollowUp', {
+        title: detailedSubject,
+        steer: followUp.steer,
+        queue: followUp.queue,
+      }),
+      shellText('composer.label.intentFollowUp', {
+        title,
+        steer: followUp.steer,
+        queue: followUp.queue,
+      }),
+      shellText('composer.label.steerQueue', { steer: followUp.steer, queue: followUp.queue }),
+      shellText('composer.label.queueOnly', { queue: followUp.queue }),
+      title,
     ];
   }
   const submit = formatTuiKeybinding('tui.input.submit', keybindings);
+  const action = shellText(COMPOSER_INPUT_INTENT_ACTION_KEYS[presentation.action]);
   if (presentation.action === 'send') {
     const newline = composerNewlineKeybinding(supportsShiftEnter, keybindings);
     return [
-      `${detailedSubject} · ${submit} send · ${newline} newline`,
-      `${compactSubject} · ${submit} send`,
-      presentation.title,
+      shellText('composer.label.intentSendNewline', {
+        title: detailedSubject,
+        submit,
+        action,
+        newline,
+      }),
+      shellText('composer.label.intentAction', { title: compactSubject, submit, action }),
+      title,
     ];
   }
   return [
-    `${detailedSubject} · ${submit} ${presentation.action}`,
-    `${compactSubject} · ${submit} ${presentation.action}`,
-    presentation.title,
+    shellText('composer.label.intentAction', { title: detailedSubject, submit, action }),
+    shellText('composer.label.intentAction', { title: compactSubject, submit, action }),
+    title,
   ];
 }
 
 type NonEmptyTuiComposerInputIntentKind = Exclude<TuiComposerInputIntent['kind'], 'empty'>;
 
 interface TuiComposerInputIntentPresentation {
-  readonly title: string;
-  readonly qualifier?: string;
+  /** Catalog key for the intent title. */
+  readonly title: ShellCopyKey;
+  /** Catalog key for the qualifier shown after the title. */
+  readonly qualifier?: ShellCopyKey;
   readonly action: 'send' | 'run' | 'invoke';
   readonly color: 'signal' | 'accent' | 'orbit' | 'warning';
 }
 
+/**
+ * Input-intent presentation.
+ *
+ * `title` and `qualifier` hold catalog keys rather than rendered sentences, so
+ * the table keeps its shape while the copy follows the active locale. The
+ * `action` field stays the discriminator the label builder branches on.
+ */
 const COMPOSER_INPUT_INTENT_PRESENTATION: Readonly<
   Record<NonEmptyTuiComposerInputIntentKind, TuiComposerInputIntentPresentation>
 > = {
-  prompt: { title: 'Prompt', action: 'send', color: 'signal' },
-  bash: { title: 'Shell', action: 'run', color: 'warning' },
-  command: { title: 'Command', action: 'run', color: 'accent' },
+  prompt: { title: 'composer.intent.prompt', action: 'send', color: 'signal' },
+  bash: { title: 'composer.intent.shell', action: 'run', color: 'warning' },
+  command: { title: 'composer.intent.command', action: 'run', color: 'accent' },
   'command-arguments': {
-    title: 'Command',
-    qualifier: 'arguments',
+    title: 'composer.intent.command',
+    qualifier: 'composer.intent.arguments',
     action: 'run',
     color: 'accent',
   },
-  skill: { title: 'Skill', action: 'invoke', color: 'orbit' },
+  skill: { title: 'composer.intent.skill', action: 'invoke', color: 'orbit' },
   'skill-instructions': {
-    title: 'Skill',
-    qualifier: 'instructions',
+    title: 'composer.intent.skill',
+    qualifier: 'composer.intent.instructions',
     action: 'invoke',
     color: 'orbit',
   },
 };
 
+/** Catalog key for the action word shown next to the submit shortcut. */
+const COMPOSER_INPUT_INTENT_ACTION_KEYS: Readonly<
+  Record<'send' | 'run' | 'invoke', ShellCopyKey>
+> = {
+  send: 'composer.action.send',
+  run: 'composer.action.run',
+  invoke: 'composer.action.invoke',
+};
+
 function formatAttachmentCount(count: number | undefined): string | undefined {
   if (!count) return undefined;
-  return `${count} attachment${count === 1 ? '' : 's'}`;
+  return shellText(count === 1 ? 'composer.attachment.one' : 'composer.attachment.many', { count });
 }
 
 export function resolveTuiComposerColor(state: TuiComposerState): string {

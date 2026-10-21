@@ -26,6 +26,7 @@ import {
   hasQuestionnaireToolResult,
   pendingQuestionnaireForTurn,
 } from './pending-questionnaire.js';
+import { applicationText } from './copy.js';
 
 export type TuiRunRuntime = TuiConversationPort &
   Partial<Pick<TuiInteractionPort, 'getPendingQuestionnaire'>>;
@@ -320,7 +321,7 @@ export class TuiRunCoordinator {
         failure = {
           category: 'runtime',
           code: 'EMPTY_RESPONSE',
-          message: 'Runtime completed without a final assistant response.',
+          message: applicationText('application.run.noFinalResponse'),
           retryable: true,
         };
       }
@@ -358,7 +359,7 @@ export class TuiRunCoordinator {
         const deliveryFailure: TuiTurnRunError = {
           category: 'internal',
           code: 'AUTOMATION_RESULT_WRITE_FAILED',
-          message: 'Could not publish the TUI automation result.',
+          message: applicationText('application.run.automationPublishFailed'),
           retryable: true,
         };
         failure = deliveryFailure;
@@ -492,7 +493,7 @@ function questionnaireContinuationError(): TuiTurnRunError {
   return {
     category: 'runtime',
     code: 'QUESTIONNAIRE_REQUIRED',
-    message: 'Questionnaire requires user input.',
+    message: applicationText('application.run.questionnaireRequiresInput'),
     retryable: true,
   };
 }
@@ -509,7 +510,7 @@ function failureFromEvent(event: TuiStreamEvent):
       error: {
         category: 'runtime',
         code: 'CONTENT_REVIEW_BLOCKED',
-        message: 'Content review blocked the request.',
+        message: applicationText('application.run.contentReviewBlocked'),
         retryable: true,
       },
     };
@@ -526,7 +527,7 @@ function failureFromEvent(event: TuiStreamEvent):
       status: 'failed',
       error: {
         category: 'runtime',
-        message: event.message ?? 'Runtime turn failed.',
+        message: event.message ?? applicationText('app.turnFailed'),
         retryable: true,
       },
     };
