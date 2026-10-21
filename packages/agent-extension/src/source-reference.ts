@@ -25,6 +25,7 @@ import {
   registeredAssetPathsFromShellCommand,
   workspaceFilePathsFromShellCommand,
 } from './source-reference-files.js';
+import { sourceReferenceText } from './i18n/copy.js';
 import {
   escapeMarkdownLabel,
   invokedToolName,
@@ -1122,9 +1123,8 @@ function appendMissingWebSourceSummary(
   );
   if (citations.length === 0) return text;
 
-  const isChinese = /\p{Script=Han}/u.test(text);
-  const separator = isChinese ? '、' : ', ';
-  const label = isChinese ? '来源：' : 'Sources: ';
+  const label = sourceReferenceText('sourceList.label');
+  const separator = sourceReferenceText('sourceList.separator');
   return `${text.trimEnd()}\n\n${label}${citations.join(separator)}`;
 }
 
@@ -1463,7 +1463,7 @@ function normalizeFileCitationLabels(
         reference.path,
         fileDisplayName(reference.path),
       );
-      const separator = /\p{Script=Han}/u.test(label) ? '：' : ': ';
+      const separator = sourceReferenceText('citation.labelSeparator');
       return `${localizedCitation}${separator}${rawBody.trim()}`;
     },
   );
@@ -2312,7 +2312,7 @@ function cleanRemovedCitationLine(line: string): string {
 }
 
 function normalizeBareToolSourceLines(text: string): string {
-  const label = /[\u3400-\u9fff]/u.test(text) ? '来源：' : 'Source: ';
+  const label = sourceReferenceText('sourceList.itemLabel');
   return text
     .replace(
       /^([ \t]*)[（(]\s*(\[[^\]\n]+\]\(#mavis-source=[^)\n]+\))\s*[）)][ \t]*$/gmu,

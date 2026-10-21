@@ -5,6 +5,7 @@ import {
   type TuiRecoverableDraft,
 } from './draft-recovery.js';
 import type { TuiComposerDraft } from './draft.js';
+import { composerText } from './copy.js';
 import {
   createTuiSubmissionSnapshot,
   type TuiRetrySubmission,
@@ -49,14 +50,17 @@ export class TuiDraftLifecycle {
     const restoredEditor = this.restore(recovered);
     if (!restoredEditor && recovered.attachments.length === 0) return;
     const restoredParts = [
-      recovered.editor.text ? 'text' : undefined,
+      recovered.editor.text ? composerText('draftPartText') : undefined,
       recovered.attachments.length > 0
-        ? `${recovered.attachments.length} attachment${
-            recovered.attachments.length === 1 ? '' : 's'
-          }`
+        ? composerText(
+            recovered.attachments.length === 1
+              ? 'draftPartAttachmentOne'
+              : 'draftPartAttachmentMany',
+            { count: recovered.attachments.length },
+          )
         : undefined,
     ].filter((part): part is string => Boolean(part));
-    this.options.onRestored(`Draft restored · ${restoredParts.join(' + ')}`);
+    this.options.onRestored(composerText('draftRestored', { parts: restoredParts.join(' + ') }));
   }
 
   schedule(): void {
@@ -90,7 +94,7 @@ export class TuiDraftLifecycle {
       retry: {
         retryId: submissionToken,
         snapshot,
-        failedReason: 'MCode stopped before Runtime admission completed.',
+        failedReason: composerText('draftAdmissionStopped'),
         failureCode: 'submission.interrupted',
       },
     });
@@ -147,7 +151,7 @@ export class TuiDraftLifecycle {
         retry: {
           retryId,
           failureCode: RESTORED_SUBMISSION_CODE,
-          failedReason: 'Aborted submission returned to the composer.',
+          failedReason: composerText('draftAbortedReturned'),
           snapshot,
         },
       });

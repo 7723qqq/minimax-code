@@ -6,6 +6,7 @@ import { truncateToWidth, visibleWidth } from '../rendering/text.js';
 import { tuiChalk, tuiColors as colors } from '../theme/runtime.js';
 import { sanitizeTerminalText } from '../rendering/terminal-text.js';
 import { formatTuiKeybinding, type TuiKeybindingRegistry } from './keybindings.js';
+import { shellText } from './copy.js';
 
 export type TuiActivityPhase =
   | 'idle'
@@ -235,34 +236,42 @@ function renderPhase(state: TuiActivityLineState): {
   if (state.phase === 'loading') {
     return {
       icon: '◇',
-      label: state.loadingTarget === 'session' ? 'Loading session' : 'Loading',
+      label: shellText(
+        state.loadingTarget === 'session' ? 'activity.loadingSession' : 'activity.loading',
+      ),
       color: colors.signal,
     };
   }
-  if (state.phase === 'running') return { icon: '◇', label: 'Running', color: colors.orbit };
+  if (state.phase === 'running') {
+    return { icon: '◇', label: shellText('activity.running'), color: colors.orbit };
+  }
   if (state.phase === 'retrying') {
     return {
       icon: '◇',
-      label: state.message ? oneLine(state.message) : 'Retrying model request',
+      label: state.message ? oneLine(state.message) : shellText('activity.retrying'),
       color: colors.orbit,
     };
   }
   if (state.phase === 'reconnecting') {
     return {
       icon: '◇',
-      label: state.message ? `Reconnecting · ${oneLine(state.message)}` : 'Reconnecting',
+      label: state.message
+        ? shellText('activity.reconnectingWith', { message: oneLine(state.message) })
+        : shellText('activity.reconnecting'),
       color: colors.signal,
     };
   }
   if (state.phase === 'compacting') {
-    return { icon: '◇', label: 'Compacting context', color: colors.orbit };
+    return { icon: '◇', label: shellText('activity.compacting'), color: colors.orbit };
   }
   if (state.phase === 'stopping') {
-    return { icon: '!', label: 'Stopping response', color: colors.error };
+    return { icon: '!', label: shellText('activity.stopping'), color: colors.error };
   }
   return {
     icon: '×',
-    label: state.message ? `Error · ${oneLine(state.message)}` : 'Runtime error',
+    label: state.message
+      ? shellText('activity.errorWith', { message: oneLine(state.message) })
+      : shellText('activity.error'),
     color: colors.error,
   };
 }

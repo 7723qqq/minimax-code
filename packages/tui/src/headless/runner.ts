@@ -42,6 +42,7 @@ import {
   formatTuiExecFailure,
   formatTuiExecResultFailure,
 } from "./error-presentation.js";
+import { headlessText } from "./copy.js";
 import { MINIMAX_CODE_DEFAULT_AGENT_NAME } from "../product-context.js";
 import { requireTuiAgentAccess } from "../application/login-gate.js";
 import { formatTuiActionFailure } from "../user-facing-failure.js";
@@ -412,11 +413,11 @@ export async function runTuiExec(
     try {
       const shutdownFailed = await dependencies.shutdown();
       if (shutdownFailed === true)
-        shutdownFailure = "Runtime shutdown did not complete cleanly.";
+        shutdownFailure = headlessText("headless.runner.shutdownIncomplete");
     } catch (error) {
       shutdownFailure = formatTuiActionFailure(error, {
-        summary: "mcode exec shutdown failed.",
-        nextStep: "Verify no process is still running.",
+        summary: headlessText("headless.runner.shutdownFailed"),
+        nextStep: headlessText("headless.runner.shutdownNextStep"),
       });
     }
 
@@ -520,7 +521,7 @@ function projectHeadlessReviewResult(
       error: {
         category: "runtime",
         code: "REVIEW_RESULT_MISSING",
-        message: "Runtime completed without a validated code review result.",
+        message: headlessText("headless.runner.reviewResultMissing"),
         retryable: true,
       },
     };
@@ -547,7 +548,7 @@ function projectHeadlessReviewResult(
         error: {
           category: "runtime",
           code: "REVIEW_RESULT_INVALID",
-          message: "Runtime returned an invalid code review result.",
+          message: headlessText("headless.runner.reviewResultInvalid"),
           retryable: true,
         },
       };
@@ -565,7 +566,7 @@ function projectHeadlessReviewStreamEvent(
       ...event.message,
       content: result
         ? renderReviewResultText(result)
-        : "Runtime returned an invalid code review result.",
+        : headlessText("headless.runner.reviewResultInvalid"),
     },
   };
 }

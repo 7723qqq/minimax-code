@@ -3,6 +3,7 @@ import { compactionLifecycleState, isCompactionKind } from '@mavis/shared/turn-m
 import type { TuiMessage } from '../../../runtime/port.js';
 import { buildTuiMessageParts } from '../../../runtime/stream-events.js';
 import type { TranscriptStore } from '../../transcript/store.js';
+import { transcriptText } from '../../features/transcript/copy.js';
 import { isQuestionnaireTool, type TuiToolProjection } from './turn-tool-projection.js';
 import type { TuiTodoProjection } from './turn-todo-projection.js';
 import type { TuiUserProjection } from './turn-user-projection.js';
@@ -48,10 +49,10 @@ export function hydrateTuiHistory(options: HydrateTuiHistoryOptions): void {
         state === 'running' ? 'running' : state === 'failed' ? 'failed' : 'succeeded';
       const title =
         state === 'running'
-          ? 'Compacting context'
+          ? transcriptText('cell.title.compacting')
           : state === 'failed'
-            ? 'Context compaction failed'
-            : 'Context compacted';
+            ? transcriptText('cell.title.compactionFailed')
+            : transcriptText('cell.title.contextCompacted');
       transcript.upsert({
         id: `history:compaction:${messageId}`,
         kind: 'compaction',

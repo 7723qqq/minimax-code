@@ -8,17 +8,18 @@ import {
 import { Input } from '../../widgets/input.js';
 import type { ActiveTuiQuestionnaire } from '../../interaction/questionnaire.js';
 import { questionnaireFrameContentWidth, renderQuestionnaireFrame } from './decision-frame.js';
+import { interactionText, type InteractionCopyKey } from './copy.js';
 
 export type TuiPlanReviewAction =
   | { readonly kind: 'approve' }
   | { readonly kind: 'feedback'; readonly text: string }
   | { readonly kind: 'skip' };
 
-const PLAN_REVIEW_OPTIONS = [
-  'Agree and start implementation',
-  'Skip for now',
-  'Add context to revise',
-] as const;
+const PLAN_REVIEW_OPTIONS: readonly InteractionCopyKey[] = [
+  'planReview.option.approve',
+  'planReview.option.skip',
+  'planReview.option.feedback',
+];
 
 /**
  * Compact decision surface for Plan Review.
@@ -57,7 +58,7 @@ export class TuiPlanReviewPanel implements Component, Focusable {
     this.input.onSubmit = (value) => {
       const text = value.trim();
       if (!text || this.submittingLabel) return;
-      this.beginSubmitting('Sending feedback…');
+      this.beginSubmitting(interactionText('planReview.status.feedback'));
       this.onAction({ kind: 'feedback', text });
     };
     this.input.onEscape = () => {
@@ -89,19 +90,19 @@ export class TuiPlanReviewPanel implements Component, Focusable {
       return;
     }
     if (matchesKey(data, 'escape')) {
-      this.beginSubmitting('Skipping review…');
+      this.beginSubmitting(interactionText('planReview.status.skip'));
       this.onAction({ kind: 'skip' });
     }
   }
 
   private confirmSelection(): void {
     if (this.selectedIndex === 0) {
-      this.beginSubmitting('Starting implementation…');
+      this.beginSubmitting(interactionText('planReview.status.start'));
       this.onAction({ kind: 'approve' });
       return;
     }
     if (this.selectedIndex === 1) {
-      this.beginSubmitting('Skipping review…');
+      this.beginSubmitting(interactionText('planReview.status.skip'));
       this.onAction({ kind: 'skip' });
       return;
     }
@@ -134,10 +135,10 @@ export class TuiPlanReviewPanel implements Component, Focusable {
       this.optionRows = [];
       return renderQuestionnaireFrame(
         {
-          title: 'Plan Review',
+          title: interactionText('planReview.title'),
           body: [
             chalk.bold.hex(colors.text)(this.submittingLabel),
-            chalk.hex(colors.muted)('Waiting for Runtime to commit the decision.'),
+            chalk.hex(colors.muted)(interactionText('waiting.commitDecision')),
           ],
         },
         safeWidth,
@@ -148,12 +149,12 @@ export class TuiPlanReviewPanel implements Component, Focusable {
       this.optionRows = [];
       return renderQuestionnaireFrame(
         {
-          title: 'Add context',
+          title: interactionText('planReview.title.feedback'),
           body: [
-            renderTuiActionHint('Tell MiniMax Code what to adjust, then press Enter.'),
+            renderTuiActionHint(interactionText('planReview.feedback.hint')),
             ...this.input.render(contentWidth),
           ],
-          footer: 'Enter send · Esc back',
+          footer: interactionText('planReview.footer.feedback'),
         },
         safeWidth,
         'signal',
@@ -188,9 +189,9 @@ export class TuiPlanReviewPanel implements Component, Focusable {
       : [];
     const body = [
       ...descriptionLines,
-      chalk.bold.hex(colors.text)('Plan complete. What would you like to do?'),
-      ...PLAN_REVIEW_OPTIONS.map((label, index) =>
-        renderPlanReviewOption(label, index === this.selectedIndex),
+      chalk.bold.hex(colors.text)(interactionText('planReview.heading')),
+      ...PLAN_REVIEW_OPTIONS.map((key, index) =>
+        renderPlanReviewOption(interactionText(key), index === this.selectedIndex),
       ),
     ];
     const headerRows = safeWidth < 12 ? 0 : 1;
@@ -198,10 +199,10 @@ export class TuiPlanReviewPanel implements Component, Focusable {
     this.optionRows = PLAN_REVIEW_OPTIONS.map((_, index) => firstOptionRow + index);
     return renderQuestionnaireFrame(
       {
-        title: 'Plan Review',
-        meta: chalk.hex(colors.muted)('Full plan above · frozen snapshot'),
+        title: interactionText('planReview.title'),
+        meta: chalk.hex(colors.muted)(interactionText('planReview.meta')),
         body,
-        footer: '↑/↓ select · Enter confirm · Esc skip',
+        footer: interactionText('planReview.footer'),
       },
       safeWidth,
       'signal',

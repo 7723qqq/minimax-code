@@ -1,23 +1,25 @@
-import { translateRuntimeText } from '@mavis/shared/runtime-i18n';
+import { RUNTIME_CATALOG, resolveLocaleName, translate } from '@mavis/shared/i18n';
+
+import { tuiUpdateText } from './copy.js';
 
 export function mcodePrefixActivationScheduledMessage(
   _environment: NodeJS.ProcessEnv = process.env,
 ): string {
-  return 'A staged MCode update will activate after this process exits.';
+  return tuiUpdateText('update.prefix.activationScheduled');
 }
 
 export function mcodePrefixJournalScheduleFailedMessage(
   _environment: NodeJS.ProcessEnv = process.env,
 ): string {
-  return 'MCode update was staged, but its activation journal could not be scheduled.';
+  return tuiUpdateText('update.prefix.journalScheduleFailed');
 }
 
 export function mcodePrefixNonPrefixPlanMessage(_environment: NodeJS.ProcessEnv): string {
-  return 'MCode npm prefix updater received a non-prefix plan.';
+  return tuiUpdateText('update.prefix.nonPrefixPlan');
 }
 
 export function mcodePrefixOwnershipMissingMessage(_environment: NodeJS.ProcessEnv): string {
-  return 'MCode npm prefix ownership metadata is missing.';
+  return tuiUpdateText('update.prefix.ownershipMissing');
 }
 
 export function mcodePrefixPendingActivationMessage(
@@ -28,13 +30,18 @@ export function mcodePrefixPendingActivationMessage(
   } = {},
 ): string {
   if (options.blockingSessionCount === undefined) {
-    return `MCode ${version} is already staged. Restarting will resume activation after running MCode sessions exit.`;
+    return tuiUpdateText('update.prefix.pendingActivation.default', { version });
   }
   const blockingSessionCount = Math.max(0, Math.trunc(options.blockingSessionCount));
   if (blockingSessionCount > 0) {
-    return `MCode ${version} is already staged. Activation will wait for ${String(blockingSessionCount)} other MCode ${blockingSessionCount === 1 ? 'session' : 'sessions'} to exit.`;
+    return tuiUpdateText(
+      blockingSessionCount === 1
+        ? 'update.prefix.pendingActivation.blocking.one'
+        : 'update.prefix.pendingActivation.blocking.many',
+      { version, count: blockingSessionCount },
+    );
   }
-  return `MCode ${version} is already staged. It will activate after this process exits.`;
+  return tuiUpdateText('update.prefix.pendingActivation.immediate', { version });
 }
 
 export function mcodePrefixPendingCleanupMessage(
@@ -45,13 +52,18 @@ export function mcodePrefixPendingCleanupMessage(
   } = {},
 ): string {
   if (options.blockingSessionCount === undefined) {
-    return `MCode ${version} is already active. Restarting will finish update cleanup after running MCode sessions exit.`;
+    return tuiUpdateText('update.prefix.pendingCleanup.default', { version });
   }
   const blockingSessionCount = Math.max(0, Math.trunc(options.blockingSessionCount));
   if (blockingSessionCount > 0) {
-    return `MCode ${version} is already active. Update cleanup will wait for ${String(blockingSessionCount)} other MCode ${blockingSessionCount === 1 ? 'session' : 'sessions'} to exit.`;
+    return tuiUpdateText(
+      blockingSessionCount === 1
+        ? 'update.prefix.pendingCleanup.blocking.one'
+        : 'update.prefix.pendingCleanup.blocking.many',
+      { version, count: blockingSessionCount },
+    );
   }
-  return `MCode ${version} is already active. Restarting will finish update cleanup.`;
+  return tuiUpdateText('update.prefix.pendingCleanup.immediate', { version });
 }
 
 export function mcodePrefixStagedVersionMismatchMessage(
@@ -59,7 +71,7 @@ export function mcodePrefixStagedVersionMismatchMessage(
   expectedVersion: string,
   _environment: NodeJS.ProcessEnv,
 ): string {
-  return `MCode update staged ${actualVersion}; expected ${expectedVersion}.`;
+  return tuiUpdateText('update.prefix.stagedVersionMismatch', { actualVersion, expectedVersion });
 }
 
 export function mcodePrefixStagedMessage(
@@ -70,21 +82,33 @@ export function mcodePrefixStagedMessage(
   } = {},
 ): string {
   if (options.blockingSessionCount === undefined) {
-    return `MCode ${version} is downloaded and staged safely. Waiting for running MCode sessions to exit before activation.`;
+    return tuiUpdateText('update.prefix.staged.default', { version });
   }
   const blockingSessionCount = Math.max(0, Math.trunc(options.blockingSessionCount));
   if (blockingSessionCount > 0) {
-    return `MCode ${version} is downloaded and staged safely. Waiting for ${String(blockingSessionCount)} other MCode ${blockingSessionCount === 1 ? 'session' : 'sessions'} to exit before activation.`;
+    return tuiUpdateText(
+      blockingSessionCount === 1
+        ? 'update.prefix.staged.blocking.one'
+        : 'update.prefix.staged.blocking.many',
+      { version, count: blockingSessionCount },
+    );
   }
-  return `MCode ${version} is downloaded and staged safely. It will activate after this process exits.`;
+  return tuiUpdateText('update.prefix.staged.immediate', { version });
 }
 
 export function mcodePrefixVersionedInstalledMessage(
   version: string,
   environment: NodeJS.ProcessEnv = process.env,
 ): string {
-  const locale = environment.LC_ALL || environment.LC_MESSAGES || environment.LANG;
-  return translateRuntimeText(locale, 'update.versionedInstalled').replace('{version}', version);
+  // Locale resolution and `{version}` interpolation both come from the shared
+  // module; the previous version read LC_ALL/LC_MESSAGES/LANG by hand and then
+  // patched the template with a single `.replace`.
+  return translate(
+    RUNTIME_CATALOG,
+    resolveLocaleName(undefined, environment),
+    'update.versionedInstalled',
+    { version },
+  );
 }
 
 export function mcodePrefixNotStagedMessage(
@@ -92,5 +116,5 @@ export function mcodePrefixNotStagedMessage(
   reason: string,
   _environment: NodeJS.ProcessEnv,
 ): string {
-  return `MCode ${version} was not staged; the active installation is unchanged: ${reason}`;
+  return tuiUpdateText('update.prefix.notStaged', { version, reason });
 }

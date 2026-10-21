@@ -22,6 +22,7 @@ import { sanitizeTuiUrl } from '../../rendering/url.js';
 import { resolveTuiThinkingChoice } from '../model/thinking.js';
 import { resolveTuiEffortChoice } from '../model/effort.js';
 import { resolveTuiSessionCacheMetrics } from '../../../application/session-cache-metrics.js';
+import { inspectionLabelId, inspectionReportLabel, inspectionText } from './copy.js';
 import type {
   TranscriptContextVisualization,
   TranscriptInspectionReport,
@@ -65,18 +66,18 @@ export function createTuiAccountStatusInspection(
   const needsLogin = status === 'needs-login' || account?.managedTokenPresent === false;
   const identity = account?.identity?.email?.trim() || account?.identity?.name?.trim();
   const accountLabel = options.accountLoading
-    ? 'Loading…'
+    ? inspectionText('account.loading')
     : needsLogin
       ? account?.modelSource === 'byok'
-        ? 'Not signed in'
-        : 'Sign in with /login'
+        ? inspectionText('account.notSignedIn')
+        : inspectionText('account.signIn')
       : identity
         ? safeInline(identity)
         : status === 'ready'
-          ? 'Connected with MiniMax'
+          ? inspectionText('account.connected')
           : status === 'warning'
-            ? 'Connected with warnings'
-            : 'MiniMax account unavailable';
+            ? inspectionText('account.connectedWithWarnings')
+            : inspectionText('account.unavailable');
   const sessionEffort = sessionModel
     ? resolveTuiEffortChoice(sessionModel, options.effort)
     : undefined;
@@ -84,13 +85,13 @@ export function createTuiAccountStatusInspection(
     ? `${safeInline(sessionModel.providerId)}/${safeInline(sessionModel.modelId)}${
         sessionModel.variant && !sessionEffort ? `#${safeInline(sessionModel.variant)}` : ''
       }`
-    : safe(account?.defaultModel ?? 'not selected');
+    : safe(account?.defaultModel ?? inspectionText('value.notSelected'));
   const sections: Array<TranscriptInspectionReport['sections'][number]> = [
     {
-      title: 'Account',
+      title: inspectionLabelId('label.account'),
       rows: [
         {
-          label: 'Account',
+          label: inspectionLabelId('label.account'),
           value: accountLabel,
           tone: options.accountLoading
             ? 'neutral'
@@ -98,12 +99,18 @@ export function createTuiAccountStatusInspection(
               ? 'warning'
               : accountStatusTone(status),
         },
-        { label: 'Provider', value: safe(account?.providerId ?? 'not configured') },
-        { label: 'Auth', value: safe(account?.authMode ?? 'unknown') },
+        {
+          label: inspectionLabelId('label.provider'),
+          value: safe(account?.providerId ?? inspectionText('value.notConfigured')),
+        },
+        {
+          label: inspectionLabelId('label.auth'),
+          value: safe(account?.authMode ?? inspectionText('value.unknown')),
+        },
         ...(account?.tokenPlanSummary?.tier
           ? [
               {
-                label: 'Plan',
+                label: inspectionLabelId('label.plan'),
                 value: safeInline(account.tokenPlanSummary.tier),
                 tone: 'accent' as const,
               },
@@ -112,8 +119,11 @@ export function createTuiAccountStatusInspection(
         ...(account?.modelSource
           ? [
               {
-                label: 'Model source',
-                value: account.modelSource === 'byok' ? 'API key' : 'Token Plan',
+                label: inspectionLabelId('label.modelSource'),
+                value:
+                  account.modelSource === 'byok'
+                    ? inspectionText('account.modelSource.apiKey')
+                    : inspectionText('account.modelSource.tokenPlan'),
               },
             ]
           : []),
@@ -121,47 +131,66 @@ export function createTuiAccountStatusInspection(
     },
   ];
   sections.push({
-    title: 'Model',
+    title: inspectionLabelId('label.model'),
     rows: [
-      { label: 'Model', value: model, tone: sessionModel ? 'accent' : 'neutral' },
+      {
+        label: inspectionLabelId('label.model'),
+        value: model,
+        tone: sessionModel ? 'accent' : 'neutral',
+      },
       ...(sessionEffort
-        ? [{ label: 'Think effort', value: sessionEffort }]
+        ? [{ label: inspectionLabelId('label.thinkEffort'), value: sessionEffort }]
         : [
             {
-              label: 'Thinking',
+              label: inspectionLabelId('label.thinking'),
               value: formatThinkingStatus(sessionModel),
             },
           ]),
       {
-        label: 'Source',
-        value: sessionModel && options.session ? 'session selection' : 'configured default',
+        label: inspectionLabelId('label.source'),
+        value:
+          sessionModel && options.session
+            ? inspectionText('model.sessionSelection')
+            : inspectionText('model.configuredDefault'),
       },
     ],
   });
   if (options.workspaceDir !== undefined) {
     sections.push({
-      title: 'Workspace',
+      title: inspectionLabelId('label.workspace'),
       rows: [
-        { label: 'Directory', value: safeInline(options.workspaceDir) },
-        { label: 'Branch', value: formatWorkspaceBranch(options.workspaceGit) },
-        { label: 'Worktree', value: formatWorkspaceWorktree(options.workspaceGit) },
+        { label: inspectionLabelId('label.directory'), value: safeInline(options.workspaceDir) },
+        {
+          label: inspectionLabelId('label.branch'),
+          value: formatWorkspaceBranch(options.workspaceGit),
+        },
+        {
+          label: inspectionLabelId('label.worktree'),
+          value: formatWorkspaceWorktree(options.workspaceGit),
+        },
       ],
     });
     sections.push({
-      title: 'Session',
-      rows: [
-        { label: 'Session ID', value: safeInline(options.session?.sessionId ?? 'Not started') },
-        { label: 'Title', value: safeInline(options.session?.title ?? 'Untitled') },
-      ],
-    });
-    sections.push({
-      title: 'Permissions',
+      title: inspectionLabelId('label.session'),
       rows: [
         {
-          label: 'Permissions',
+          label: inspectionLabelId('label.sessionId'),
+          value: safeInline(options.session?.sessionId ?? inspectionText('value.notStarted')),
+        },
+        {
+          label: inspectionLabelId('label.title'),
+          value: safeInline(options.session?.title ?? inspectionText('value.untitled')),
+        },
+      ],
+    });
+    sections.push({
+      title: inspectionLabelId('label.permissions'),
+      rows: [
+        {
+          label: inspectionLabelId('label.permissions'),
           value: options.permissionMode
             ? formatTuiPermissionMode(options.permissionMode)
-            : 'Unavailable',
+            : inspectionText('value.unavailable'),
           tone:
             options.permissionMode && isDangerousTuiPermissionMode(options.permissionMode)
               ? 'warning'
@@ -170,60 +199,88 @@ export function createTuiAccountStatusInspection(
       ],
     });
     const mode = options.planMode?.displayMode ?? options.session?.interactionMode ?? 'default';
-    const activeMode = options.session?.interactionMode === 'plan' ? 'Plan' : 'Default';
-    const modeLabel = mode === 'plan' ? 'Plan' : 'Default';
+    const activeMode =
+      options.session?.interactionMode === 'plan'
+        ? inspectionText('value.planMode')
+        : inspectionText('value.defaultMode');
+    const modeLabel =
+      mode === 'plan' ? inspectionText('value.planMode') : inspectionText('value.defaultMode');
     sections.push({
-      title: 'Mode',
+      title: inspectionLabelId('label.mode'),
       rows: [
         {
-          label: 'Mode',
+          label: inspectionLabelId('label.mode'),
           value: options.planMode?.transition
-            ? `${activeMode} → ${modeLabel} (${options.planMode.transition === 'next-message' ? 'next message' : 'submitting'})`
+            ? `${activeMode} → ${modeLabel} (${
+                options.planMode.transition === 'next-message'
+                  ? inspectionText('value.nextMessage')
+                  : inspectionText('value.submitting')
+              })`
             : modeLabel,
         },
       ],
     });
     sections.push({
-      title: 'Instructions',
+      title: inspectionLabelId('label.instructions'),
       rows: options.instructionSources?.length
         ? options.instructionSources.map((source) => ({
-            label: source.scope === 'global' ? 'Global rules' : 'Project rules',
+            label:
+              source.scope === 'global'
+                ? inspectionLabelId('label.globalRules')
+                : inspectionLabelId('label.projectRules'),
             value: safeInline(source.path),
           }))
-        : [{ label: 'Instructions', value: options.instructionSources ? 'None' : 'Unavailable' }],
+        : [
+            {
+              label: inspectionLabelId('label.instructions'),
+              value: options.instructionSources
+                ? inspectionText('value.none')
+                : inspectionText('value.unavailable'),
+            },
+          ],
     });
   }
-  const quotaRows = createTokenPlanQuotaRows(account).filter((row) => row.label !== 'Video');
-  if (quotaRows.length > 0) sections.push({ title: 'Quota', rows: quotaRows });
+  const quotaRows = createTokenPlanQuotaRows(account).filter(
+    (row) => row.label !== inspectionLabelId('label.quotaVideo'),
+  );
+  if (quotaRows.length > 0) sections.push({ title: inspectionLabelId('label.quota'), rows: quotaRows });
   return {
-    title: `MCode status${options.version ? ` · v${safeInline(options.version)}` : ''}`,
+    title: inspectionText('status.title', {
+      version: options.version ? ` · v${safeInline(options.version)}` : '',
+    }),
     badge: options.accountLoading
-      ? { label: 'Loading account…', tone: 'neutral' }
+      ? { label: inspectionText('account.loadingBadge'), tone: 'neutral' }
       : accountStatusBadge(status),
     sections,
     warnings: account?.warnings.map(safe),
-    footer: 'Current configuration · /usage for details',
+    footer: inspectionText('account.footer'),
     visualization: { kind: 'status', ...(quotaRows.length ? { quotaRows } : {}) },
   };
 }
 
 function formatThinkingStatus(model: TuiModel | undefined): string {
-  if (!model) return 'Unknown';
+  if (!model) return inspectionText('model.unknownThinking');
   const thinking = resolveTuiThinkingChoice(model);
-  return thinking === undefined ? 'Not configurable' : thinking === 'on' ? 'On' : 'Off';
+  return thinking === undefined
+    ? inspectionText('model.notConfigurable')
+    : thinking === 'on'
+      ? inspectionText('model.thinkingOn')
+      : inspectionText('model.thinkingOff');
 }
 
 function formatWorkspaceBranch(metadata: TuiWorkspaceGitMetadata | undefined): string {
-  if (!metadata) return 'Unavailable';
-  if (!metadata.isGitRepo) return 'Not a Git repository';
-  if (metadata.detached) return 'Detached HEAD';
-  return safeInline(metadata.branch || 'Unborn branch');
+  if (!metadata) return inspectionText('value.unavailable');
+  if (!metadata.isGitRepo) return inspectionText('workspace.branch.notGitRepository');
+  if (metadata.detached) return inspectionText('workspace.branch.detachedHead');
+  return safeInline(metadata.branch || inspectionText('workspace.branch.unborn'));
 }
 
 function formatWorkspaceWorktree(metadata: TuiWorkspaceGitMetadata | undefined): string {
-  if (!metadata) return 'Unavailable';
-  if (!metadata.isGitRepo) return 'Not applicable';
-  return metadata.isWorktree ? 'Linked' : 'Primary checkout';
+  if (!metadata) return inspectionText('value.unavailable');
+  if (!metadata.isGitRepo) return inspectionText('workspace.worktree.notApplicable');
+  return metadata.isWorktree
+    ? inspectionText('workspace.worktree.linked')
+    : inspectionText('workspace.worktree.primaryCheckout');
 }
 
 function createTokenPlanRows(
@@ -231,7 +288,13 @@ function createTokenPlanRows(
   needsLogin: boolean,
 ): TranscriptUsageAccountRow[] {
   if (needsLogin) {
-    return [{ label: 'Plan', value: 'Run /login to view plan and quota', tone: 'warning' }];
+    return [
+      {
+        label: inspectionLabelId('label.plan'),
+        value: inspectionText('account.plan.loginHint'),
+        tone: 'warning',
+      },
+    ];
   }
   const summary = account?.tokenPlanSummary;
   const hasTokenPlan =
@@ -240,12 +303,21 @@ function createTokenPlanRows(
     Boolean(summary);
   if (!hasTokenPlan) return [];
   return [
-    { label: 'Plan', value: safe(summary?.tier ?? 'Token Plan'), tone: 'accent' },
+    {
+      label: inspectionLabelId('label.plan'),
+      value: safe(summary?.tier ?? inspectionText('account.modelSource.tokenPlan')),
+      tone: 'accent',
+    },
     ...(summary?.expiresAtMs
-      ? [{ label: 'Expires', value: formatLocalDate(summary.expiresAtMs) }]
+      ? [{ label: inspectionLabelId('label.expires'), value: formatLocalDate(summary.expiresAtMs) }]
       : []),
     ...(summary?.creditBalance
-      ? [{ label: 'Credits', value: formatCreditAmount(summary.creditBalance) }]
+      ? [
+          {
+            label: inspectionLabelId('label.credits'),
+            value: formatCreditAmount(summary.creditBalance),
+          },
+        ]
       : []),
   ];
 }
@@ -254,29 +326,41 @@ function createTokenPlanQuotaRows(
   account: TuiAccountStatus | undefined,
 ): TranscriptUsageAccountRow[] {
   if (account?.tokenPlanQuotaState === 'not-subscribed') {
-    return [{ label: 'Quota', value: 'No Token Plan subscription', tone: 'warning' }];
+    return [
+      {
+        label: inspectionLabelId('label.quota'),
+        value: inspectionText('quota.noSubscription'),
+        tone: 'warning',
+      },
+    ];
   }
   const quota = account?.tokenPlanQuota;
   if (!quota) {
     return account?.tokenPlanQuotaState === 'unavailable'
-      ? [{ label: 'Quota', value: 'Temporarily unavailable', tone: 'warning' }]
+      ? [
+          {
+            label: inspectionLabelId('label.quota'),
+            value: inspectionText('quota.temporarilyUnavailable'),
+            tone: 'warning',
+          },
+        ]
       : [];
   }
   return [
     {
-      label: '5-hour',
+      label: inspectionLabelId('label.quotaFiveHour'),
       value: formatQuotaWindowDetail(quota.fiveHour),
       ...(quota.fiveHour.unlimited ? {} : remainingPercentRatio(quota.fiveHour.remainingPercent)),
     },
     {
-      label: 'Weekly',
+      label: inspectionLabelId('label.quotaWeekly'),
       value: formatQuotaWindowDetail(quota.weekly),
       ...(quota.weekly.unlimited ? {} : remainingPercentRatio(quota.weekly.remainingPercent)),
     },
     ...(quota.video
       ? [
           {
-            label: 'Video',
+            label: inspectionLabelId('label.quotaVideo'),
             value: formatVideoQuotaDetail(quota.video),
             ...(quota.video.unlimited
               ? {}
@@ -311,10 +395,10 @@ function remainingCountRatio(
 function formatQuotaWindowDetail(
   window: NonNullable<TuiAccountStatus['tokenPlanQuota']>['fiveHour'],
 ): string {
-  if (window.unlimited) return 'Unlimited';
+  if (window.unlimited) return inspectionText('quota.unlimited');
   const remaining =
     typeof window.remainingPercent === 'number'
-      ? `${formatNumber(window.remainingPercent)}% left`
+      ? inspectionText('quota.percentLeft', { percent: formatNumber(window.remainingPercent) })
       : '—';
   return appendResetTime(remaining, window.resetAtMs);
 }
@@ -323,20 +407,23 @@ function formatVideoQuotaDetail(
   video: NonNullable<TuiAccountStatus['tokenPlanQuota']>['video'],
 ): string {
   if (!video) return '—';
-  if (video.unlimited) return 'Unlimited';
+  if (video.unlimited) return inspectionText('quota.unlimited');
   const remaining =
     video.remainingCount === undefined
       ? '—'
       : video.totalCount === undefined
-        ? `${formatNumber(video.remainingCount)} left`
-        : `${formatNumber(video.remainingCount)}/${formatNumber(video.totalCount)} left`;
+        ? inspectionText('quota.countLeft', { count: formatNumber(video.remainingCount) })
+        : inspectionText('quota.countOfTotalLeft', {
+            count: formatNumber(video.remainingCount),
+            total: formatNumber(video.totalCount),
+          });
   return appendResetTime(remaining, video.resetAtMs);
 }
 
 function appendResetTime(value: string, resetAtMs: number | undefined): string {
   if (resetAtMs === undefined || !Number.isFinite(resetAtMs)) return value;
   const remainingMs = resetAtMs - Date.now();
-  if (remainingMs <= 0) return `${value} · reset pending`;
+  if (remainingMs <= 0) return inspectionText('quota.resetPending', { value });
   const minutes = Math.ceil(remainingMs / 60_000);
   const duration =
     minutes < 60
@@ -344,7 +431,7 @@ function appendResetTime(value: string, resetAtMs: number | undefined): string {
       : minutes < 24 * 60
         ? `${Math.floor(minutes / 60)}h ${minutes % 60}m`
         : `${Math.floor(minutes / (24 * 60))}d ${Math.floor((minutes % (24 * 60)) / 60)}h`;
-  return `${value} · resets in ${duration}`;
+  return inspectionText('quota.resetsIn', { value, duration });
 }
 
 function formatLocalDate(value: number): string {
@@ -371,34 +458,39 @@ export function createTuiRuntimeInspection(
   const valid = statusTone === 'success';
   const issues = diagnostics.warnings.map(safe);
   return {
-    title: 'Configuration check',
+    title: inspectionText('runtime.title'),
     badge: { label: valid ? 'VALID' : 'ISSUES', tone: statusTone },
     sections: [
       {
-        title: 'Config file',
+        title: inspectionLabelId('label.configFile'),
         rows: [
           {
-            label: 'Status',
-            value: valid ? 'Valid' : 'Needs attention',
+            label: inspectionLabelId('label.status'),
+            value: valid
+              ? inspectionText('runtime.value.valid')
+              : inspectionText('runtime.value.needsAttention'),
             tone: statusTone,
           },
           {
-            label: 'Path',
-            value: safe(diagnostics.configPath ?? 'unavailable'),
+            label: inspectionLabelId('label.path'),
+            value: safe(diagnostics.configPath ?? inspectionText('value.unavailableLower')),
           },
-          { label: 'File', value: presence(diagnostics.configPresent) },
+          { label: inspectionLabelId('label.file'), value: presence(diagnostics.configPresent) },
         ],
       },
       ...(valid
         ? [
             {
-              title: 'Model',
+              title: inspectionLabelId('label.model'),
               rows: [
                 {
-                  label: 'Default model',
-                  value: safe(diagnostics.defaultModel ?? 'not configured'),
+                  label: inspectionLabelId('label.defaultModel'),
+                  value: safe(diagnostics.defaultModel ?? inspectionText('value.notConfigured')),
                 },
-                { label: 'Provider', value: safe(diagnostics.providerId ?? 'unknown') },
+                {
+                  label: inspectionLabelId('label.provider'),
+                  value: safe(diagnostics.providerId ?? inspectionText('value.unknown')),
+                },
               ],
             },
           ]
@@ -406,28 +498,32 @@ export function createTuiRuntimeInspection(
       ...(issues.length > 0
         ? [
             {
-              title: 'Issues',
-              rows: issues.map((issue) => ({ label: 'Issue', value: issue, tone: statusTone })),
+              title: inspectionLabelId('label.issues'),
+              rows: issues.map((issue) => ({
+                label: inspectionLabelId('label.issue'),
+                value: issue,
+                tone: statusTone,
+              })),
             },
           ]
         : []),
       ...(!valid
         ? [
             {
-              title: 'Impact',
+              title: inspectionLabelId('label.impact'),
               rows: [
                 {
-                  label: 'Current run',
-                  value: 'MCode may use built-in defaults until the config is fixed and restarted.',
+                  label: inspectionLabelId('label.currentRun'),
+                  value: inspectionText('runtime.currentRunImpact'),
                   tone: 'warning' as const,
                 },
               ],
             },
             {
-              title: 'Next step',
+              title: inspectionLabelId('label.nextStep'),
               rows: [
                 {
-                  label: 'Action',
+                  label: inspectionLabelId('label.action'),
                   value: configurationNextStep(diagnostics),
                 },
               ],
@@ -435,62 +531,92 @@ export function createTuiRuntimeInspection(
           ]
         : []),
     ],
-    footer: 'Read only · no files changed',
+    footer: inspectionText('runtime.footer'),
   };
 }
 
 function configurationNextStep(diagnostics: TuiRuntimeDiagnostics): string {
-  const path = safe(diagnostics.configPath ?? 'the config file');
+  const path = safe(diagnostics.configPath ?? inspectionText('value.configFile'));
   if (diagnostics.warnings.some((issue) => issue.includes('does not exist'))) {
-    return `Create or restore ${path}, restart MCode, then run /doctor again.`;
+    return inspectionText('runtime.nextStep.createOrRestore', { path });
   }
   if (diagnostics.warnings.some((issue) => issue.includes('cannot be read'))) {
-    return `Check access to ${path}, restart MCode, then run /doctor again.`;
+    return inspectionText('runtime.nextStep.checkAccess', { path });
   }
   if (diagnostics.warnings.some((issue) => issue.includes('defaultModel'))) {
-    return `Set defaultModel in ${path} to an available provider/model, restart MCode, then run /doctor again.`;
+    return inspectionText('runtime.nextStep.setDefaultModel', { path });
   }
-  return `Fix ${path}, restart MCode, then run /doctor again.`;
+  return inspectionText('runtime.nextStep.fixConfig', { path });
 }
 
 export function createTuiConfigInspection(
   diagnostics: TuiRuntimeDiagnostics,
 ): TranscriptInspectionReport {
   return {
-    title: 'Effective configuration',
+    title: inspectionText('config.title'),
     badge: { label: 'READ ONLY', tone: 'accent' },
     sections: [
       {
-        title: 'Location',
+        title: inspectionLabelId('label.location'),
         rows: [
-          { label: 'Source', value: safe(diagnostics.configPath ?? 'Runtime default config') },
-          { label: 'Config file', value: presence(diagnostics.configPresent) },
-          { label: 'Data directory', value: safe(diagnostics.dataDir ?? 'unavailable') },
-        ],
-      },
-      {
-        title: 'Model',
-        rows: [
-          { label: 'Default', value: safe(diagnostics.defaultModel ?? 'not configured') },
-          { label: 'Provider', value: safe(diagnostics.providerId ?? 'unknown') },
-          { label: 'Endpoint', value: sanitizeTuiUrl(diagnostics.providerBaseUrl ?? 'default') },
-        ],
-      },
-      {
-        title: 'Credentials',
-        rows: [
-          { label: 'Auth mode', value: safe(diagnostics.authMode ?? 'unknown') },
-          { label: 'Auth source', value: safe(diagnostics.authModeSource ?? 'unknown') },
-          { label: 'Provider API key', value: presence(diagnostics.apiKeyPresent) },
-          { label: 'Managed credential', value: presence(diagnostics.managedTokenPresent) },
           {
-            label: 'Custom providers',
+            label: inspectionLabelId('label.source'),
+            value: safe(diagnostics.configPath ?? inspectionText('config.runtimeDefault')),
+          },
+          {
+            label: inspectionLabelId('label.configFile'),
+            value: presence(diagnostics.configPresent),
+          },
+          {
+            label: inspectionLabelId('label.dataDirectory'),
+            value: safe(diagnostics.dataDir ?? inspectionText('value.unavailableLower')),
+          },
+        ],
+      },
+      {
+        title: inspectionLabelId('label.model'),
+        rows: [
+          {
+            label: inspectionLabelId('label.default'),
+            value: safe(diagnostics.defaultModel ?? inspectionText('value.notConfigured')),
+          },
+          {
+            label: inspectionLabelId('label.provider'),
+            value: safe(diagnostics.providerId ?? inspectionText('value.unknown')),
+          },
+          {
+            label: inspectionLabelId('label.endpoint'),
+            value: sanitizeTuiUrl(diagnostics.providerBaseUrl ?? inspectionText('value.default')),
+          },
+        ],
+      },
+      {
+        title: inspectionLabelId('label.credentials'),
+        rows: [
+          {
+            label: inspectionLabelId('label.authMode'),
+            value: safe(diagnostics.authMode ?? inspectionText('value.unknown')),
+          },
+          {
+            label: inspectionLabelId('label.authSource'),
+            value: safe(diagnostics.authModeSource ?? inspectionText('value.unknown')),
+          },
+          {
+            label: inspectionLabelId('label.providerApiKey'),
+            value: presence(diagnostics.apiKeyPresent),
+          },
+          {
+            label: inspectionLabelId('label.managedCredential'),
+            value: presence(diagnostics.managedTokenPresent),
+          },
+          {
+            label: inspectionLabelId('label.customProviders'),
             value: formatNumber(diagnostics.customProviderCount ?? 0),
           },
         ],
       },
     ],
-    footer: 'Credential values are hidden',
+    footer: inspectionText('config.footer'),
   };
 }
 
@@ -508,8 +634,8 @@ export function formatTuiUsage(
   const presentation = resolveTuiUsagePresentation(usage, options);
   if (!presentation) {
     return options.scope === 'account'
-      ? 'No account usage is available. Sign in with /login to view plan and quota.'
-      : 'No usage has been recorded for this Session.';
+      ? inspectionText('usage.noAccountUsage')
+      : inspectionText('usage.noSessionUsage');
   }
   return formatInspectionReport({
     title: usageTitle(options),
@@ -556,7 +682,7 @@ function resolveTuiUsagePresentation(
       : null;
   const model = options.model
     ? `${safeInline(options.model.providerId)}/${safeInline(options.model.modelId)}`
-    : 'Model unavailable';
+    : inspectionText('usage.modelUnavailable');
   const cacheMetrics = resolveTuiSessionCacheMetrics(summary);
   return {
     kind: 'usage',
@@ -586,7 +712,9 @@ function createUsageAccountRows(
 }
 
 function usageTitle(options: TuiUsagePresentationOptions): string {
-  return options.scope === 'account' ? 'Account usage' : 'Session usage';
+  return options.scope === 'account'
+    ? inspectionText('usage.title.account')
+    : inspectionText('usage.title.session');
 }
 
 export function formatTuiContextSnapshot(
@@ -594,11 +722,11 @@ export function formatTuiContextSnapshot(
   fallbackModel?: TuiModel,
 ): string {
   if (response.status === 'loading') {
-    return 'Context is loading. Run /context again after the active Run starts.';
+    return inspectionText('context.loading');
   }
   const usage = response.contextUsage;
   if (!usage || response.status === 'empty') {
-    return 'No Runtime context snapshot is available for this Session yet.';
+    return inspectionText('context.unavailable');
   }
   const contextWindow = positiveFinite(usage.contextWindowTokens)
     ? usage.contextWindowTokens
@@ -611,25 +739,41 @@ export function formatTuiContextSnapshot(
     ? `${safeInline(response.model.provider)}/${safeInline(response.model.id)}`
     : fallbackModel
       ? `${safeInline(fallbackModel.providerId)}/${safeInline(fallbackModel.modelId)}`
-      : 'not selected';
+      : inspectionText('value.notSelected');
   return [
-    `Context · ${response.status === 'stale' ? 'stale snapshot' : 'live snapshot'}`,
-    `Budget: ${formatNumber(usage.usedTokens)} used · ${remaining === undefined ? 'unknown' : `${formatNumber(remaining)} remaining`} · ${utilization === undefined ? 'unknown' : `${Math.round(utilization * 100)}%`}`,
-    `Model: ${model}`,
-    `Compaction: ${response.compaction?.state ?? 'never'}`,
+    inspectionText('context.line.snapshot', {
+      state: inspectionText(
+        response.status === 'stale' ? 'context.snapshotState.stale' : 'context.snapshotState.live',
+      ),
+    }),
+    inspectionText('context.line.budget', {
+      used: formatNumber(usage.usedTokens),
+      remaining:
+        remaining === undefined
+          ? inspectionText('value.unknown')
+          : inspectionText('context.budget.remaining', { count: formatNumber(remaining) }),
+      utilization:
+        utilization === undefined
+          ? inspectionText('value.unknown')
+          : `${Math.round(utilization * 100)}%`,
+    }),
+    inspectionText('context.line.model', { model }),
+    inspectionText('context.line.compaction', {
+      state: response.compaction?.state ?? 'never',
+    }),
     ...(usage.components.length > 0
       ? [
           '',
-          'Components:',
-          ...usage.components.map(
-            (component) =>
-              `- ${contextComponentLabel(component.kind)}: ${formatNumber(component.tokens)} tokens`,
+          inspectionText('context.componentsHeading'),
+          ...usage.components.map((component) =>
+            inspectionText('context.componentLine', {
+              label: inspectionReportLabel(contextComponentLabel(component.kind)),
+              tokens: formatNumber(component.tokens),
+            }),
           ),
         ]
       : []),
-    ...(response.status === 'stale'
-      ? ['', 'This snapshot belongs to the most recently completed Run.']
-      : []),
+    ...(response.status === 'stale' ? ['', inspectionText('context.staleNote')] : []),
   ].join('\n');
 }
 
@@ -650,7 +794,7 @@ export function createTuiContextInspection(
     kind: 'context',
     model: response.model
       ? `${safeInline(response.model.provider)}/${safeInline(response.model.id)}`
-      : 'not selected',
+      : inspectionText('value.notSelected'),
     snapshotState: stale ? 'stale' : 'live',
     usedTokens: usage.usedTokens,
     remainingTokens: remaining ?? null,
@@ -663,44 +807,63 @@ export function createTuiContextInspection(
     components: usage.components,
   };
   return {
-    title: 'Context',
+    title: inspectionText('context.title'),
     badge: { label: stale ? 'STALE' : 'LIVE', tone: stale ? 'warning' : 'success' },
     sections: [
       {
-        title: 'Runtime',
+        title: inspectionLabelId('label.runtime'),
         rows: [
           {
-            label: 'Model',
+            label: inspectionLabelId('label.model'),
             value: response.model
               ? `${safeInline(response.model.provider)}/${safeInline(response.model.id)}`
-              : 'not selected',
+              : inspectionText('value.notSelected'),
           },
-          { label: 'Compaction', value: response.compaction?.state ?? 'never' },
-          { label: 'Snapshot', value: stale ? 'Most recently completed Run' : 'Current context' },
+          {
+            label: inspectionLabelId('label.compaction'),
+            value: response.compaction?.state ?? 'never',
+          },
+          {
+            label: inspectionLabelId('label.snapshot'),
+            value: stale
+              ? inspectionText('context.snapshot.mostRecentRun')
+              : inspectionText('context.snapshot.current'),
+          },
         ],
       },
       {
-        title: 'Budget',
+        title: inspectionLabelId('label.budget'),
         rows: [
-          { label: 'Used', value: formatNumber(usage.usedTokens), tone: 'accent' },
           {
-            label: 'Remaining',
-            value: remaining === undefined ? 'unknown' : formatNumber(remaining),
+            label: inspectionLabelId('label.used'),
+            value: formatNumber(usage.usedTokens),
+            tone: 'accent',
           },
           {
-            label: 'Utilization',
-            value: utilization === undefined ? 'unknown' : `${Math.round(utilization * 100)}%`,
+            label: inspectionLabelId('label.remaining'),
+            value:
+              remaining === undefined ? inspectionText('value.unknown') : formatNumber(remaining),
           },
           {
-            label: 'Window',
-            value: contextWindow === undefined ? 'unknown' : formatNumber(contextWindow),
+            label: inspectionLabelId('label.utilization'),
+            value:
+              utilization === undefined
+                ? inspectionText('value.unknown')
+                : `${Math.round(utilization * 100)}%`,
+          },
+          {
+            label: inspectionLabelId('label.window'),
+            value:
+              contextWindow === undefined
+                ? inspectionText('value.unknown')
+                : formatNumber(contextWindow),
           },
         ],
       },
       ...(usage.components.length > 0
         ? [
             {
-              title: 'Components',
+              title: inspectionLabelId('label.components'),
               rows: usage.components.map((component) => ({
                 label: contextComponentLabel(component.kind),
                 value: formatNumber(component.tokens),
@@ -711,15 +874,15 @@ export function createTuiContextInspection(
     ],
     footer:
       usage.totalCountSource === 'PROVIDER_USAGE_ANCHORED'
-        ? 'Provider usage anchored · contents redacted'
-        : 'Runtime estimate · contents redacted',
+        ? inspectionText('context.footer.providerAnchored')
+        : inspectionText('context.footer.runtimeEstimate'),
     visualization,
   };
 }
 
 export function formatTuiSkills(result: TuiSkillList): string {
   const skills = result.skills ?? [];
-  if (skills.length === 0) return 'No Skills matched the current Agent configuration.';
+  if (skills.length === 0) return inspectionText('skills.noMatches');
   const groups = [
     {
       label: 'Built-in Skills',
@@ -743,21 +906,17 @@ export function formatTuiSkills(result: TuiSkillList): string {
       ...group.skills.map(formatSkillSummary),
     );
   }
-  if (result.hasMore) lines.push('', 'More Skills exist; narrow the list with /skills <filter>.');
+  if (result.hasMore) lines.push('', inspectionText('skills.moreExist'));
   return lines.join('\n');
 }
 
 export function formatTuiMcpServers(servers: readonly TuiMcpServer[]): string {
-  const ownershipNote =
-    'Built-in and plugin-owned MCP servers are Runtime-managed and are not included in this list.';
+  const ownershipNote = inspectionText('mcp.ownershipNote');
   if (servers.length === 0) {
-    return [
-      'No user-configured MCP servers matched the current configuration.',
-      ownershipNote,
-    ].join('\n');
+    return [inspectionText('mcp.noUserServers'), ownershipNote].join('\n');
   }
   return [
-    `User-configured MCP servers · ${servers.length}`,
+    inspectionText('mcp.userServersTitle', { count: servers.length }),
     ...servers.map((server) => {
       const publicStatus = readTuiMcpPublicStatus(server.configJson);
       const description = server.description ? `\n  ${safe(server.description)}` : '';
@@ -772,7 +931,7 @@ export function formatTuiMcpServers(servers: readonly TuiMcpServer[]): string {
     }),
     '',
     ownershipNote,
-    'Configuration payloads and credential references are hidden. Retry the MCP operation, then run /mcp again.',
+    inspectionText('mcp.hiddenPayloads'),
   ].join('\n');
 }
 
@@ -814,18 +973,20 @@ export function readTuiMcpPublicStatus(configJson: string | undefined): {
 
 export function formatTuiPermissions(requests: readonly TuiPendingPermission[]): string {
   if (requests.length === 0) {
-    return ['No pending permission requests.', 'Permission policy remains owned by Runtime.'].join(
-      '\n',
-    );
+    return [
+      inspectionText('permissions.noPendingRequests'),
+      inspectionText('permissions.policyOwnedByRuntime'),
+    ].join('\n');
   }
   return [
-    `Pending permissions · ${requests.length}`,
+    inspectionText('permissions.pendingTitle', { count: requests.length }),
     ...requests.map((request, index) => {
-      const description = request.toolDescription ?? request.reason ?? 'Awaiting a decision';
+      const description =
+        request.toolDescription ?? request.reason ?? inspectionText('permissions.awaitingDecision');
       return `${index + 1}. ${safe(request.toolName ?? 'tool')} · ${safe(description)}`;
     }),
     '',
-    'Choose an action above to continue.',
+    inspectionText('permissions.chooseAction'),
   ].join('\n');
 }
 
@@ -836,10 +997,12 @@ function sumTokenUsage(summary: TuiSessionUsageSummary): number {
 function formatInspectionReport(report: TranscriptInspectionReport): string {
   const lines = [report.title];
   for (const section of report.sections) {
-    for (const row of section.rows) lines.push(`${row.label}: ${row.value}`);
+    for (const row of section.rows) {
+      lines.push(`${inspectionReportLabel(row.label)}: ${row.value}`);
+    }
   }
   if (report.warnings?.length) {
-    lines.push('', 'Warnings:', ...report.warnings.map((warning) => `- ${warning}`));
+    lines.push('', inspectionText('report.warnings'), ...report.warnings.map((warning) => `- ${warning}`));
   }
   if (report.footer) lines.push('', report.footer);
   return lines.join('\n');
@@ -893,7 +1056,11 @@ function formatSkillSummary(skill: TuiSkill): string {
 }
 
 function presence(value: boolean | undefined): string {
-  return value === true ? 'present' : value === false ? 'missing' : 'unknown';
+  return value === true
+    ? inspectionText('value.present')
+    : value === false
+      ? inspectionText('value.missing')
+      : inspectionText('value.unknown');
 }
 
 function formatNumber(value: number): string {
@@ -915,12 +1082,12 @@ function positiveFinite(value: number | undefined): value is number {
 function contextComponentLabel(
   kind: NonNullable<TuiContextSnapshotResponse['contextUsage']>['components'][number]['kind'],
 ): string {
-  if (kind === 'SYSTEM_PROMPT') return 'System prompt';
-  if (kind === 'MEMORY') return 'Memory';
-  if (kind === 'TOOLS') return 'Tools';
-  if (kind === 'SKILLS') return 'Skills';
-  if (kind === 'MESSAGES') return 'Messages';
-  return 'Other';
+  if (kind === 'SYSTEM_PROMPT') return inspectionLabelId('label.systemPrompt');
+  if (kind === 'MEMORY') return inspectionLabelId('label.memory');
+  if (kind === 'TOOLS') return inspectionLabelId('label.tools');
+  if (kind === 'SKILLS') return inspectionLabelId('label.skills');
+  if (kind === 'MESSAGES') return inspectionLabelId('label.messages');
+  return inspectionLabelId('label.other');
 }
 
 function safe(value: string): string {

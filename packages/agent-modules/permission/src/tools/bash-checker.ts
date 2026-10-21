@@ -24,7 +24,13 @@
 import path from 'node:path';
 import type { ToolPermissionChecker, ToolCheckResult } from '../engine.js';
 import type { ToolPermissionContext } from '../context.js';
-import type { PermissionDecision, CandidateScope, CandidateScopeGroup } from '../types.js';
+import type {
+  PermissionDecision,
+  CandidateScope,
+  CandidateScopeGroup,
+  SafetyCheckReason,
+} from '../types.js';
+import { safetyCheckReason } from '../reason-format.js';
 import { withWindowsTrashExecution } from '../windows-trash-execution.js';
 import { logger, backgroundCtx } from '../host-utils.js';
 import { isKnownSafeCommand } from './safe-command.js';
@@ -279,22 +285,41 @@ function getFirstWordPrefix(command: string): string | null {
   return cmd;
 }
 
-function isIrrecoverableSafetyCheck(description: string): boolean {
-  return (
-    description.startsWith('macOS irrecoverable deletion') ||
-    description.startsWith('Storage/disk-level destructive operation') ||
-    description.startsWith('Catastrophic standalone command') ||
-    description.startsWith('Blocked:') ||
-    description.startsWith('Needs confirmation: sensitive credential or system-secret read') ||
-    description.startsWith('Needs confirmation: system secret access') ||
-    description.startsWith('Needs confirmation: credential or private-key access') ||
-    description.startsWith('Needs confirmation: command opens a raw shell/network channel') ||
-    // Soft-risk labels such as pipe-to-shell, separator-then-shell,
-    // base64 decode, eval, sudo, and protected-path access intentionally do
-    // NOT return true here. They must flow into the auto-mode LLM gate rather
-    // than bypass it.
-    false
-  );
+/**
+ * English prefixes of a legacy hard-block description.
+ *
+ * Producers that carry a structured body state `hardBlocked` instead; this
+ * list stays for the producers that only carry a description string.
+ */
+const LEGACY_IRRECOVERABLE_PREFIXES: readonly string[] = [
+  // Matched against descriptions produced by other packages, so these stay
+  // English on purpose: they are comparison keys, not copy the reader sees.
+  'macOS irrecoverable deletion',
+  'Storage/disk-level destructive operation',
+  'Catastrophic standalone command',
+  'Blocked:',
+  'Needs confirmation: sensitive credential or system-secret read',
+  'Needs confirmation: system secret access',
+  'Needs confirmation: credential or private-key access',
+  'Needs confirmation: command opens a raw shell/network channel',
+];
+
+/**
+ * Whether a safety check is a hard (irrecoverable) safety boundary.
+ *
+ * The structured `hardBlocked` flag is the source of truth: reading it keeps
+ * the signal intact after the body is localized, because a Chinese body no
+ * longer starts with an English word. The prefix list is the compatibility
+ * path for producers that still carry a description string only.
+ *
+ * Soft-risk labels such as pipe-to-shell, separator-then-shell, base64
+ * decode, eval, sudo, and protected-path access intentionally do NOT return
+ * true here. They must flow into the auto-mode LLM gate rather than bypass it.
+ */
+export function isIrrecoverableSafetyCheck(reason: SafetyCheckReason): boolean {
+  if (typeof reason.hardBlocked === 'boolean') return reason.hardBlocked;
+  if (typeof reason.description !== 'string') return false;
+  return LEGACY_IRRECOVERABLE_PREFIXES.some((prefix) => reason.description.startsWith(prefix));
 }
 
 /**
@@ -307,21 +332,13 @@ function isIrrecoverableSafetyCheck(description: string): boolean {
  */
 function decisionContainsHardBlocked(decision: PermissionDecision): boolean {
   if (decision.reason.type !== 'subcommandResults') {
-    if (
-      decision.reason.type === 'safetyCheck' &&
-      typeof decision.reason.description === 'string' &&
-      isIrrecoverableSafetyCheck(decision.reason.description)
-    ) {
+    if (decision.reason.type === 'safetyCheck' && isIrrecoverableSafetyCheck(decision.reason)) {
       return true;
     }
     return false;
   }
   for (const sub of decision.reason.reasons.values()) {
-    if (
-      sub.reason.type === 'safetyCheck' &&
-      typeof sub.reason.description === 'string' &&
-      isIrrecoverableSafetyCheck(sub.reason.description)
-    ) {
+    if (sub.reason.type === 'safetyCheck' && isIrrecoverableSafetyCheck(sub.reason)) {
       return true;
     }
   }
@@ -786,11 +803,10 @@ export class BashToolPermissionChecker implements ToolPermissionChecker {
       ) {
         return {
           behavior: 'allow',
-          reason: {
-            type: 'safetyCheck',
-            description: 'Authorized local script execution inside workspace / allowed paths.',
-            category: 'authorizedLocalScript',
-          },
+          reason: safetyCheckReason(
+            { key: 'body.bash.authorizedLocalScript' },
+            { category: 'authorizedLocalScript' },
+          ),
           bypassImmune: false,
         };
       }
@@ -803,11 +819,10 @@ export class BashToolPermissionChecker implements ToolPermissionChecker {
     ) {
       decision = {
         behavior: 'allow',
-        reason: {
-          type: 'safetyCheck',
-          description: 'Authorized write target in temp/workspace path.',
-          category: 'authorizedWriteRedirect',
-        },
+        reason: safetyCheckReason(
+          { key: 'body.bash.authorizedWriteRedirect' },
+          { category: 'authorizedWriteRedirect' },
+        ),
       };
     }
 
@@ -828,11 +843,10 @@ export class BashToolPermissionChecker implements ToolPermissionChecker {
     ) {
       return {
         behavior: 'allow',
-        reason: {
-          type: 'safetyCheck',
-          description: 'Known read-only command (auto-approved by safe-command whitelist).',
-          category: 'knownSafeCommand',
-        },
+        reason: safetyCheckReason(
+          { key: 'body.bash.knownSafeCommand' },
+          { category: 'knownSafeCommand' },
+        ),
         bypassImmune: false,
       };
     }

@@ -1,5 +1,15 @@
 import { AppError } from '../errors.js';
 
+import { v2ConversationText, type V2ConversationCopyKey } from './copy.js';
+
+/** Cloud handoff denial causes mapped to the catalog key that explains them. */
+const HANDOFF_DENIED_MESSAGE_KEYS = new Map<string, V2ConversationCopyKey>([
+  ['proposal-pending', 'handoff.proposalPending'],
+  ['in-progress', 'handoff.inProgress'],
+  ['already-handed-off', 'handoff.alreadyHandedOff'],
+  ['cleanup-pending', 'handoff.cleanupPending'],
+]);
+
 /** Transport-neutral conversation application failure mapped by delivery boundaries. */
 export class ApplicationError extends AppError {
   constructor(status: number, key: string, message: string) {
@@ -14,31 +24,23 @@ export function turnAdmissionError(reason: string) {
     return {
       status: 409,
       key: 'HANDOFF_INTERRUPT_TIMEOUT',
-      message: 'The previous turn has not stopped yet. Cloud handoff was not started.',
+      message: v2ConversationText('handoff.previousTurnRunning'),
     };
   }
   if (reason === 'policy:turn-abort:pre-admission') {
     return {
       status: 409,
       key: 'local_turn_aborted',
-      message: 'Turn was stopped before execution.',
+      message: v2ConversationText('turnStoppedBeforeExecution'),
     };
   }
   if (reason.startsWith('policy:cloud-handoff:denied:')) {
     const cause = reason.slice('policy:cloud-handoff:denied:'.length);
-    const messages: Record<string, string> = {
-      'proposal-pending': 'This session already has a handoff proposal awaiting approval.',
-      'in-progress': 'This session is already being handed off to Cloud.',
-      'already-handed-off':
-        'This session has already been handed off. Continue in the existing Cloud session.',
-      'cleanup-pending': 'The previous Cloud handoff is awaiting cleanup.',
-    };
+    const messageKey = HANDOFF_DENIED_MESSAGE_KEYS.get(cause);
     return {
       status: 409,
-      key: Object.hasOwn(messages, cause)
-        ? `HANDOFF_PREFLIGHT_DENIED:${cause}`
-        : 'HANDOFF_PREFLIGHT_DENIED',
-      message: messages[cause] ?? 'Cloud handoff is not allowed.',
+      key: messageKey ? `HANDOFF_PREFLIGHT_DENIED:${cause}` : 'HANDOFF_PREFLIGHT_DENIED',
+      message: v2ConversationText(messageKey ?? 'handoff.notAllowed'),
     };
   }
   if (
@@ -48,7 +50,7 @@ export function turnAdmissionError(reason: string) {
     return {
       status: 503,
       key: 'HANDOFF_PREFLIGHT_UNAVAILABLE',
-      message: 'Unable to prepare Cloud handoff. Please try again later.',
+      message: v2ConversationText('handoff.preparationFailed'),
     };
   }
   return undefined;

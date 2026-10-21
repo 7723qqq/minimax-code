@@ -6,9 +6,13 @@
     ],
     "capability": [
       "packages/local-runtime-v2/test/integration/compaction-openai-transport.integration.test.ts",
+      "packages/tui/test/unit/tui-core-catalogs.test.ts",
+      "packages/config/test/config-copy-catalogs.test.ts",
       "packages/local-runtime/test/unit/skill-directory-symlinks.test.ts",
       "packages/agent-core/test/unit/bash-subprocess-env.test.ts",
       "packages/agent-modules/permission/test/unit/permission/bash-policy-regressions.test.ts",
+      "packages/agent-modules/permission/test/unit/permission/permission-reason-localization.test.ts",
+      "packages/agent-modules/permission/test/unit/permission/permission-reason-catalogs.test.ts",
       "packages/agent-tools/src/shared/replace-all-edit.test.ts",
       "packages/agent-tools/src/shared/cron-schedule-input.test.ts",
       "packages/agent-tools/src/desktop/edit-diff-bounds.test.ts",
@@ -114,6 +118,9 @@
       "packages/tui/test/unit/tui/controller/product/model-state.test.ts",
       "packages/tui/test/unit/tui/features/composer/attachments.test.ts",
       "packages/tui/test/unit/tui/features/settings/status-line-picker.test.ts",
+      "packages/tui/test/unit/tui-feature-catalogs.test.ts",
+      "packages/tui/test/unit/tui/controller/controller-catalogs.test.ts",
+      "packages/tui/test/unit/tui-subtree-catalogs.test.ts",
       "packages/tui/test/unit/tui/widgets/editor/editor-behavior.test.ts",
       "packages/agent-core/test/unit/pi-turn-runner/llm-retry.test.ts",
       "packages/agent-core/test/unit/pi-turn-runner/llm-stream-timeout.test.ts",
@@ -179,6 +186,8 @@
       "packages/tui/test/unit/tui/features/settings/hotkeys-picker.test.ts",
       "packages/tui/test/unit/incident-reporter-privacy.test.ts",
       "packages/config/test/config-file-permissions.test.ts",
+      "packages/shared/test/unit/i18n.test.ts",
+      "packages/agent-extension/test/unit/i18n-copy.test.ts",
       "packages/config/test/private-config-file.test.ts",
       "packages/config/test/managed-preset-sync.test.ts",
       "packages/config/test/builtin-model-fallback.test.ts",
@@ -226,7 +235,12 @@
       "packages/local-runtime-v2/src/service/turn-system/execution/turn-execution.service.test.ts",
       "packages/local-runtime-v2/test/integration/session-stop-cascade.integration.test.ts",
       "packages/local-runtime/test/unit/local-background-task-user-stop-cascade.test.ts",
-      "packages/local-runtime/test/unit/local-task-append.test.ts"
+      "packages/local-runtime/test/unit/local-task-append.test.ts",
+      "packages/local-runtime/test/unit/channel-localized-copy.test.ts",
+      "packages/shared/test/unit/product-time.test.ts",
+      "packages/local-runtime-v2/test/unit/session-system/archived-root-title.test.ts",
+      "packages/local-runtime-v2/test/unit/i18n-catalogs.test.ts",
+      "packages/local-runtime/test/unit/local-runtime-copy-catalogs.test.ts"
     ],
     "status-contract": [
       "packages/tui/test/unit/tui-build-mode-contract.test.ts"

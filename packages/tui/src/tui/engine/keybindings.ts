@@ -1,3 +1,4 @@
+import { shellText } from "../shell/copy.js";
 import { type KeyId, matchesKey } from "./keys.js";
 
 /**
@@ -137,9 +138,19 @@ export const TUI_KEYBINDINGS = {
 		defaultKeys: "ctrl+k",
 		description: "Delete to line end",
 	},
-	"tui.editor.yank": { defaultKeys: "ctrl+y", description: "Yank" },
+	"tui.editor.yank": {
+		defaultKeys: "ctrl+y",
+		get description(): string {
+			return shellText("keybinding.action.yank");
+		},
+	},
 	"tui.editor.yankPop": { defaultKeys: "alt+y", description: "Yank pop" },
-	"tui.editor.undo": { defaultKeys: "ctrl+-", description: "Undo" },
+	"tui.editor.undo": {
+		defaultKeys: "ctrl+-",
+		get description(): string {
+			return shellText("keybinding.action.undo");
+		},
+	},
 	"tui.input.newLine": { defaultKeys: ["shift+enter", "ctrl+j"], description: "Insert newline" },
 	"tui.input.submit": { defaultKeys: "enter", description: "Submit input" },
 	"tui.input.tab": { defaultKeys: "tab", description: "Tab / autocomplete" },

@@ -11,6 +11,7 @@ import {
 } from '../frame.js';
 import { resolveTuiLayoutPolicy } from '../layout-policy.js';
 import { formatTuiKeybinding, type TuiKeybindingRegistry } from '../keybindings.js';
+import { shellText } from '../copy.js';
 import {
   MINIMAX_CODE_WELCOME_DESIGN,
   MINIMAX_CODE_WELCOME_PASTE_IMAGE_SHORTCUT,
@@ -178,7 +179,7 @@ function renderCompactWelcome(
       width,
     ),
     ...(staticBanner ? [] : renderWelcomeAccountNoticeRows(state, width)),
-    renderFrameRow(renderSectionTitle('Tips'), width),
+    renderFrameRow(renderSectionTitle(shellText('welcome.section.tipsShort')), width),
     ...tips.map((text) =>
       renderFrameRow(chalk.hex(colors.muted)(resolveWelcomeCopy(text, keybindings)), width),
     ),
@@ -220,12 +221,15 @@ function resolveWelcomeCopy(value: string, keybindings: TuiKeybindingRegistry | 
 }
 
 function resolveWelcomeAccountNotice(state: TuiShellState): string | undefined {
+  // The comparison below stays against the state token the projection produces;
+  // only the rendered text comes from the catalog, so Chinese no longer shows the
+  // raw English token in the notice line.
   return state.accountStatus === 'Sign in with /login'
-    ? state.accountStatus
+    ? shellText('welcome.notice.loginRequired')
     : state.accountStatus === 'Connected with warnings'
-      ? 'Check /provider or /status for details.'
+      ? shellText('welcome.notice.providerOrStatus')
       : state.accountStatus === 'Account unavailable'
-        ? 'Check /status for details.'
+        ? shellText('welcome.notice.status')
         : undefined;
 }
 
@@ -241,28 +245,28 @@ function renderWelcomeAccountNoticeRows(state: TuiShellState, width: number): st
 
 function renderActivity(state: TuiShellState): string {
   if (state.accountStatus === 'Sign in with /login') {
-    return chalk.bold.hex(colors.warning)('○ Login required');
+    return chalk.bold.hex(colors.warning)(`○ ${shellText('welcome.status.loginRequired')}`);
   }
   if (state.runtimeStatus === 'error') {
-    return chalk.bold.hex(colors.error)('× Error');
+    return chalk.bold.hex(colors.error)(`× ${shellText('welcome.status.error')}`);
   }
   if (state.accountStatus === 'Checking account') {
-    return chalk.bold.hex(colors.signal)('◌ Checking account');
+    return chalk.bold.hex(colors.signal)(`◌ ${shellText('welcome.status.checkingAccount')}`);
   }
   if (state.accountStatus === 'Connected with warnings') {
-    return chalk.bold.hex(colors.warning)('○ Setup warning');
+    return chalk.bold.hex(colors.warning)(`○ ${shellText('welcome.status.setupWarning')}`);
   }
   if (state.accountStatus === 'Account unavailable') {
-    return chalk.bold.hex(colors.warning)('○ Account unavailable');
+    return chalk.bold.hex(colors.warning)(`○ ${shellText('welcome.status.accountUnavailable')}`);
   }
   if (state.runtimeStatus === 'ready') {
-    return chalk.bold.hex(colors.orbit)('● Ready');
+    return chalk.bold.hex(colors.orbit)(`● ${shellText('welcome.status.ready')}`);
   }
   if (state.runtimeStatus === 'starting') {
-    return chalk.bold.hex(colors.signal)('◌ Starting');
+    return chalk.bold.hex(colors.signal)(`◌ ${shellText('welcome.status.starting')}`);
   }
   if (state.runtimeStatus === 'offline') {
-    return chalk.bold.hex(colors.warning)('○ Offline');
+    return chalk.bold.hex(colors.warning)(`○ ${shellText('welcome.status.offline')}`);
   }
-  return chalk.bold.hex(colors.error)('× Error');
+  return chalk.bold.hex(colors.error)(`× ${shellText('welcome.status.error')}`);
 }

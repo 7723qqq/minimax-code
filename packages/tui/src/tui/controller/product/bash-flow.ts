@@ -2,6 +2,7 @@ import { executeTuiBash, type ExecuteTuiBash } from '../../../host/bash-command.
 import type { TuiBashInput } from '../../commands/bash-input.js';
 import { sanitizeTerminalText } from '../../rendering/terminal-text.js';
 import type { TranscriptStore } from '../../transcript/store.js';
+import { controllerProductText } from './copy.js';
 
 const MAX_OUTPUT_CHARACTERS = 64 * 1024;
 const MAX_CONTEXT_CHARACTERS = 64 * 1024;
@@ -82,7 +83,7 @@ export class TuiBashFlow {
     };
     const render = (
       status: 'running' | 'succeeded' | 'failed' | 'cancelled',
-      footer = 'Running · Esc or Ctrl+C to cancel',
+      footer = controllerProductText('bash.running'),
     ) => {
       clearPendingRender();
       this.options.transcript.upsert({
@@ -118,14 +119,18 @@ export class TuiBashFlow {
         },
       });
       footer = result.cancelled
-        ? 'Command cancelled'
-        : `Exit code: ${result.exitCode ?? 'unknown'}`;
+        ? controllerProductText('bash.cancelled')
+        : controllerProductText('bash.exitCode', {
+            code: String(result.exitCode ?? 'unknown'),
+          });
       render(
         result.cancelled ? 'cancelled' : result.exitCode === 0 ? 'succeeded' : 'failed',
         footer,
       );
     } catch (error) {
-      footer = `Could not run command: ${sanitizeTerminalText(error instanceof Error ? error.message : String(error))}`;
+      footer = controllerProductText('bash.couldNotRun', {
+        reason: sanitizeTerminalText(error instanceof Error ? error.message : String(error)),
+      });
       render('failed', footer);
     }
     if (!input.excludeFromContext) {

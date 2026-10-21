@@ -10,6 +10,7 @@ import type { TuiInteractionPort, TuiRuntimeEvent } from '../../../runtime/port.
 import { MINIMAX_CODE_DEFAULT_AGENT_NAME } from '../../../product-context.js';
 import type { TuiSessionLifecycleEvent } from '../../../types/runtime-events.js';
 import { classifyQuestionnaireReplyError } from './questionnaire-reply-outcome.js';
+import { controllerInteractionText } from './copy.js';
 
 type ContinuationState = {
   requestId: string;
@@ -44,7 +45,7 @@ export class QuestionnaireContinuation {
       : undefined;
     this.updateTranscript(questionnaire.request.id, {
       status: 'pending',
-      detail: 'Sending your answer…',
+      detail: controllerInteractionText('questionnaire.sendingAnswer'),
       updatedAtMs: Date.now(),
     });
     this.render();
@@ -73,7 +74,10 @@ export class QuestionnaireContinuation {
           id: `question:${questionnaire.request.id}`,
           kind: 'question',
           status: 'resolved',
-          title: existing?.title ?? questionnaire.request.title ?? 'Agent needs input',
+          title:
+            existing?.title ??
+            questionnaire.request.title ??
+            controllerInteractionText('question.agentNeedsInput'),
           content: existing?.content ?? formatQuestionnaireAnswerSummary(questionnaire),
           detail: outcome.detail,
           ephemeral: true,
@@ -99,7 +103,7 @@ export class QuestionnaireContinuation {
     if (!finished) {
       this.updateTranscript(questionnaire.request.id, {
         status: 'resolved',
-        detail: 'Answer sent · MCode is continuing…',
+        detail: controllerInteractionText('questionnaire.answerSent'),
         updatedAtMs: Date.now(),
       });
     }
@@ -149,8 +153,9 @@ export class QuestionnaireContinuation {
     this.clear(questionnaire.request.id);
     this.updateTranscript(questionnaire.request.id, {
       status: 'blocked',
-      title: questionnaire.request.title || 'Agent needs input',
-      detail: 'Answer could not be sent · retry',
+      title:
+        questionnaire.request.title || controllerInteractionText('question.agentNeedsInput'),
+      detail: controllerInteractionText('questionnaire.answerFailed'),
       updatedAtMs: Date.now(),
     });
     this.render();

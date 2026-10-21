@@ -1,4 +1,5 @@
 import { MINIMAX_MODELS } from "./minimax-model-catalog.js";
+import { configText } from "./copy.js";
 import {
   resolveRunawayGuardConfig,
   type RunawayGuardSettings,
@@ -2326,7 +2327,7 @@ function parseSkillEvolveConfig(
   const archiveThresholdDays = parsePositiveDays(lc.archiveThresholdDays, defaults.lifecycle.archiveThresholdDays); // prettier-ignore
   if (!(staleThresholdDays < archiveThresholdDays)) {
     throw new Error(
-      `Invalid skillEvolve.lifecycle config: staleThresholdDays (${staleThresholdDays}) must be strictly less than archiveThresholdDays (${archiveThresholdDays}).`,
+      configText('skillEvolve.lifecycle.invalid', { staleThresholdDays, archiveThresholdDays }),
     );
   }
 

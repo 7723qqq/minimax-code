@@ -20,6 +20,12 @@ const environment = { ...process.env };
 // language and cover localized rendering through explicit locale inputs. Pin
 // every locale source before Vitest starts so both workers and subprocesses are
 // deterministic on developer machines and in CI.
+//
+// The POSIX variables alone are not enough: `Intl.DateTimeFormat()` reads the
+// operating-system locale, not `LANG`, so a zh-CN host still rendered Chinese
+// and failed English assertions. `MCODE_LOCALE` is the runtime's own override
+// and outranks `Intl`, which makes the pin effective on every platform.
+environment.MCODE_LOCALE = "en";
 environment.LANG = "C";
 environment.LANGUAGE = "C";
 environment.LC_ALL = "C";
@@ -27,6 +33,7 @@ environment.LC_MESSAGES = "C";
 if (process.platform === "win32") {
   environment.TEMP = environment.TMP = realpathSync.native(tmpdir());
 }
+const inActions = process.env.GITHUB_ACTIONS === "true";
 const result = spawnSync(
   process.execPath,
   [
@@ -38,9 +45,31 @@ const result = spawnSync(
     // Windows, concurrent files can exhaust the 5s test budget through I/O
     // contention. Serialize files without relaxing individual test deadlines.
     ...(process.platform === "win32" ? ["--maxWorkers", "1"] : []),
+    // GitHub parses this reporter's `::error file=` lines into annotations, so a
+    // red matrix names the failing tests instead of reporting only an exit code.
+    ...(inActions ? ["--reporter=default", "--reporter=github-actions"] : []),
     ...files,
   ],
-  { stdio: "inherit", cwd: repositoryRoot, env: environment },
+  {
+    // Actions logs are not readable from every environment, so a failing suite
+    // is captured and its tail re-emitted as an annotation. Local runs keep
+    // streaming output unchanged.
+    stdio: inActions ? ["inherit", "pipe", "pipe"] : "inherit",
+    cwd: repositoryRoot,
+    env: environment,
+    ...(inActions ? { maxBuffer: 64 * 1024 * 1024 } : {}),
+  },
 );
+if (inActions) {
+  const stdout = result.stdout?.toString() ?? "";
+  const stderr = result.stderr?.toString() ?? "";
+  if (stdout) process.stdout.write(stdout);
+  if (stderr) process.stderr.write(stderr);
+  if ((result.status ?? 1) !== 0) {
+    const tail = (stderr || stdout).slice(-3000);
+    const escaped = tail.replace(/%/gu, "%25").replace(/\r/gu, "").replace(/\n/gu, "%0A");
+    console.error(`::error title=Vitest suite ${name} failed::${escaped}`);
+  }
+}
 if (result.error) throw result.error;
 process.exitCode = result.status ?? 1;

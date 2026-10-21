@@ -187,6 +187,10 @@ test(
       MCODE_TEST_NETWORK_AUDIT: networkAudit,
       MCODE_TEST_MANAGED_OFFLINE: "1",
       MCODE_TEST_PROCESS_PROBE: "1",
+      // The assertions below quote English product copy. Pin the CLI's own
+      // locale so the fixture reads the same on a zh-CN developer machine as it
+      // does in CI; `Intl` alone would follow the host.
+      MCODE_LOCALE: "en",
       NODE_OPTIONS: `--import=${new URL("./network-deny.mjs", import.meta.url).href}`,
     };
     let commandSequence = 0;

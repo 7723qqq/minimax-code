@@ -1,5 +1,8 @@
 import type { TuiPlanClientIntent, TuiSession } from '../../../runtime/port.js';
 
+import { controllerText } from '../copy.js';
+import { controllerInteractionText } from './copy.js';
+
 export type TuiPlanDisplayMode = 'default' | 'plan';
 export type TuiPlanTransition = 'next-message' | 'submitting';
 
@@ -84,7 +87,11 @@ export class TuiPlanModeFlow {
     const intent = this.armed.intent;
     this.submitting = { ...this.armed, submissionId };
     this.armed = undefined;
-    this.options.setHint(`${modeLabel(targetMode(intent))} Mode change submitting…`);
+    this.options.setHint(
+      controllerInteractionText('planMode.changeSubmitting', {
+        mode: modeLabel(targetMode(intent)),
+      }),
+    );
     this.options.onChanged();
     return intent;
   }
@@ -152,8 +159,8 @@ export class TuiPlanModeFlow {
     this.armed = { intent, draftKey: currentDraftKey(this.options.currentSession()) };
     this.options.setHint(
       intent === 'plan-entry'
-        ? 'Plan Mode · restored message will enter Plan'
-        : 'Default Mode · restored message will exit Plan',
+        ? controllerInteractionText('planMode.restoredEntersPlan')
+        : controllerInteractionText('planMode.restoredExitsPlan'),
     );
     this.options.onChanged();
   }
@@ -168,7 +175,7 @@ export class TuiPlanModeFlow {
     // never re-enters Plan against the still-updating Session.
     if (this.acceptedExitDraftKey) return;
     if (this.submitting) {
-      this.options.setHint('Plan mode change is already being submitted.');
+      this.options.setHint(controllerInteractionText('planMode.changeInProgress'));
       this.options.onChanged();
       return;
     }
@@ -181,7 +188,10 @@ export class TuiPlanModeFlow {
     const intent: TuiPlanClientIntent =
       authoritativeMode(session) === 'plan' ? 'plan-exit' : 'plan-entry';
     if (intent === 'plan-entry' && !this.entryEnabled) {
-      this.options.append('Plan Mode entry is disabled by the Runtime configuration.', 'warning');
+      this.options.append(
+        controllerInteractionText('planMode.entryDisabled'),
+        'warning',
+      );
       this.options.setHint(undefined);
       this.options.onChanged();
       return;
@@ -194,7 +204,7 @@ export class TuiPlanModeFlow {
     if (this.isStopped()) return;
     const snapshot = this.snapshot();
     if (snapshot.displayMode === mode) {
-      this.options.setHint(`${modeLabel(mode)} Mode is selected`);
+      this.options.setHint(controllerInteractionText('planMode.selected', { mode: modeLabel(mode) }));
       this.options.onChanged();
       return;
     }
@@ -205,11 +215,16 @@ export class TuiPlanModeFlow {
     const snapshot = this.snapshot();
     const suffix =
       snapshot.transition === 'next-message'
-        ? ' on the next message'
+        ? controllerInteractionText('planMode.statusNextMessage')
         : snapshot.transition === 'submitting'
-          ? ' while the current message is admitted'
+          ? controllerInteractionText('planMode.statusWhileSubmitting')
           : '';
-    this.options.append(`${modeLabel(snapshot.displayMode)} Mode${suffix}.`);
+    this.options.append(
+      controllerInteractionText('planMode.status', {
+        mode: modeLabel(snapshot.displayMode),
+        suffix,
+      }),
+    );
   }
 
   stop(): void {
@@ -223,8 +238,8 @@ export class TuiPlanModeFlow {
     this.armed = { intent, draftKey: currentDraftKey(session) };
     this.options.setHint(
       intent === 'plan-entry'
-        ? 'Plan Mode · next message enters Plan'
-        : 'Default Mode · next message exits Plan',
+        ? controllerText('projection.planNextMessageEnters')
+        : controllerText('projection.defaultNextMessageExits'),
     );
     this.options.onChanged();
   }

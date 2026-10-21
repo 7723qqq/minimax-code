@@ -108,7 +108,7 @@ export class TuiSessionMutationScopePicker implements TuiFeatureScreen, Componen
       width,
       height,
       this.busy
-        ? 'Preparing rewind confirmation…'
+        ? sessionMutationText('sessionMutation.scope.preparing')
         : sessionMutationText('sessionMutation.scope.hint'),
     );
     const header =

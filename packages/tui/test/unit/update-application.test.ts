@@ -201,7 +201,8 @@ describe('McodeUpdateApplication', () => {
     const onPhase = vi.fn();
     await expect(application.apply(plan, { signal, onPhase })).resolves.toMatchObject({
       applied: true,
-      message: 'MCode 1.2.4 is installed. Restart running MCode sessions to use it.',
+      message:
+        'MCode 1.2.4 is installed. New MCode sessions will use it; running sessions can continue normally.',
     });
     expect(apply).toHaveBeenCalledWith({
       channel: 'stable',

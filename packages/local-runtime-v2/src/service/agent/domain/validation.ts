@@ -3,6 +3,7 @@ import {
   resolveCanonicalSubagentRole,
 } from '@mavis/agent-tools/desktop/subagent-roles';
 import type { ResolvedAgentCapabilities } from '@mavis/config';
+import { resolveLocale as resolveHostLocale } from '@mavis/shared/i18n';
 
 import type {
   AgentProfileRequest,
@@ -114,13 +115,8 @@ export function stableTelemetryValue(value: unknown): string {
   }
 }
 
-export function resolveLocale(): string {
-  return (
-    process.env.MAVIS_ELECTRON_LOCALE?.trim() ||
-    Intl.DateTimeFormat().resolvedOptions().locale ||
-    process.env.LANG?.split('.')[0]?.replace('_', '-') ||
-    'en'
-  );
+export function resolveLocale(explicit?: string | null): string {
+  return resolveHostLocale(explicit);
 }
 
 /**

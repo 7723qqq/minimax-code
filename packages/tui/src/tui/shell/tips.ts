@@ -1,3 +1,5 @@
+import { shellText, type ShellCopyKey } from './copy.js';
+
 export interface TuiTip {
   readonly id: string;
   readonly command: string;
@@ -9,84 +11,92 @@ export interface TuiTip {
 interface TuiTipDefinition {
   readonly id: string;
   readonly command: string;
-  readonly text: string;
-  readonly shortText: string;
+  readonly textKey: ShellCopyKey;
+  readonly shortTextKey: ShellCopyKey;
   readonly weight?: number;
 }
 
+/**
+ * Rotating Composer tips.
+ *
+ * The wording is catalogued, so a definition holds the catalog key rather than
+ * the rendered sentence. `buildTuiTips()` resolves the keys, which means the
+ * Composer renders the tip in the language that is active when it draws.
+ */
 const TUI_TIP_DEFINITIONS: readonly TuiTipDefinition[] = [
   {
     id: 'goal',
     command: 'goal',
-    text: 'Tip: /goal keeps multi-step work focused on a finish line',
-    shortText: 'Tip: /goal tracks multi-step work',
+    textKey: 'tip.goal.text',
+    shortTextKey: 'tip.goal.short',
     weight: 2,
   },
   {
     id: 'context',
     command: 'context',
-    text: 'Tip: /context shows the current Session context budget',
-    shortText: 'Tip: /context shows context',
+    textKey: 'tip.context.text',
+    shortTextKey: 'tip.context.short',
     weight: 2,
   },
   {
     id: 'steer',
     command: 'steer',
-    text: 'Tip: /steer guides a response without interrupting it',
-    shortText: 'Tip: /steer guides a live run',
+    textKey: 'tip.steer.text',
+    shortTextKey: 'tip.steer.short',
     weight: 2,
   },
   {
     id: 'plugins',
     command: 'plugins',
-    text: 'Tip: /plugins manages installed capabilities',
-    shortText: 'Tip: /plugins manages Plugins',
+    textKey: 'tip.plugins.text',
+    shortTextKey: 'tip.plugins.short',
     weight: 2,
   },
   {
     id: 'sessions',
     command: 'sessions',
-    text: 'Tip: /sessions resumes earlier conversations',
-    shortText: 'Tip: /sessions resumes work',
+    textKey: 'tip.sessions.text',
+    shortTextKey: 'tip.sessions.short',
   },
   {
     id: 'fork',
     command: 'fork',
-    text: 'Tip: /fork branches the current conversation',
-    shortText: 'Tip: /fork branches a Session',
+    textKey: 'tip.fork.text',
+    shortTextKey: 'tip.fork.short',
   },
   {
     id: 'rewind',
     command: 'rewind',
-    text: 'Tip: /rewind restores an earlier turn',
-    shortText: 'Tip: /rewind restores a turn',
+    textKey: 'tip.rewind.text',
+    shortTextKey: 'tip.rewind.short',
   },
   {
     id: 'compact',
     command: 'compact',
-    text: 'Tip: /compact frees context in a long conversation',
-    shortText: 'Tip: /compact frees context',
+    textKey: 'tip.compact.text',
+    shortTextKey: 'tip.compact.short',
   },
   {
     id: 'skills',
     command: 'skills',
-    text: 'Tip: /skills lists available Skills',
-    shortText: 'Tip: /skills lists Skills',
+    textKey: 'tip.skills.text',
+    shortTextKey: 'tip.skills.short',
   },
   {
     id: 'feedback',
     command: 'feedback',
-    text: 'Tip: /feedback previews redacted feedback before upload',
-    shortText: 'Tip: /feedback previews reports',
+    textKey: 'tip.feedback.text',
+    shortTextKey: 'tip.feedback.short',
   },
 ];
 
+/** Build the tips in the language that is active right now. */
 export function buildTuiTips(): readonly TuiTip[] {
   return TUI_TIP_DEFINITIONS.map((tip) => ({
     id: tip.id,
     command: tip.command,
-    text: tip.text,
-    shortText: tip.shortText,
+    text: shellText(tip.textKey),
+    shortText: shellText(tip.shortTextKey),
     ...(tip.weight === undefined ? {} : { weight: tip.weight }),
   }));
 }

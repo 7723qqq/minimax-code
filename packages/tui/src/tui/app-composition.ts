@@ -38,6 +38,7 @@ import { TuiTaskPanel } from './shell/task-panel.js';
 import { createTuiWorkspaceStatusLine } from './shell/workspace-status-line.js';
 import { TuiUpdateNotice, TuiWelcome } from './shell/chrome.js';
 import { composerText } from './features/composer/copy.js';
+import { tuiText } from './copy.js';
 import { TuiDraftLifecycle } from './features/composer/draft-lifecycle.js';
 import { TuiDraftRecoveryError } from './features/composer/draft-recovery.js';
 import type { TuiComposerDraft } from './features/composer/draft.js';
@@ -294,8 +295,8 @@ export function createTuiApplicationSessionActions(options: TuiApplicationSessio
       } catch (error) {
         options.append(
           formatTuiActionFailure(error, {
-            summary: "Couldn't open this conversation.",
-            nextStep: 'Retry after the connection recovers.',
+            summary: tuiText('app.session.openFailed'),
+            nextStep: tuiText('app.session.retryAfterReconnect'),
           }),
           'error',
         );
@@ -309,8 +310,8 @@ export function createTuiApplicationSessionActions(options: TuiApplicationSessio
       } catch (error) {
         options.append(
           formatTuiActionFailure(error, {
-            summary: "Couldn't continue the latest conversation.",
-            nextStep: 'Retry after the connection recovers.',
+            summary: tuiText('app.session.continueFailed'),
+            nextStep: tuiText('app.session.retryAfterReconnect'),
           }),
           'error',
         );
@@ -601,8 +602,8 @@ export function createTuiApplicationSessionFeatures(options: {
     onError: (error) =>
       options.append(
         formatTuiActionFailure(error, {
-          summary: "Couldn't refresh delegated agents.",
-          nextStep: 'Their status will update when the connection recovers.',
+          summary: tuiText('app.agents.refreshFailed'),
+          nextStep: tuiText('app.agents.updateAfterReconnect'),
         }),
         'warning',
       ),

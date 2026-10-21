@@ -4,6 +4,8 @@ import { arch, platform, release } from 'node:os';
 import { basename, delimiter, extname, isAbsolute, join, relative, sep } from 'node:path';
 import { promisify } from 'node:util';
 
+import { resolveHostDateOptions } from './i18n/locale.js';
+
 export const EVAL_META_INFO_SCHEMA = 'mavis.eval_meta_info.v1' as const;
 
 export type EvalRuntimeKind = 'desktop' | 'cloud';
@@ -284,15 +286,13 @@ async function collectEnvironmentInfo(): Promise<EvalMetaInfoEnvironmentInput> {
 }
 
 function readDateTimeOptions(): { timeZone: string; locale: string } {
-  try {
-    const options = Intl.DateTimeFormat().resolvedOptions();
-    return {
-      timeZone: normalizeEnvironmentLabel(options.timeZone, 'UTC'),
-      locale: normalizeEnvironmentLabel(options.locale),
-    };
-  } catch {
-    return { timeZone: 'UTC', locale: 'unknown' };
-  }
+  // Host date options come from the shared resolver so this module does not
+  // read `Intl` itself; `undefined` still distinguishes "platform refused".
+  const options = resolveHostDateOptions();
+  return {
+    timeZone: normalizeEnvironmentLabel(options?.timeZone, 'UTC'),
+    locale: normalizeEnvironmentLabel(options?.locale, 'unknown'),
+  };
 }
 
 async function scanPathCommands(): Promise<PathCommandInventory> {

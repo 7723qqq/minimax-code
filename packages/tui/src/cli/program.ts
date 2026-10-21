@@ -11,6 +11,7 @@ import {
   type TuiInteractiveLaunchRequest,
 } from './contract.js';
 import type { McodeProviderCliRequest } from './provider-command.js';
+import { cliText } from './copy.js';
 import {
   isModelProviderApiFormat,
   MCODE_PROVIDER_API_FORMATS,
@@ -231,7 +232,7 @@ export function createTuiProgram(options: CreateTuiProgramOptions): Command {
         use?: boolean;
       }) => {
         if (commandOptions.model.length === 0) {
-          throw new Error('At least one --model <id> is required.');
+          throw new Error(cliText('cli.provider.modelRequired'));
         }
         return runProvider({
           action: 'add',

@@ -194,9 +194,14 @@ describe('preview file loader', () => {
       metafile: true,
       plugins: [
         {
-          name: 'preview-test-pi-source',
+          name: 'preview-test-workspace-source',
           setup(builder) {
-            builder.onResolve({ filter: /^@earendil-works\/pi-/ }, ({ path }) => {
+            // Resolve every workspace package to the source entry point the type
+            // checker and Vitest use. Their published `exports` point at `dist`,
+            // which a source-only checkout does not have, so a subpath import from
+            // TUI source (for example `@mavis/shared/i18n`) would otherwise fail
+            // to bundle here even though the product build succeeds.
+            builder.onResolve({ filter: /^@(?:mavis|earendil-works)\// }, ({ path }) => {
               const entry = entries.find((candidate) => candidate.specifier === path);
               if (!entry) return undefined;
               return {

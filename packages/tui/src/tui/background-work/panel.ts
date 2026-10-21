@@ -17,6 +17,7 @@ import {
 } from '../agent-team/model.js';
 import { truncateToWidth, wrapTextWithAnsi } from '../rendering/text.js';
 import { sanitizeTerminalText } from '../rendering/terminal-text.js';
+import { tuiText } from '../copy.js';
 import { tuiChalk as chalk, tuiColors as colors } from '../theme/runtime.js';
 import { TuiSelectionScrollView } from '../widgets/selection-scroll-view.js';
 
@@ -132,12 +133,12 @@ export class TuiBackgroundWorkPanel implements TuiFeatureScreen {
     const active = entries.filter(isActiveEntry).length;
     const failed = entries.filter(isFailedEntry).length;
     const counts = [
-      `${String(entries.length)} total`,
-      active > 0 ? `${String(active)} active` : undefined,
-      failed > 0 ? `${String(failed)} failed` : undefined,
+      tuiText('count.total', { count: entries.length }),
+      active > 0 ? tuiText('count.active', { count: active }) : undefined,
+      failed > 0 ? tuiText('count.failed', { count: failed }) : undefined,
     ].filter((value): value is string => Boolean(value));
-    return [renderPanelHeader('Tasks', counts.join(' · '), width)].map((line) =>
-      truncateToWidth(line, width, ''),
+    return [renderPanelHeader(tuiText('backgroundWork.title'), counts.join(' · '), width)].map(
+      (line) => truncateToWidth(line, width, ''),
     );
   }
 
@@ -156,7 +157,7 @@ export class TuiBackgroundWorkPanel implements TuiFeatureScreen {
     this.syncSelection(entries);
     this.bodyViewport.setActiveRowPreservingScroll(this.selectedIndex);
     if (entries.length === 0) {
-      return [truncateToWidth(chalk.hex(colors.dim)('No background work'), width, '')];
+      return [truncateToWidth(chalk.hex(colors.dim)(tuiText('backgroundWork.empty')), width, '')];
     }
     return entries.map((entry, index) =>
       truncateToWidth(
@@ -171,9 +172,13 @@ export class TuiBackgroundWorkPanel implements TuiFeatureScreen {
     const task = this.options.backgroundTasks().find((candidate) => candidate.taskId === taskId);
     if (!task) {
       return [
-        truncateToWidth(chalk.bold.hex(colors.error)('Background task unavailable'), width, ''),
         truncateToWidth(
-          chalk.hex(colors.muted)('The Runtime task list changed. Press Esc to return.'),
+          chalk.bold.hex(colors.error)(tuiText('backgroundWork.detail.unavailable')),
+          width,
+          '',
+        ),
+        truncateToWidth(
+          chalk.hex(colors.muted)(tuiText('backgroundWork.detail.changed')),
           width,
           '',
         ),
@@ -181,17 +186,29 @@ export class TuiBackgroundWorkPanel implements TuiFeatureScreen {
     }
     return [
       ...wrapTextWithAnsi(
-        chalk.bold.hex(statusColor(task.status))(`Background task · ${statusLabel(task.status)}`),
+        chalk.bold.hex(statusColor(task.status))(
+          tuiText('backgroundWork.detail.heading', { status: statusLabel(task.status) }),
+        ),
         width,
       ),
       '',
-      ...renderDetailField('Task ID', task.taskId, width),
+      ...renderDetailField(tuiText('backgroundWork.detail.taskId'), task.taskId, width),
       ...(task.lastError
-        ? ['', ...renderDetailField('Error', task.lastError, width, colors.error)]
+        ? [
+            '',
+            ...renderDetailField(
+              tuiText('backgroundWork.detail.error'),
+              task.lastError,
+              width,
+              colors.error,
+            ),
+          ]
         : []),
       '',
       ...renderDetailField(
-        task.command !== undefined ? 'Command' : 'Description',
+        task.command !== undefined
+          ? tuiText('backgroundWork.detail.command')
+          : tuiText('backgroundWork.detail.description'),
         task.command ?? task.description ?? task.kind,
         width,
       ),
@@ -203,17 +220,19 @@ export class TuiBackgroundWorkPanel implements TuiFeatureScreen {
     if (width === 0) return [];
     let hint: string;
     if (this.detailTaskId) {
-      hint = 'PgUp/PgDn scroll · Esc back · Q close';
+      hint = tuiText('backgroundWork.detail.hint');
     } else {
       this.syncSelection(view.entries);
       const selected = view.entries[this.selectedIndex];
       const action =
         selected?.kind === 'agent'
-          ? 'Enter open transcript'
+          ? tuiText('backgroundWork.action.openTranscript')
           : selected?.kind === 'runtime-task'
-            ? 'Enter inspect'
+            ? tuiText('backgroundWork.action.inspect')
             : undefined;
-      hint = ['↑↓ select', 'PgUp/PgDn scroll', action, 'Esc return'].filter(Boolean).join(' · ');
+      hint = action
+        ? tuiText('backgroundWork.footer.hint', { action })
+        : tuiText('backgroundWork.footer.hintNoAction');
     }
     return [
       renderPanelDivider(width),
@@ -307,14 +326,24 @@ function renderEntry(
     const member = entry.member;
     const label = tuiAgentTeamMemberLabel(member, snapshot);
     const elapsed = formatElapsed(tuiAgentTeamElapsedMs(member, snapshot.capturedAtMs));
-    const details = [member.activity, member.task, `${String(member.toolCount)} tools`, elapsed]
+    const details = [
+      member.activity,
+      member.task,
+      tuiText('count.tools', { count: member.toolCount }),
+      elapsed,
+    ]
       .filter((value, index, values) => Boolean(value) && values.indexOf(value) === index)
       .join(' · ');
-    return `${rail} ${entryMarker(member.status)} ${chalk.hex(colors.dim)('[Agent]')} ${chalk.bold.hex(selected ? colors.signal : colors.text)(label)} ${chalk.hex(colors.muted)(details)}`;
+    return `${rail} ${entryMarker(member.status)} ${chalk.hex(colors.dim)(tuiText('backgroundWork.entry.agent'))} ${chalk.bold.hex(selected ? colors.signal : colors.text)(label)} ${chalk.hex(colors.muted)(details)}`;
   }
 
   const task = entry.task;
-  const category = `[${task.kind === 'bash' ? 'Bash' : capitalize(task.kind)}]`;
+  const category =
+    task.kind === 'bash'
+      ? tuiText('backgroundWork.entry.bash')
+      : task.kind === 'workflow'
+        ? tuiText('backgroundWork.entry.workflow')
+        : tuiText('backgroundWork.entry.custom');
   const description = oneLine(task.description ?? task.kind);
   const details = [statusLabel(task.status), abbreviateTaskId(task.taskId)].join(' · ');
   const text = `${rail} ${entryMarker(task.status)} ${chalk.hex(colors.dim)(category)} ${chalk.bold.hex(selected ? colors.signal : colors.text)(description)} ${chalk.hex(colors.muted)(details)}`;
@@ -359,12 +388,13 @@ function statusColor(status: TuiBackgroundTask['status']): string {
 }
 
 function statusLabel(status: TuiBackgroundTask['status']): string {
-  if (status === 'canceled') return 'Cancelled';
-  return capitalize(status);
-}
-
-function capitalize(value: string): string {
-  return `${value.charAt(0).toLocaleUpperCase()}${value.slice(1)}`;
+  if (status === 'canceled') return tuiText('status.cancelled');
+  if (status === 'queued') return tuiText('status.queued');
+  if (status === 'running') return tuiText('status.running');
+  if (status === 'stopping') return tuiText('status.stopping');
+  if (status === 'succeeded') return tuiText('status.succeeded');
+  if (status === 'failed') return tuiText('status.failed');
+  return tuiText('status.lost');
 }
 
 function oneLine(value: string): string {

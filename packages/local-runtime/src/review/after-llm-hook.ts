@@ -17,6 +17,7 @@ import {
   hasReviewCandidateDocumentMarker,
 } from './candidate-extraction.js';
 import type { PreparedReview } from './preparation.js';
+import { acceptedFindingSummaryText, reviewText } from './review-copy.js';
 import type { ReviewTurnState } from './turn-state.js';
 import type { ProjectedReviewAnnotation } from './types.js';
 import {
@@ -297,10 +298,7 @@ async function handleCorrectionResponse(input: {
       );
     }
     if (applied.failedCorrections === 0 && applied.explicitlyDropped === pending.invalid.length) {
-      const conclusion =
-        input.prepared.responseLanguage === 'zh-CN'
-          ? '未发现需要报告的问题。'
-          : 'No reportable issues were found.';
+      const conclusion = reviewText(input.prepared.responseLanguage, 'conclusion.none');
       input.state.finalize(conclusion, 'pass');
       input.validation.recordResult(
         { sessionId: input.sessionId, turnId: input.turnId, prepared: input.prepared },
@@ -358,10 +356,7 @@ function invalidReviewFallback(
   state: ReviewTurnState,
   prepared: PreparedReview,
 ): PiAfterLlmCallHookDecision {
-  const fallback =
-    prepared.responseLanguage === 'zh-CN'
-      ? '模型返回审查结果格式无效，请重试。'
-      : 'The model returned the code review result in an invalid format. Please retry.';
+  const fallback = reviewText(prepared.responseLanguage, 'fallback.invalidFormat');
   state.finalize(fallback, 'failed');
   return { type: 'replaceText' as const, text: fallback };
 }
@@ -375,9 +370,7 @@ function finalizePassingReview(
 }
 
 function acceptedFindingSummary(language: 'zh-CN' | 'en', count: number): string {
-  return language === 'zh-CN'
-    ? `发现 ${count} 个需要处理的问题。`
-    : `Found ${count} issue${count === 1 ? '' : 's'} that require attention.`;
+  return acceptedFindingSummaryText(language, count);
 }
 
 function projectionContext(prepared: PreparedReview): ReviewProjectionContext {

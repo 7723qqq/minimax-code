@@ -5,6 +5,7 @@ import {
   type UserMessageInput,
 } from '@mavis/agent-core/pi-turn-runner';
 import type { ToolExecutionContext } from '@mavis/agent-core/tools';
+import { v2TurnSystemText } from '../../copy.js';
 import {
   emitLocalPluginHookWarnings,
   localPluginHookCoordinator as pluginHookCoordinator,
@@ -203,7 +204,7 @@ async function preparePluginSteeringMessage(
             message:
               hookResult.decision.stopReason ??
               hookResult.decision.reason ??
-              'Queued prompt stopped by Plugin Hook.',
+              v2TurnSystemText('userInputControl.queuedPromptStopped'),
           }
         : {}),
     });

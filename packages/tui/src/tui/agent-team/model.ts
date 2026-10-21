@@ -7,6 +7,7 @@ import type {
 } from '../../runtime/port.js';
 import { sanitizeTerminalText } from '../rendering/terminal-text.js';
 import { formatTuiToolSummary } from '../transcript/presentation/tool-summary.js';
+import { tuiText } from '../copy.js';
 
 export type TuiAgentTeamMemberStatus =
   | 'failed'
@@ -130,8 +131,8 @@ export class TuiAgentTeamProjection {
       next.set(agent.sessionId, {
         sessionId: agent.sessionId,
         parentSessionId: agent.parentSessionId,
-        agentName: sanitizeLabel(agent.agentName, 'sub-agent'),
-        task: sanitizeLabel(agent.task, 'Delegated task'),
+        agentName: sanitizeLabel(agent.agentName, tuiText('agentTeam.fallback.agentName')),
+        task: sanitizeLabel(agent.task, tuiText('agentTeam.fallback.task')),
         status,
         phase: preserved?.phase ?? defaults.phase,
         activity: preserved?.activity ?? defaults.activity,
@@ -171,8 +172,8 @@ export class TuiAgentTeamProjection {
     if (event.type === 'error') {
       member.status = 'failed';
       member.phase = 'failed';
-      member.activity = 'Failed';
-      member.errorMessage = sanitizeLabel(event.message, 'Agent failed');
+      member.activity = tuiText('status.failed');
+      member.errorMessage = sanitizeLabel(event.message, tuiText('agentTeam.fallback.failed'));
       member.updatedAtMs = nowMs;
       return;
     }
@@ -180,15 +181,15 @@ export class TuiAgentTeamProjection {
       if (event.status === 'error') {
         member.status = 'failed';
         member.phase = 'failed';
-        member.activity = 'Failed';
+        member.activity = tuiText('status.failed');
       } else if (event.status === 'aborted' || event.status === 'interrupted') {
         member.status = 'stopped';
         member.phase = 'stopped';
-        member.activity = 'Stopped';
+        member.activity = tuiText('status.stopped');
       } else if (event.status === 'finished') {
         member.status = 'done';
         member.phase = 'done';
-        member.activity = 'Done';
+        member.activity = tuiText('status.done');
       } else if (event.status === 'started' || event.status === 'idle') {
         member.status = 'running';
         if (
@@ -198,7 +199,7 @@ export class TuiAgentTeamProjection {
           member.phase === 'queued'
         ) {
           member.phase = 'running';
-          member.activity = 'Running';
+          member.activity = tuiText('status.running');
         }
       }
       member.updatedAtMs = nowMs;
@@ -233,7 +234,7 @@ export class TuiAgentTeamProjection {
     if (!member || !isActiveStatus(member.status)) return;
     member.status = 'waiting';
     member.phase = 'waiting';
-    member.activity = sanitizeLabel(activity, 'Waiting for input');
+    member.activity = sanitizeLabel(activity, tuiText('agentTeam.activity.waitingForInput'));
     member.updatedAtMs = nowMs;
   }
 
@@ -249,7 +250,7 @@ export class TuiAgentTeamProjection {
     }
     member.status = 'done';
     member.phase = 'done';
-    member.activity = 'Done';
+    member.activity = tuiText('status.done');
     if (turnId !== undefined) member.turnId = turnId;
     member.updatedAtMs = nowMs;
     return true;
@@ -282,10 +283,10 @@ export class TuiAgentTeamProjection {
       for (const tool of event.toolCalls) this.applyTool(member, turnId, tool);
     } else if (event.thinking !== undefined) {
       member.phase = 'thinking';
-      member.activity = 'Thinking';
+      member.activity = tuiText('agentTeam.activity.thinking');
     } else if (event.content !== undefined || event.started) {
       member.phase = 'responding';
-      member.activity = 'Responding';
+      member.activity = tuiText('agentTeam.activity.responding');
     }
     if (member.status === 'waiting') member.status = 'running';
     member.updatedAtMs = nowMs;
@@ -301,21 +302,21 @@ export class TuiAgentTeamProjection {
       if (part.type === 'tool') this.applyTool(member, turnId, part.toolCall);
       else if (part.type === 'thinking') {
         member.phase = 'thinking';
-        member.activity = 'Thinking';
+        member.activity = tuiText('agentTeam.activity.thinking');
       } else if (part.type === 'text') {
         member.phase = 'responding';
-        member.activity = 'Responding';
+        member.activity = tuiText('agentTeam.activity.responding');
       }
     }
     for (const tool of message.toolCalls ?? []) this.applyTool(member, turnId, tool);
     if (!message.parts?.length && !message.toolCalls?.length) {
       if (message.thinking !== undefined) {
         member.phase = 'thinking';
-        member.activity = 'Thinking';
+        member.activity = tuiText('agentTeam.activity.thinking');
       }
       if (message.content !== undefined) {
         member.phase = 'responding';
-        member.activity = 'Responding';
+        member.activity = tuiText('agentTeam.activity.responding');
       }
     }
     member.updatedAtMs = nowMs;
@@ -332,7 +333,10 @@ export class TuiAgentTeamProjection {
   private resetActivity(member: MutableAgentTeamMember, nowMs: number): void {
     member.toolIds = new Set<string>();
     member.phase = member.status === 'waiting' ? 'waiting' : 'running';
-    member.activity = member.status === 'waiting' ? 'Waiting for input' : 'Starting';
+    member.activity =
+      member.status === 'waiting'
+        ? tuiText('agentTeam.activity.waitingForInput')
+        : tuiText('agentTeam.activity.starting');
     member.updatedAtMs = nowMs;
   }
 }
@@ -379,6 +383,21 @@ export function tuiAgentTeamMemberLabel(
   return names.slice(-4).join(' › ');
 }
 
+/**
+ * Localized label for a member status.
+ *
+ * The agent-team panel and the agent-team summary both name a status, so they
+ * share this helper and therefore share one wording per status.
+ */
+export function tuiAgentTeamStatusLabel(status: TuiAgentTeamMember['status']): string {
+  if (status === 'done') return tuiText('status.done');
+  if (status === 'failed') return tuiText('status.failed');
+  if (status === 'running') return tuiText('status.running');
+  if (status === 'stopped') return tuiText('status.stopped');
+  if (status === 'queued') return tuiText('status.queued');
+  return tuiText('status.waiting');
+}
+
 function resolveMemberStatus(
   status: TuiDelegatedAgent['status'],
   activeRunState: TuiActiveRunSnapshot['state'] | undefined,
@@ -396,12 +415,16 @@ function defaultActivity(
   status: TuiAgentTeamMemberStatus,
   _errorMessage: string | undefined,
 ): { phase: TuiAgentTeamActivityPhase; activity: string } {
-  if (status === 'failed') return { phase: 'failed', activity: 'Failed' };
-  if (status === 'waiting') return { phase: 'waiting', activity: 'Waiting for input' };
-  if (status === 'running') return { phase: 'running', activity: 'Starting' };
-  if (status === 'queued') return { phase: 'queued', activity: 'Queued' };
-  if (status === 'done') return { phase: 'done', activity: 'Done' };
-  return { phase: 'stopped', activity: 'Stopped' };
+  if (status === 'failed') return { phase: 'failed', activity: tuiText('status.failed') };
+  if (status === 'waiting') {
+    return { phase: 'waiting', activity: tuiText('agentTeam.activity.waitingForInput') };
+  }
+  if (status === 'running') {
+    return { phase: 'running', activity: tuiText('agentTeam.activity.starting') };
+  }
+  if (status === 'queued') return { phase: 'queued', activity: tuiText('status.queued') };
+  if (status === 'done') return { phase: 'done', activity: tuiText('status.done') };
+  return { phase: 'stopped', activity: tuiText('status.stopped') };
 }
 
 function isActiveStatus(status: TuiAgentTeamMemberStatus): boolean {
@@ -458,18 +481,20 @@ function formatToolActivity(name: string, target: string): string {
   const normalized = normalizeToolName(name);
   const verb =
     normalized === 'read' || normalized === 'readfile'
-      ? 'Reading'
+      ? tuiText('agentTeam.activity.reading')
       : normalized === 'grep' || normalized === 'glob' || normalized === 'search'
-        ? 'Searching'
+        ? tuiText('agentTeam.activity.searching')
         : normalized === 'edit' || normalized === 'editfile' || normalized === 'replace'
-          ? 'Editing'
+          ? tuiText('agentTeam.activity.editing')
           : normalized === 'write' || normalized === 'writefile'
-            ? 'Writing'
+            ? tuiText('agentTeam.activity.writing')
             : normalized.includes('test')
-              ? 'Running tests'
+              ? tuiText('agentTeam.activity.runningTests')
               : normalized === 'bash' || normalized === 'exec' || normalized === 'shell'
-                ? 'Running command'
-                : `Using ${sanitizeLabel(name, 'tool')}`;
+                ? tuiText('agentTeam.activity.runningCommand')
+                : tuiText('agentTeam.activity.usingTool', {
+                    tool: sanitizeLabel(name, tuiText('agentTeam.fallback.tool')),
+                  });
   return target && canShowToolTarget(normalized) ? `${verb} ${target}` : verb;
 }
 

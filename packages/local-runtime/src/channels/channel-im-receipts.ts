@@ -2,7 +2,7 @@ import type { ChannelPlatform } from './route-api.js';
 import { LocalChannelRootlessError } from './rootless-route-resolver.js';
 import { imLogger as logger } from '../common/im-logger.js';
 import { resolveLocalRuntimeLocale } from '../runtime/locale.js';
-import { isChineseLocale } from '../utils/locale.js';
+import { createCatalogSet, resolveLocaleName, translate } from '@mavis/shared/i18n';
 
 /** Internal identifiers for a V2 IM Connection route; never a legacy Binding. */
 export interface LocalImRouteMetadata {
@@ -29,33 +29,56 @@ export interface LocalChannelImReceipt {
 // Historical route codes preserve their platform language convention. V2 IM
 // Connection receipts use the Desktop runtime locale so all transports match
 // the product language. Copy is aligned with archon_server's im-guard flow.
+//
+// The copy lives in a catalog; the *selection* rule does not change: two codes
+// follow the runtime locale, while the historical binding codes keep following
+// the transport (Telegram English, Feishu/WeChat Chinese).
 
-const channelRouteAgentGoneZH =
-  '你绑定的 Agent 已被删除或绑定已失效，无法继续对话。请在 App 中重新绑定后再试。';
-const channelRouteAgentGoneEN =
-  'The Agent bound to this chat has been deleted or the binding is stale. Please rebind it in the App and try again.';
-const channelRouteSessionGoneZH = '当前绑定的会话已失效。请在 App 中重新绑定后再试。';
-const channelRouteSessionGoneEN =
-  'The bound conversation is no longer valid. Please rebind it in the App and try again.';
-const channelRouteGenericZH = '渠道消息处理失败，请稍后再试，或在 App 中检查绑定。';
-const channelRouteGenericEN =
-  'The channel message could not be processed. Please retry later or check the binding in the App.';
-const channelImSessionDeletedZH = '当前绑定的会话已删除，请发送 /new 创建新会话后继续。';
-const channelImSessionDeletedEN =
-  'This conversation has been deleted. Send /new to start a new conversation and continue.';
-const channelImNewCreatedZH = '已创建新会话，请继续发送消息。';
-const channelImNewCreatedEN = 'A new conversation has been created. Send a message to continue.';
+const EN_IM_RECEIPT_COPY = {
+  'route.agentGone':
+    'The Agent bound to this chat has been deleted or the binding is stale. Please rebind it in the App and try again.',
+  'route.sessionGone':
+    'The bound conversation is no longer valid. Please rebind it in the App and try again.',
+  'route.generic':
+    'The channel message could not be processed. Please retry later or check the binding in the App.',
+  'session.deleted':
+    'This conversation has been deleted. Send /new to start a new conversation and continue.',
+  'session.newCreated': 'A new conversation has been created. Send a message to continue.',
+} as const;
+
+const ZH_HANS_IM_RECEIPT_COPY = {
+  'route.agentGone': '你绑定的 Agent 已被删除或绑定已失效，无法继续对话。请在 App 中重新绑定后再试。',
+  'route.sessionGone': '当前绑定的会话已失效。请在 App 中重新绑定后再试。',
+  'route.generic': '渠道消息处理失败，请稍后再试，或在 App 中检查绑定。',
+  'session.deleted': '当前绑定的会话已删除，请发送 /new 创建新会话后继续。',
+  'session.newCreated': '已创建新会话，请继续发送消息。',
+} as const satisfies Readonly<Record<keyof typeof EN_IM_RECEIPT_COPY, string>>;
+
+const IM_RECEIPT_CATALOG = createCatalogSet(EN_IM_RECEIPT_COPY, {
+  'zh-Hans': ZH_HANS_IM_RECEIPT_COPY,
+});
+
+type ImReceiptCopyKey = keyof typeof EN_IM_RECEIPT_COPY;
+
+function receiptText(localeName: string, key: ImReceiptCopyKey): string {
+  return translate(IM_RECEIPT_CATALOG, localeName, key);
+}
+
+/** Historical binding codes keep the transport's language, not the runtime one. */
+function transportLocaleName(platform: string): string {
+  return platform === 'telegram' ? 'en' : 'zh-Hans';
+}
 
 /** Maps a LocalChannelRootlessError code to the localized receipt text. */
 export function channelRouteBrokenReceiptText(platform: string, code: string): string {
-  const chineseLocale = isChineseLocale(resolveLocalRuntimeLocale());
+  const localeName = resolveLocaleName(resolveLocalRuntimeLocale());
   if (code === 'CHANNEL_IM_AGENT_UNAVAILABLE') {
-    return chineseLocale ? channelRouteAgentGoneZH : channelRouteAgentGoneEN;
+    return receiptText(localeName, 'route.agentGone');
   }
   if (code === 'CHANNEL_IM_SESSION_DELETED') {
-    return chineseLocale ? channelImSessionDeletedZH : channelImSessionDeletedEN;
+    return receiptText(localeName, 'session.deleted');
   }
-  const en = platform === 'telegram';
+  const byTransport = transportLocaleName(platform);
   switch (code) {
     case 'CHANNEL_BINDING_STALE':
     case 'CHANNEL_BINDING_NOT_FOUND':
@@ -63,18 +86,16 @@ export function channelRouteBrokenReceiptText(platform: string, code: string): s
     case 'CHANNEL_ROUTE_OWNER_STALE':
     case 'CHANNEL_BINDING_OWNER_CHANGE_REQUIRES_REBIND':
     case 'CHANNEL_BINDING_PROFILE_DIVERGED':
-      return en ? channelRouteAgentGoneEN : channelRouteAgentGoneZH;
+      return receiptText(byTransport, 'route.agentGone');
     case 'CHANNEL_SESSION_VALIDATION_FAILED':
-      return en ? channelRouteSessionGoneEN : channelRouteSessionGoneZH;
+      return receiptText(byTransport, 'route.sessionGone');
     default:
-      return en ? channelRouteGenericEN : channelRouteGenericZH;
+      return receiptText(byTransport, 'route.generic');
   }
 }
 
 export function channelImNewCreatedReceiptText(): string {
-  return isChineseLocale(resolveLocalRuntimeLocale())
-    ? channelImNewCreatedZH
-    : channelImNewCreatedEN;
+  return receiptText(resolveLocaleName(resolveLocalRuntimeLocale()), 'session.newCreated');
 }
 
 export function imReceiptFromRouteError(

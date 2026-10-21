@@ -21,6 +21,8 @@
 
 import type { LocalQueuedMessage } from '../messages/queue.js';
 import { imLogger as logger } from '../common/im-logger.js';
+import { resolveLocalRuntimeLocale } from '../runtime/locale.js';
+import { createCatalogSet, resolveLocaleName, translate } from '@mavis/shared/i18n';
 import type { LocalChannelContext } from './infra.js';
 import type { LocalChannelRunner } from './runner.js';
 
@@ -169,10 +171,31 @@ export function notifyChannelTurnFinished(deps: ChannelQueueDrainDeps, sessionId
 }
 
 /**
+ * Queued-notice copy.
+ *
+ * The message was previously Chinese-only, so an English-locale user received
+ * Chinese text. It now follows the runtime locale like the other channel
+ * receipts, and the count is interpolated instead of concatenated.
+ */
+const EN_QUEUE_COPY = {
+  'queue.ahead': '⏳ Queued — {count} ahead. Please wait…',
+} as const;
+
+const ZH_HANS_QUEUE_COPY = {
+  'queue.ahead': '⏳ 已加入队列，前方还有 {count} 条消息，请稍候...',
+} as const satisfies Readonly<Record<keyof typeof EN_QUEUE_COPY, string>>;
+
+const QUEUE_CATALOG = createCatalogSet(EN_QUEUE_COPY, { 'zh-Hans': ZH_HANS_QUEUE_COPY });
+
+/**
  * Format the queued-notice text. Aligned with the historical IM gateway
  * wording so the desktop experience matches the legacy daemon.
  */
-export function formatQueuedNoticeText(ahead: number): string {
-  const count = Math.max(1, ahead);
-  return `⏳ 已加入队列，前方还有 ${count} 条消息，请稍候...`;
+export function formatQueuedNoticeText(
+  ahead: number,
+  locale: string = resolveLocalRuntimeLocale(),
+): string {
+  return translate(QUEUE_CATALOG, resolveLocaleName(locale), 'queue.ahead', {
+    count: Math.max(1, ahead),
+  });
 }

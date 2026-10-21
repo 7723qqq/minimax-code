@@ -1,6 +1,7 @@
 import type { ExecResultError, ExecResultV1 } from '../../application/exec-result.js';
 import type { TuiSettledTurn } from '../controller/chat-controller-types.js';
 import type { TranscriptStore } from '../transcript/store.js';
+import { applicationText } from '../../application/copy.js';
 
 export interface CreateTuiAutomationTurnResultInput {
   readonly settledTurn: TuiSettledTurn;
@@ -20,7 +21,7 @@ export function createTuiAutomationTurnResult(
     error = {
       category: 'runtime',
       code: 'EMPTY_RESPONSE',
-      message: 'Runtime completed without a final assistant response.',
+      message: applicationText('application.run.noFinalResponse'),
       retryable: true,
     };
   } else if (status === 'failed' && !error) {

@@ -2,7 +2,9 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 
 import type { PermissionRule } from '@mavis/permission';
+import { translateRuntimeText } from '@mavis/shared/i18n';
 
+import { permissionReasonText } from './copy.js';
 import {
   LocalPluginHookPermissionMutationError,
   PLUGIN_HOOK_PERMISSION_STORE_VERSION as STORE_VERSION,
@@ -23,7 +25,9 @@ export function validateRuntimeModes(input: LocalPluginHookPermissionMutationInp
     if (update.type !== 'setMode') continue;
     if (update.mode === 'plan') {
       throw new LocalPluginHookPermissionMutationError(
-        'Plugin Hook setMode(plan) is not supported because MiniMax Plan mode has a separate Turn lifecycle.',
+        permissionReasonText('pluginHook.planModeUnsupported', {
+          mode: translateRuntimeText(null, 'plan.mode.label'),
+        }),
         'UNSUPPORTED_MODE',
       );
     }

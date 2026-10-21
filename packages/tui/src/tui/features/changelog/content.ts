@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { getRuntimeLocaleLanguage } from '@mavis/shared/runtime-i18n';
+import { isChineseLocale, resolveLocale } from '@mavis/shared/i18n';
 
 declare const __IS_NPM_BUILD__: boolean | undefined;
 
@@ -22,9 +22,9 @@ export const TUI_CHANGELOG_URLS: Readonly<Record<TuiChangelogLanguage, URL>> = {
 };
 
 export function resolveTuiChangelogLanguage(
-  locale: string = resolveSystemLocale(),
+  locale: string = resolveLocale(),
 ): TuiChangelogLanguage {
-  return getRuntimeLocaleLanguage(locale) === 'zh' ? 'zh-CN' : 'en';
+  return isChineseLocale(locale) ? 'zh-CN' : 'en';
 }
 
 export function readPackagedTuiChangelog(locale?: string): string | undefined {
@@ -123,12 +123,4 @@ function normalizeMarkdownInline(value: string): string {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
-}
-
-function resolveSystemLocale(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().locale;
-  } catch {
-    return 'en';
-  }
 }

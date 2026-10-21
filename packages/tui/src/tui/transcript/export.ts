@@ -10,6 +10,7 @@ import { sanitizeTerminalText } from '../rendering/terminal-text.js';
 import type { TranscriptCell } from './model.js';
 import type { TranscriptProjectionSource } from './projection-window.js';
 import { redactTuiSensitiveText } from '../../user-facing-failure.js';
+import { transcriptText } from '../features/transcript/copy.js';
 import type { TuiMessage, TuiToolCall } from '../../runtime/stream-events.js';
 
 export interface TuiTranscriptExportMetadata {
@@ -33,19 +34,36 @@ export function formatTuiTranscriptMarkdown(
   );
   const messages = cells.filter((cell) => cell.kind === 'user' || cell.kind === 'assistant');
   const title = cleanMarkdownText(
-    redactTuiCredentials(metadata.title?.trim() || 'MCode Transcript'),
+    redactTuiCredentials(metadata.title?.trim() || transcriptText('export.title.transcript')),
   );
   const lines = [`# ${title}`, ''];
   if (metadata.sessionId) {
-    lines.push(`Session: ${cleanInline(redactTuiCredentials(metadata.sessionId))}`, '');
+    lines.push(
+      transcriptText('export.sessionLabel', {
+        sessionId: cleanInline(redactTuiCredentials(metadata.sessionId)),
+      }),
+      '',
+    );
   }
   if (metadata.exportedAtMs !== undefined) {
-    lines.push(`Exported: ${new Date(metadata.exportedAtMs).toISOString()}`, '');
+    lines.push(
+      transcriptText('export.exportedLabel', {
+        timestamp: new Date(metadata.exportedAtMs).toISOString(),
+      }),
+      '',
+    );
   }
   for (const cell of messages) {
     const content = exportCellContent(cell);
     if (!content) continue;
-    lines.push(cell.kind === 'user' ? '## You' : '## Assistant', '', content, '');
+    lines.push(
+      cell.kind === 'user'
+        ? transcriptText('export.section.you')
+        : transcriptText('export.section.assistant'),
+      '',
+      content,
+      '',
+    );
   }
   return `${lines.join('\n').trimEnd()}\n`;
 }
@@ -68,7 +86,7 @@ export function formatTuiSessionMarkdown(
   );
   const turns = groupSessionMessages(visibleMessages);
   const title = cleanMarkdownText(
-    redactTuiCredentials(metadata.title?.trim() || 'MCode Session Export'),
+    redactTuiCredentials(metadata.title?.trim() || transcriptText('export.title.session')),
   );
   const lines = [
     '---',
@@ -80,30 +98,32 @@ export function formatTuiSessionMarkdown(
     '',
     `# ${title}`,
     '',
-    '## Overview',
+    transcriptText('export.section.overview'),
     '',
-    `- Turns: ${String(turns.length)}`,
-    `- Messages: ${String(visibleMessages.length)}`,
+    transcriptText('export.turns', { count: turns.length }),
+    transcriptText('export.messages', { count: visibleMessages.length }),
     '',
     '---',
     '',
   ];
 
   turns.forEach((turn, index) => {
-    lines.push(`## Turn ${String(index + 1)}`, '');
+    lines.push(transcriptText('export.turnHeading', { count: index + 1 }), '');
     for (const message of turn) {
       const content = exportSessionMessageContent(message);
       if (message.role === 'user') {
-        lines.push('### User', '');
+        lines.push(transcriptText('export.subheading.user'), '');
         if (content) lines.push(content, '');
         continue;
       }
       if (isTurnTranscriptResponseMessage(message)) {
-        if (content) lines.push('### Assistant', '', content, '');
+        if (content) lines.push(transcriptText('export.subheading.assistant'), '', content, '');
       }
 
       const activity = formatSessionActivity(message);
-      if (activity.length > 0) lines.push('### Activity', '', ...activity, '');
+      if (activity.length > 0) {
+        lines.push(transcriptText('export.subheading.activity'), '', ...activity, '');
+      }
     }
   });
 
@@ -124,7 +144,10 @@ function exportCellContent(cell: TranscriptCell): string {
   const visible =
     cell.kind === 'assistant' ? simplifyAssistantContentForTerminal(cell.content) : cell.content;
   const attachmentLines = (cell.attachments ?? []).map((attachment) => {
-    const kind = attachment.type === 'image' ? 'Image' : 'File';
+    const kind =
+      attachment.type === 'image'
+        ? transcriptText('view.attachment.image')
+        : transcriptText('view.attachment.file');
     const name = cleanInline(redactTuiCredentials(attachment.fileName)) || 'attachment';
     const mime = cleanInline(attachment.mimeType) || 'application/octet-stream';
     const size =
@@ -215,7 +238,10 @@ function exportSessionMessageContent(message: TuiMessage): string {
       ? simplifyAssistantContentForTerminal(content)
       : content;
   const attachmentLines = (message.attachments ?? []).map((attachment) => {
-    const kind = attachment.type === 'image' ? 'Image' : 'File';
+    const kind =
+      attachment.type === 'image'
+        ? transcriptText('view.attachment.image')
+        : transcriptText('view.attachment.file');
     const name = cleanInline(redactTuiCredentials(attachment.fileName)) || 'attachment';
     const mime = cleanInline(attachment.mimeType) || 'application/octet-stream';
     const size =
@@ -236,15 +262,29 @@ function formatSessionActivity(message: TuiMessage): string[] {
     activity.push(`- \`${name}\` ${status}`);
   }
   if (message.error?.trim()) {
-    activity.push(`- Error: ${redactTuiCredentials(sanitizeTerminalText(message.error)).trim()}`);
+    activity.push(
+      transcriptText('export.activity.error', {
+        message: redactTuiCredentials(sanitizeTerminalText(message.error)).trim(),
+      }),
+    );
+  }
+  if (message.kind === 'compaction_start') {
+    activity.push(transcriptText('export.activity.compactionStarted'));
+  }
+  if (message.kind === 'compaction') activity.push(transcriptText('export.activity.compacted'));
+  if (message.kind === 'compaction_failed') {
+    activity.push(transcriptText('export.activity.compactionFailed'));
+  }
+  if (message.finishReason === 'error') {
+    activity.push(transcriptText('export.activity.responseFailed'));
   }
   const compaction = compactionLifecycleState(message.kind);
-  if (compaction === 'running') activity.push('- Context compaction started');
-  if (compaction === 'completed') activity.push('- Context compacted');
-  if (compaction === 'failed') activity.push('- Context compaction failed');
-  if (message.finishReason === 'error') activity.push('- Response failed');
+  if (compaction === 'running') activity.push(transcriptText('export.activity.compactionStarted'));
+  if (compaction === 'completed') activity.push(transcriptText('export.activity.compacted'));
+  if (compaction === 'failed') activity.push(transcriptText('export.activity.compactionFailed'));
+  if (message.finishReason === 'error') activity.push(transcriptText('export.activity.responseFailed'));
   if (message.finishReason === 'aborted' || message.finishReason === 'cancelled') {
-    activity.push('- Response cancelled');
+    activity.push(transcriptText('export.activity.responseCancelled'));
   }
   return activity;
 }
@@ -262,21 +302,21 @@ function sessionToolCalls(message: TuiMessage): readonly TuiToolCall[] {
 }
 
 function formatToolStatus(toolCall: TuiToolCall): string {
-  if (toolCall.error) return 'failed';
+  if (toolCall.error) return transcriptText('export.toolStatus.failed');
   const status = String(toolCall.status ?? '').toLocaleLowerCase();
   if (status === '3' || status.includes('fail') || status.includes('error')) {
-    return 'failed';
+    return transcriptText('export.toolStatus.failed');
   }
-  if (status.includes('cancel')) return 'cancelled';
+  if (status.includes('cancel')) return transcriptText('export.toolStatus.cancelled');
   if (
     status === '1' ||
     status.includes('run') ||
     status.includes('pend') ||
     status.includes('progress')
   ) {
-    return 'in progress';
+    return transcriptText('export.toolStatus.inProgress');
   }
-  return 'succeeded';
+  return transcriptText('export.toolStatus.succeeded');
 }
 
 function yamlScalar(value: string): string {

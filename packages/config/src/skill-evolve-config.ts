@@ -8,6 +8,8 @@
  * here would create a circular import.
  */
 
+import { configText } from './copy.js';
+
 export interface SkillEvolveInSessionConfig {
   /** Trigger a scan every N agent turns. */
   N: number;
@@ -149,4 +151,21 @@ export function isProposalEligibleAgent(agentName: string, eligibleAgents: strin
   if (eligibleAgents.length === 0) return false;
   if (eligibleAgents.includes('*')) return true;
   return eligibleAgents.includes(agentName);
+}
+
+/**
+ * Formats the skill-evolve lifecycle configuration failure.
+ *
+ * The invariant itself is enforced by the configuration parser; the wording
+ * lives in the catalog so it can be translated with the rest of the product
+ * copy.
+ */
+export function formatSkillEvolveLifecycleError(input: {
+  readonly staleThresholdDays: number;
+  readonly archiveThresholdDays: number;
+}): string {
+  return configText('skillEvolve.lifecycle.invalid', {
+    staleThresholdDays: input.staleThresholdDays,
+    archiveThresholdDays: input.archiveThresholdDays,
+  });
 }

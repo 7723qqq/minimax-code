@@ -5,6 +5,7 @@ import { truncateToWidth } from '../rendering/text.js';
 import { tuiChalk as chalk, tuiColors as colors } from '../theme/runtime.js';
 import type { TuiTodoItem } from '../todo/model.js';
 import type { TuiKeybindingRegistry } from './keybindings.js';
+import { shellText } from './copy.js';
 import { TuiTodoPanel } from './todo-panel.js';
 
 interface TaskSection {
@@ -140,16 +141,24 @@ function renderWorkHeader(
   const cancelled =
     (team?.summary.stopped ?? 0) + tasks.filter((task) => task.status === 'canceled').length;
   const counts = [
-    failed > 0 ? `${String(failed)} failed` : undefined,
+    failed > 0 ? shellText('task.failed', { n: failed }) : undefined,
     agentWaiting > 0
-      ? `${String(agentWaiting)} agent${agentWaiting === 1 ? '' : 's'} waiting`
+      ? shellText(agentWaiting === 1 ? 'task.agentsWaiting.one' : 'task.agentsWaiting.many', {
+          n: agentWaiting,
+        })
       : undefined,
     agentActive > 0
-      ? `${String(agentActive)} agent${agentActive === 1 ? '' : 's'} active`
+      ? shellText(agentActive === 1 ? 'task.agentsActive.one' : 'task.agentsActive.many', {
+          n: agentActive,
+        })
       : undefined,
-    backgroundActive > 0 ? `${String(backgroundActive)} background active` : undefined,
-    ready > 0 ? `${String(ready)} result${ready === 1 ? '' : 's'} ready` : undefined,
-    cancelled > 0 ? `${String(cancelled)} cancelled` : undefined,
+    backgroundActive > 0
+      ? shellText('task.backgroundActive', { n: backgroundActive })
+      : undefined,
+    ready > 0
+      ? shellText(ready === 1 ? 'task.resultsReady.one' : 'task.resultsReady.many', { n: ready })
+      : undefined,
+    cancelled > 0 ? shellText('task.cancelled', { n: cancelled }) : undefined,
   ].filter((value): value is string => Boolean(value));
   const marker =
     failed > 0
@@ -162,7 +171,9 @@ function renderWorkHeader(
             ? chalk.hex(colors.muted)('■')
             : chalk.hex(colors.success)('✓');
   return truncateToWidth(
-    `${marker} ${chalk.bold.hex(colors.text)('Tasks')}${chalk.hex(colors.muted)(` · ${counts.join(' · ')} · /tasks details`)}`,
+    `${marker} ${chalk.bold.hex(colors.text)(shellText('task.title'))}${chalk.hex(colors.muted)(
+      ` · ${counts.join(' · ')} · ${shellText('task.details')}`,
+    )}`,
     width,
     '',
   );

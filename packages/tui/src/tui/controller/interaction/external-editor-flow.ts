@@ -5,8 +5,13 @@ import {
 } from '../../../host/external-editor.js';
 import { formatTuiKeybinding, type TuiKeybindingRegistry } from '../../shell/keybindings.js';
 import { formatTuiActionFailure } from '../../../user-facing-failure.js';
+import { controllerText } from '../copy.js';
+import { controllerInteractionText } from './copy.js';
 
-export const MINIMAX_CODE_EXTERNAL_EDITOR_SETUP_HINT = `Set MCODE_EDITOR, VISUAL, or EDITOR to use ${formatTuiKeybinding('composer.external-editor')}; GUI editors need --wait.`;
+export const MINIMAX_CODE_EXTERNAL_EDITOR_SETUP_HINT = controllerInteractionText(
+  'externalEditor.setupHint',
+  { key: formatTuiKeybinding('composer.external-editor') },
+);
 
 interface ExternalEditorDraft {
   getExpandedText(): string;
@@ -50,7 +55,9 @@ export class TuiExternalEditorFlow {
     });
     if (!command) {
       this.options.setHint(
-        `Set MCODE_EDITOR, VISUAL, or EDITOR to use ${formatTuiKeybinding('composer.external-editor', this.options.keybindings)}; GUI editors need --wait.`,
+        controllerInteractionText('externalEditor.setupHint', {
+          key: formatTuiKeybinding('composer.external-editor', this.options.keybindings),
+        }),
       );
       this.options.onChanged();
       return;
@@ -61,7 +68,7 @@ export class TuiExternalEditorFlow {
     this.opening = true;
     try {
       if (shouldResumeTui) {
-        this.options.setHint('External editor open · save and close to return.');
+        this.options.setHint(controllerInteractionText('externalEditor.open'));
         this.options.onChanged();
         await this.options.tui.stop();
       }
@@ -80,9 +87,9 @@ export class TuiExternalEditorFlow {
           this.options.editor.setText(normalized);
         }
         this.options.editor.pruneMissingAttachmentPlaceholders?.();
-        this.options.setHint('External edit applied.');
+        this.options.setHint(controllerInteractionText('externalEditor.applied'));
       } else {
-        this.options.setHint('External editor closed · draft unchanged.');
+        this.options.setHint(controllerInteractionText('externalEditor.closedUnchanged'));
       }
       this.options.onChanged();
     } catch (error) {
@@ -90,9 +97,9 @@ export class TuiExternalEditorFlow {
         this.options.setHint(undefined);
         this.options.append(
           formatTuiActionFailure(error, {
-            summary: "Couldn't open the external editor.",
-            nextStep: 'Check $VISUAL or $EDITOR and retry.',
-            preservation: 'Your draft is preserved.',
+            summary: controllerInteractionText('input.editor.openFailed'),
+            nextStep: controllerInteractionText('input.editor.openFailedNextStep'),
+            preservation: controllerText('common.draftPreserved'),
           }),
           'error',
         );

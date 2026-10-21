@@ -7,12 +7,13 @@ import {
   renderTuiActionHint,
 } from '../../theme/runtime.js';
 import type { TuiPausedQueueSendIntent } from '../../../runtime/port.js';
+import { queueText, type QueueCopyKey } from './copy.js';
 
 type Decision = TuiPausedQueueSendIntent | 'cancel';
-const choices: readonly { value: Decision; label: string }[] = [
-  { value: 'paused-queue-keep', label: 'Send this message first, then continue the queue' },
-  { value: 'paused-queue-clear', label: 'Clear my queued messages and send this message' },
-  { value: 'cancel', label: 'Keep my draft' },
+const choices: readonly { value: Decision; label: QueueCopyKey }[] = [
+  { value: 'paused-queue-keep', label: 'queue.pausedSend.keepQueue' },
+  { value: 'paused-queue-clear', label: 'queue.pausedSend.clearQueue' },
+  { value: 'cancel', label: 'queue.pausedSend.keepDraft' },
 ];
 
 export class TuiPausedQueueSendPanel implements Component, Focusable {
@@ -41,16 +42,19 @@ export class TuiPausedQueueSendPanel implements Component, Focusable {
 
   render(width: number): string[] {
     return [
-      chalk.bold.hex(colors.warning)(`Queue paused · ${this.options.pendingCount} pending`),
-      'How should this message continue the Session?',
-      '',
-      ...choices.map((choice, index) =>
-        index === this.selectedIndex
-          ? chalk.hex(colors.accent)(`› ${choice.label}`)
-          : `  ${choice.label}`,
+      chalk.bold.hex(colors.warning)(
+        queueText('queue.pausedSend.paused', { n: this.options.pendingCount }),
       ),
+      queueText('queue.pausedSend.question'),
       '',
-      renderTuiActionHint('↑↓ select · Enter confirm · Esc keep draft'),
+      ...choices.map((choice, index) => {
+        const label = queueText(choice.label);
+        return index === this.selectedIndex
+          ? chalk.hex(colors.accent)(`› ${label}`)
+          : `  ${label}`;
+      }),
+      '',
+      renderTuiActionHint(queueText('queue.pausedSend.hint')),
     ].map((line) => truncateToWidth(line, Math.max(0, width)));
   }
 

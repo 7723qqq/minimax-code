@@ -11,6 +11,7 @@ import type { TranscriptStore } from '../transcript/store.js';
 import type { TranscriptAttachment, TranscriptUserPresentation } from '../transcript/model.js';
 import { MINIMAX_CODE_DEFAULT_AGENT_NAME } from '../../product-context.js';
 import { TuiTurnProjection } from './projection/turn-projection.js';
+import { controllerText } from './copy.js';
 import type { OptimisticUserCommitMode } from './projection/turn-projection.js';
 import { TuiStatusMetricsFlow } from './projection/status-metrics-flow.js';
 import { TuiTurnOutputRate } from './projection/turn-output-rate.js';
@@ -163,8 +164,8 @@ export class TuiChatController {
       result.status === 'rejected'
         ? [
             formatTuiActionFailure(result.reason, {
-              summary: "Couldn't load sessions.",
-              nextStep: 'Retry.',
+              summary: controllerText('chat.sessionsLoadFailed'),
+              nextStep: controllerText('common.retry'),
             }),
           ]
         : [],
@@ -237,9 +238,9 @@ export class TuiChatController {
       this.updateState({
         status: 'error',
         error: formatTuiActionFailure(error, {
-          summary: "Couldn't open this session.",
-          nextStep: 'Retry.',
-          preservation: 'Its saved messages are unchanged.',
+          summary: controllerText('chat.openSessionFailed'),
+          nextStep: controllerText('common.retry'),
+          preservation: controllerText('chat.messagesUnchanged'),
         }),
       });
       throw error;
@@ -247,7 +248,7 @@ export class TuiChatController {
   }
 
   async refreshCurrentSessionHistory(): Promise<void> {
-    this.assertNoActiveTurn('refreshing session history');
+    this.assertNoActiveTurn(controllerText('chat.action.refreshHistory'));
     this.invalidateSessionCatalogRefresh();
     const current = this.requireCurrentSession();
     const getMessages = requireRuntimeMethod(this.runtime, 'getMessages');
@@ -274,8 +275,8 @@ export class TuiChatController {
       this.updateState({
         status: 'error',
         error: formatTuiActionFailure(error, {
-          summary: "Couldn't refresh this session.",
-          nextStep: 'Reopen it to retry.',
+          summary: controllerText('chat.refreshSessionFailed'),
+          nextStep: controllerText('chat.reopenToRetry'),
         }),
       });
       throw error;
@@ -285,7 +286,7 @@ export class TuiChatController {
   waitForCurrentSession(): Promise<TuiSession> {
     if (this.state.session) return Promise.resolve(this.state.session);
     if (this.activeTurn || this.sessionCreation) return this.ensureSession();
-    return Promise.reject(new Error('No active session.'));
+    return Promise.reject(new Error(controllerText('common.noActiveSession')));
   }
 
   async renameCurrentSession(title: string): Promise<TuiSession> {
@@ -294,10 +295,10 @@ export class TuiChatController {
   }
 
   async renameSession(sessionId: string, title: string): Promise<TuiSession> {
-    this.assertNoActiveTurn('renaming a session');
+    this.assertNoActiveTurn(controllerText('chat.action.renameSession'));
     this.invalidateSessionCatalogRefresh();
     const nextTitle = title.trim();
-    if (!nextTitle) throw new Error('Session title cannot be empty.');
+    if (!nextTitle) throw new Error(controllerText('chat.titleEmpty'));
     const existing = await this.resolveSession(sessionId);
     const renameSession = requireRuntimeMethod(this.runtime, 'renameSession');
     const renamed = {
@@ -321,7 +322,11 @@ export class TuiChatController {
   }
 
   async setSessionArchived(sessionId: string, archived: boolean): Promise<TuiSession> {
-    this.assertNoActiveTurn(archived ? 'archiving a session' : 'restoring a session');
+    this.assertNoActiveTurn(
+      archived
+        ? controllerText('chat.action.archiveSession')
+        : controllerText('chat.action.restoreSession'),
+    );
     this.invalidateSessionCatalogRefresh();
     const existing = await this.resolveSession(sessionId);
     const archiveSession = requireRuntimeMethod(this.runtime, 'archiveSession');
@@ -354,10 +359,10 @@ export class TuiChatController {
     const isRetryContinuation = options.clientIntent === 'retry-continuation';
     if (!content && attachments.length === 0 && !isRetryContinuation) return 'ignored';
     if (this.activeTurn || this.runCoordinator.activeTurnId()) {
-      throw new Error('A turn is already running in this or another Session.');
+      throw new Error(controllerText('chat.turnAlreadyRunning'));
     }
     if (this.runCoordinator.retiringTurnId()) {
-      throw new Error('The previous run is still stopping.');
+      throw new Error(controllerText('chat.previousRunStopping'));
     }
     const turnId = this.createTurnId();
     const activeTurn = createTuiActiveTurn(turnId);
@@ -576,7 +581,7 @@ export class TuiChatController {
       }
       if (this.activeTurn === activeTurn) {
         const failure = resolveTuiRuntimeFailure(
-          result.error ?? 'Run failed.',
+          result.error ?? controllerText('chat.runFailed'),
           numericTuiRunErrorCode(result.outcome.error?.code),
           { retryable: result.outcome.error?.retryable },
         );
@@ -759,7 +764,7 @@ export class TuiChatController {
 
   startNewSession(markSessionCleared = true): void {
     if (this.runCoordinator.retiringTurnId()) {
-      throw new Error('Stop the running turn before starting a new session.');
+      throw new Error(controllerText('chat.stopBeforeNewSession'));
     }
     this.detachActiveTurnForSessionSwitch();
     this.invalidateSessionCreation();
@@ -848,7 +853,7 @@ export class TuiChatController {
 
   private assertNoActiveTurn(action: string): void {
     if (this.activeTurn || this.runCoordinator.retiringTurnId()) {
-      throw new Error(`Stop the running turn before ${action}.`);
+      throw new Error(controllerText('chat.stopBeforeAction', { action }));
     }
   }
 
@@ -869,7 +874,7 @@ export class TuiChatController {
   }
 
   private requireCurrentSession(): TuiSession {
-    if (!this.state.session) throw new Error('No active session.');
+    if (!this.state.session) throw new Error(controllerText('common.noActiveSession'));
     return this.state.session;
   }
 

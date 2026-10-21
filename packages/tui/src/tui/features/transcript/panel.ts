@@ -44,6 +44,7 @@ import {
 } from '../../transcript/export.js';
 import { formatTuiActionFailure } from '../../../user-facing-failure.js';
 import { TuiSelectionScrollView } from '../../widgets/selection-scroll-view.js';
+import { transcriptText } from './copy.js';
 
 export interface TuiTranscriptPanelOptions {
   readonly source: TranscriptProjectionSource & { readonly revision?: number };
@@ -275,11 +276,13 @@ export class TuiTranscriptPanel implements TuiFeatureScreen, Component, Focusabl
   private renderFooter(width: number): string[] {
     const selected = this.selectedCell();
     const expanded = selected ? this.isExpanded(selected.id) : false;
-    const primary = expanded ? 'Enter collapse' : 'Enter expand';
-    const action = `${primary}${this.options.onForkFromUserMessage ? ' · w fork' : ''}${presentTranscriptCellSafe(selected)?.target ? ' · o open' : ''} · y last reply · e export · / find · c copy · r raw`;
+    const primary = expanded
+      ? transcriptText('panel.action.collapse')
+      : transcriptText('panel.action.expand');
+    const action = `${primary}${this.options.onForkFromUserMessage ? ` · ${transcriptText('panel.action.fork')}` : ''}${presentTranscriptCellSafe(selected)?.target ? ` · ${transcriptText('panel.action.open')}` : ''} · ${transcriptText('panel.action.lastReply')} · ${transcriptText('panel.action.export')} · ${transcriptText('panel.action.find')} · ${transcriptText('panel.action.copy')} · ${transcriptText('panel.action.raw')}`;
     const footer = this.notice
-      ? `${renderTuiActionHint('Esc close')} · ${chalk.hex(colors.signal)(this.notice)}`
-      : renderTuiActionHint(`${action} · Esc close`);
+      ? `${renderTuiActionHint(transcriptText('panel.escClose'))} · ${chalk.hex(colors.signal)(this.notice)}`
+      : renderTuiActionHint(`${action} · ${transcriptText('panel.escClose')}`);
     return [
       renderPanelDivider(width),
       ...renderPanelFooter(footer, panelContentWidth(width)).map((line) =>
@@ -304,7 +307,9 @@ export class TuiTranscriptPanel implements TuiFeatureScreen, Component, Focusabl
       if (this.ensureSelectionOnNextRender) this.bodyViewport.setActiveRow(0, true);
       else this.bodyViewport.setActiveRowPreservingScroll(0);
       this.ensureSelectionOnNextRender = false;
-      return [chalk.hex(colors.muted)('  No conversation yet. Send a message to begin.')];
+      return [
+        chalk.hex(colors.muted)(`  ${transcriptText('panel.emptyConversation')}`),
+      ];
     }
     let expanded = this.createExpandedBlockLayout(width);
     let window = this.resolveBodyWindow(expanded, viewportRows);
@@ -505,7 +510,11 @@ export class TuiTranscriptPanel implements TuiFeatureScreen, Component, Focusabl
   ): string[] {
     const contentWidth = Math.max(1, width - 4);
     if (this.rawIds.has(cell.id)) {
-      return this.renderTextSection('raw', presentation.rawText || 'No raw content', contentWidth);
+      return this.renderTextSection(
+        'raw',
+        presentation.rawText || transcriptText('panel.noRawContent'),
+        contentWidth,
+      );
     }
     if (cell.kind === 'user') {
       // User prompts render literally here too, matching the main rail; see
@@ -559,7 +568,9 @@ export class TuiTranscriptPanel implements TuiFeatureScreen, Component, Focusabl
       );
     }
     if (lines.length === 0)
-      lines.push(this.detailLine(chalk.hex(colors.dim)('No additional detail'), width));
+      lines.push(
+        this.detailLine(chalk.hex(colors.dim)(transcriptText('panel.noAdditionalDetail')), width),
+      );
     return lines;
   }
 
@@ -584,11 +595,11 @@ export class TuiTranscriptPanel implements TuiFeatureScreen, Component, Focusabl
 
   private renderCompactViewport(width: number, height: number): string[] {
     const cell = this.selectedCell();
-    const title = cell ? presentTranscriptCell(cell).title : 'No conversation';
+    const title = cell ? presentTranscriptCell(cell).title : transcriptText('panel.noConversation');
     return [
       truncateToWidth(chalk.bold.hex(colors.signal)('Transcript'), width, '…'),
       truncateToWidth(title, width, '…'),
-      truncateToWidth(renderTuiActionHint('Esc close'), width, '…'),
+      truncateToWidth(renderTuiActionHint(transcriptText('panel.escClose')), width, '…'),
     ].slice(0, height);
   }
 
@@ -703,7 +714,9 @@ export class TuiTranscriptPanel implements TuiFeatureScreen, Component, Focusabl
       if (this.allExpanded) this.collapsedIds.delete(cell.id);
       else this.expandedIds.add(cell.id);
     }
-    this.notice = this.rawIds.has(cell.id) ? 'Raw content' : 'Rendered content';
+    this.notice = this.rawIds.has(cell.id)
+      ? transcriptText('panel.rawContent')
+      : transcriptText('panel.renderedContent');
     this.requestRender();
   }
 
@@ -711,7 +724,7 @@ export class TuiTranscriptPanel implements TuiFeatureScreen, Component, Focusabl
     const cell = this.selectedCell();
     const write = this.options.writeClipboardText;
     if (!cell || !write) {
-      this.notice = 'Copy is unavailable';
+      this.notice = transcriptText('panel.copyUnavailable');
       this.requestRender();
       return;
     }
@@ -719,12 +732,12 @@ export class TuiTranscriptPanel implements TuiFeatureScreen, Component, Focusabl
     try {
       await write(presentTranscriptCell(cell).rawText);
       if (!this.isCurrentOperation(operation)) return;
-      this.notice = 'Copied selected block';
+      this.notice = transcriptText('panel.copiedSelectedBlock');
     } catch (error) {
       if (!this.isCurrentOperation(operation)) return;
       this.notice = formatTuiActionFailure(error, {
-        summary: "Couldn't copy.",
-        nextStep: 'Select the text and copy it manually.',
+        summary: transcriptText('panel.copyFailed'),
+        nextStep: transcriptText('panel.copyFailedNextStep'),
       });
     }
     this.requestRender();
@@ -734,7 +747,9 @@ export class TuiTranscriptPanel implements TuiFeatureScreen, Component, Focusabl
     const write = this.options.writeClipboardText;
     const reply = latestAssistantReply(this.options.source);
     if (!write || !reply) {
-      this.notice = reply ? 'Copy is unavailable' : 'No Assistant reply to copy';
+      this.notice = reply
+        ? transcriptText('panel.copyUnavailable')
+        : transcriptText('panel.noAssistantReply');
       this.requestRender();
       return;
     }
@@ -742,12 +757,12 @@ export class TuiTranscriptPanel implements TuiFeatureScreen, Component, Focusabl
     try {
       await write(reply);
       if (!this.isCurrentOperation(operation)) return;
-      this.notice = 'Copied last Assistant reply';
+      this.notice = transcriptText('panel.copiedLastReply');
     } catch (error) {
       if (!this.isCurrentOperation(operation)) return;
       this.notice = formatTuiActionFailure(error, {
-        summary: "Couldn't copy.",
-        nextStep: 'Select the text and copy it manually.',
+        summary: transcriptText('panel.copyFailed'),
+        nextStep: transcriptText('panel.copyFailedNextStep'),
       });
     }
     this.requestRender();
@@ -755,7 +770,7 @@ export class TuiTranscriptPanel implements TuiFeatureScreen, Component, Focusabl
 
   private async exportTranscript(): Promise<void> {
     if (!this.options.exportTranscript) {
-      this.notice = 'Transcript export is unavailable';
+      this.notice = transcriptText('panel.exportUnavailable');
       this.requestRender();
       return;
     }

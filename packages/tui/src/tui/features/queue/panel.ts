@@ -6,6 +6,8 @@ import { sanitizeTerminalText } from '../../rendering/terminal-text.js';
 import { tuiChalk as chalk, tuiColors as colors } from '../../theme/runtime.js';
 import { Input } from '../../widgets/input.js';
 import { formatTuiActionFailure } from '../../../user-facing-failure.js';
+import { shellText } from '../../shell/copy.js';
+import { queueText } from './copy.js';
 
 export interface TuiQueuePanelItem {
   readonly itemId: string;
@@ -75,7 +77,7 @@ export class TuiQueuePanel implements Component, Focusable {
     else this.selectedIndex = Math.max(0, Math.min(this.selectedIndex, this.items.length - 1));
     if (this.mode !== 'list' && selectedId && nextIndex < 0) {
       this.mode = 'list';
-      this.status = { tone: 'error', text: 'That message has already started.' };
+      this.status = { tone: 'error', text: queueText('queue.error.alreadyStarted') };
     }
     this.syncInputFocus();
     this.requestRender();
@@ -145,8 +147,8 @@ export class TuiQueuePanel implements Component, Focusable {
     const lines = [
       chalk.hex(colors.muted)(
         this.summary.paused
-          ? `Paused · ${this.summary.pendingCount} pending. Continue when ready.`
-          : 'Runs in this order after the current response.',
+          ? queueText('queue.summary.paused', { n: this.summary.pendingCount })
+          : queueText('queue.summary.running'),
       ),
       '',
     ];
@@ -155,24 +157,26 @@ export class TuiQueuePanel implements Component, Focusable {
       lines.push(
         chalk.hex(colors.warning)(
           this.summary.paused && this.summary.pendingCount > 0
-            ? 'Background work is waiting to continue.'
-            : 'No next messages.',
+            ? queueText('queue.empty.waitingToContinue')
+            : queueText('queue.empty.noMessages'),
         ),
       );
     } else if (this.mode === 'edit') {
       const selected = this.selected();
-      lines.push(chalk.bold.hex(colors.text)('Edit next message'));
+      lines.push(chalk.bold.hex(colors.text)(queueText('queue.edit.title')));
       if (selected?.attachmentNames.length) {
         lines.push(
           chalk.hex(colors.muted)(
-            `Attachments stay unchanged · ${formatAttachmentNames(selected.attachmentNames)}`,
+            queueText('queue.edit.attachmentsUnchanged', {
+              names: formatAttachmentNames(selected.attachmentNames),
+            }),
           ),
         );
       }
       lines.push(this.input.render(Math.max(1, safeWidth))[0] ?? '');
     } else if (this.mode === 'confirm-delete') {
       const selected = this.selected();
-      lines.push(chalk.bold.hex(colors.error)('Remove this next message?'));
+      lines.push(chalk.bold.hex(colors.error)(queueText('queue.confirm.removeTitle')));
       if (selected) lines.push(chalk.hex(colors.text)(preview(selected)));
     } else {
       const listStart = lines.length;
@@ -207,10 +211,24 @@ export class TuiQueuePanel implements Component, Focusable {
   renderViewport(width: number, height: number): string[] {
     const hint =
       this.mode === 'edit'
-        ? 'Enter save · Esc cancel'
+        ? queueText('queue.hint.save')
         : this.mode === 'confirm-delete'
-          ? 'Enter remove · Esc keep'
-          : `${this.summary.paused && this.options.onContinue ? 'c continue queue · ' : ''}↑↓ select · Enter ${this.selected()?.status === 'failed' ? 'retry' : 'edit'}${this.options.onRestore ? ' · r restore' : ''}${this.selected()?.status === 'failed' ? ' · e edit · d discard' : ' · d remove'} · Esc close`;
+          ? queueText('queue.hint.remove')
+          : queueText('queue.hint.list', {
+              continue:
+                this.summary.paused && this.options.onContinue
+                  ? queueText('queue.hint.continue')
+                  : '',
+              action:
+                this.selected()?.status === 'failed'
+                  ? queueText('queue.hint.action.retry')
+                  : queueText('queue.hint.action.edit'),
+              restore: this.options.onRestore ? queueText('queue.hint.restore') : '',
+              removal:
+                this.selected()?.status === 'failed'
+                  ? queueText('queue.hint.removal.discard')
+                  : queueText('queue.hint.removal.remove'),
+            });
     const layout = panelLayout(width, height, hint);
     const content = this.renderContent(layout.contentWidth);
     const viewport = this.listViewport;
@@ -256,16 +274,16 @@ export class TuiQueuePanel implements Component, Focusable {
         this.status = {
           tone: continued ? 'info' : 'error',
           text: continued
-            ? 'Queue continued.'
-            : 'The Queue could not continue. Check the current response or provider settings.',
+            ? queueText('queue.status.continued')
+            : queueText('queue.status.continueFailed'),
         };
     } catch (error) {
       if (!this.disposed)
         this.status = {
           tone: 'error',
           text: formatTuiActionFailure(error, {
-            summary: "Couldn't continue the Queue.",
-            nextStep: 'Check the provider settings and retry.',
+            summary: queueText('queue.error.continueFailed'),
+            nextStep: queueText('queue.action.continueRetry'),
           }),
         };
     } finally {
@@ -312,7 +330,7 @@ export class TuiQueuePanel implements Component, Focusable {
     if (!selected) return;
     const content = value.trim();
     if (!content && selected.attachmentNames.length === 0) {
-      this.status = { tone: 'error', text: 'A next message cannot be empty.' };
+      this.status = { tone: 'error', text: queueText('queue.error.emptyMessage') };
       this.requestRender();
       return;
     }
@@ -323,19 +341,19 @@ export class TuiQueuePanel implements Component, Focusable {
       if (this.disposed) return;
       if (updated) {
         this.mode = 'list';
-        this.status = { tone: 'info', text: 'Next message updated.' };
+        this.status = { tone: 'info', text: queueText('queue.status.updated') };
       } else {
         this.mode = 'list';
-        this.status = { tone: 'error', text: 'That message has already started.' };
+        this.status = { tone: 'error', text: queueText('queue.error.alreadyStarted') };
       }
     } catch (error) {
       if (this.disposed) return;
       this.status = {
         tone: 'error',
         text: formatTuiActionFailure(error, {
-          summary: "Couldn't update this next message.",
-          nextStep: 'Retry.',
-          preservation: 'Your original message is unchanged.',
+          summary: queueText('queue.error.updateFailed'),
+          nextStep: queueText('queue.action.updateRetry'),
+          preservation: queueText('queue.error.updatePreserved'),
         }),
       };
     } finally {
@@ -357,15 +375,15 @@ export class TuiQueuePanel implements Component, Focusable {
       if (this.disposed) return;
       this.mode = 'list';
       this.status = removed
-        ? { tone: 'info', text: 'Next message removed.' }
-        : { tone: 'error', text: 'That message has already started.' };
+        ? { tone: 'info', text: queueText('queue.status.removed') }
+        : { tone: 'error', text: queueText('queue.error.alreadyStarted') };
     } catch (error) {
       if (this.disposed) return;
       this.status = {
         tone: 'error',
         text: formatTuiActionFailure(error, {
-          summary: "Couldn't remove this next message.",
-          nextStep: 'Retry from the Queue.',
+          summary: queueText('queue.error.removeFailed'),
+          nextStep: queueText('queue.action.removeRetry'),
         }),
       };
     } finally {
@@ -381,22 +399,22 @@ export class TuiQueuePanel implements Component, Focusable {
     const selected = this.selected();
     if (!selected || selected.status !== 'failed' || !this.options.onRetry) return;
     this.busy = true;
-    this.status = { tone: 'info', text: 'Retrying message…' };
+    this.status = { tone: 'info', text: queueText('queue.status.retrying') };
     this.requestRender();
     try {
       const retried = await this.options.onRetry(selected.itemId);
       if (this.disposed) return;
       this.status = retried
-        ? { tone: 'info', text: 'Message accepted.' }
-        : { tone: 'error', text: 'Message is still pending retry.' };
+        ? { tone: 'info', text: queueText('queue.status.accepted') }
+        : { tone: 'error', text: queueText('queue.status.pendingRetry') };
     } catch (error) {
       if (this.disposed) return;
       this.status = {
         tone: 'error',
         text: formatTuiActionFailure(error, {
-          summary: "Couldn't retry this message.",
-          nextStep: 'Retry later.',
-          preservation: 'It remains in the Queue.',
+          summary: queueText('queue.error.retryFailed'),
+          nextStep: queueText('queue.action.retryLater'),
+          preservation: queueText('queue.error.retryPreserved'),
         }),
       };
     } finally {
@@ -411,24 +429,24 @@ export class TuiQueuePanel implements Component, Focusable {
     const selected = this.selected();
     if (!selected || !this.options.onRestore) return;
     this.busy = true;
-    this.status = { tone: 'info', text: 'Restoring message…' };
+    this.status = { tone: 'info', text: queueText('queue.status.restoring') };
     this.requestRender();
     try {
       const restored = await this.options.onRestore(selected.itemId);
       if (this.disposed) return;
       if (restored) {
-        this.status = { tone: 'info', text: 'Message restored to Composer.' };
+        this.status = { tone: 'info', text: queueText('queue.status.restored') };
         this.options.onCancel();
       } else {
-        this.status = { tone: 'error', text: 'That message has already started.' };
+        this.status = { tone: 'error', text: queueText('queue.error.alreadyStarted') };
       }
     } catch (error) {
       if (this.disposed) return;
       this.status = {
         tone: 'error',
         text: formatTuiActionFailure(error, {
-          summary: "Couldn't restore this message.",
-          nextStep: 'Reopen the Queue to check its state.',
+          summary: queueText('queue.error.restoreFailed'),
+          nextStep: queueText('queue.action.restoreRetry'),
         }),
       };
     } finally {
@@ -451,7 +469,7 @@ export class TuiQueuePanel implements Component, Focusable {
 function preview(item: TuiQueuePanelItem): string {
   const content = sanitizeTerminalText(item.content).replace(/\s+/gu, ' ').trim();
   const attachments = formatAttachmentNames(item.attachmentNames);
-  return [content || '(attachment-only message)', attachments || undefined]
+  return [content || shellText('followUp.attachmentOnly'), attachments || undefined]
     .filter(Boolean)
     .join(' · ');
 }

@@ -5,6 +5,7 @@ import {
   type TuiPermissionMode,
 } from '../../../application/permission-mode.js';
 import { formatTuiActionFailure } from '../../../user-facing-failure.js';
+import { controllerInteractionText } from './copy.js';
 
 export interface TuiPermissionModeSnapshot {
   readonly mode: TuiPermissionMode | undefined;
@@ -51,7 +52,7 @@ export class TuiPermissionModeFlow {
   async cycle(): Promise<void> {
     if (this.isStopped() || this.updatingValue) return;
     if (!this.modeValue) {
-      this.options.setHint('Permission mode is managed by Desktop');
+      this.options.setHint(controllerInteractionText('permissionMode.managedByDesktop'));
       this.options.onChanged();
       return;
     }
@@ -62,19 +63,27 @@ export class TuiPermissionModeFlow {
   async set(nextMode: TuiPermissionMode): Promise<void> {
     if (this.isStopped() || this.updatingValue) return;
     if (!this.modeValue) {
-      this.options.setHint('Permission mode is managed by Desktop');
+      this.options.setHint(controllerInteractionText('permissionMode.managedByDesktop'));
       this.options.onChanged();
       return;
     }
     if (nextMode === this.modeValue) {
-      this.options.setHint(`Permission mode · ${formatTuiPermissionMode(nextMode)}`);
+      this.options.setHint(
+        controllerInteractionText('permissionMode.current', {
+          mode: formatTuiPermissionMode(nextMode),
+        }),
+      );
       this.options.onChanged();
       return;
     }
     this.updatingValue = true;
     const mutationSequence = ++this.mutationSequence;
     this.refreshSequence += 1;
-    this.options.setHint(`Switching to ${formatTuiPermissionMode(nextMode)}…`);
+    this.options.setHint(
+      controllerInteractionText('permissionMode.switching', {
+        mode: formatTuiPermissionMode(nextMode),
+      }),
+    );
     this.options.onChanged();
     try {
       const mode = await this.options.runtime.setPermissionMode(nextMode);
@@ -85,12 +94,12 @@ export class TuiPermissionModeFlow {
       if (this.isStopped() || mutationSequence !== this.mutationSequence) return;
       this.options.append(
         formatTuiActionFailure(error, {
-          summary: 'Permission mode was not changed.',
-          nextStep: 'Retry /permission or Alt+M.',
+          summary: controllerInteractionText('permissionMode.notChanged'),
+          nextStep: controllerInteractionText('permissionMode.retryCommand'),
         }),
         'warning',
       );
-      this.options.setHint('Permission mode unchanged');
+      this.options.setHint(controllerInteractionText('permissionMode.unchanged'));
     } finally {
       if (!this.isStopped() && mutationSequence === this.mutationSequence) {
         this.updatingValue = false;
@@ -102,8 +111,10 @@ export class TuiPermissionModeFlow {
   showStatus(): void {
     this.options.append(
       this.modeValue
-        ? `Permission mode: ${formatTuiPermissionMode(this.modeValue)}.`
-        : 'Permission mode is managed by Desktop.',
+        ? controllerInteractionText('permissionMode.status', {
+            mode: formatTuiPermissionMode(this.modeValue),
+          })
+        : controllerInteractionText('permissionMode.statusManaged'),
     );
   }
 

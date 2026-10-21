@@ -2,19 +2,27 @@ import path from 'node:path';
 import type { Terminal } from '../engine/public.js';
 import type { TuiProgramStatus } from './terminal-program-status.js';
 import { sanitizeTerminalLabel } from '../rendering/terminal-text.js';
+import { shellText, type ShellCopyKey } from '../shell/copy.js';
 
 const DEFAULT_ITEMS = ['status', 'session-name', 'app-name'] as const;
-const STATUS_LABELS: Record<TuiProgramStatus, string> = {
-  ready: 'Ready',
-  run: 'Working',
-  perm: 'Needs approval',
-  plan: 'Needs approval',
-  ask: 'Needs input',
-  auth: 'Needs login',
-  done: 'Done',
-  fail: 'Failed',
-  cancel: 'Stopped',
-  error: 'Error',
+/**
+ * Terminal title wording for each program status.
+ *
+ * The OS window and tab title is visible even when the TUI is not focused, so
+ * the wording is catalogued. The keys are resolved when the title is built
+ * rather than at import time, so a locale change applies to the next update.
+ */
+const STATUS_LABEL_KEYS: Readonly<Record<TuiProgramStatus, ShellCopyKey>> = {
+  ready: 'platform.title.ready',
+  run: 'platform.title.working',
+  perm: 'platform.title.needsApproval',
+  plan: 'platform.title.needsApproval',
+  ask: 'platform.title.needsInput',
+  auth: 'platform.title.needsLogin',
+  done: 'platform.title.done',
+  fail: 'platform.title.failed',
+  cancel: 'platform.title.stopped',
+  error: 'platform.title.error',
 };
 
 export function tuiTerminalSessionLabel(input: {
@@ -41,7 +49,7 @@ export function formatTuiTerminalTitle(
     'app-name': 'MCode',
     'session-name': tuiTerminalSessionLabel(input),
     'project-name': sanitizeTerminalLabel(path.basename(input.workspace)),
-    status: STATUS_LABELS[input.status],
+    status: shellText(STATUS_LABEL_KEYS[input.status]),
   };
   const title = [...new Set(items ?? [])]
     .map((item) => (Object.hasOwn(values, item) ? values[item] : undefined))

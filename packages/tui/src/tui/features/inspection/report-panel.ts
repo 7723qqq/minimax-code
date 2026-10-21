@@ -6,6 +6,7 @@ import { wrapTextWithAnsi } from '../../rendering/text.js';
 import { tuiChalk as chalk, tuiColors as colors } from '../../theme/runtime.js';
 import { renderTranscriptInspection } from '../../transcript/inspection.js';
 import type { TranscriptInspectionReport } from '../../transcript/model.js';
+import { inspectionText } from './copy.js';
 
 type InspectionPanelState =
   | { readonly kind: 'loading'; readonly message: string }
@@ -114,10 +115,10 @@ export class TuiReportInspectionPanel implements Component, Focusable {
   private renderFrame(rawWidth: number, maxRows: number | undefined): string[] {
     const width = Math.max(0, Math.floor(rawWidth));
     if (width === 0) return [];
-    const initial = panelLayout(width, maxRows, 'Esc close');
+    const initial = panelLayout(width, maxRows, inspectionText('report.escClose'));
     const body = this.renderBody(initial.contentWidth);
     const progress = (start: number, end: number) =>
-      `${start}-${end}/${body.length} · ↑↓ scroll · PgUp/PgDn scroll · Esc close`;
+      inspectionText('report.scrollProgress', { start, end, total: body.length });
     const layout =
       body.length > initial.bodyHeight
         ? panelLayout(width, maxRows, progress(body.length, body.length))
@@ -134,7 +135,7 @@ export class TuiReportInspectionPanel implements Component, Focusable {
       maxRows,
       this.lastMaxScrollOffset > 0
         ? progress(this.scrollOffset + 1, Math.min(body.length, this.scrollOffset + pageSize))
-        : 'Esc close',
+        : inspectionText('report.escClose'),
     ).render({
       title: cleanInline(this.options.title),
       body: body.slice(this.scrollOffset, this.scrollOffset + pageSize),
