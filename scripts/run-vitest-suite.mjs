@@ -44,6 +44,11 @@ const result = spawnSync(
     // Windows, concurrent files can exhaust the 5s test budget through I/O
     // contention. Serialize files without relaxing individual test deadlines.
     ...(process.platform === "win32" ? ["--maxWorkers", "1"] : []),
+    // GitHub parses this reporter's `::error file=` lines into annotations, so a
+    // red matrix names the failing tests instead of reporting only an exit code.
+    ...(process.env.GITHUB_ACTIONS === "true"
+      ? ["--reporter=default", "--reporter=github-actions"]
+      : []),
     ...files,
   ],
   { stdio: "inherit", cwd: repositoryRoot, env: environment },
