@@ -1,3 +1,5 @@
+import { translateRuntimeText } from '@mavis/shared/i18n';
+
 import { captureBrowserScreenshot, observeBrowserDownload } from './browser-action-artifacts.js';
 import {
   buttonName,
@@ -661,7 +663,7 @@ export abstract class BrowserActionSupport extends BrowserActionTargetSupport {
       code: 'UNEXPECTED_NAVIGATION',
       error: 'Typing changed the active Browser page unexpectedly.',
       retryable: true,
-      recovery: 'Inspect the current page before deciding whether to retry.',
+      recovery: translateRuntimeText(null, 'browser.inspectBeforeRetry'),
       durationMs: Date.now() - startedAt,
       target: { resolved: true, rect: target.rect },
       effect: {

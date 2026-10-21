@@ -11,6 +11,7 @@ import {
   resolveProviderAuthMode,
   type ProviderAuthModeSource,
 } from "@mavis/config";
+import { backgroundTaskText } from "../background-task/copy.js";
 import { parseSourceQualifiedModelKey } from "../config/model-key.js";
 import { LegacyOpencodeMigrationError } from "../legacy-opencode/legacy-opencode-migrator.js";
 import type { LegacyMigrationRecord } from "../persistence/migration/legacy-migration-store.js";
@@ -793,14 +794,15 @@ export async function normalizeStalePiSession(input: {
   }
   if (await input.isSessionLockedByOtherOwner(input.session.sessionId))
     return input.session;
+  const restartNotice = backgroundTaskText("turn.restartedBeforeCompleted");
   return (
     (await input.controller.updateSession(input.session.sessionId, {
       status: "interrupted",
-      errorMessage: "Local runtime restarted before this turn completed.",
+      errorMessage: restartNotice,
     })) ?? {
       ...input.session,
       status: "interrupted",
-      errorMessage: "Local runtime restarted before this turn completed.",
+      errorMessage: restartNotice,
     }
   );
 }

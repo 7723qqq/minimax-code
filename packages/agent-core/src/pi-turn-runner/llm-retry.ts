@@ -169,6 +169,9 @@ type PreflightResult =
   | { kind: 'failure'; failure: RetryableFailure };
 
 const PUBLIC_ERROR_MESSAGES: Record<LLMMetricErrorKind, string> = {
+  // Wire-level diagnostics for metrics and headless consumers, not rendered copy:
+  // the TUI renders its own localized error text from `reason`, and translating
+  // these would change a machine-read payload that external readers match on.
   abort: 'LLM request was cancelled',
   timeout: 'LLM request timed out',
   rate_limited: 'LLM provider rate limited the request',

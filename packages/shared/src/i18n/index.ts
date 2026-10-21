@@ -25,6 +25,18 @@
  * lives in the runtime catalog here, because a package-local copy is what lets
  * the two definitions drift.
  *
+ * Each surface follows one file layout: `copy.en.ts` holds the English object
+ * and therefore the key shape, `copy.zh-Hans.ts` holds the translation typed
+ * with `satisfies Readonly<Record<keyof typeof EN_XXX, string>>`, and
+ * `copy.ts` binds the pair and exports the lookup helper. A missing
+ * translation is a compile error in that layout, not a blank line at runtime.
+ *
+ * The set of locale names is declared once, as `LocaleName` in `locale.ts`.
+ * `resolveLocaleName` returns it and the runtime catalog aliases it, so the
+ * resolver and the catalogs cannot disagree about which languages exist, and
+ * adding a language is one member plus one branch rather than a comparison at
+ * every call site.
+ *
  * Deliberately outside the catalog, and required to keep their own language:
  *
  *   - bundled runtime prompts and skill assets, including the archive-title
@@ -49,9 +61,13 @@ export {
   ELECTRON_LOCALE_ENV,
   LOCALE_OVERRIDE_ENV,
   isChineseLocale,
+  isValidLocaleTag,
   localeLanguage,
+  processLocaleOverride,
   resolveLocale,
   resolveLocaleName,
+  setProcessLocale,
+  type LocaleName,
 } from './locale.js';
 
 export {

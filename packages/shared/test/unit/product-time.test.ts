@@ -57,6 +57,11 @@ describe('product time localization', () => {
     expect(format(NOW - 40 * DAY, 'zh-CN')).toBe('09-10');
   });
 
+  it('joins the date and the clock through the catalog in both languages', () => {
+    expect(format(NOW - 40 * DAY, 'en-US', 'audit-datetime')).toBe('09/10/2026 12:00');
+    expect(format(NOW - 40 * DAY, 'zh-CN', 'audit-datetime')).toBe('2026-09-10 12:00');
+  });
+
   it('returns an empty string for unusable input', () => {
     expect(formatProductTime(null, { preset: 'social-compact', locale: 'en-US' })).toBe('');
     expect(formatProductTime(Number.NaN, { preset: 'social-compact', locale: 'en-US' })).toBe('');

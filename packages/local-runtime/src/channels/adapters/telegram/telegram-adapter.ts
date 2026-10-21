@@ -750,7 +750,10 @@ function basenamePath(path: string): string | undefined {
  * paragraph so the card reads cleanly on a phone.
  */
 function formatPermissionText(renderable: ChannelRenderablePermission): string {
-  const lines: string[] = ['Permission request', `Tool: ${renderable.toolName}`];
+  const lines: string[] = [
+    telegramText('permission.header'),
+    telegramText('permission.tool', { tool: renderable.toolName }),
+  ];
   if (renderable.toolDescription && renderable.toolDescription !== renderable.toolName) {
     lines.push(renderable.toolDescription);
   }
@@ -775,18 +778,19 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function permissionDecisionLabel(decision: ChannelPermissionBehavior): string {
   switch (decision) {
     case 'always':
-      return 'Always allowed';
+      return telegramText('permission.alwaysAllowed');
     case 'deny':
-      return 'Denied';
+      return telegramText('permission.denied');
     case 'allow':
     default:
-      return 'Allowed';
+      return telegramText('permission.allowed');
   }
 }
 
 /** Terminal status line appended to the card text after a decision. */
 function permissionDecisionLine(decision: ChannelPermissionBehavior): string {
+  const label = permissionDecisionLabel(decision);
   return decision === 'deny'
-    ? `🚫 ${permissionDecisionLabel(decision)}`
-    : `✅ ${permissionDecisionLabel(decision)}`;
+    ? telegramText('permission.decision.deniedLine', { label })
+    : telegramText('permission.decision.allowedLine', { label });
 }

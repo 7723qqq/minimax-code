@@ -12,6 +12,9 @@ import { resolveLocalRuntimeLocale } from '../../../runtime/locale.js';
  */
 const EN_FEISHU_COPY = {
   'image.alt': 'Image',
+  'card.subtitle.ask': 'ask',
+  'card.subtitle.permission': 'permission',
+  'option.emptyLabel': '(empty)',
   'attachment.image': '[Image]',
   'attachment.audio': '[Audio]',
   'attachment.video': '[Video]',
@@ -53,6 +56,9 @@ const EN_FEISHU_COPY = {
 
 const ZH_HANS_FEISHU_COPY = {
   'image.alt': '配图',
+  'card.subtitle.ask': '提问',
+  'card.subtitle.permission': '权限',
+  'option.emptyLabel': '（空）',
   'attachment.image': '[图片]',
   'attachment.audio': '[语音]',
   'attachment.video': '[视频]',

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import {
   createCatalogSet,
@@ -12,12 +12,16 @@ import {
   ELECTRON_LOCALE_ENV,
   LOCALE_OVERRIDE_ENV,
   isChineseLocale,
+  isValidLocaleTag,
   localeLanguage,
+  processLocaleOverride,
   resolveLocale,
   resolveLocaleName,
+  setProcessLocale,
+  type LocaleName,
 } from '../../src/i18n/locale.js';
 import { EN_RUNTIME_TRANSLATIONS } from '../../src/i18n/runtime-catalog.en.js';
-import { translateRuntimeText } from '../../src/i18n/runtime-catalog.js';
+import { translateRuntimeText, type RuntimeLocaleName } from '../../src/i18n/runtime-catalog.js';
 import { ZH_HANS_RUNTIME_TRANSLATIONS } from '../../src/i18n/runtime-catalog.zh-Hans.js';
 
 describe('locale resolution', () => {
@@ -57,11 +61,27 @@ describe('locale resolution', () => {
   });
 
   it('honors the Electron handshake, then the runtime override, then LANG', () => {
-    expect(resolveLocale(undefined, { [ELECTRON_LOCALE_ENV]: 'zh', [LOCALE_OVERRIDE_ENV]: 'en' })).toBe(
-      'zh',
+    // Step 5 is injected away so this case tests the environment chain itself:
+    // left to the host, `Intl` answers before `LANG` and the result differs
+    // between macOS, Linux CI and a zh-CN desktop.
+    const noSystemLocale = () => undefined;
+    expect(
+      resolveLocale(
+        undefined,
+        { [ELECTRON_LOCALE_ENV]: 'zh', [LOCALE_OVERRIDE_ENV]: 'en' },
+        noSystemLocale,
+      ),
+    ).toBe('zh');
+    expect(resolveLocale(undefined, { [LOCALE_OVERRIDE_ENV]: 'zh-Hans' }, noSystemLocale)).toBe(
+      'zh-Hans',
     );
-    expect(resolveLocale(undefined, { [LOCALE_OVERRIDE_ENV]: 'zh-Hans' })).toBe('zh-Hans');
-    expect(resolveLocale(undefined, { LANG: 'zh_CN.UTF-8' })).toBe('zh-CN');
+    expect(resolveLocale(undefined, { LANG: 'zh_CN.UTF-8' }, noSystemLocale)).toBe('zh-CN');
+  });
+
+  it('prefers the host Intl locale over LANG and LC_ALL', () => {
+    // The other half of the contract: `LANG` is not a way to override the host.
+    expect(resolveLocale(undefined, { LANG: 'zh_CN.UTF-8' }, () => 'pt-BR')).toBe('pt-BR');
+    expect(resolveLocale(undefined, { LC_ALL: 'zh_TW.UTF-8' }, () => 'en-GB')).toBe('en-GB');
   });
 
   it('ignores blank overrides rather than resolving to an empty locale', () => {
@@ -79,6 +99,16 @@ describe('locale resolution', () => {
     expect(resolveLocaleName('zh-CN', {})).toBe('zh-Hans');
     expect(resolveLocaleName('en-GB', {})).toBe('en');
     expect(resolveLocaleName('fr-FR', {})).toBe('en');
+  });
+
+  it('resolves into the one declared set of catalog names', () => {
+    // The annotation is the assertion: widening the resolver's return type to
+    // `string` stops this file compiling, so the resolver and the catalogs can
+    // never disagree about which locale names exist.
+    const resolved: LocaleName = resolveLocaleName('zh-CN', {});
+    const catalogNames: readonly RuntimeLocaleName[] = ['en', 'zh-Hans'];
+    expect(resolved).toBe('zh-Hans');
+    expect(catalogNames).toContain(resolved);
   });
 });
 
@@ -207,5 +237,83 @@ describe('runtime catalog completeness', () => {
     expect(translateRuntimeText(undefined, 'archiveTitle.prefix')).toBe(
       translateRuntimeText(resolveLocale(), 'archiveTitle.prefix'),
     );
+  });
+
+  it('serves the Plan review questionnaire from the same catalog as Plan entry', () => {
+    // The Plan review card and the Plan entry card are the same surface for
+    // the same reader. A package-local copy for one of them is what let the
+    // review card stay English while the entry card was translated.
+    expect(translateRuntimeText('en', 'plan.review.title')).toBe('Review implementation plan');
+    expect(translateRuntimeText('zh-CN', 'plan.review.title')).toBe('审阅实施方案');
+    expect(translateRuntimeText('zh-CN', 'plan.review.approve.label')).toBe('批准');
+    expect(translateRuntimeText('zh-CN', 'plan.review.approve.description')).toBe(
+      '退出计划模式并开始一个实施回合。',
+    );
+  });
+
+  it('serves the code-review title and the browser recovery hint to both packages', () => {
+    // agent-tools and browser-core cannot import the TUI catalogs, so the
+    // shared catalog is the one place these sentences live.
+    expect(translateRuntimeText('en', 'review.failed')).toBe('Code review failed');
+    expect(translateRuntimeText('zh-CN', 'review.failed')).toBe('代码审查失败');
+    expect(translateRuntimeText('en', 'browser.inspectBeforeRetry')).toBe(
+      'Inspect the current page before deciding whether to retry.',
+    );
+    expect(translateRuntimeText('zh-CN', 'browser.inspectBeforeRetry')).toBe(
+      '请先检查当前页面，再决定是否重试。',
+    );
+  });
+
+  it('names the Plan mode for every package that shows it', () => {
+    // The `plan` token the permission API carries is a config value; the
+    // label the reader sees belongs to the shared catalog.
+    expect(translateRuntimeText('en', 'plan.mode.label')).toBe('Plan mode');
+    expect(translateRuntimeText('zh-CN', 'plan.mode.label')).toBe('计划模式');
+  });
+});
+
+describe('locale saved in the interface', () => {
+  afterEach(() => {
+    setProcessLocale();
+  });
+
+  it('outranks the Desktop handshake and the environment override', () => {
+    const environment = { [ELECTRON_LOCALE_ENV]: 'en-US', [LOCALE_OVERRIDE_ENV]: 'en-GB' };
+
+    expect(setProcessLocale('zh-CN')).toBe(true);
+    expect(resolveLocale(undefined, environment)).toBe('zh-CN');
+    expect(resolveLocaleName(undefined, environment)).toBe('zh-Hans');
+  });
+
+  it('still loses to a locale a caller passes explicitly', () => {
+    setProcessLocale('zh-CN');
+
+    expect(resolveLocale('en-US', { [ELECTRON_LOCALE_ENV]: 'zh-CN' })).toBe('en-US');
+    expect(resolveLocaleName('en-GB')).toBe('en');
+  });
+
+  it('clears the override when the saved value disappears or is malformed', () => {
+    setProcessLocale('zh-CN');
+
+    expect(setProcessLocale()).toBe(false);
+    expect(processLocaleOverride()).toBeUndefined();
+    expect(resolveLocale(undefined, { [LOCALE_OVERRIDE_ENV]: 'en' })).toBe('en');
+
+    setProcessLocale('zh-CN');
+    expect(setProcessLocale('fr FR')).toBe(false);
+    expect(processLocaleOverride()).toBeUndefined();
+    expect(resolveLocaleName(undefined, { [ELECTRON_LOCALE_ENV]: 'en-US' })).toBe('en');
+  });
+
+  it('normalizes separators and rejects tags that are not well formed', () => {
+    expect(setProcessLocale('zh_CN')).toBe(true);
+    expect(processLocaleOverride()).toBe('zh-CN');
+
+    expect(isValidLocaleTag('zh-Hans-CN')).toBe(true);
+    expect(isValidLocaleTag('zh_CN')).toBe(true);
+    expect(isValidLocaleTag('zh--CN')).toBe(false);
+    expect(isValidLocaleTag('zh-')).toBe(false);
+    expect(isValidLocaleTag('123')).toBe(false);
+    expect(isValidLocaleTag('')).toBe(false);
   });
 });

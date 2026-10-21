@@ -253,6 +253,30 @@ function planEntryToolInput(locale: string): PlanQuestionnaireInput['toolInput']
   };
 }
 
+function planReviewToolInput(
+  locale: string,
+  truncated: boolean,
+): PlanQuestionnaireInput['toolInput'] {
+  const t = (key: RuntimeTranslationKey): string => translateRuntimeText(locale, key);
+  return {
+    title: t('plan.review.title'),
+    steps: [
+      {
+        id: 'plan-review',
+        question: t('plan.review.question'),
+        ...(truncated ? { description: t('plan.review.truncatedDescription') } : {}),
+        options: [
+          {
+            id: 'approve',
+            label: t('plan.review.approve.label'),
+            description: t('plan.review.approve.description'),
+          },
+        ],
+      },
+    ],
+  };
+}
+
 async function exitFromAgent(
   options: PlanApplicationOptions,
   input: Parameters<PlanApplication['exitFromAgent']>[0],
@@ -287,28 +311,7 @@ async function exitFromAgent(
         path: snapshot.canonicalPath,
       },
     },
-    toolInput: {
-      title: 'Review implementation plan',
-      steps: [
-        {
-          id: 'plan-review',
-          question: 'Approve this plan and start implementation?',
-          ...(snapshot.truncated
-            ? {
-                description:
-                  'The Plan exceeded 512 KiB; this review contains a safely truncated snapshot.',
-              }
-            : {}),
-          options: [
-            {
-              id: 'approve',
-              label: 'Approve',
-              description: 'Exit Plan Mode and start one implementation Turn.',
-            },
-          ],
-        },
-      ],
-    },
+    toolInput: planReviewToolInput(options.questionnaires.resolveLocale(), snapshot.truncated),
   });
   return { requestId: result.requestId, planPath: snapshot.canonicalPath };
 }

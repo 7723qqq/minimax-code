@@ -12,9 +12,23 @@ export const EN_RUNTIME_TRANSLATIONS = {
   'plan.entry.confirm.description': 'Investigate and prepare a plan before implementation.',
   'plan.entry.decline.label': 'Decline',
   'plan.entry.decline.description': 'Continue without entering Plan Mode.',
+  // The Plan review questionnaire is the sibling of the Plan entry
+  // questionnaire: same surface, same reader, same runtime package. Keeping
+  // both families in this catalog stops one of them drifting into a
+  // package-local copy.
+  'plan.review.title': 'Review implementation plan',
+  'plan.review.question': 'Approve this plan and start implementation?',
+  'plan.review.truncatedDescription':
+    'The Plan exceeded 512 KiB; this review contains a safely truncated snapshot.',
+  'plan.review.approve.label': 'Approve',
+  'plan.review.approve.description': 'Exit Plan Mode and start one implementation Turn.',
   'plan.implementation.display': 'Implement this plan',
+  // The name of the Plan mode itself, as the `plan` permission-mode token is a
+  // config value and not something to show a reader.
+  'plan.mode.label': 'Plan mode',
   'questionnaire.noAnswer': 'No answer',
   'questionnaire.others': 'Others',
+  'questionnaire.noAnswersSent': 'No answers sent.',
   // Cross-package runtime copy: the prefix is read by local-runtime's
   // synchronous archive title and by local-runtime-v2's model-generated one, so
   // it lives here instead of in either package's own catalog.
@@ -24,6 +38,13 @@ export const EN_RUNTIME_TRANSLATIONS = {
   'channel.accessControlGuide': 'Configuration guide: {url}',
   'update.versionedInstalled':
     'MCode {version} is installed. New MCode sessions will use it; running sessions can continue normally.',
+  // Cross-package runtime copy: the code-review failure title is rendered by
+  // the TUI review card and by agent-tools' code-review tool result, and the
+  // browser recovery hint is rendered by the TUI runtime and by browser-core's
+  // action results. Neither package can import the other's catalog, so the
+  // shared catalog owns both sentences.
+  'review.failed': 'Code review failed',
+  'browser.inspectBeforeRetry': 'Inspect the current page before deciding whether to retry.',
 } as const;
 
 export type RuntimeTranslationKey = keyof typeof EN_RUNTIME_TRANSLATIONS;

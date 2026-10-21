@@ -1,5 +1,5 @@
 import { createCatalogSet, translate } from './i18n/catalog.js';
-import { resolveLocaleName, resolveTimeZone } from './i18n/locale.js';
+import { resolveLocaleName, resolveTimeZone, type LocaleName } from './i18n/locale.js';
 
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;
@@ -31,7 +31,9 @@ const EN_PRODUCT_TIME_COPY = {
   'time.minutesAgo': '{minutes}m',
   'time.hoursAgo': '{hours}h',
   'time.daysAgo': '{days}d',
+  'time.clock': '{hour}:{minute}',
   'time.withClock': '{label} {clock}',
+  'time.dateWithClock': '{date} {clock}',
 } as const;
 
 const ZH_HANS_PRODUCT_TIME_COPY = {
@@ -49,7 +51,9 @@ const ZH_HANS_PRODUCT_TIME_COPY = {
   'time.minutesAgo': '{minutes}分钟前',
   'time.hoursAgo': '{hours}小时前',
   'time.daysAgo': '{days}天前',
+  'time.clock': '{hour}:{minute}',
   'time.withClock': '{label} {clock}',
+  'time.dateWithClock': '{date} {clock}',
 } as const satisfies Readonly<Record<keyof typeof EN_PRODUCT_TIME_COPY, string>>;
 
 const PRODUCT_TIME_CATALOG = createCatalogSet(EN_PRODUCT_TIME_COPY, {
@@ -92,7 +96,7 @@ export interface ProductTimeOptions {
   timeZone?: string;
 }
 
-type ProductTimeLocale = 'en' | 'zh-Hans';
+type ProductTimeLocale = LocaleName;
 
 function text(
   locale: ProductTimeLocale,
@@ -143,15 +147,18 @@ function getZonedDateParts(timestampMs: number, timeZone: string): ZonedDatePart
 }
 
 function resolveLocale(locale?: string): ProductTimeLocale {
-  return resolveLocaleName(locale) === 'zh-Hans' ? 'zh-Hans' : 'en';
+  return resolveLocaleName(locale);
 }
 
 function padTwo(value: number): string {
   return String(value).padStart(2, '0');
 }
 
-function formatTime(parts: ZonedDateParts): string {
-  return `${padTwo(parts.hour)}:${padTwo(parts.minute)}`;
+function formatTime(parts: ZonedDateParts, locale: ProductTimeLocale): string {
+  return text(locale, 'time.clock', {
+    hour: padTwo(parts.hour),
+    minute: padTwo(parts.minute),
+  });
 }
 
 function isSameDay(left: ZonedDateParts, right: ZonedDateParts): boolean {
@@ -174,7 +181,10 @@ function formatDateTime(
   locale: ProductTimeLocale,
   includeYear: boolean,
 ): string {
-  return `${formatDate(parts, locale, includeYear)} ${formatTime(parts)}`;
+  return text(locale, 'time.dateWithClock', {
+    date: formatDate(parts, locale, includeYear),
+    clock: formatTime(parts, locale),
+  });
 }
 
 function calendarDayIndex(parts: ZonedDateParts): number {
@@ -204,19 +214,19 @@ function formatSocialTime(
 
   const elapsedMs = nowMs - timestampMs;
   if (elapsedMs < MINUTE_MS) return text(locale, 'time.now');
-  if (isSameDay(timestamp, now)) return formatTime(timestamp);
+  if (isSameDay(timestamp, now)) return formatTime(timestamp, locale);
 
   const dayDelta = calendarDayIndex(now) - calendarDayIndex(timestamp);
   if (dayDelta === 1) {
     return text(locale, 'time.withClock', {
       label: text(locale, 'time.yesterday'),
-      clock: formatTime(timestamp),
+      clock: formatTime(timestamp, locale),
     });
   }
   if (dayDelta > 1 && dayDelta < RECENT_CALENDAR_DAYS) {
     const weekday = formatWeekday(timestamp, locale);
     return precise
-      ? text(locale, 'time.withClock', { label: weekday, clock: formatTime(timestamp) })
+      ? text(locale, 'time.withClock', { label: weekday, clock: formatTime(timestamp, locale) })
       : weekday;
   }
 
@@ -280,11 +290,11 @@ export function formatProductTime(
       return formatCommunityTime(timestampMs, nowMs, timestamp, now, locale);
     case 'common-precise':
       return isSameDay(timestamp, now)
-        ? formatTime(timestamp)
+        ? formatTime(timestamp, locale)
         : formatDateTime(timestamp, locale, !sameYear);
     case 'common-date':
       return isSameDay(timestamp, now)
-        ? formatTime(timestamp)
+        ? formatTime(timestamp, locale)
         : formatDate(timestamp, locale, !sameYear);
     case 'audit-datetime':
       return formatDateTime(timestamp, locale, true);

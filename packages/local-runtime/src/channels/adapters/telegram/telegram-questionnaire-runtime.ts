@@ -17,6 +17,8 @@ import {
 } from './telegram-questionnaire.js';
 import type { TelegramSender } from './telegram-sender.js';
 import { telegramText } from './telegram-copy.js';
+import { translateRuntimeText } from '@mavis/shared/i18n';
+import { resolveLocalRuntimeLocale } from '../../../runtime/locale.js';
 import { imLogger as logger } from '../../../common/im-logger.js';
 
 type TelegramQuestionnaireSender = { sender: TelegramSender; chatId: string } | null;
@@ -116,7 +118,12 @@ export class TelegramQuestionnaireRuntime {
       await answerQuestionnaireCallback(
         sender,
         callbackQueryId,
-        telegramText('questionnaire.othersUnsupported'),
+        telegramText('questionnaire.othersUnsupported', {
+          others: translateRuntimeText(
+            resolveLocalRuntimeLocale(),
+            'questionnaire.others',
+          ),
+        }),
       );
       return { handled: true };
     }

@@ -1,18 +1,10 @@
-import { isChineseLocale as isChineseLocaleName, localeLanguage } from '@mavis/shared/i18n';
-
 /**
  * Locale helpers for local-runtime.
  *
- * Both functions delegate to `@mavis/shared/i18n`; the export names are kept
- * because they are imported across the runtime, and re-deriving the language
- * subtag here was how the two implementations drifted apart.
+ * Both helpers are re-exports of `@mavis/shared/i18n`: this module used to
+ * define its own `isChineseLocale`, and the two implementations were free to
+ * drift apart. Re-exporting keeps the module path and the export names that
+ * existing callers import while leaving exactly one implementation, in the
+ * shared package.
  */
-
-/** Extract the canonical language subtag from a BCP 47 locale. */
-export function getLocaleLanguage(locale?: string | null): string {
-  return localeLanguage(locale);
-}
-
-export function isChineseLocale(locale?: string | null): boolean {
-  return isChineseLocaleName(locale);
-}
+export { isChineseLocale, localeLanguage as getLocaleLanguage } from '@mavis/shared/i18n';

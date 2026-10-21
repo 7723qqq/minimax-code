@@ -66,7 +66,7 @@ function escapeMarkdownCode(s: string): string {
 }
 
 function clampOptionLabel(label: string): string {
-  const text = normalizeText(label) || '(empty)';
+  const text = normalizeText(label) || feishuText('option.emptyLabel');
   return text.length > 100 ? `${text.slice(0, 97)}...` : text;
 }
 
@@ -160,7 +160,7 @@ export function buildQuestionnaireCard(
     config: { wide_screen_mode: true, update_multi: true },
     header: makeHeader({
       title: botName,
-      subtitle: 'ask',
+      subtitle: feishuText('card.subtitle.ask'),
       template: 'turquoise',
       icon: 'chat_outlined',
       tagText: feishuText('tag.questionnaire'),
@@ -196,7 +196,7 @@ export function buildQuestionnaireSubmittedCard(
     config: { wide_screen_mode: true, update_multi: true },
     header: makeHeader({
       title: botName,
-      subtitle: 'ask',
+      subtitle: feishuText('card.subtitle.ask'),
       template: 'green',
       icon: 'succeed_outlined',
       tagText: feishuText('tag.submitted'),
@@ -228,7 +228,7 @@ export function buildQuestionnaireExpiredCard(
     config: { wide_screen_mode: true, update_multi: true },
     header: makeHeader({
       title: botName,
-      subtitle: 'ask',
+      subtitle: feishuText('card.subtitle.ask'),
       template: 'grey',
       tagText: feishuText('tag.expired'),
       tagColor: 'grey',

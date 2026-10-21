@@ -145,7 +145,7 @@ export function buildTelegramQuestionnaireKeyboard(renderable: ChannelRenderable
       optionIndex: null,
     });
     if (othersData !== null) {
-      rows.push([{ text: 'Others...', callback_data: othersData }]);
+      rows.push([{ text: telegramText('questionnaire.othersButton'), callback_data: othersData }]);
     }
   }
   return { inline_keyboard: rows };

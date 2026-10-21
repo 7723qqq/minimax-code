@@ -11,6 +11,7 @@ import type {
 import { getContentRulesForTool, hasWholeToolRule } from '../context.js';
 import { matchHardBlockedFsRead } from '../classifier/dangerous-patterns.js';
 import { matchesMcpServerRuntimeName } from '../mcp-runtime-name.js';
+import { safetyCheckReason, type PermissionReasonBodyInput } from '../reason-format.js';
 import { shellTokenize } from './shell-tokenize.js';
 import { splitCommand, findHeredocBodyRanges } from './bash-split.js';
 import { extractSourceTarget } from './bash-permission.js';
@@ -111,45 +112,28 @@ export function evaluatePathCapability(
     if (originVerdict === 'deny') {
       return {
         behavior: 'deny',
-        reason: {
-          type: 'safetyCheck',
-          description: formatHardBlockedFsReason(
-            hardHit.category,
-            hardHit.description,
-            candidatePath,
-          ),
-          category: hardHit.category,
-        },
+        reason: safetyCheckReason(
+          hardBlockedFsReasonBody(hardHit.category, hardHit.description, candidatePath),
+          { category: hardHit.category, hardBlocked: true },
+        ),
         ...buildPathRuleSuggestion(filePath, action, context),
       };
     }
     if (originVerdict === 'allow') {
       return {
         behavior: 'allow',
-        reason: {
-          type: 'safetyCheck',
-          description: formatHardBlockedFsReason(
-            hardHit.category,
-            hardHit.description,
-            candidatePath,
-          ),
-          category: hardHit.category,
-          classifierApprovable: true,
-        },
+        reason: safetyCheckReason(
+          hardBlockedFsReasonBody(hardHit.category, hardHit.description, candidatePath),
+          { category: hardHit.category, classifierApprovable: true, hardBlocked: true },
+        ),
       };
     }
     return {
       behavior: 'ask',
-      reason: {
-        type: 'safetyCheck',
-        description: formatHardBlockedFsReason(
-          hardHit.category,
-          hardHit.description,
-          candidatePath,
-        ),
-        category: hardHit.category,
-        classifierApprovable: true,
-      },
+      reason: safetyCheckReason(
+        hardBlockedFsReasonBody(hardHit.category, hardHit.description, candidatePath),
+        { category: hardHit.category, classifierApprovable: true, hardBlocked: true },
+      ),
       bypassImmune: true,
       ...buildPathRuleSuggestion(filePath, action, context),
     };
@@ -167,11 +151,10 @@ export function evaluatePathCapability(
   if (action === 'execute' && !isStaticPathToken(filePath)) {
     return {
       behavior: 'ask',
-      reason: {
-        type: 'safetyCheck',
-        description: `Running a script from an unresolved dynamic path (${filePath}) requires confirmation.`,
-        classifierApprovable: true,
-      },
+      reason: safetyCheckReason(
+        { key: 'body.path.dynamicScript', values: { path: filePath } },
+        { classifierApprovable: true },
+      ),
     };
   }
 
@@ -543,15 +526,22 @@ export function generateSuggestionRules(
   return [`${dir}/**`];
 }
 
-function formatHardBlockedFsReason(
+/**
+ * Reason body for a HARD_BLOCKED filesystem read.
+ *
+ * Both variants ask for confirmation, so the body carries the "needs
+ * confirmation" label itself.
+ */
+function hardBlockedFsReasonBody(
   category: string,
   description: string,
   resolvedPath: string,
-): string {
+): PermissionReasonBodyInput {
+  const values = { path: resolvedPath, reason: description };
   if (category === 'system-secret') {
-    return `Needs confirmation: system secret access requires LLM review and explicit approval if the LLM cannot allow it. Path: ${resolvedPath}. Reason: ${description}.`;
+    return { key: 'body.path.systemSecretAccess', values, action: 'ask' };
   }
-  return `Needs confirmation: credential or private-key access requires LLM review and explicit approval if the LLM cannot allow it. Path: ${resolvedPath}. Reason: ${description}.`;
+  return { key: 'body.path.credentialAccess', values, action: 'ask' };
 }
 
 function isLikelyLocalPath(value: string): boolean {
@@ -1054,11 +1044,7 @@ export function decideUnknownToolPathCapabilities(
       // mode still means the user opted out of all prompts.
       return {
         behavior: 'ask',
-        reason: {
-          type: 'safetyCheck',
-          description:
-            'apply_patch payload could not be parsed for path-capability checks; manual confirmation required.',
-        },
+        reason: safetyCheckReason({ key: 'body.path.applyPatchUnparsed' }),
       };
     }
     return undefined;
@@ -1103,10 +1089,9 @@ export function decideUnknownToolPathCapabilities(
   return sawAllow
     ? {
         behavior: 'allow',
-        reason: {
-          type: 'safetyCheck',
-          description: `Path capability allow for tool "${toolName}"`,
-        },
+        reason: safetyCheckReason(
+          { key: 'body.path.capabilityAllow', values: { tool: toolName } },
+        ),
       }
     : undefined;
 }

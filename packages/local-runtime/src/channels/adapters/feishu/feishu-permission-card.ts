@@ -141,7 +141,7 @@ export function buildPermissionCard(
     config: { wide_screen_mode: true, update_multi: true },
     header: makeHeader({
       title: botName,
-      subtitle: 'permission',
+      subtitle: feishuText('card.subtitle.permission'),
       template: 'orange',
       tagText: feishuText('permission.tag'),
       tagColor: 'orange',
@@ -213,7 +213,7 @@ export function buildPermissionResolvedCard(
     config: { wide_screen_mode: true, update_multi: true },
     header: makeHeader({
       title: botName,
-      subtitle: 'permission',
+      subtitle: feishuText('card.subtitle.permission'),
       template: allowed ? 'green' : 'red',
       tagText: feishuText(allowed ? 'permission.tagAuthorized' : 'permission.tagDenied'),
       tagColor: allowed ? 'green' : 'red',

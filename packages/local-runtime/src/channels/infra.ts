@@ -1174,7 +1174,7 @@ export class LocalChannelBridgeInfra {
       if (route.blocked || !route.sessionId) {
         return {
           handled: true,
-          reply: 'Message blocked by channel route mention policy.',
+          reply: commandReceiptText(input.ctx.platform, 'route.mentionBlocked'),
           route,
           lane,
         };
@@ -1397,7 +1397,7 @@ export class LocalChannelBridgeInfra {
         { ...baseFields, outcome: 'no_binding' },
         'Channel /stop skipped — no active binding for this sender/chat',
       );
-      return { handled: true, command: 'stop', reply: 'No active session binding found.', lane };
+      return { handled: true, command: 'stop', reply: commandReceiptText(ctx.platform, 'stop.noBinding'), lane };
     }
     await this.options.abortSession(route.sessionId);
     this.options.emitBusEvent?.('channel.stop_requested', {
@@ -1407,7 +1407,7 @@ export class LocalChannelBridgeInfra {
     return {
       handled: true,
       command: 'stop',
-      reply: `Stop requested for session: ${route.sessionId}`,
+      reply: commandReceiptText(ctx.platform, 'stop.requested', { sessionId: route.sessionId }),
       sessionId: route.sessionId,
       lane,
     };
@@ -1438,7 +1438,7 @@ export class LocalChannelBridgeInfra {
             { ...baseFields, outcome: 'no_route', durationMs: Date.now() - startedAt },
             'Channel /new skipped because no Rootless route is active',
           );
-          return { handled: true, command: command.name, reply: 'No active route.', route, lane };
+          return { handled: true, command: command.name, reply: commandReceiptText(ctx.platform, 'route.none'), route, lane };
         }
         const imReceipt = imReceiptForRoute(
           route,
@@ -1455,7 +1455,9 @@ export class LocalChannelBridgeInfra {
           command: command.name,
           reply: route.imRoute
             ? channelImNewCreatedReceiptText()
-            : `New session created: ${route.sessionId}`,
+            : commandReceiptText(ctx.platform, 'session.newCreatedShort', {
+                sessionId: route.sessionId,
+              }),
           route,
           sessionId: route.sessionId,
           ...(imReceipt ? { imReceipt } : {}),
@@ -1511,7 +1513,7 @@ export class LocalChannelBridgeInfra {
         },
         'Channel /new skipped — route resolver returned blocked or no sessionId',
       );
-      return { handled: true, command: command.name, reply: 'No active route.', route, lane };
+      return { handled: true, command: command.name, reply: commandReceiptText(ctx.platform, 'route.none'), route, lane };
     }
     let createdVia: 'createRootSession' | 'createSession_fallback' = 'createRootSession';
     let session: LocalSessionRecord;
@@ -1540,7 +1542,7 @@ export class LocalChannelBridgeInfra {
           return {
             handled: true,
             command: command.name,
-            reply: 'Failed to create a new session. Please try again later.',
+            reply: commandReceiptText(ctx.platform, 'session.createFailed'),
             route,
             lane,
           };
@@ -1595,7 +1597,7 @@ export class LocalChannelBridgeInfra {
       return {
         handled: true,
         command: command.name,
-        reply: 'Failed to promote the new session to root. Please try again later.',
+        reply: commandReceiptText(ctx.platform, 'session.promoteFailed'),
         route,
         lane,
       };
@@ -1615,7 +1617,9 @@ export class LocalChannelBridgeInfra {
     return {
       handled: true,
       command: command.name,
-      reply: `New session created: ${session.sessionId}`,
+      reply: commandReceiptText(ctx.platform, 'session.newCreatedShort', {
+        sessionId: session.sessionId,
+      }),
       sessionId: session.sessionId,
       lane,
     };
@@ -1637,7 +1641,7 @@ export class LocalChannelBridgeInfra {
         // [Hidden this release] 'btw' is no longer in LocalChannelSlashCommandName (removed from the source of truth).
         // Keep the dormant handler's receipt value unchanged, using a cast to retain the literal for a future release.
         command: 'btw' as LocalChannelSlashCommandName,
-        reply: 'No active route.',
+        reply: commandReceiptText(ctx.platform, 'route.none'),
         route,
         lane,
       };
@@ -1663,7 +1667,7 @@ export class LocalChannelBridgeInfra {
     return {
       handled: true,
       command: 'btw' as LocalChannelSlashCommandName,
-      reply: `Queued BTW question for session: ${route.sessionId}`,
+      reply: commandReceiptText(ctx.platform, 'btw.queued', { sessionId: route.sessionId }),
       route,
       sessionId: route.sessionId,
       ...(queued ? { queueItemId: queued.itemId } : {}),
@@ -1718,7 +1722,7 @@ export class LocalChannelBridgeInfra {
         },
         'Channel /compact skipped — route resolver returned blocked or no sessionId',
       );
-      return { handled: true, command: 'compact', reply: 'No active route.', route, lane };
+      return { handled: true, command: 'compact', reply: commandReceiptText(ctx.platform, 'route.none'), route, lane };
     }
     const zh = channelPrefersZh(ctx.platform);
     // Defensive: host did not wire the compaction core. Never crash the inbound
@@ -2274,6 +2278,55 @@ const ZH_HANS_COMPACTION_RECEIPT_COPY = {
 const COMPACTION_RECEIPT_CATALOG = createCatalogSet(EN_COMPACTION_RECEIPT_COPY, {
   'zh-Hans': ZH_HANS_COMPACTION_RECEIPT_COPY,
 });
+
+/**
+ * Slash-command receipts for /new, /stop and /clear.
+ *
+ * These replies are delivered verbatim to the IM user, so they follow the same
+ * transport-based language rule as the /compact receipts above: Telegram
+ * replies in English, every other IM platform in Chinese.
+ */
+const EN_COMMAND_RECEIPT_COPY = {
+  'route.mentionBlocked': 'Message blocked by channel route mention policy.',
+  'route.none': 'No active route.',
+  'stop.noBinding': 'No active session binding found.',
+  'stop.requested': 'Stop requested for session: {sessionId}',
+  'session.newCreatedShort': 'New session created: {sessionId}',
+  'session.createFailed': 'Failed to create a new session. Please try again later.',
+  'session.promoteFailed': 'Failed to promote the new session to root. Please try again later.',
+  'btw.queued': 'Queued BTW question for session: {sessionId}',
+} as const;
+
+const ZH_HANS_COMMAND_RECEIPT_COPY = {
+  'route.mentionBlocked': '消息被会话路由的提及策略拦截。',
+  'route.none': '没有活动的会话路由。',
+  'stop.noBinding': '没有找到活动的会话绑定。',
+  'stop.requested': '已请求停止会话：{sessionId}',
+  'session.newCreatedShort': '新会话已创建：{sessionId}',
+  'session.createFailed': '创建新会话失败，请稍后重试。',
+  'session.promoteFailed': '新会话提升为根会话失败，请稍后重试。',
+  'btw.queued': 'BTW 问题已排队：{sessionId}',
+} as const satisfies Readonly<Record<keyof typeof EN_COMMAND_RECEIPT_COPY, string>>;
+
+const COMMAND_RECEIPT_CATALOG = createCatalogSet(EN_COMMAND_RECEIPT_COPY, {
+  'zh-Hans': ZH_HANS_COMMAND_RECEIPT_COPY,
+});
+
+type CommandReceiptKey = keyof typeof EN_COMMAND_RECEIPT_COPY;
+
+/** Read one slash-command receipt in the language the transport expects. */
+function commandReceiptText(
+  platform: ChannelPlatform,
+  key: CommandReceiptKey,
+  values?: Readonly<Record<string, string | number>>,
+): string {
+  return translate(
+    COMMAND_RECEIPT_CATALOG,
+    channelPrefersZh(platform) ? 'zh-Hans' : 'en',
+    key,
+    values,
+  );
+}
 
 type CompactionReceiptKey = keyof typeof EN_COMPACTION_RECEIPT_COPY;
 

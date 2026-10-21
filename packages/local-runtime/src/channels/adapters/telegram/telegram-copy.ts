@@ -16,7 +16,7 @@ const EN_TELEGRAM_COPY = {
   'questionnaire.answerCurrent': 'Answer the current question first',
   'questionnaire.optionUnavailable': 'This option is not available',
   'questionnaire.othersUnsupported':
-    'Others is not supported in Telegram yet. Pick an option above.',
+    '{others} is not supported in Telegram yet. Pick an option above.',
   'questionnaire.selected': '✓ Selected {label}',
   'questionnaire.expiredBody': 'Questionnaire expired',
   'questionnaire.submittedTitle': '✅ Submitted',
@@ -34,6 +34,17 @@ const EN_TELEGRAM_COPY = {
   'attachment.video': '[Video]',
   'attachment.file': '[File] {name}',
   'attachment.sendFailed': '[Media send failed: {name}]',
+  'questionnaire.othersButton': 'Others...',
+  'permission.header': 'Permission request',
+  'permission.tool': 'Tool: {tool}',
+  'permission.alwaysAllowed': 'Always allowed',
+  'permission.denied': 'Denied',
+  'permission.allowed': 'Allowed',
+  'permission.decision.deniedLine': '🚫 {label}',
+  'permission.decision.allowedLine': '✅ {label}',
+  'permission.allow': 'Allow',
+  'permission.deny': 'Deny',
+  'permission.always': 'Always allow',
 } as const;
 
 const ZH_HANS_TELEGRAM_COPY = {
@@ -42,7 +53,7 @@ const ZH_HANS_TELEGRAM_COPY = {
   'questionnaire.submitting': '正在提交，请稍候',
   'questionnaire.answerCurrent': '请按当前题目作答',
   'questionnaire.optionUnavailable': '这个选项不可用',
-  'questionnaire.othersUnsupported': 'Telegram 暂不支持 Others，请选择上方选项',
+  'questionnaire.othersUnsupported': 'Telegram 暂不支持 {others}，请选择上方选项',
   'questionnaire.selected': '✓ 已选 {label}',
   'questionnaire.expiredBody': '问卷已过期',
   'questionnaire.submittedTitle': '✅ 已提交',
@@ -59,6 +70,17 @@ const ZH_HANS_TELEGRAM_COPY = {
   'attachment.video': '[视频]',
   'attachment.file': '[文件] {name}',
   'attachment.sendFailed': '[媒体发送失败: {name}]',
+  'questionnaire.othersButton': '其他…',
+  'permission.header': '权限请求',
+  'permission.tool': '工具：{tool}',
+  'permission.alwaysAllowed': '已始终允许',
+  'permission.denied': '已拒绝',
+  'permission.allowed': '已允许',
+  'permission.decision.deniedLine': '🚫 {label}',
+  'permission.decision.allowedLine': '✅ {label}',
+  'permission.allow': '允许',
+  'permission.deny': '拒绝',
+  'permission.always': '始终允许',
 } as const satisfies Readonly<Record<keyof typeof EN_TELEGRAM_COPY, string>>;
 
 const TELEGRAM_CATALOG = createCatalogSet(EN_TELEGRAM_COPY, {

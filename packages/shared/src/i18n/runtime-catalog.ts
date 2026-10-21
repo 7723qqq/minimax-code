@@ -1,5 +1,5 @@
 import { createCatalogSet, translate, type CatalogSet } from './catalog.js';
-import { resolveLocaleName } from './locale.js';
+import { resolveLocaleName, type LocaleName } from './locale.js';
 import {
   EN_RUNTIME_TRANSLATIONS,
   type RuntimeTranslationKey,
@@ -7,8 +7,13 @@ import {
 } from './runtime-catalog.en.js';
 import { ZH_HANS_RUNTIME_TRANSLATIONS } from './runtime-catalog.zh-Hans.js';
 
-/** Catalog names this build can render. A new language adds one member here. */
-export type RuntimeLocaleName = 'en' | 'zh-Hans';
+/**
+ * Catalog names this build can render.
+ *
+ * Aliased to the kernel's {@link LocaleName} so the resolver and the catalogs
+ * can never disagree about which locale names exist.
+ */
+export type RuntimeLocaleName = LocaleName;
 
 const RUNTIME_CATALOG: CatalogSet<typeof EN_RUNTIME_TRANSLATIONS> = createCatalogSet(
   EN_RUNTIME_TRANSLATIONS,
