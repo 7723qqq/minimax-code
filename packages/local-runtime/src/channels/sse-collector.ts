@@ -7,6 +7,7 @@ import {
   type ToolCall,
 } from '@mavis/agent-core/protocol/agent-message';
 import { parseMediaTags } from '@mavis/shared';
+import { isTurnLifecycleKind } from '@mavis/shared/turn-message-class';
 import type { ConversationCommittedMessage } from '@mavis/conversation-contract';
 
 import { parseRespData } from '../api/http-helpers.js';
@@ -176,7 +177,10 @@ export function collectChannelResponseFromMessages(
   const toolCalls = new Map<string, ToolCall>();
 
   messages.forEach((message) => {
-    if (message.role === 'user' || message.role === 'system' || message.kind === 'compaction') {
+    // Chat-channel replies carry only model output. Lifecycle frames share the
+    // message store with responses; the previous `kind === 'compaction'` check
+    // missed `compaction_start`/`compaction_failed` and review frames entirely.
+    if (message.role === 'user' || message.role === 'system' || isTurnLifecycleKind(message.kind)) {
       return;
     }
     finalMessages += 1;

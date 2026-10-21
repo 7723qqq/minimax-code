@@ -44,6 +44,7 @@ import type {
   IRuntimeStopReason,
   IRuntimeUsage,
 } from '@mavis/protocol';
+import type { TurnLifecycleKind } from '@mavis/shared/turn-message-class';
 
 // ── Legacy-name aliases for agent-core internal use ───────────────────
 //
@@ -98,17 +99,7 @@ export type DebugTraceEvent = IRuntimeEvent;
 // local to agent-core.
 
 export type RuntimeRole = 'user' | 'assistant' | 'system';
-export type RuntimeMessageKind =
-  | 'assistant'
-  | 'summary'
-  | 'compaction_start'
-  | 'compaction'
-  | 'compaction_failed'
-  | 'review_start'
-  | 'review_result'
-  | 'review_failed'
-  | 'review_aborted'
-  | 'review_interrupted';
+export type RuntimeMessageKind = 'assistant' | 'summary' | TurnLifecycleKind;
 export type RuntimeSessionStatus = 'running' | 'waiting_action' | 'idle' | 'failed' | 'aborted';
 export type RuntimeTerminalStatus = 'completed' | 'failed' | 'aborted';
 /**

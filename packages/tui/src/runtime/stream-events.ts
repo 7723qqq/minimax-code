@@ -1,4 +1,9 @@
 import type { SessionStreamFrameView } from '@mavis/local-runtime-v2/cli-service';
+import {
+  isTurnResponseMessage,
+  TURN_LIFECYCLE_KINDS,
+  type TurnMessageKind,
+} from '@mavis/shared/turn-message-class';
 import type { TuiStructuredPreview } from '../types/runtime-models.js';
 import { buildTuiToolPreview } from './tool-preview.js';
 
@@ -48,17 +53,12 @@ export interface TuiMessage {
   id?: string;
   turnId?: string;
   role: TuiMessageRole;
-  kind?:
-    | 'preamble'
-    | 'final'
-    | 'compaction_start'
-    | 'compaction'
-    | 'compaction_failed'
-    | 'review_start'
-    | 'review_result'
-    | 'review_failed'
-    | 'review_aborted'
-    | 'review_interrupted';
+  /**
+   * Runtime classification of this frame. The union lives in
+   * `@mavis/shared/turn-message-class` so the wire protocol, every projection
+   * and every consumer read one definition instead of re-listing the literals.
+   */
+  kind?: TurnMessageKind;
   source?: string;
   origin?: unknown;
   error?: string;
@@ -208,7 +208,9 @@ function projectWireMessage(
   if (systemEvent) return systemEvent;
   const message = normalizeTuiMessage(raw, turnId);
   if (message.role === 'unknown') return undefined;
-  if (message.role === 'assistant' && message.finishReason === 'error') {
+  // Only a model response can fail this way; a lifecycle frame carries its
+  // state in `kind` and must keep reaching its own projection.
+  if (isTurnResponseMessage(message) && message.finishReason === 'error') {
     return { type: 'error', message: message.content?.trim() || 'Runtime stream failed', turnId };
   }
   return { type: 'message', message };
@@ -415,22 +417,14 @@ function normalizeToolResult(
   });
 }
 
+const TURN_MESSAGE_KINDS: ReadonlySet<string> = new Set<TurnMessageKind>([
+  'preamble',
+  'final',
+  ...TURN_LIFECYCLE_KINDS,
+]);
+
 function normalizeMessageKind(kind: string | undefined): TuiMessage['kind'] {
-  if (
-    kind === 'preamble' ||
-    kind === 'final' ||
-    kind === 'compaction_start' ||
-    kind === 'compaction' ||
-    kind === 'compaction_failed' ||
-    kind === 'review_start' ||
-    kind === 'review_result' ||
-    kind === 'review_failed' ||
-    kind === 'review_aborted' ||
-    kind === 'review_interrupted'
-  ) {
-    return kind;
-  }
-  return undefined;
+  return kind !== undefined && TURN_MESSAGE_KINDS.has(kind) ? (kind as TurnMessageKind) : undefined;
 }
 
 export function buildTuiMessageParts(message: TuiMessage): TuiMessagePart[] {
