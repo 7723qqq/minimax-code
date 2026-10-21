@@ -18,7 +18,8 @@
 //
 // Usage: node scripts/package-exe.mjs [--out <dir>] [--skip-build] [--from-dist]
 //
-// `--out` defaults to `dist/exe`, which is already ignored by Git.
+// `--out` defaults to `dist-exe`, which is already ignored by Git and sits
+// outside `dist/` so the npm archive never embeds a previous executable.
 // `--skip-build` reuses an existing `dist/` when only the packaging changed.
 // `--from-dist` skips the npm archive and packages `dist/` directly.
 import { build } from "esbuild";
@@ -50,7 +51,7 @@ const skipBuild = args.includes("--skip-build");
 const fromDist = args.includes("--from-dist");
 const scriptRoot = fileURLToPath(new URL("../", import.meta.url));
 const repo = path.resolve(valueOf("--repo") ?? scriptRoot);
-const outDir = path.resolve(valueOf("--out") ?? path.join(repo, "dist", "exe"));
+const outDir = path.resolve(valueOf("--out") ?? path.join(repo, "dist-exe"));
 
 if (process.platform !== "win32") {
   // The synthetic root and the native-binding cache path below are Windows
@@ -85,6 +86,15 @@ if (fromDist) {
   // Build from the official npm archive so the executable carries the same
   // files a tar.gz installation would. That packaging requires a clean
   // committed tree at the revision the build was stamped with.
+  //
+  // A previous `--out dist/exe` left an executable inside `dist/`, and the npm
+  // packaging would copy it into the archive, embedding a whole executable in
+  // the blob. Refuse rather than ship that.
+  if (existsSync(path.join(repo, "dist", "exe"))) {
+    throw new Error(
+      "dist/exe from an earlier run would be embedded in the npm archive; remove it or pass --out outside dist/",
+    );
+  }
   const archiveDir = path.join(workDir, "npm");
   mkdirSync(archiveDir, { recursive: true });
   const packaged = spawnSync(

@@ -74,7 +74,7 @@ On Windows, also use `node` with the appropriate local absolute path. Do not ove
 `pnpm package:exe` builds from the official npm archive: it builds `dist/` with
 `MCODE_RELEASE_TAG` set, runs `scripts/package-cli-release.mjs`, extracts
 `minimax-code-<version>.tar.gz`, and packages that tree into one
-`mcode-<version>.exe` under `dist/exe/`. The executable therefore contains the
+`mcode-<version>.exe` under `dist-exe/`. The executable therefore contains the
 same files a tar.gz installation would. That flow requires a clean committed
 tree; `--from-dist` packages the current `dist/` instead while iterating.
 
