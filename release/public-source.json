@@ -3583,6 +3583,7 @@
     "scripts/lib/tui-package-privacy.mjs",
     "scripts/lib/vitest-suites.mjs",
     "scripts/package-cli-release.mjs",
+    "scripts/package-exe.mjs",
     "scripts/perf/config.json",
     "scripts/perf/driver.ts",
     "scripts/perf/report.mjs",
