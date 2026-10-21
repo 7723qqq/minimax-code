@@ -1,8 +1,14 @@
-// Package MiniMax Code as one executable from the repository source.
+// Package MiniMax Code as one executable from the official npm artifact.
 //
-//   pnpm build        dist (ESM, chunked)  ->  one CommonJS main
-//   SEA blob with every asset embedded    ->  postject injects the blob into a
-//   copy of node.exe
+//   pnpm build (MCODE_RELEASE_TAG)     dist (ESM, chunked)
+//   package-cli-release.mjs            minimax-code-<version>.tar.gz
+//   extracted package  ->  one CommonJS main  ->  SEA blob with every asset
+//   embedded  ->  postject injects the blob into a copy of node.exe
+//
+// Building from the npm archive keeps one source of truth: the executable
+// carries exactly the files `npm install minimax-code-<version>.tar.gz` would
+// place on disk. That flow requires a clean committed tree, so
+// `--from-dist` packages the current working-tree build instead for iteration.
 //
 // The CLI derives its package root from `import.meta.url` and then reads by
 // path, so the bundle is rewritten to point at a synthetic root and the entry
@@ -10,13 +16,15 @@
 // on disk (native addons, spawned helpers) are written to a versioned cache
 // under %LOCALAPPDATA%\mcode\sea-<version>.
 //
-// Usage: node scripts/package-exe.mjs [--out <dir>] [--skip-build]
+// Usage: node scripts/package-exe.mjs [--out <dir>] [--skip-build] [--from-dist]
 //
 // `--out` defaults to `dist/exe`, which is already ignored by Git.
 // `--skip-build` reuses an existing `dist/` when only the packaging changed.
+// `--from-dist` skips the npm archive and packages `dist/` directly.
 import { build } from "esbuild";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
+import { x as extractTar } from "tar";
 import {
   cpSync,
   existsSync,
@@ -39,6 +47,7 @@ const valueOf = (name) => {
   return index === -1 ? undefined : args[index + 1];
 };
 const skipBuild = args.includes("--skip-build");
+const fromDist = args.includes("--from-dist");
 const scriptRoot = fileURLToPath(new URL("../", import.meta.url));
 const repo = path.resolve(valueOf("--repo") ?? scriptRoot);
 const outDir = path.resolve(valueOf("--out") ?? path.join(repo, "dist", "exe"));
@@ -48,18 +57,55 @@ if (process.platform !== "win32") {
   // facts; a POSIX build would need its own root and cache directory.
   throw new Error("scripts/package-exe.mjs currently packages Windows executables only");
 }
+
+const rootVersion = JSON.parse(readFileSync(path.join(repo, "package.json"), "utf8")).version;
+const tag = "v" + rootVersion;
+
+// Intermediate files live outside the repository: `--out` may sit inside
+// `dist/`, and copying `dist` into a directory beneath itself is invalid.
+const workDir = mkdtempSync(path.join(tmpdir(), "mcode-sea-"));
+
 if (!skipBuild) {
   const buildResult = spawnSync(process.execPath, [path.join(repo, "scripts", "build.mjs")], {
     stdio: "inherit",
     cwd: repo,
+    // The npm flow stamps version and gitHead from the release tag; without it
+    // `package-cli-release.mjs` refuses the build it is handed.
+    env: fromDist ? process.env : { ...process.env, MCODE_RELEASE_TAG: tag },
   });
   if (buildResult.status !== 0) throw new Error("build exited " + String(buildResult.status));
 }
-if (!existsSync(path.join(repo, "dist", "cli.js"))) {
-  throw new Error("dist/cli.js is missing; run `pnpm build` or drop --skip-build");
+
+let sourceRoot = repo;
+if (fromDist) {
+  if (!existsSync(path.join(repo, "dist", "cli.js"))) {
+    throw new Error("dist/cli.js is missing; run `pnpm build` or drop --skip-build");
+  }
+} else {
+  // Build from the official npm archive so the executable carries the same
+  // files a tar.gz installation would. That packaging requires a clean
+  // committed tree at the revision the build was stamped with.
+  const archiveDir = path.join(workDir, "npm");
+  mkdirSync(archiveDir, { recursive: true });
+  const packaged = spawnSync(
+    process.execPath,
+    [path.join(repo, "scripts", "package-cli-release.mjs"), tag, archiveDir],
+    { stdio: "inherit", cwd: repo },
+  );
+  if (packaged.status !== 0) {
+    throw new Error(
+      "npm packaging exited " +
+        String(packaged.status) +
+        "; it requires a clean committed tree and a build stamped with MCODE_RELEASE_TAG (use --from-dist to package the working tree instead)",
+    );
+  }
+  const archive = path.join(archiveDir, "minimax-code-" + rootVersion + ".tar.gz");
+  sourceRoot = path.join(workDir, "package");
+  mkdirSync(sourceRoot, { recursive: true });
+  await extractTar({ file: archive, cwd: sourceRoot, strip: 1 });
 }
 
-const version = JSON.parse(readFileSync(path.join(repo, "dist", "package.json"), "utf8")).version;
+const version = JSON.parse(readFileSync(path.join(sourceRoot, "package.json"), "utf8")).version;
 const SYNTHETIC_ROOT = "C:\\__mcode_sea__";
 const SYNTHETIC_URL = "file:///C:/__mcode_sea__/dist/cli.js";
 const SENTINEL_FUSE = "NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2";
@@ -73,13 +119,9 @@ const EXTERNALS = [
 rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
 
-// Intermediate files live outside the repository: `--out` may sit inside
-// `dist/`, and copying `dist` into a directory beneath itself is invalid.
-const workDir = mkdtempSync(path.join(tmpdir(), "mcode-sea-"));
-
 // 1. Rewrite the ESM output so it compiles as CommonJS.
 const stageDist = path.join(workDir, "stage", "dist");
-cpSync(path.join(repo, "dist"), stageDist, { recursive: true });
+cpSync(path.join(sourceRoot, "dist"), stageDist, { recursive: true });
 
 function listFiles(directory, predicate = () => true) {
   const found = [];

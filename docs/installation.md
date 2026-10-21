@@ -71,8 +71,14 @@ On Windows, also use `node` with the appropriate local absolute path. Do not ove
 
 ### Package a single-file Windows executable
 
-`pnpm package:exe` builds `dist/` and packages it into one `mcode-<version>.exe`
-under `dist/exe/`. It runs on Windows only, expects the dependencies installed by
+`pnpm package:exe` builds from the official npm archive: it builds `dist/` with
+`MCODE_RELEASE_TAG` set, runs `scripts/package-cli-release.mjs`, extracts
+`minimax-code-<version>.tar.gz`, and packages that tree into one
+`mcode-<version>.exe` under `dist/exe/`. The executable therefore contains the
+same files a tar.gz installation would. That flow requires a clean committed
+tree; `--from-dist` packages the current `dist/` instead while iterating.
+
+The command runs on Windows only, expects the dependencies installed by
 `pnpm install` (the Node SEA blob is injected with `postject`), and keeps
 intermediate files in the OS temp directory. On first run the executable unpacks
 the native addons and spawned helpers it needs into
