@@ -110,6 +110,30 @@ describe('locale resolution', () => {
     expect(resolved).toBe('zh-Hans');
     expect(catalogNames).toContain(resolved);
   });
+
+  it('reads the host locale through Intl at most once per process', () => {
+    // The host locale feeds every catalog lookup on the render path, so the
+    // `Intl.DateTimeFormat` construction behind it is memoized. Asserting on the
+    // constructor rather than on elapsed time keeps the check deterministic.
+    const original = Intl.DateTimeFormat;
+    let constructed = 0;
+    // Bound to the original so the memoized read still returns a real answer.
+    Intl.DateTimeFormat = function countingDateTimeFormat(
+      ...args: ConstructorParameters<typeof Intl.DateTimeFormat>
+    ) {
+      constructed += 1;
+      return new original(...args);
+    } as unknown as typeof Intl.DateTimeFormat;
+    try {
+      // Neither an explicit locale nor an environment override short-circuits
+      // the Intl step, so these calls are the ones that would pay for it.
+      const environment = {} as const;
+      for (let index = 0; index < 5; index += 1) resolveLocaleName(undefined, environment);
+      expect(constructed).toBeLessThanOrEqual(1);
+    } finally {
+      Intl.DateTimeFormat = original;
+    }
+  });
 });
 
 describe('catalog interpolation', () => {

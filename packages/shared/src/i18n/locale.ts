@@ -144,10 +144,24 @@ export function isChineseLocale(locale?: string | null): boolean {
  */
 export type SystemLocaleReader = () => string | undefined;
 
+/**
+ * Host locale reported by `Intl`, resolved once per process.
+ *
+ * Constructing `Intl.DateTimeFormat` costs about 32 µs on a cold ICU cache, and
+ * every catalog lookup on the render path calls this: `resolveLocaleName` runs
+ * for each `tuiText`/`shellText`/`transcriptText` call, including the ones that
+ * fire per stream delta, so an unmemoized read was a measurable share of frame
+ * time. The host locale cannot change within a process — it is derived from the
+ * OS/ICU default, not from an environment variable this process writes — so the
+ * first answer is also the last. `resolveLocale` keeps its injectable
+ * `readSystemLocale` seam for tests that need a different answer.
+ */
+let intlLocale: string | undefined;
 const readIntlLocale: SystemLocaleReader = () => {
+  if (intlLocale !== undefined) return intlLocale;
   try {
-    const resolved = new Intl.DateTimeFormat().resolvedOptions().locale;
-    return usable(resolved);
+    intlLocale = usable(new Intl.DateTimeFormat().resolvedOptions().locale);
+    return intlLocale;
   } catch {
     return undefined;
   }

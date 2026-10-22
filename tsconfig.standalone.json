@@ -172,6 +172,9 @@
       "@mavis/local-runtime-v2/logging": [
         "./packages/local-runtime-v2/src/infra/logging/index.ts"
       ],
+      "@mavis/local-runtime-v2/plugin-hook-session": [
+        "./packages/local-runtime-v2/src/service/turn-system/agent-host/assembly/local-turn-plugin-hooks.ts"
+      ],
       "@mavis/local-runtime-v2/process-local": [
         "./packages/local-runtime-v2/src/local/host-contract.ts"
       ],

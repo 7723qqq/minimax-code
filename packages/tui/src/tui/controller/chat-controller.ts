@@ -17,6 +17,7 @@ import { TuiStatusMetricsFlow } from './projection/status-metrics-flow.js';
 import { TuiTurnOutputRate } from './projection/turn-output-rate.js';
 import {
   cloneAccountStatus,
+  cloneAccountStatusForSnapshot,
   createTuiActiveTurn,
   createTuiTurnId,
   latestHistoryMessageId,
@@ -139,7 +140,7 @@ export class TuiChatController {
       ...this.state,
       sessions: this.state.sessions.map((session) => ({ ...session })),
       session: this.state.session ? { ...this.state.session } : undefined,
-      account: cloneAccountStatus(this.state.account),
+      account: cloneAccountStatusForSnapshot(this.state.account),
       sessionUsage: this.state.sessionUsage ? { ...this.state.sessionUsage } : undefined,
       lastSettledTurn: this.state.lastSettledTurn ? { ...this.state.lastSettledTurn } : undefined,
     };

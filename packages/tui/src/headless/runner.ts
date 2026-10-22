@@ -672,12 +672,20 @@ async function resolveExecutionFacts(
   );
   const responses = [...(outcome.usageResponses ?? [])];
   const historyIds = new Set<string>();
+  // One pass over the turn history answers three questions the summary needs:
+  // which responses have identity, whether any compaction message participated,
+  // and whether any response arrived without an id. `responseUsageFromMessage`
+  // decodes per message, so re-walking the array repeated that decode.
+  let hasCompactionMessage = false;
+  let hasUnidentifiedResponse = false;
   for (const message of history?.messages ?? []) {
+    if (isTurnCompactionMessage(message, turnId)) hasCompactionMessage = true;
     const response = responseUsageFromMessage(message, turnId);
     if (!response) continue;
     if (response.messageId) historyIds.add(response.messageId);
     // Unidentified history cannot be reconciled against stream delivery safely.
     if (response.messageId) upsertResponseUsage(responses, response);
+    else hasUnidentifiedResponse = true;
   }
   const responseSummary = sumResponseUsage(responses);
   const responseUsage = toExecTokenUsage(
@@ -688,9 +696,7 @@ async function resolveExecutionFacts(
     outcome.status !== "succeeded" ||
     outcome.usageIncomplete === true ||
     !history?.complete ||
-    history.messages.some((message) =>
-      isTurnCompactionMessage(message, turnId),
-    ) ||
+    hasCompactionMessage ||
     responseSummary.usageIncomplete ||
     (responseUsage !== undefined && responseUsage.totalTokens === undefined) ||
     responses.length === 0 ||
@@ -701,11 +707,7 @@ async function resolveExecutionFacts(
         !toExecTokenUsage(response.usage) ||
         response.usageIncomplete,
     ) ||
-    (history?.messages.some((message) => {
-      const response = responseUsageFromMessage(message, turnId);
-      return response !== undefined && !response.messageId;
-    }) ??
-      false);
+    hasUnidentifiedResponse;
   return {
     ...(model ? { model } : {}),
     ...(tokenUsage ? { usage: tokenUsage } : {}),

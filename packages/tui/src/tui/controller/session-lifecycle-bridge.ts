@@ -2,7 +2,7 @@ import {
   abortLocalPluginHookSessionTurn,
   endLocalPluginHookSession,
   markNextLocalPluginHookSessionStart,
-} from '@mavis/local-runtime-v2/turn-system';
+} from '@mavis/local-runtime-v2/plugin-hook-session';
 
 import type { CreateTuiAppOptions } from '../../types/tui-app.js';
 

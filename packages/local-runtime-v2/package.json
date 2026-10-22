@@ -33,6 +33,10 @@
       "types": "./src/service/turn-system/index.ts",
       "import": "./dist/service/turn-system/index.js"
     },
+    "./plugin-hook-session": {
+      "types": "./src/service/turn-system/agent-host/assembly/local-turn-plugin-hooks.ts",
+      "import": "./dist/service/turn-system/agent-host/assembly/local-turn-plugin-hooks.js"
+    },
     "./agent": {
       "types": "./src/service/agent/public.ts",
       "import": "./dist/service/agent/public.js"
