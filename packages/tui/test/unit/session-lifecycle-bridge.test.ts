@@ -1,4 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, jest, mock } from 'bun:test';
+
+import { waitFor } from '../../../../test/bun-test-setup.js';
 
 /**
  * The bridge imports the plugin-hook Session hooks from their own package
@@ -18,33 +20,33 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
  * The module is mocked because these assertions are about which hook fires with
  * which arguments, not about the coordinator's own state.
  */
-const hooks = vi.hoisted(() => ({
-  markNextLocalPluginHookSessionStart: vi.fn(),
-  endLocalPluginHookSession: vi.fn(async () => undefined),
-  abortLocalPluginHookSessionTurn: vi.fn(
+const hooks = {
+  markNextLocalPluginHookSessionStart: mock(),
+  endLocalPluginHookSession: mock(async () => undefined),
+  abortLocalPluginHookSessionTurn: mock(
     async (_sessionId: string, abortSession: (id: string) => Promise<unknown>) => {
       await abortSession('execution-1');
     },
   ),
-}));
+};
 
-vi.mock('@mavis/local-runtime-v2/plugin-hook-session', () => hooks);
+mock.module('@mavis/local-runtime-v2/plugin-hook-session', () => hooks);
 
 const { createTuiSessionLifecycleBridge } = await import(
   '../../src/tui/controller/session-lifecycle-bridge.js'
 );
 
-const abortSession = vi.fn(async (_input: unknown) => undefined);
+const abortSession = mock(async (_input: unknown) => undefined);
 const runtime = { abortSession } as unknown as Parameters<
   typeof createTuiSessionLifecycleBridge
 >[0];
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  jest.clearAllMocks();
 });
 
 afterEach(() => {
-  vi.clearAllMocks();
+  jest.clearAllMocks();
 });
 
 describe('createTuiSessionLifecycleBridge', () => {
@@ -53,13 +55,13 @@ describe('createTuiSessionLifecycleBridge', () => {
 
     // A Session that starts without a preceding clear must not be flagged.
     bridge.onSessionLifecycle('session-without-clear');
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(hooks.markNextLocalPluginHookSessionStart).not.toHaveBeenCalled(),
     );
 
     bridge.onSessionLifecycle(undefined);
     bridge.onSessionLifecycle('session-after-clear');
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(hooks.markNextLocalPluginHookSessionStart).toHaveBeenCalledWith(
         'session-after-clear',
         'clear',
@@ -93,7 +95,7 @@ describe('createTuiSessionLifecycleBridge', () => {
 
   it('adopts a foreground run only when it belongs to the active Session', () => {
     const bridge = createTuiSessionLifecycleBridge(runtime);
-    const events = { adoptRuntimeTurn: vi.fn() };
+    const events = { adoptRuntimeTurn: mock() };
 
     bridge.adoptForegroundRun(
       'session-1',

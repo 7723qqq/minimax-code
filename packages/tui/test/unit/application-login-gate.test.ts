@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 
 import {
   TuiLoginRequiredError,
@@ -19,7 +19,7 @@ describe('MiniMax login gate', () => {
     },
   ])('allows an unauthenticated BYOK Agent Run: %s', async (selection) => {
     const account = { status: 'ready' as const, ...selection, warnings: [] };
-    const getAccountStatus = vi.fn(async () => account);
+    const getAccountStatus = mock(async () => account);
 
     await expect(requireTuiAgentAccess({ getAccountStatus }, 'session-1')).resolves.toBe(
       account,

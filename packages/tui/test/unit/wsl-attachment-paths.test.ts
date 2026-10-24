@@ -1,30 +1,81 @@
 import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createRequire } from "node:module";
+import { afterAll, afterEach, beforeEach, describe, expect, it, mock } from "bun:test";
 import { resolveTuiExecInvocation } from "../../src/headless/invocation.js";
 import { resolveWslPath } from "../../src/host/wsl-path.js";
 import { resolveTuiAttachment } from "../../src/tui/features/composer/attachments.js";
 import { TuiComposerDraft } from "../../src/tui/features/composer/draft.js";
 import { isTuiTerminalImagePaste } from "../../src/tui/features/composer/terminal-image-paste.js";
+import { stubEnv, unstubAllEnvs } from "../../../../test/bun-test-setup.js";
 
-const host = vi.hoisted(() => ({
-  platform: vi.fn(() => "linux"),
-  release: vi.fn(() => "6.18.33.2-microsoft-standard-WSL2"),
-  executeFile: vi.fn(),
-}));
+// `bun test` runs every file of a suite in one process, and `mock.module()`
+// replaces the module for that whole process. Snapshot the real modules before
+// replacing them and put them back in `afterAll`, so a replacement never leaks
+// into the files that run after this one.
+// `require` inside the factory reads the real module: a static namespace
+// import would already be replaced by the mock and would resolve to itself.
+const require = createRequire(import.meta.url);
+const realOs = require("node:os");
+const realChildProcess = require("node:child_process");
 
-vi.mock("node:os", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("node:os")>()),
+const host = {
+  platform: mock(() => "linux"),
+  release: mock(() => "6.18.33.2-microsoft-standard-WSL2"),
+  executeFile: mock(),
+};
+
+mock.module("node:os", () => ({
+  ...realOs,
   platform: host.platform,
   release: host.release,
+  default: { ...realOs, platform: host.platform, release: host.release },
 }));
-vi.mock("node:child_process", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("node:child_process")>()),
-  execFile: Object.assign(vi.fn(), {
+
+mock.module("node:child_process", () => {
+  // `wsl-path.ts` promisifies `execFile`, so the mock carries the custom
+  // promisify symbol and the converter call lands on `host.executeFile`.
+  const execFile = Object.assign(mock(), {
     [Symbol.for("nodejs.util.promisify.custom")]: host.executeFile,
-  }),
-}));
+  });
+  return {
+    ...realChildProcess,
+    execFile,
+    default: { ...realChildProcess, execFile },
+  };
+});
+
+// `wsl-path.ts` derives its converter call at module scope
+// (`promisify(execFile)`), so the module has to be evaluated *after* the
+// `node:child_process` mock is registered. The query suffix gives Bun a
+// distinct module id, which re-evaluates the module, and the plain path is
+// then re-registered with that instance.
+//
+// The attachment resolver imports `wsl-path.ts` itself, so it captured the
+// pre-mock module the first time it was loaded. It is re-evaluated the same
+// way, otherwise the resolver would keep calling the real `wslpath`.
+const actualWslPath = { ...(await import("../../src/host/wsl-path.js")) };
+const mockedWslPath = { ...(await import("../../src/host/wsl-path.js?mocked")) };
+mock.module("../../src/host/wsl-path.js", () => mockedWslPath);
+
+const actualAttachments = {
+  ...(await import("../../src/tui/features/composer/attachments.js")),
+};
+const mockedAttachments = {
+  ...(await import("../../src/tui/features/composer/attachments.js?mocked")),
+};
+mock.module("../../src/tui/features/composer/attachments.js", () => mockedAttachments);
+
+afterAll(() => {
+  mock.module("../../src/host/wsl-path.js", () => actualWslPath);
+  mock.module("../../src/tui/features/composer/attachments.js", () => actualAttachments);
+  mock.module("node:os", () => ({ ...realOs, default: realOs }));
+  mock.module("node:child_process", () => ({
+    ...realChildProcess,
+    default: realChildProcess,
+  }));
+});
 
 let workspaceDir: string;
 let imagePath: string;
@@ -35,9 +86,9 @@ beforeEach(async () => {
   host.platform.mockReturnValue("linux");
   host.release.mockReturnValue("6.18.33.2-microsoft-standard-WSL2");
   host.executeFile.mockReset();
-  vi.stubEnv("WSL_DISTRO_NAME", "");
-  vi.stubEnv("WSL_INTEROP", "");
-  vi.stubEnv("WSLENV", "");
+  stubEnv("WSL_DISTRO_NAME", "");
+  stubEnv("WSL_INTEROP", "");
+  stubEnv("WSLENV", "");
   workspaceDir = await mkdtemp(join(tmpdir(), "mcode-wsl-path-"));
   imagePath = join(workspaceDir, "截图.png");
   await writeFile(imagePath, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
@@ -45,7 +96,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  vi.unstubAllEnvs();
+  unstubAllEnvs();
   await rm(workspaceDir, { recursive: true, force: true });
 });
 
@@ -61,12 +112,12 @@ describe("WSL attachment paths", () => {
   ])(
     "queues a Windows image path as an image placeholder: %s",
     async (reference) => {
-      const placeholders = vi.fn();
+      const placeholders = mock();
       const draft = new TuiComposerDraft({
         workspaceDir,
         resolveAttachment: resolveTuiAttachment,
-        append: vi.fn(),
-        onChanged: vi.fn(),
+        append: mock(),
+        onChanged: mock(),
         onAttachmentPlaceholdersChanged: placeholders,
       });
       expect(isTuiTerminalImagePaste(reference)).toBe(true);
@@ -117,7 +168,7 @@ describe("WSL attachment paths", () => {
     "detects WSL via %s even without a Microsoft kernel name",
     async (name) => {
       host.release.mockReturnValue("custom-kernel");
-      vi.stubEnv(name, "synthetic-wsl");
+      stubEnv(name, "synthetic-wsl");
       await expect(resolveWslPath(windowsPath)).resolves.toBe(imagePath);
     },
   );

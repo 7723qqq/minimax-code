@@ -207,6 +207,14 @@
     "./memory-limits": {
       "types": "./src/memory-limits.ts",
       "import": "./dist/memory-limits.js"
+    },
+    "./bundled-assets": {
+      "types": "./src/bundled-assets.ts",
+      "import": "./dist/bundled-assets.js"
+    },
+    "./native-addons": {
+      "types": "./src/native-addons.ts",
+      "import": "./dist/native-addons.js"
     }
   },
   "types": "./src/index.ts",

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { EN_TUI_COPY } from '../../src/tui/copy.en.js';
 import { ZH_HANS_TUI_COPY } from '../../src/tui/copy.zh-Hans.js';

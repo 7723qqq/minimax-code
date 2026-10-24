@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { EN_ACP_COPY } from '../../src/acp/copy.en.js';
 import { ZH_HANS_ACP_COPY } from '../../src/acp/copy.zh-Hans.js';

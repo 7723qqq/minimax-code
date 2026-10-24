@@ -1,5 +1,5 @@
 import { stripVTControlCharacters } from 'node:util';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { visibleWidth } from '../../../../../src/tui/rendering/text.js';
 import {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { EN_BACKGROUND_TASK_COPY } from '../../src/background-task/copy.en.js';
 import { ZH_HANS_BACKGROUND_TASK_COPY } from '../../src/background-task/copy.zh-Hans.js';

@@ -1,22 +1,23 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
+
 import type { McodeProviderModel, McodeProviderView } from '../../src/provider/contract.js';
 import { McodeProviderApplication } from '../../src/provider/application.js';
 
 function createPort() {
   return {
-    discoverUserModelsCandidate: vi.fn(async (): Promise<readonly McodeProviderModel[]> => []),
-    listProviderPresets: vi.fn(async () => []),
-    getCodexOAuthStatus: vi.fn(async () => ({
+    discoverUserModelsCandidate: mock(async (): Promise<readonly McodeProviderModel[]> => []),
+    listProviderPresets: mock(async () => []),
+    getCodexOAuthStatus: mock(async () => ({
       state: 'disconnected' as const,
       providerId: 'openai-codex' as const,
     })),
-    cancelCodexOAuthLogin: vi.fn(async () => ({ state: 'disconnected' as const, providerId: 'openai-codex' as const })),
-    startCodexOAuthLogin: vi.fn(async () => ({
+    cancelCodexOAuthLogin: mock(async () => ({ state: 'disconnected' as const, providerId: 'openai-codex' as const })),
+    startCodexOAuthLogin: mock(async () => ({
       state: 'pending' as const,
       providerId: 'openai-codex' as const,
       authUrl: 'https://auth.openai.example/authorize',
     })),
-    listUserModelProviders: vi.fn(async () => [
+    listUserModelProviders: mock(async () => [
       {
         providerId: 'custom_provider:openai',
         name: 'OpenAI',
@@ -31,26 +32,26 @@ function createPort() {
         models: [{ modelId: 'gpt-4.1', displayName: 'GPT-4.1', contextLimit: 32768, maxOutputTokens: 4096 }],
       },
     ]),
-    getMiniMaxApiKeyStatus: vi.fn(async () => ({
+    getMiniMaxApiKeyStatus: mock(async () => ({
       hasApiKey: true,
       maskedApiKey: 'sk-****5678',
       rawApiKey: 'must-never-cross-the-cli-boundary',
     })),
-    getMiniMaxModelSource: vi.fn(async () => 'minimax_api_key' as const),
-    setMiniMaxModelSource: vi.fn(async (source: 'token_plan' | 'minimax_api_key') => source),
-    upsertMiniMaxApiKey: vi.fn(async () => undefined),
-    createUserModelProvider: vi.fn(async () => undefined),
-    saveUserModelProviderCandidate: vi.fn(async () => ({
+    getMiniMaxModelSource: mock(async () => 'minimax_api_key' as const),
+    setMiniMaxModelSource: mock(async (source: 'token_plan' | 'minimax_api_key') => source),
+    upsertMiniMaxApiKey: mock(async () => undefined),
+    createUserModelProvider: mock(async () => undefined),
+    saveUserModelProviderCandidate: mock(async () => ({
       success: true,
       provider: { providerId: 'custom_provider:openai' },
     })),
-    updateUserModelProvider: vi.fn(async () => undefined),
-    deleteUserModelProvider: vi.fn(async () => undefined),
-    testUserModelProvider: vi.fn(async () => ({
+    updateUserModelProvider: mock(async () => undefined),
+    deleteUserModelProvider: mock(async () => undefined),
+    testUserModelProvider: mock(async () => ({
       success: true,
       status: { state: 'available' },
     })),
-    testUserModel: vi.fn(async () => ({
+    testUserModel: mock(async () => ({
       success: true,
       status: { state: 'available' },
     })),
@@ -279,7 +280,6 @@ describe('McodeProviderApplication', () => {
     expect(snapshot.providers[2]).toMatchObject({ enabled: true, active: true });
   });
 });
-
 
 describe('saved provider model refresh', () => {
   const provider: McodeProviderView = {

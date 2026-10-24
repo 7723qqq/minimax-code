@@ -1,3 +1,5 @@
+import { mocked } from '../../../../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock } from 'bun:test';
 import type { AgentMessage, StreamFn } from '@earendil-works/pi-agent-core';
 import {
   createAssistantMessageEventStream,
@@ -11,7 +13,6 @@ import {
 } from '@mavis/agent-core/pi-turn-runner';
 import { createDefaultTokenEstimator } from '@mavis/context-manager';
 import type { PromptReadSnapshot } from '@mavis/agent-runtime';
-import { describe, expect, it, vi } from 'vitest';
 
 import { buildLocalRequestPayloadTransform } from '../../agent-host/assembly/local-turn-payload-transform.js';
 import { validateCheckpointGeneration } from '../algorithm/checkpoint-format.js';
@@ -26,7 +27,7 @@ describe('checkpoint Provider thinking request', () => {
   it('omits semantic reasoning for off while the M3 wire uses the disabled variant', async () => {
     const selectedModel = { ...model(), reasoning: true };
     const wirePayloads: unknown[] = [];
-    const streamFn: StreamFn = vi.fn(async (calledModel, _context, options) => {
+    const streamFn: StreamFn = mock(async (calledModel, _context, options) => {
       const payload = { messages: [], output_config: { effort: 'medium' } };
       wirePayloads.push((await options?.onPayload?.(payload, calledModel)) ?? payload);
       return completedStream(
@@ -71,7 +72,7 @@ describe('checkpoint Provider thinking request', () => {
       outputTokens: 5,
       responseContentKinds: ['text'],
     });
-    expect(vi.mocked(streamFn).mock.calls[0]?.[2]?.reasoning).toBeUndefined();
+    expect(mocked(streamFn).mock.calls[0]?.[2]?.reasoning).toBeUndefined();
     expect(wirePayloads).toEqual([{ messages: [], thinking: { type: 'disabled' } }]);
   });
 
@@ -85,7 +86,7 @@ describe('checkpoint Provider thinking request', () => {
       usage: usage({ output: 17 }),
     });
     const wirePayloads: unknown[] = [];
-    const streamFn: StreamFn = vi.fn(async (calledModel, context, options) => {
+    const streamFn: StreamFn = mock(async (calledModel, context, options) => {
       const payload = {
         model: calledModel.id,
         messages: context.messages,
@@ -145,7 +146,7 @@ describe('checkpoint Provider thinking request', () => {
         thinking: { type: 'adaptive' },
       },
     ]);
-    expect(vi.mocked(streamFn).mock.calls[0]?.[2]?.reasoning).toBe('medium');
+    expect(mocked(streamFn).mock.calls[0]?.[2]?.reasoning).toBe('medium');
   });
 });
 
@@ -157,7 +158,7 @@ describe('checkpoint Provider request', () => {
     });
     const session = await createCheckpointSession({
       model: model(),
-      streamFn: vi.fn(() => completedStream(final)),
+      streamFn: mock(() => completedStream(final)),
       thinkingLevel: 'off',
       maxOutputTokens: 321,
       providerInputLimit: 128_000,
@@ -197,7 +198,7 @@ describe('checkpoint Provider request', () => {
       (
         await createCheckpointSession({
           model: selectedModel,
-          streamFn: vi.fn(),
+          streamFn: mock(),
           thinkingLevel: 'off',
           maxOutputTokens: 0,
           providerInputLimit: estimatedTokens,
@@ -209,7 +210,7 @@ describe('checkpoint Provider request', () => {
       (
         await createCheckpointSession({
           model: selectedModel,
-          streamFn: vi.fn(),
+          streamFn: mock(),
           thinkingLevel: 'off',
           maxOutputTokens: 0,
           providerInputLimit: estimatedTokens - 1,
@@ -221,7 +222,7 @@ describe('checkpoint Provider request', () => {
       (
         await createCheckpointSession({
           model: selectedModel,
-          streamFn: vi.fn(),
+          streamFn: mock(),
           thinkingLevel: 'off',
           maxOutputTokens: contextWindow - estimatedTokens + 1,
           providerInputLimit: estimatedTokens,
@@ -233,7 +234,7 @@ describe('checkpoint Provider request', () => {
       (
         await createCheckpointSession({
           model: selectedModel,
-          streamFn: vi.fn(),
+          streamFn: mock(),
           thinkingLevel: 'off',
           maxOutputTokens: 0,
           providerInputLimit: estimatedTokens,
@@ -248,11 +249,11 @@ describe('checkpoint Provider prompt selection and delivery', () => {
   it('uses the builtin checkpoint template for the whole request after a remote read fails', async () => {
     const remote = {} as PromptReadSnapshot;
     const builtin = {} as PromptReadSnapshot;
-    const streamFn: StreamFn = vi.fn(() => completedStream(assistant({ content: [] })));
+    const streamFn: StreamFn = mock(() => completedStream(assistant({ content: [] })));
     const promptSnapshots = {
-      capture: vi.fn(async () => remote),
-      captureBuiltin: vi.fn(async () => builtin),
-      read: vi.fn(async (snapshot: PromptReadSnapshot) =>
+      capture: mock(async () => remote),
+      captureBuiltin: mock(async () => builtin),
+      read: mock(async (snapshot: PromptReadSnapshot) =>
         snapshot === remote
           ? { kind: 'invalid' as const }
           : { kind: 'found' as const, content: 'builtin checkpoint prompt' },
@@ -269,7 +270,7 @@ describe('checkpoint Provider prompt selection and delivery', () => {
 
     await session.generate({ messages: [user('context', 1)] });
 
-    expect(vi.mocked(streamFn).mock.calls[0]?.[1]?.systemPrompt).toBe('builtin checkpoint prompt');
+    expect(mocked(streamFn).mock.calls[0]?.[1]?.systemPrompt).toBe('builtin checkpoint prompt');
     expect(promptSnapshots.capture).toHaveBeenCalledOnce();
     expect(promptSnapshots.captureBuiltin).toHaveBeenCalledOnce();
   });
@@ -285,11 +286,11 @@ describe('checkpoint Provider prompt selection and delivery', () => {
         user(buildCheckpointControl(), 1),
       ],
     };
-    const streamFn: StreamFn = vi.fn(() => completedStream(assistant({ content: [] })));
+    const streamFn: StreamFn = mock(() => completedStream(assistant({ content: [] })));
     const promptSnapshots = {
-      capture: vi.fn(async () => snapshot),
-      captureBuiltin: vi.fn(async () => snapshot),
-      read: vi.fn(async () => ({ kind: 'found' as const, content: systemPrompt })),
+      capture: mock(async () => snapshot),
+      captureBuiltin: mock(async () => snapshot),
+      read: mock(async () => ({ kind: 'found' as const, content: systemPrompt })),
     };
     const session = await createCheckpointSession({
       model: model(),
@@ -304,7 +305,7 @@ describe('checkpoint Provider prompt selection and delivery', () => {
     expect(session.fits({ messages })).toBe(true);
     await session.generate({ messages });
 
-    expect(vi.mocked(streamFn).mock.calls[0]?.[1]?.systemPrompt).toBe(systemPrompt);
+    expect(mocked(streamFn).mock.calls[0]?.[1]?.systemPrompt).toBe(systemPrompt);
     expect(promptSnapshots.capture).toHaveBeenCalledOnce();
     expect(promptSnapshots.read).toHaveBeenCalledOnce();
   });
@@ -319,8 +320,8 @@ describe('checkpoint Provider prompt selection and delivery', () => {
       ],
       usage: usage({ output: 87 }),
     });
-    const streamFn: StreamFn = vi.fn(() => completedStream(final));
-    const payloadTransform = vi.fn((payload: unknown) => payload);
+    const streamFn: StreamFn = mock(() => completedStream(final));
+    const payloadTransform = mock((payload: unknown) => payload);
     const session = await createCheckpointSession({
       model: selectedModel,
       streamFn,
@@ -360,7 +361,7 @@ describe('checkpoint Provider prompt selection and delivery', () => {
 
     expect(h0).toEqual(originalH0);
     expect(streamFn).toHaveBeenCalledOnce();
-    const [calledModel, context, options] = vi.mocked(streamFn).mock.calls[0] ?? [];
+    const [calledModel, context, options] = mocked(streamFn).mock.calls[0] ?? [];
     expect(calledModel).toBe(selectedModel);
     expect(context).toMatchObject({
       systemPrompt: CHECKPOINT_SYSTEM_PROMPT,
@@ -412,7 +413,7 @@ describe('checkpoint Provider prompt selection and delivery', () => {
     });
     const session = await createCheckpointSession({
       model: model(),
-      streamFn: vi.fn(() => completedStream(final)),
+      streamFn: mock(() => completedStream(final)),
       thinkingLevel: 'off',
       maxOutputTokens: 321,
       providerInputLimit: 128_000,
@@ -448,7 +449,7 @@ describe('checkpoint Provider overflow normalization', () => {
   ])('maps %s using the target model context window', async (_case, final) => {
     const session = await createCheckpointSession({
       model: model(100),
-      streamFn: vi.fn(() => completedStream(final)),
+      streamFn: mock(() => completedStream(final)),
       thinkingLevel: 'off',
       maxOutputTokens: 20,
       providerInputLimit: 100,
@@ -481,7 +482,7 @@ describe('checkpoint Provider overflow normalization', () => {
             thinkingLevel: 'off',
             maxOutputTokens: 20,
             providerInputLimit: 128_000,
-            streamFn: vi.fn(() => {
+            streamFn: mock(() => {
               throw overflow;
             }),
           })
@@ -497,7 +498,7 @@ describe('checkpoint Provider overflow normalization', () => {
             thinkingLevel: 'off',
             maxOutputTokens: 20,
             providerInputLimit: 128_000,
-            streamFn: vi.fn(() => {
+            streamFn: mock(() => {
               throw error;
             }),
           })
@@ -513,7 +514,7 @@ describe('checkpoint Provider overflow normalization', () => {
     });
     const session = await createCheckpointSession({
       model: model(100),
-      streamFn: vi.fn(() => completedStream(final)),
+      streamFn: mock(() => completedStream(final)),
       thinkingLevel: 'off',
       maxOutputTokens: 20,
       providerInputLimit: 100,
@@ -549,7 +550,7 @@ describe('checkpoint Provider image limits (#425)', () => {
       stopReason: 'error',
       errorMessage: `BYOK upstream error: ${JSON.stringify({ message: `BYOK provider custom_provider:x upstream error: ${IMAGE_LIMIT}` })}`,
     });
-    const rejection = await (await session(vi.fn(() => completedStream(final))))
+    const rejection = await (await session(mock(() => completedStream(final))))
       .generate({ messages: [user('context', 1)] })
       .catch((error: unknown) => error);
 
@@ -561,7 +562,7 @@ describe('checkpoint Provider image limits (#425)', () => {
     const error = new Error(IMAGE_LIMIT);
     const rejection = await (
       await session(
-        vi.fn(() => {
+        mock(() => {
           throw error;
         }),
       )
@@ -574,7 +575,7 @@ describe('checkpoint Provider image limits (#425)', () => {
   });
 
   it('caps the images sent in the checkpoint request with the shared target projection', async () => {
-    const streamFn: StreamFn = vi.fn(() => completedStream(assistant({ content: [] })));
+    const streamFn: StreamFn = mock(() => completedStream(assistant({ content: [] })));
     const messages: AgentMessage[] = Array.from({ length: 31 }, (_, index) => ({
       role: 'user',
       content: [
@@ -586,7 +587,7 @@ describe('checkpoint Provider image limits (#425)', () => {
 
     await (await session(streamFn)).generate({ messages });
 
-    const sent = vi.mocked(streamFn).mock.calls[0]?.[1]?.messages ?? [];
+    const sent = mocked(streamFn).mock.calls[0]?.[1]?.messages ?? [];
     const images = sent.flatMap((message) =>
       Array.isArray(message.content) ? message.content.filter((block) => block.type === 'image') : [],
     );
@@ -615,10 +616,10 @@ describe('checkpoint Provider output exhaustion', () => {
         content,
         usage: usage({ input: 50, output: 20, totalTokens: 70 }),
       });
-      const onGenerated = vi.fn();
+      const onGenerated = mock();
       const session = await createCheckpointSession({
         model: model(),
-        streamFn: vi.fn(() => completedStream(final)),
+        streamFn: mock(() => completedStream(final)),
         thinkingLevel: 'off',
         maxOutputTokens: 20,
         providerInputLimit: 128_000,
@@ -661,7 +662,7 @@ describe('checkpoint Provider output exhaustion', () => {
   ])('returns %s unchanged for the existing validation', async (_case, final) => {
     const session = await createCheckpointSession({
       model: model(),
-      streamFn: vi.fn(() => completedStream(final)),
+      streamFn: mock(() => completedStream(final)),
       thinkingLevel: 'off',
       maxOutputTokens: 20,
       providerInputLimit: 128_000,

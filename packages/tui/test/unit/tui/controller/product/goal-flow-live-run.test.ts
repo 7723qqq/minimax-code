@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, mock } from 'bun:test';
+
 import {
   TUI_GOAL_LIVE_RUN_HINT_SUFFIX,
   TuiGoalFlow,
@@ -15,25 +16,25 @@ function createGoalFlow(hasLiveRun: boolean) {
   };
   const runtime = {
     isGoalEnabled: () => true,
-    getGoal: vi.fn(async () => goal),
-    clearGoal: vi.fn(async () => undefined),
-    patchGoal: vi.fn(async (_sessionId: string, patch: { status?: string }) => ({
+    getGoal: mock(async () => goal),
+    clearGoal: mock(async () => undefined),
+    patchGoal: mock(async (_sessionId: string, patch: { status?: string }) => ({
       ...goal,
       ...patch,
     })),
   };
-  const setHint = vi.fn();
-  const banner = { setGoal: vi.fn(), getGoal: vi.fn(() => goal) };
+  const setHint = mock();
+  const banner = { setGoal: mock(), getGoal: mock(() => goal) };
   const flow = new TuiGoalFlow({
     runtime: runtime as never,
     currentSessionId: () => "session-a",
     banner: banner as never,
-    composerDraft: { capture: vi.fn(() => ({})) } as never,
+    composerDraft: { capture: mock(() => ({})) } as never,
     editor: {} as never,
     surfaceHost: {} as never,
-    append: vi.fn(),
+    append: mock(),
     setHint,
-    onChanged: vi.fn(),
+    onChanged: mock(),
     hasLiveRun: () => hasLiveRun,
   });
   return { flow, runtime, setHint, banner };

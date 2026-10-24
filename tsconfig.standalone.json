@@ -244,6 +244,9 @@
       "@mavis/shared/bounded-json-stringify": [
         "./packages/shared/src/bounded-json-stringify.ts"
       ],
+      "@mavis/shared/bundled-assets": [
+        "./packages/shared/src/bundled-assets.ts"
+      ],
       "@mavis/shared/cron-model": [
         "./packages/shared/src/cron-model.ts"
       ],
@@ -334,6 +337,9 @@
       "@mavis/shared/models-dev": [
         "./packages/shared/src/models-dev.ts"
       ],
+      "@mavis/shared/native-addons": [
+        "./packages/shared/src/native-addons.ts"
+      ],
       "@mavis/shared/navigation-text": [
         "./packages/shared/src/navigation-text.ts"
       ],
@@ -410,6 +416,7 @@
   "include": [
     "packages/tui/src/index.ts",
     "packages/local-runtime/src/types/*.d.ts",
-    "third_party/pi-mono/packages/coding-agent/src/utils/*.d.ts"
+    "third_party/pi-mono/packages/coding-agent/src/utils/*.d.ts",
+    "types/bun-sqlite.d.ts"
   ]
 }

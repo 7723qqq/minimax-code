@@ -1,5 +1,5 @@
+import { afterEach, describe, expect, it, jest, mock, spyOn } from 'bun:test';
 // Standalone client fail-policy tests; the desktop HTTP route is outside this distribution.
-import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   callSafetyApi,
@@ -14,7 +14,7 @@ const buildEnv = () => 'test' as const;
 const originalBuildEnv = process.env.MAVIS_BUILD_ENV;
 
 afterEach(() => {
-  vi.restoreAllMocks();
+  jest.restoreAllMocks();
   if (originalBuildEnv === undefined) delete process.env.MAVIS_BUILD_ENV;
   else process.env.MAVIS_BUILD_ENV = originalBuildEnv;
 });
@@ -28,7 +28,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 describe('callSafetyApi fail-policy classification', () => {
   it('returns local_error when fetch throws (offline / DNS / refused)', async () => {
-    const fetchImpl = vi.fn(async () => {
+    const fetchImpl = mock(async () => {
       throw new Error('network down');
     }) as unknown as typeof fetch;
 
@@ -45,7 +45,7 @@ describe('callSafetyApi fail-policy classification', () => {
   });
 
   it('returns api_error when the gateway responds with a 5xx', async () => {
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = mock(async () =>
       jsonResponse({ error: 'upstream exploded' }, 502),
     ) as unknown as typeof fetch;
 
@@ -63,7 +63,7 @@ describe('callSafetyApi fail-policy classification', () => {
 
   it('distinguishes expired auth from other fail-closed 4xx responses', async () => {
     for (const status of [401, 403]) {
-      const fetchImpl = vi.fn(async () =>
+      const fetchImpl = mock(async () =>
         jsonResponse({ error: 'unauthorized' }, status),
       ) as unknown as typeof fetch;
 
@@ -86,7 +86,7 @@ describe('callSafetyApi fail-policy classification', () => {
     const badRequest = await callSafetyApi({
       content: 'hello',
       scene: SAFETY_SCENE.UserInput,
-      fetchImpl: vi.fn(async () => jsonResponse({ error: 'bad request' }, 400)) as unknown as typeof fetch,
+      fetchImpl: mock(async () => jsonResponse({ error: 'bad request' }, 400)) as unknown as typeof fetch,
       region,
       buildEnv,
     });
@@ -94,7 +94,7 @@ describe('callSafetyApi fail-policy classification', () => {
   });
 
   it('returns local_error when the gateway returns a non-JSON 2xx body', async () => {
-    const fetchImpl = vi.fn(
+    const fetchImpl = mock(
       async () => new Response('not json at all', { status: 200 }),
     ) as unknown as typeof fetch;
 
@@ -111,7 +111,7 @@ describe('callSafetyApi fail-policy classification', () => {
   });
 
   it('returns local_error when the 2xx JSON has no boolean pass/safe field', async () => {
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = mock(async () =>
       jsonResponse({ reason: 'weird shape' }),
     ) as unknown as typeof fetch;
 
@@ -128,7 +128,7 @@ describe('callSafetyApi fail-policy classification', () => {
   });
 
   it('returns api_error when the gateway explicitly reports service-unavailable (50200)', async () => {
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = mock(async () =>
       jsonResponse({ pass: false, errorCode: 50200 }),
     ) as unknown as typeof fetch;
 
@@ -145,7 +145,7 @@ describe('callSafetyApi fail-policy classification', () => {
   });
 
   it('returns rejected when the gateway reviews and rejects the content', async () => {
-    const fetchImpl = vi.fn(async () =>
+    const fetchImpl = mock(async () =>
       jsonResponse({ pass: false, reason: 'blocked by policy' }),
     ) as unknown as typeof fetch;
 
@@ -162,7 +162,7 @@ describe('callSafetyApi fail-policy classification', () => {
   });
 
   it('passes through a clean approval with no errorKind', async () => {
-    const fetchImpl = vi.fn(async () => jsonResponse({ pass: true })) as unknown as typeof fetch;
+    const fetchImpl = mock(async () => jsonResponse({ pass: true })) as unknown as typeof fetch;
 
     const result = await callSafetyApi({
       content: 'hello',
@@ -177,7 +177,7 @@ describe('callSafetyApi fail-policy classification', () => {
   });
 
   it('sends a private object key without a client URL', async () => {
-    const fetchImpl = vi.fn(async () => jsonResponse({ pass: true })) as unknown as typeof fetch;
+    const fetchImpl = mock(async () => jsonResponse({ pass: true })) as unknown as typeof fetch;
 
     await callSafetyApi({
       content: '',
@@ -197,7 +197,7 @@ describe('callSafetyApi fail-policy classification', () => {
       'https://matrix-test.example.invalid/mavis/api/v1/content?require_auth=true',
       expect.anything(),
     );
-    const init = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as RequestInit;
+    const init = (fetchImpl as unknown as ReturnType<typeof mock>).mock.calls[0]?.[1] as RequestInit;
     expect(JSON.parse(String(init.body))).toMatchObject({
       files: [
         {
@@ -212,7 +212,7 @@ describe('callSafetyApi fail-policy classification', () => {
     undefined,
     [{ fileUrl: 'https://cdn.hailuoai.com/legacy.png', fileName: 'legacy.png' }],
   ])('preserves the auth policy for legacy text and URL requests: %j', async (attachments) => {
-    const fetchImpl = vi.fn(async () => jsonResponse({ pass: true }));
+    const fetchImpl = mock(async () => jsonResponse({ pass: true }));
     await callSafetyApi({
       content: 'hello',
       scene: SAFETY_SCENE.UserInput,
@@ -228,7 +228,7 @@ describe('callSafetyApi fail-policy classification', () => {
   });
 
   it('sends the managed lane only for non-prod content-safety calls', async () => {
-    const fetchImpl = vi.fn(async () => jsonResponse({ pass: true })) as unknown as typeof fetch;
+    const fetchImpl = mock(async () => jsonResponse({ pass: true })) as unknown as typeof fetch;
     await callSafetyApi({
       content: 'hello',
       scene: SAFETY_SCENE.UserInput,
@@ -238,12 +238,12 @@ describe('callSafetyApi fail-policy classification', () => {
       region,
       buildEnv,
     });
-    const requestInit = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[
+    const requestInit = (fetchImpl as unknown as ReturnType<typeof mock>).mock.calls[0]?.[
       1
     ] as RequestInit;
     expect(new Headers(requestInit.headers).get('bedrock-lane')).toBe('lane-a');
 
-    const prodFetch = vi.fn(async () => jsonResponse({ pass: true })) as unknown as typeof fetch;
+    const prodFetch = mock(async () => jsonResponse({ pass: true })) as unknown as typeof fetch;
     await callSafetyApi({
       content: 'hello',
       scene: SAFETY_SCENE.UserInput,
@@ -252,12 +252,12 @@ describe('callSafetyApi fail-policy classification', () => {
       region,
       buildEnv: () => 'prod',
     });
-    const prodInit = (prodFetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as RequestInit;
+    const prodInit = (prodFetch as unknown as ReturnType<typeof mock>).mock.calls[0]?.[1] as RequestInit;
     expect(new Headers(prodInit.headers).get('bedrock-lane')).toBeNull();
   });
 
   it('sends Shared OAuth access tokens as a Bearer credential', async () => {
-    const fetchImpl = vi.fn(async () => jsonResponse({ pass: true })) as unknown as typeof fetch;
+    const fetchImpl = mock(async () => jsonResponse({ pass: true })) as unknown as typeof fetch;
 
     await callSafetyApi({
       content: 'hello',
@@ -268,7 +268,7 @@ describe('callSafetyApi fail-policy classification', () => {
       buildEnv,
     });
 
-    const requestInit = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0]?.[
+    const requestInit = (fetchImpl as unknown as ReturnType<typeof mock>).mock.calls[0]?.[
       1
     ] as RequestInit;
     const headers = new Headers(requestInit.headers);
@@ -306,7 +306,7 @@ describe('callSafetyApi fail-policy classification', () => {
   ] as const)(
     'logs redacted %s failures in production',
     async (failureKind, response, statusCode) => {
-      const log = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+      const log = spyOn(logger, 'warn').mockImplementation(() => {});
       const result = await callSafetyApi({
         content: 'private-content',
         scene: SAFETY_SCENE.UserInput,
@@ -339,13 +339,13 @@ describe('callSafetyApi fail-policy classification', () => {
   );
 
   it('does not log successful reviews in production', async () => {
-    const log = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    const log = spyOn(logger, 'warn').mockImplementation(() => {});
 
     await callSafetyApi({
       content: 'hello',
       scene: SAFETY_SCENE.UserInput,
       authContext: { accessToken: 'shared-oauth-token' },
-      fetchImpl: vi.fn(async () => jsonResponse({ pass: true })) as unknown as typeof fetch,
+      fetchImpl: mock(async () => jsonResponse({ pass: true })) as unknown as typeof fetch,
       region,
       buildEnv: () => 'prod',
     });
@@ -354,7 +354,7 @@ describe('callSafetyApi fail-policy classification', () => {
   });
 
   it('uses a loopback test endpoint only for test builds', async () => {
-    const testFetch = vi.fn(async () => jsonResponse({ pass: true })) as unknown as typeof fetch;
+    const testFetch = mock(async () => jsonResponse({ pass: true })) as unknown as typeof fetch;
     await callSafetyApi({
       content: 'hello',
       scene: SAFETY_SCENE.UserInput,
@@ -368,7 +368,7 @@ describe('callSafetyApi fail-policy classification', () => {
       expect.any(Object),
     );
 
-    const prodFetch = vi.fn(async () => jsonResponse({ pass: true })) as unknown as typeof fetch;
+    const prodFetch = mock(async () => jsonResponse({ pass: true })) as unknown as typeof fetch;
     await callSafetyApi({
       content: 'hello',
       scene: SAFETY_SCENE.UserInput,
@@ -384,7 +384,7 @@ describe('callSafetyApi fail-policy classification', () => {
   });
 
   it('ignores non-loopback test endpoint overrides', async () => {
-    const fetchImpl = vi.fn(async () => jsonResponse({ pass: true })) as unknown as typeof fetch;
+    const fetchImpl = mock(async () => jsonResponse({ pass: true })) as unknown as typeof fetch;
     await callSafetyApi({
       content: 'hello',
       scene: SAFETY_SCENE.UserInput,
@@ -415,11 +415,10 @@ describe('createContentSafetyChecker airtight contract', () => {
     'recovers HTTP %i once with a new token and preserves the review payload',
     async (status) => {
       let accessToken = 'old-token';
-      const fetchImpl = vi
-        .fn<typeof fetch>()
+      const fetchImpl = mock<typeof fetch>()
         .mockResolvedValueOnce(new Response('{}', { status }))
         .mockResolvedValueOnce(jsonResponse({ pass: true }));
-      const authContextInvalidator = vi.fn(async (rejected?: string) => {
+      const authContextInvalidator = mock(async (rejected?: string) => {
         expect(rejected).toBe('old-token');
         accessToken = 'new-token';
       });
@@ -447,8 +446,7 @@ describe('createContentSafetyChecker airtight contract', () => {
     'keeps auth failures closed when recovery is %s',
     async (mode) => {
       let accessToken: string | undefined = 'old-token';
-      const fetchImpl = vi
-        .fn<typeof fetch>()
+      const fetchImpl = mock<typeof fetch>()
         .mockResolvedValue(new Response('{}', { status: 401 }));
       const check = createContentSafetyChecker({
         authContextGetter: () => (accessToken ? { accessToken } : undefined),
@@ -469,10 +467,9 @@ describe('createContentSafetyChecker airtight contract', () => {
 
   it('does not loop when the new token is also rejected', async () => {
     let accessToken = 'old-token';
-    const fetchImpl = vi
-      .fn<typeof fetch>()
+    const fetchImpl = mock<typeof fetch>()
       .mockImplementation(async () => new Response('{}', { status: 401 }));
-    const authContextInvalidator = vi.fn(async () => {
+    const authContextInvalidator = mock(async () => {
       accessToken = 'new-token';
     });
     const check = createContentSafetyChecker({
@@ -491,7 +488,7 @@ describe('createContentSafetyChecker airtight contract', () => {
   });
 
   it('does not refresh anonymous or non-auth review failures', async () => {
-    const authContextInvalidator = vi.fn();
+    const authContextInvalidator = mock();
     for (const [token, status] of [
       [undefined, 401],
       ['token', 400],

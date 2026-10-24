@@ -17,7 +17,7 @@
  * `Server` so `client.connect` performs a genuine MCP handshake; only
  * `createTransport` is mocked (it normally spawns stdio children).
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -32,13 +32,24 @@ import type {
   ResolvedMcpServer,
 } from '../src/runtime/types.js';
 
-const { createTransportMock } = vi.hoisted(() => ({
-  createTransportMock: vi.fn<(config: unknown, overrides?: unknown) => Transport>(),
-}));
+// `bun test` runs every file of a suite in one process, and `mock.module()`
+// replaces the module for that whole process. Snapshot the real module before
+// replacing it and put it back in `afterAll`, so the replacement never leaks
+// into the files that run after this one.
+const actualTransportFactory = { ...(await import('../src/runtime/transport/factory.js')) };
 
-vi.mock('../src/runtime/transport/factory.js', () => ({
+// `mock.module()` replaces the transport factory for the whole module graph.
+// Bun evaluates the factory lazily, so the plain `const` is picked up as-is.
+const createTransportMock = mock<(config: unknown, overrides?: unknown) => Transport>();
+
+mock.module('../src/runtime/transport/factory.js', () => ({
+  ...actualTransportFactory,
   createTransport: createTransportMock,
 }));
+
+afterAll(() => {
+  mock.module('../src/runtime/transport/factory.js', () => actualTransportFactory);
+});
 
 interface MetricEvent {
   kind: 'incr' | 'latency';
@@ -143,10 +154,10 @@ describe('McpConnectionPool — metrics emission', () => {
     createTransportMock.mockImplementation(() => clientTransport);
 
     const { events, metrics } = makeRecorder();
-    const info = vi.fn();
+    const info = mock();
     pool = new McpConnectionPool(stubLookup(stdioServer), {
       metrics,
-      logger: { info, warn: vi.fn(), error: vi.fn() },
+      logger: { info, warn: mock(), error: mock() },
     });
 
     const result = await pool.callTool('demo', 'ping', {});
@@ -226,7 +237,7 @@ describe('McpConnectionPool — metrics emission', () => {
     );
 
     const { events, metrics } = makeRecorder();
-    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const logger = { info: mock(), warn: mock(), error: mock() };
     pool = new McpConnectionPool(stubLookup(stdioServer), { metrics, logger });
 
     await expect(pool.callTool('demo', 'ping', {})).rejects.toThrow(/Failed to connect/);

@@ -1,7 +1,7 @@
+import { describe, expect, it, mock } from 'bun:test';
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
 
 import { createProductionConversationMutationWorkflow } from '../../src/application/session/conversation-mutation-workflow.js';
 import {
@@ -148,7 +148,7 @@ async function fixture(rows: readonly CanonicalHistoryEnvelope[], archived: bool
     },
   });
   const operations = createSessionOperationIntentRepository();
-  const create = vi.fn(async (input: Record<string, unknown>) => {
+  const create = mock(async (input: Record<string, unknown>) => {
     child = { ...source, ...input, sessionId: 'child', status: 'idle' };
     return child;
   });

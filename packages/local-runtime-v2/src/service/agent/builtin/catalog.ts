@@ -7,6 +7,7 @@ import {
   parseAgentCapabilityConfig,
   type AgentCapabilityConfig,
 } from '@mavis/config';
+import { hasEmbeddedAssets, resolveBundledAsset } from '@mavis/shared/bundled-assets';
 import {
   PromptSnapshotInvalidError,
   type PromptReadScope,
@@ -399,7 +400,12 @@ export class BuiltinAgentCatalog {
   }
 
   private async readRoster(): Promise<string[]> {
-    const raw = await readFile(join(await this.assetsDir(), BUILTIN_ROSTER_FILE), 'utf8');
+    const rosterPath = join(await this.assetsDir(), BUILTIN_ROSTER_FILE);
+    const raw =
+      (await this.readOptionalFile(rosterPath)) ??
+      (() => {
+        throw new Error(`Built-in Agent roster is unreadable: ${rosterPath}`);
+      })();
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) throw new Error('Built-in Agent roster must be an array.');
     const names = parsed.filter((value): value is string => typeof value === 'string');
@@ -578,11 +584,19 @@ export class BuiltinAgentCatalog {
     try {
       return await readFile(path, 'utf8');
     } catch {
-      return undefined;
+      // A packaged executable carries the assets inside its image, where the
+      // path this class builds (`<root>/assets/agents/...`) does not exist.
+      // The embedded map is keyed by that same relative path, so the lookup
+      // falls back to it before reporting the file as absent.
+      return readBundledAsset(path);
     }
   }
 
   private async assetsDir(): Promise<string> {
+    // A packaged executable has no asset directory: the files live in its image,
+    // keyed by relative path. Reporting the sentinel makes every `join(root, …)`
+    // in this class resolve through the embedded table instead of the filesystem.
+    if (hasEmbeddedAssets()) return EMBEDDED_ASSETS_ROOT;
     const configured = process.env.MAVIS_BUILTIN_AGENTS_V2_DIR?.trim() || this.assetsDirOverride;
     const here = dirname(fileURLToPath(import.meta.url));
     const candidates = configured
@@ -600,6 +614,65 @@ export class BuiltinAgentCatalog {
     }
     throw new Error('Local Runtime V2 built-in Agent assets are missing.');
   }
+}
+
+/**
+ * Read one asset out of a packaged executable.
+ *
+ * The embedded map keys assets by their repository-relative path
+ * (`assets/agents/_v2/roster.json`). `path` here is absolute and built from
+ * whichever root `assetsDir()` picked, so the key is recovered by cutting at the
+ * `assets/` segment. Returns `undefined` when this is not a packaged build or the
+ * key was not embedded.
+ */
+async function readBundledAsset(path: string): Promise<string | undefined> {
+  if (!hasEmbeddedAssets()) return undefined;
+  const key = assetsKeyFor(path);
+  if (key === undefined) return undefined;
+  const embeddedPath = resolveBundledAsset('', key);
+  if (embeddedPath === undefined) return undefined;
+  try {
+    return await readFile(embeddedPath, 'utf8');
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Root that `assetsDir()` reports in a packaged build.
+ *
+ * Embedded assets are keyed by relative path, so there is no directory to return.
+ * `readOptionalFile` maps this sentinel back through the embedded table, which
+ * keeps every `join(root, ...)` call in this class working unchanged.
+ */
+// The sentinel carries the asset key prefix, so `join(root, name)` still yields
+// the same key the packager recorded (`assets/agents/<name>`).
+/**
+ * Root that `assetsDir()` reports in a packaged build.
+ *
+ * Embedded assets are keyed by relative path, so there is no directory to return.
+ * `readOptionalFile` maps this sentinel back through the embedded table, which
+ * keeps every `join(root, ...)` call in this class working unchanged. The `/assets/`
+ * segment is part of the sentinel so the derived key keeps the prefix the packager
+ * recorded.
+ */
+const EMBEDDED_ASSETS_ROOT = '<mcode-embedded-assets>/assets/agents';
+
+/** Prefix the packager uses for the Agent assets, derived from the same sentinel. */
+const EMBEDDED_ASSETS_KEY_PREFIX = 'assets/agents';
+
+function assetsKeyFor(path: string): string | undefined {
+  const normalized = path.replaceAll('\\', '/');
+  const marker = '<mcode-embedded-assets>';
+  if (normalized.startsWith(marker)) {
+    const relative = normalized.slice(marker.length).replace(/^\/+/u, '');
+    return relative.startsWith(EMBEDDED_ASSETS_KEY_PREFIX)
+      ? relative
+      : `${EMBEDDED_ASSETS_KEY_PREFIX}/${relative}`;
+  }
+  const index = normalized.lastIndexOf('/assets/');
+  if (index === -1) return undefined;
+  return normalized.slice(index + 1);
 }
 
 function resolvePromptMode(input: BuiltinRenderInput): AgentPromptMode {

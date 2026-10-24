@@ -12,7 +12,7 @@ import {
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'bun:test';
 import { McodeUpdateApplication } from '../../src/update/application.js';
 import {
   createMcodeNpmRuntimeEnvironment,

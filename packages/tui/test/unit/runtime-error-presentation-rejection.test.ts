@@ -1,5 +1,5 @@
 import { LLM_ERROR_CODES } from '@mavis/shared/llm-error-classifier';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { resolveTuiRuntimeFailure } from '../../src/tui/controller/runtime/runtime-error-presentation.js';
 

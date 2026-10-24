@@ -1,8 +1,10 @@
+import { stubEnv, unstubAllEnvs } from '../../../../test/bun-test-setup.js';
+import { afterEach, describe, expect, it, mock } from 'bun:test';
 import { createDecipheriv, hkdfSync, randomUUID } from 'node:crypto';
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+
 import {
   createTuiIncidentReporter,
   resolveTuiIncidentDirectory,
@@ -37,7 +39,7 @@ function fixture(
   resolveAuthContext?: CreateTuiIncidentReporterOptions['resolveAuthContext'],
 ) {
   const requests: Array<{ url: string; init: RequestInit }> = [];
-  const fetchImpl = vi.fn<typeof fetch>(async (url, init) => {
+  const fetchImpl = mock<typeof fetch>(async (url, init) => {
     requests.push({ url: String(url), init: init! });
     return new Response(null, { status: 204 });
   });
@@ -127,14 +129,14 @@ describe('TUI automatic incident HTTP privacy boundary', () => {
   });
 
   it.each(['MCODE_DISABLE_TELEMETRY', 'DO_NOT_TRACK'])('%s overrides the diagnostics opt-in', async (key) => {
-    vi.stubEnv(key, '1');
+    stubEnv(key, '1');
     try {
       const { reporter, requests } = fixture(undefined, true, () => true);
       reporter.capture(input(new Error('synthetic')));
       await reporter.drain();
       expect(requests).toEqual([]);
     } finally {
-      vi.unstubAllEnvs();
+      unstubAllEnvs();
     }
   });
 
@@ -144,25 +146,25 @@ describe('TUI automatic incident HTTP privacy boundary', () => {
     const auth = new Promise<{ accessToken: string; realUserID: string }>((resolve) => {
       resolveAuth = resolve;
     });
-    const resolveAuthContext = vi.fn(() => auth);
+    const resolveAuthContext = mock(() => auth);
     const { reporter, requests } = fixture(undefined, true, () => enabled, resolveAuthContext);
     try {
       reporter.capture(input(new Error('synthetic')));
       const drain = reporter.drain();
       expect(resolveAuthContext).toHaveBeenCalled();
       if (source === 'config') enabled = false;
-      else vi.stubEnv(source, '1');
+      else stubEnv(source, '1');
       resolveAuth({ accessToken: token, realUserID: userId });
       await drain;
       expect(requests).toEqual([]);
     } finally {
-      vi.unstubAllEnvs();
+      unstubAllEnvs();
     }
   });
 
   it('decrypts the final fetch payload without recovering private text from any capture field', async () => {
     const { reporter, requests, directory } = fixture();
-    const getter = vi.fn(() => privateText);
+    const getter = mock(() => privateText);
     const error = Object.assign(
       new AggregateError([new Error(privateText)], privateText, {
         cause: new Error(privateText),
@@ -227,7 +229,7 @@ describe('TUI automatic incident HTTP privacy boundary', () => {
 
   it('drops arbitrary thrown values, custom names/codes and invalid enum inputs, and bounds breadcrumbs', async () => {
     const { reporter, requests, directory } = fixture();
-    const getter = vi.fn(() => privateText);
+    const getter = mock(() => privateText);
     const error = Object.defineProperties(
       {},
       {

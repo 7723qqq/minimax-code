@@ -1,9 +1,9 @@
+import { advanceTimersByTimeAsync, waitFor } from '../../../../test/bun-test-setup.js';
+import { describe, expect, it, jest, mock } from 'bun:test';
 import { EventEmitter } from 'node:events';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
-import { describe, expect, it, vi } from 'vitest';
 
 import { runTuiExec } from '../../src/headless/runner.js';
 import type { TuiMessage, TuiStreamEvent } from '../../src/runtime/stream-events.js';
@@ -25,8 +25,8 @@ function accountReady() {
 
 function runtimeWith(events: readonly TuiStreamEvent[] = successEvents) {
   return {
-    getAccountStatus: vi.fn(accountReady),
-    listModels: vi.fn(async () => [
+    getAccountStatus: mock(accountReady),
+    listModels: mock(async () => [
       {
         providerId: 'default-provider',
         modelId: 'default-model',
@@ -34,36 +34,36 @@ function runtimeWith(events: readonly TuiStreamEvent[] = successEvents) {
         selected: true,
       },
     ]),
-    setPermissionMode: vi.fn(async (mode) => mode),
-    createSession: vi.fn(async () => ({
+    setPermissionMode: mock(async (mode) => mode),
+    createSession: mock(async () => ({
       sessionId: 'session-1',
       workspaceDir: '/tmp/workspace',
     })),
-    getSession: vi.fn(async () => ({
+    getSession: mock(async () => ({
       sessionId: 'session-1',
       workspaceDir: '/tmp/workspace',
       archived: false,
     })),
-    listSessionPage: vi.fn(async () => ({ sessions: [], hasMore: false })),
-    getPendingQuestionnaire: vi.fn(async () => undefined),
-    listPendingPermissions: vi.fn(async () => []),
-    getSessionUsage: vi.fn(async () => ({ rows: [] })),
-    listMessagePage: vi.fn(async () => ({ messages: [], hasMore: false })),
-    getActiveRun: vi.fn(async () => ({
+    listSessionPage: mock(async () => ({ sessions: [], hasMore: false })),
+    getPendingQuestionnaire: mock(async () => undefined),
+    listPendingPermissions: mock(async () => []),
+    getSessionUsage: mock(async () => ({ rows: [] })),
+    listMessagePage: mock(async () => ({ messages: [], hasMore: false })),
+    getActiveRun: mock(async () => ({
       schemaVersion: 1 as const,
       sessionId: 'session-1',
       state: 'running' as const,
       turnId: 'turn-1',
       actions: { steer: true },
     })),
-    sendMessage: vi.fn(async function* () {
+    sendMessage: mock(async function* () {
       for (const event of events) yield event;
     }),
-    watchSessionTurn: vi.fn(async function* () {
+    watchSessionTurn: mock(async function* () {
       yield { type: 'session-status' as const, status: 'finished' as const };
     }),
-    abortSession: vi.fn(async () => true),
-    steer: vi.fn(async () => ({ queueItemId: 'queue-1' })),
+    abortSession: mock(async () => true),
+    steer: mock(async () => ({ queueItemId: 'queue-1' })),
   };
 }
 
@@ -77,10 +77,10 @@ describe('runTuiExec response usage', () => {
   }
 
   async function resultFor(runtime: ReturnType<typeof runtimeWith>, format: 'json' | 'stream-json' = 'json') {
-    const stdout = vi.fn();
+    const stdout = mock();
     await runTuiExec(
       { prompt: 'Fix it', workspaceDir: '/tmp/workspace', version: '0.1.0', format },
-      { runtime, stdout, stderr: vi.fn(), shutdown: async () => undefined, createTurnId: () => 'turn-1' },
+      { runtime, stdout, stderr: mock(), shutdown: async () => undefined, createTurnId: () => 'turn-1' },
     );
     const records = stdout.mock.calls.map(([line]) => JSON.parse(line));
     return format === 'json' ? records[0] : records;
@@ -97,11 +97,11 @@ describe('runTuiExec response usage', () => {
     ]);
     runtime.listMessagePage.mockResolvedValue({ messages, hasMore: false } as never);
     runtime.getSessionUsage.mockResolvedValue({ rows: [{ id: 1, turnId: 'turn-1', inputTokens: 10, outputTokens: 2, cacheReadTokens: 50 }] } as never);
-    const stdout = vi.fn();
+    const stdout = mock();
 
     await expect(runTuiExec(
       { prompt: 'Fix it', workspaceDir: '/tmp/workspace', version: '0.1.0', format: 'json' },
-      { runtime, stdout, stderr: vi.fn(), shutdown: async () => undefined, createTurnId: () => 'turn-1' },
+      { runtime, stdout, stderr: mock(), shutdown: async () => undefined, createTurnId: () => 'turn-1' },
     )).resolves.toBe(0);
 
     expect(JSON.parse(stdout.mock.calls[0]?.[0] ?? '')).toMatchObject({
@@ -194,20 +194,20 @@ describe('runTuiExec response usage', () => {
   });
 
   it('bounds final inspection time and does not let stalled analytics hide stream usage', async () => {
-    vi.useFakeTimers();
+    jest.useFakeTimers();
     try {
       const runtime = usageRuntime([completed]);
       let finishPage: (page: unknown) => void = () => undefined;
       runtime.listMessagePage.mockImplementation(() => new Promise((resolve) => { finishPage = resolve as (page: unknown) => void; }));
       runtime.getSessionUsage.mockImplementation(() => new Promise(() => undefined));
       const result = resultFor(runtime);
-      await vi.advanceTimersByTimeAsync(1_001);
+      await advanceTimersByTimeAsync(1_001);
       expect(await result).toMatchObject({ status: 'succeeded', usage: { totalTokens: 14 }, usageSource: 'completed_responses', usageIncomplete: true });
       finishPage({ messages: [completed], hasMore: true, nextCursor: 'late-page' });
-      await vi.advanceTimersByTimeAsync(0);
+      await advanceTimersByTimeAsync(0);
       expect(runtime.listMessagePage).toHaveBeenCalledTimes(1);
     } finally {
-      vi.useRealTimers();
+      jest.useRealTimers();
     }
   });
 
@@ -272,7 +272,7 @@ describe('runTuiExec response usage', () => {
 
 describe('runTuiExec', () => {
   it('sends a structured Review request and returns a pass result', async () => {
-    const stdout = vi.fn();
+    const stdout = mock();
     const runtime = runtimeWith([
       {
         type: 'message',
@@ -298,7 +298,7 @@ describe('runTuiExec', () => {
         {
           runtime,
           stdout,
-          stderr: vi.fn(),
+          stderr: mock(),
           shutdown: async () => undefined,
           createTurnId: () => 'turn-1',
         },
@@ -325,7 +325,7 @@ describe('runTuiExec', () => {
   it('renders validated findings as comments and keeps exit code zero', async () => {
     const root = await mkdtemp(join(tmpdir(), 'mcode-exec-review-'));
     try {
-      const stdout = vi.fn();
+      const stdout = mock();
       const runtime = runtimeWith([
         {
           type: 'message',
@@ -350,7 +350,7 @@ describe('runTuiExec', () => {
             outputLastMessagePath: lastMessage,
             reviewRequest: { scope: 'local_changes' },
           },
-          { runtime, stdout, stderr: vi.fn(), shutdown: async () => undefined },
+          { runtime, stdout, stderr: mock(), shutdown: async () => undefined },
         ),
       ).resolves.toBe(0);
 
@@ -367,13 +367,13 @@ describe('runTuiExec', () => {
   it('retains invalid JSON and its selected message without polluting stdout', async () => {
     const root = await mkdtemp(join(tmpdir(), 'mcode-runner-diagnostics-'));
     try {
-      const stdout = vi.fn();
+      const stdout = mock();
       const runtime = runtimeWith();
       const code = await runTuiExec({
         prompt: 'Review', workspaceDir: '/tmp/workspace', version: 'test',
         format: 'json', outputSchema: { type: 'object' }, diagnosticsDir: root,
         outputLastMessagePath: join(root, 'success.txt'),
-      }, { runtime, stdout, stderr: vi.fn(), shutdown: async () => false });
+      }, { runtime, stdout, stderr: mock(), shutdown: async () => false });
       expect(code).not.toBe(0);
       const result = JSON.parse(stdout.mock.calls.map(([chunk]) => chunk).join(''));
       expect(result).toMatchObject({ status: 'failed', error: { code: 'STRUCTURED_OUTPUT_INVALID' } });
@@ -414,7 +414,7 @@ describe('runTuiExec', () => {
         {
           runtime,
           stdout: (value) => stdout.push(value),
-          stderr: vi.fn(),
+          stderr: mock(),
           shutdown: async () => undefined,
           createTurnId: () => 'turn-1',
         },
@@ -446,8 +446,8 @@ describe('runTuiExec', () => {
   });
 
   it('fails when Runtime marks the Review result invalid', async () => {
-    const stdout = vi.fn();
-    const stderr = vi.fn();
+    const stdout = mock();
+    const stderr = mock();
     const runtime = runtimeWith([
       {
         type: 'message',
@@ -484,7 +484,7 @@ describe('runTuiExec', () => {
   it('writes the raw final message and reports durable per-Turn model and usage facts', async () => {
     const root = await mkdtemp(join(tmpdir(), 'mcode-exec-result-'));
     try {
-      const stdout = vi.fn();
+      const stdout = mock();
       const runtime = runtimeWith();
       runtime.getSessionUsage.mockResolvedValue({
         rows: [
@@ -522,7 +522,7 @@ describe('runTuiExec', () => {
           {
             runtime,
             stdout,
-            stderr: vi.fn(),
+            stderr: mock(),
             shutdown: async () => undefined,
             createTurnId: () => 'turn-1',
           },
@@ -554,7 +554,7 @@ describe('runTuiExec', () => {
   it('publishes shutdown failure as the terminal result before writing the final message', async () => {
     const root = await mkdtemp(join(tmpdir(), 'mcode-exec-shutdown-'));
     try {
-      const stdout = vi.fn();
+      const stdout = mock();
       const lastMessage = join(root, 'last-message.txt');
 
       await expect(
@@ -569,7 +569,7 @@ describe('runTuiExec', () => {
           {
             runtime: runtimeWith(),
             stdout,
-            stderr: vi.fn(),
+            stderr: mock(),
             shutdown: async () => true,
             createTurnId: () => 'turn-1',
           },
@@ -587,7 +587,7 @@ describe('runTuiExec', () => {
   });
 
   it('fails authentication before creating a Session or sending a message', async () => {
-    const stderr = vi.fn();
+    const stderr = mock();
     const runtime = runtimeWith();
     runtime.getAccountStatus.mockResolvedValue({
       status: 'needs-login',
@@ -600,7 +600,7 @@ describe('runTuiExec', () => {
     await expect(
       runTuiExec(
         { prompt: 'Fix it', workspaceDir: '/tmp/workspace', version: '0.1.0' },
-        { runtime, stdout: vi.fn(), stderr, shutdown: async () => undefined },
+        { runtime, stdout: mock(), stderr, shutdown: async () => undefined },
       ),
     ).resolves.toBe(3);
 
@@ -612,7 +612,7 @@ describe('runTuiExec', () => {
   });
 
   it('uses the process-local conversation request and assembles the public ExecResult', async () => {
-    const stdout = vi.fn();
+    const stdout = mock();
     const runtime = runtimeWith([
       {
         type: 'message',
@@ -654,7 +654,7 @@ describe('runTuiExec', () => {
         {
           runtime,
           stdout,
-          stderr: vi.fn(),
+          stderr: mock(),
           shutdown: async () => undefined,
           createTurnId: () => 'turn-1',
         },
@@ -694,7 +694,7 @@ describe('runTuiExec', () => {
   });
 
   it('sends an explicit --effort as a per-Turn thinking selection', async () => {
-    const stdout = vi.fn();
+    const stdout = mock();
     const runtime = runtimeWith();
     runtime.listModels.mockResolvedValue([
       {
@@ -718,7 +718,7 @@ describe('runTuiExec', () => {
         {
           runtime,
           stdout,
-          stderr: vi.fn(),
+          stderr: mock(),
           shutdown: async () => undefined,
           createTurnId: () => 'turn-1',
         },
@@ -759,8 +759,8 @@ describe('runTuiExec', () => {
         { prompt: 'Fix it', workspaceDir: '/tmp/workspace', version: '0.1.0', effort: 'high' },
         {
           runtime,
-          stdout: vi.fn(),
-          stderr: vi.fn(),
+          stdout: mock(),
+          stderr: mock(),
           shutdown: async () => undefined,
           createTurnId: () => 'turn-1',
         },
@@ -785,7 +785,7 @@ describe('runTuiExec', () => {
    * already depend on that Run starting, so it keeps running as a variant.
    */
   it('still runs a legacy effort-shaped #variant as a variant', async () => {
-    const stderr = vi.fn();
+    const stderr = mock();
     const runtime = runtimeWith();
     runtime.listModels.mockResolvedValue([
       {
@@ -804,7 +804,7 @@ describe('runTuiExec', () => {
           version: '0.1.0',
           model: 'provider/model#xhigh',
         },
-        { runtime, stdout: vi.fn(), stderr, shutdown: async () => undefined },
+        { runtime, stdout: mock(), stderr, shutdown: async () => undefined },
       ),
     ).resolves.toBe(0);
 
@@ -818,7 +818,7 @@ describe('runTuiExec', () => {
   });
 
   it('refuses --effort on a model whose thinking default is off before starting the Turn', async () => {
-    const stderr = vi.fn();
+    const stderr = mock();
     const runtime = runtimeWith();
     runtime.listModels.mockResolvedValue([
       {
@@ -840,7 +840,7 @@ describe('runTuiExec', () => {
           model: 'minimax/Official-M4',
           effort: 'high',
         },
-        { runtime, stdout: vi.fn(), stderr, shutdown: async () => undefined },
+        { runtime, stdout: mock(), stderr, shutdown: async () => undefined },
       ),
     ).resolves.toBe(2);
 
@@ -851,7 +851,7 @@ describe('runTuiExec', () => {
   });
 
   it('rejects an unsupported effort level before starting the Turn', async () => {
-    const stderr = vi.fn();
+    const stderr = mock();
     const runtime = runtimeWith();
     runtime.listModels.mockResolvedValue([
       { providerId: 'provider', modelId: 'model', selected: true, effortOptions: ['low', 'high'] },
@@ -866,7 +866,7 @@ describe('runTuiExec', () => {
           model: 'provider/model',
           effort: 'xhigh',
         },
-        { runtime, stdout: vi.fn(), stderr, shutdown: async () => undefined },
+        { runtime, stdout: mock(), stderr, shutdown: async () => undefined },
       ),
     ).resolves.toBe(2);
 
@@ -889,7 +889,7 @@ describe('runTuiExec', () => {
         {
           runtime,
           stdout: (value) => stdout.push(value),
-          stderr: vi.fn(),
+          stderr: mock(),
           shutdown: async () => undefined,
           createTurnId: () => 'turn-1',
         },
@@ -927,7 +927,7 @@ describe('runTuiExec', () => {
   });
 
   it('preserves an empty selected-model variant in machine output', async () => {
-    const stdout = vi.fn();
+    const stdout = mock();
     const runtime = runtimeWith();
     runtime.listModels.mockResolvedValue([
       {
@@ -946,7 +946,7 @@ describe('runTuiExec', () => {
           version: '0.1.0',
           format: 'json',
         },
-        { runtime, stdout, stderr: vi.fn(), shutdown: async () => undefined },
+        { runtime, stdout, stderr: mock(), shutdown: async () => undefined },
       ),
     ).resolves.toBe(0);
 
@@ -960,7 +960,7 @@ describe('runTuiExec', () => {
   });
 
   it('keeps execution successful when selected-model inspection is unavailable', async () => {
-    const stdout = vi.fn();
+    const stdout = mock();
     const runtime = runtimeWith();
     runtime.listModels.mockRejectedValue(new Error('model catalog unavailable'));
 
@@ -972,14 +972,14 @@ describe('runTuiExec', () => {
           version: '0.1.0',
           format: 'json',
         },
-        { runtime, stdout, stderr: vi.fn(), shutdown: async () => undefined },
+        { runtime, stdout, stderr: mock(), shutdown: async () => undefined },
       ),
     ).resolves.toBe(0);
     expect(JSON.parse(stdout.mock.calls[0]?.[0] ?? '')).not.toHaveProperty('model');
   });
 
   it('fails without aborting when Runtime bypasses the non-interactive Host gate', async () => {
-    const stderr = vi.fn();
+    const stderr = mock();
     const runtime = runtimeWith([
       { type: 'generic', eventType: 'runtime.action-required', data: { kind: 'questionnaire' } },
     ]);
@@ -987,7 +987,7 @@ describe('runTuiExec', () => {
     await expect(
       runTuiExec(
         { prompt: 'Fix it', workspaceDir: '/tmp/workspace', version: '0.1.0' },
-        { runtime, stdout: vi.fn(), stderr, shutdown: async () => undefined },
+        { runtime, stdout: mock(), stderr, shutdown: async () => undefined },
       ),
     ).resolves.toBe(4);
 
@@ -1007,7 +1007,7 @@ describe('runTuiExec', () => {
       await expect(
         runTuiExec(
           { prompt: 'Fix it', workspaceDir: '/tmp/workspace', version: '0.1.0' },
-          { runtime, stdout: vi.fn(), stderr: vi.fn(), shutdown: async () => undefined },
+          { runtime, stdout: mock(), stderr: mock(), shutdown: async () => undefined },
         ),
       ).resolves.toBe(exitCode);
     }
@@ -1023,7 +1023,7 @@ describe('runTuiExec', () => {
         );
       }
     });
-    const stdout = vi.fn(async () => {
+    const stdout = mock(async () => {
       throw Object.assign(new Error('closed'), { code: 'EPIPE' });
     });
 
@@ -1038,7 +1038,7 @@ describe('runTuiExec', () => {
         {
           runtime,
           stdout,
-          stderr: vi.fn(),
+          stderr: mock(),
           shutdown: async () => undefined,
           createTurnId: () => 'turn-1',
         },
@@ -1053,7 +1053,7 @@ describe('runTuiExec', () => {
 
   it('aborts the Runtime conversation when the process receives SIGINT', async () => {
     const processRef = new EventEmitter();
-    const started = vi.fn();
+    const started = mock();
     const runtime = runtimeWith();
     runtime.sendMessage.mockImplementation(async function* pendingMessage(
       _req,
@@ -1069,11 +1069,11 @@ describe('runTuiExec', () => {
       {
         runtime,
         processRef: processRef as unknown as Pick<NodeJS.Process, 'once' | 'off'>,
-        stderr: vi.fn(),
+        stderr: mock(),
         shutdown: async () => undefined,
       },
     );
-    await vi.waitFor(() => expect(started).toHaveBeenCalledOnce());
+    await waitFor(() => expect(started).toHaveBeenCalledOnce());
     processRef.emit('SIGINT');
 
     await expect(executing).resolves.toBe(130);
@@ -1091,7 +1091,7 @@ describe('runTuiExec', () => {
         version: '0.1.0',
         sessionId: 'session-1',
       },
-      { runtime: direct, stdout: vi.fn(), stderr: vi.fn(), shutdown: async () => undefined },
+      { runtime: direct, stdout: mock(), stderr: mock(), shutdown: async () => undefined },
     );
     expect(direct.createSession).not.toHaveBeenCalled();
 
@@ -1113,7 +1113,7 @@ describe('runTuiExec', () => {
         version: '0.1.0',
         continueSession: true,
       },
-      { runtime: continued, stdout: vi.fn(), stderr: vi.fn(), shutdown: async () => undefined },
+      { runtime: continued, stdout: mock(), stderr: mock(), shutdown: async () => undefined },
     );
     expect(continued.sendMessage).toHaveBeenCalledWith(
       expect.objectContaining({ id: 'session-1' }),
@@ -1127,7 +1127,7 @@ describe('runTuiExec', () => {
   ] as const)(
     'refuses a resumed Session with a pending %s without mutating it',
     async (_interaction, pending) => {
-      const stderr = vi.fn();
+      const stderr = mock();
       const runtime = runtimeWith();
       if (pending.questionnaire) {
         runtime.getPendingQuestionnaire.mockResolvedValue({
@@ -1149,7 +1149,7 @@ describe('runTuiExec', () => {
             version: '0.1.0',
             sessionId: 'session-1',
           },
-          { runtime, stdout: vi.fn(), stderr, shutdown: async () => undefined },
+          { runtime, stdout: mock(), stderr, shutdown: async () => undefined },
         ),
       ).resolves.toBe(4);
 
@@ -1181,7 +1181,7 @@ describe('runTuiExec', () => {
           version: '0.1.0',
           sessionId: 'session-1',
         },
-        { runtime, stdout: vi.fn(), stderr: vi.fn(), shutdown: async () => undefined },
+        { runtime, stdout: mock(), stderr: mock(), shutdown: async () => undefined },
       );
       expect(code).not.toBe(0);
       expect(runtime.sendMessage).not.toHaveBeenCalled();
@@ -1193,7 +1193,7 @@ describe('runTuiExec', () => {
     runtime.getSession.mockRejectedValue(new Error('Session does not exist'));
     const code = await runTuiExec({
       prompt: 'Summarize', workspaceDir: '/tmp/workspace', version: 'test', sessionId: 'missing',
-    }, { runtime, stdout: vi.fn(), stderr: vi.fn(), shutdown: async () => undefined });
+    }, { runtime, stdout: mock(), stderr: mock(), shutdown: async () => undefined });
     expect(code).not.toBe(0);
     expect(runtime.createSession).not.toHaveBeenCalled();
     expect(runtime.listSessionPage).not.toHaveBeenCalled();

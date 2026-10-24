@@ -1,5 +1,5 @@
 {
-  "comment": "Vitest suites for the standalone distribution, grouped by the gate that runs them. `vitest.oss.config.mjs` includes every group; `scripts/run-vitest-suite.mjs <group>` runs one. Add a test file here rather than in package.json or the Vitest config.",
+  "comment": "Test suites for the standalone distribution, grouped by the gate that runs them. `scripts/run-bun-tests.mjs` runs every group; `scripts/run-vitest-suite.mjs <group>` runs one. Add a test file here rather than in package.json.",
   "suites": {
     "windows": [
       "test/windows-contract.test.mjs"

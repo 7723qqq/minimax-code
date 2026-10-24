@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
+
 import { LocalBashToolDef } from '../../src/desktop/builtin-defs.js';
 import { createLocalBashToolDefinition } from '../../src/desktop/local-bash-contract.js';
 import { LocalBashTool } from '../../src/desktop/local-pi-tools.js';
@@ -15,8 +16,8 @@ describe('managed Bash timeout admission', () => {
     [undefined, 3600], [7, 7], [3600, 3600], [7200, 3600],
     [3_000_000, 3600], [0, 3600], [-5, 3600], [NaN, 3600], [Infinity, 3600],
   ])('forwards the effective timeout for %s to the running command', async (timeout, effective) => {
-    const runManagedForeground = vi.fn(async () => ({ status: 'completed' as const, taskId: 'task', text: 'ok' }));
-    const tool = new LocalBashTool('/tmp/test-workspace', { startBackground: vi.fn(), runManagedForeground }, { mode: 'off' });
+    const runManagedForeground = mock(async () => ({ status: 'completed' as const, taskId: 'task', text: 'ok' }));
+    const tool = new LocalBashTool('/tmp/test-workspace', { startBackground: mock(), runManagedForeground }, { mode: 'off' });
     const result = await tool.execute(context, { command: 'echo ok', timeout });
     expect(runManagedForeground).toHaveBeenCalledWith(
       context, { command: 'echo ok', description: 'echo ok', timeout: effective }, 60_000, undefined,
@@ -25,10 +26,10 @@ describe('managed Bash timeout admission', () => {
   });
 
   it('preserves the task identity after automatic promotion', async () => {
-    const startBackground = vi.fn();
+    const startBackground = mock();
     const tool = new LocalBashTool('/tmp/test-workspace', {
       startBackground,
-      runManagedForeground: vi.fn(async () => ({ status: 'auto_promoted' as const, taskId: 'original-task' })),
+      runManagedForeground: mock(async () => ({ status: 'auto_promoted' as const, taskId: 'original-task' })),
     }, { mode: 'off' });
     const result = await tool.execute(context, { command: 'sleep 65' });
     expect(result.details).toMatchObject({ task_id: 'original-task', timing: { commandTimeoutSeconds: 3600 } });
@@ -37,7 +38,7 @@ describe('managed Bash timeout admission', () => {
   });
 
   it('keeps explicit background timeout input separate from the runtime watchdog', async () => {
-    const startBackground = vi.fn(async () => ({ status: 'started' as const, taskId: 'explicit-task' }));
+    const startBackground = mock(async () => ({ status: 'started' as const, taskId: 'explicit-task' }));
     const tool = new LocalBashTool('/tmp/test-workspace', { startBackground }, { mode: 'off' });
     await tool.execute(context, { command: 'echo ok', run_in_background: true });
     expect(startBackground.mock.calls[0]?.[1]).not.toHaveProperty('timeout');

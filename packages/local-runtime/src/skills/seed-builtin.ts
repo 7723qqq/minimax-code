@@ -1,5 +1,4 @@
 import {
-  existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -11,6 +10,8 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import yaml from 'js-yaml';
+
+import { hasEmbeddedAssets, listBundledAssets, resolveBundledAsset } from '@mavis/shared/bundled-assets';
 
 import { logger } from '../common/logger.js';
 import { combinedSeedFingerprint, fingerprintSkillDir } from './seed-fingerprint.js';
@@ -64,10 +65,74 @@ export interface SeedBuiltinSkillsDeps {
  * an asar-packed source (e.g. `app.asar/node_modules/.../assets/skills/foo`)
  * would throw `ENOTDIR`. Works on macOS, Windows, and Linux.
  */
+
+/**
+ * Seed the built-in skill tree from the executable's embedded assets.
+ *
+ * The packaged build carries each skill file under
+ * `assets/skills/<name>/<relative path>`. Directory traversal is unavailable, so
+ * the key list supplies the file inventory and every entry is read from its
+ * embedded path.
+ */
+function seedFromEmbeddedSkills(
+  builtinSkillsDir: string,
+  isSkillEnabled: ((name: string) => boolean) | undefined,
+): void {
+  const keys = listBundledAssets('assets/skills') ?? [];
+  if (keys.length === 0) {
+    logger.warn({ builtinSkillsDir }, 'Packaged build carries no built-in skills');
+    return;
+  }
+  const filesBySkill = new Map<string, string[]>();
+  for (const key of keys) {
+    const relative = key.slice('assets/skills/'.length);
+    const slash = relative.indexOf('/');
+    if (slash <= 0) continue;
+    const name = relative.slice(0, slash);
+    const files = filesBySkill.get(name) ?? [];
+    files.push(relative.slice(slash + 1));
+    filesBySkill.set(name, files);
+  }
+
+  let seeded = 0;
+  for (const [name, files] of filesBySkill) {
+    if (isSkillEnabled !== undefined && !isSkillEnabled(name)) continue;
+    if (!files.includes(SKILL_FILE)) continue;
+    const destination = join(builtinSkillsDir, name);
+    try {
+      for (const relative of files) {
+        const embeddedPath = resolveBundledAsset('', `assets/skills/${name}/${relative}`);
+        if (embeddedPath === undefined) continue;
+        const target = join(destination, relative);
+        mkdirSync(dirnameOf(target), { recursive: true });
+        writeFileSync(target, readFileSync(embeddedPath));
+      }
+      seeded += 1;
+    } catch (err) {
+      logger.warn({ skill: name, err: errorMessage(err) }, 'Failed to seed one built-in skill');
+    }
+  }
+  logger.info({ builtinSkillsDir, seeded }, 'Seeded built-in skills from the packaged image');
+}
+
+function dirnameOf(file: string): string {
+  const normalized = file.replaceAll('\', '/');
+  const index = normalized.lastIndexOf('/');
+  return index <= 0 ? normalized : normalized.slice(0, index);
+}
+
 export function seedBuiltinSkills(deps: SeedBuiltinSkillsDeps): void {
   const { builtinSkillsDir, sourceDirs, isSkillEnabled } = deps;
 
   cleanupLegacySeedArtifacts(builtinSkillsDir);
+
+  // A packaged executable has no skills directory to walk: the files live inside
+  // the image, keyed by relative path. Seed from the embedded table instead, which
+  // is the only source available there.
+  if (hasEmbeddedAssets()) {
+    seedFromEmbeddedSkills(builtinSkillsDir, isSkillEnabled);
+    return;
+  }
 
   // Union the skill sets of every readable source dir; candidate order is
   // priority order (e.g. the MAVIS_BUILTIN_SKILLS_DIR override is listed
@@ -80,7 +145,7 @@ export function seedBuiltinSkills(deps: SeedBuiltinSkillsDeps): void {
   let sawSourceDir = false;
   const sourceSkills = new Map<string, { src: string; buildAggregate: string | undefined }>();
   for (const candidate of sourceDirs) {
-    if (!existsSync(candidate)) continue;
+    if (!pathExists(candidate)) continue;
     let entries: Dirent[];
     try {
       entries = readdirSync(candidate, { withFileTypes: true });
@@ -155,7 +220,7 @@ export function seedBuiltinSkills(deps: SeedBuiltinSkillsDeps): void {
   if (readSeedMarker(builtinSkillsDir) === combined) {
     let allPresent = true;
     for (const skillName of enabledSkills.keys()) {
-      if (!existsSync(join(builtinSkillsDir, skillName))) {
+      if (!pathExists(join(builtinSkillsDir, skillName))) {
         allPresent = false;
         break;
       }
@@ -217,10 +282,10 @@ export function seedBuiltinSkills(deps: SeedBuiltinSkillsDeps): void {
 function cleanupLegacySeedArtifacts(builtinSkillsDir: string): void {
   const legacyPaths: string[] = [];
   const manifestFile = join(builtinSkillsDir, LEGACY_MANIFEST_FILE);
-  if (existsSync(manifestFile)) legacyPaths.push(manifestFile);
+  if (pathExists(manifestFile)) legacyPaths.push(manifestFile);
   const backupDir = `${builtinSkillsDir}${LEGACY_BACKUP_DIR_SUFFIX}`;
-  if (existsSync(backupDir)) legacyPaths.push(backupDir);
-  if (existsSync(builtinSkillsDir)) {
+  if (pathExists(backupDir)) legacyPaths.push(backupDir);
+  if (pathExists(builtinSkillsDir)) {
     try {
       for (const name of readdirSync(builtinSkillsDir)) {
         if (name.includes(LEGACY_TMP_MARKER)) legacyPaths.push(join(builtinSkillsDir, name));
@@ -327,6 +392,25 @@ function isSkillRuntimeRetiredFile(skillFilePath: string): boolean {
     const data = yaml.load(match[1]);
     if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
     return (data as Record<string, unknown>).retired === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Whether `target` exists.
+ *
+ * A `statSync` inside a `try` answers the same question as `existsSync` for a
+ * file, a directory, a missing entry and an unreadable path. It also removes the
+ * second syscall these call sites used to pay, since `statSync` already yields
+ * what they then inspect. `existsSync` is the Node compatibility surface and
+ * measures roughly an order of magnitude slower per call in this runtime. This
+ * module is synchronous throughout, so `Bun.file()` does not apply.
+ */
+function pathExists(target: string): boolean {
+  try {
+    statSync(target);
+    return true;
   } catch {
     return false;
   }

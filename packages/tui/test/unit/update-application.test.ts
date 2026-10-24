@@ -1,7 +1,8 @@
+import { describe, expect, it, mock } from 'bun:test';
 import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
+
 import {
   McodeUpdateApplication,
   type McodeUpdateApplicationDependencies,
@@ -171,14 +172,14 @@ describe('installer-owned npm runtime binding', () => {
 
 describe('McodeUpdateApplication', () => {
   it('keeps signed managed-installer check and apply behind one product intent', async () => {
-    const check = vi.fn(async () => ({
+    const check = mock(async () => ({
       status: 'available' as const,
       channel: 'stable' as const,
       currentVersion: '1.2.3',
       latestVersion: '1.2.4',
       manifest: {} as never,
     }));
-    const apply = vi.fn(async () => ({
+    const apply = mock(async () => ({
       ...(await check()),
       applied: true,
       installRoot: '/managed',
@@ -198,7 +199,7 @@ describe('McodeUpdateApplication', () => {
       channel: 'stable',
     });
     const signal = new AbortController().signal;
-    const onPhase = vi.fn();
+    const onPhase = mock();
     await expect(application.apply(plan, { signal, onPhase })).resolves.toMatchObject({
       applied: true,
       message:
@@ -213,9 +214,9 @@ describe('McodeUpdateApplication', () => {
   });
 
   it('delegates global package installations to their owning package manager', async () => {
-    const runPackageManager = vi.fn(async () => undefined);
-    const createManagedService = vi.fn();
-    const resolveLatestPackageVersion = vi.fn(async () => '1.2.4');
+    const runPackageManager = mock(async () => undefined);
+    const createManagedService = mock();
+    const resolveLatestPackageVersion = mock(async () => '1.2.4');
     const application = createApplication(
       {
         detectInstallSource: async () => 'pnpm-global',
@@ -247,8 +248,8 @@ describe('McodeUpdateApplication', () => {
           'pnpm add --global @minimax-ai/code@1.2.4 --registry https://registry.npmjs.org/',
       },
     });
-    const onOutput = vi.fn();
-    const onPhase = vi.fn();
+    const onOutput = mock();
+    const onPhase = mock();
     const signal = new AbortController().signal;
     await expect(application.apply(plan, { onOutput, onPhase, signal })).resolves.toMatchObject({
       applied: true,
@@ -262,7 +263,7 @@ describe('McodeUpdateApplication', () => {
   });
 
   it('does not reinstall a package-manager installation already at the registry version', async () => {
-    const runPackageManager = vi.fn(async () => undefined);
+    const runPackageManager = mock(async () => undefined);
     const application = createApplication({
       detectInstallSource: async () => 'npm-global',
       resolveLatestPackageVersion: async () => '1.2.3',
@@ -298,7 +299,7 @@ describe('McodeUpdateApplication', () => {
   });
 
   it('follows the test dist-tag when a custom prerelease sorts ahead of the tagged build', async () => {
-    const resolveLatestPackageVersion = vi.fn(
+    const resolveLatestPackageVersion = mock(
       async () => '0.0.1-beta.1786162945.e3fdada2',
     );
     const application = createApplication(
@@ -326,13 +327,13 @@ describe('McodeUpdateApplication', () => {
           '@minimax-ai/code@0.0.1-beta.1786162945.e3fdada2',
           '--ignore-scripts=false',
           '--include=optional',
-          '--allow-scripts=@minimax-ai/code,better-sqlite3',
+          '--allow-scripts=@minimax-ai/code',
           '--registry',
           'https://registry.npmjs.org/',
         ],
         display:
           'npm install --global @minimax-ai/code@0.0.1-beta.1786162945.e3fdada2 ' +
-          '--ignore-scripts=false --include=optional --allow-scripts=@minimax-ai/code,better-sqlite3 ' +
+          '--ignore-scripts=false --include=optional --allow-scripts=@minimax-ai/code ' +
           '--registry https://registry.npmjs.org/',
       },
     });
@@ -360,9 +361,9 @@ describe('McodeUpdateApplication', () => {
   });
 
   it('fails closed when the installation owner cannot be identified', async () => {
-    const runPackageManager = vi.fn(async () => undefined);
-    const createManagedService = vi.fn();
-    const resolveLatestPackageVersion = vi.fn(async () => '9.9.9');
+    const runPackageManager = mock(async () => undefined);
+    const createManagedService = mock();
+    const resolveLatestPackageVersion = mock(async () => '9.9.9');
     const application = createApplication({
       detectInstallSource: async () => 'unsupported',
       createManagedService,
@@ -377,7 +378,7 @@ describe('McodeUpdateApplication', () => {
       source: 'unsupported',
       command:
         'npm install --global @minimax-ai/code@latest ' +
-        '--ignore-scripts=false --include=optional --allow-scripts=@minimax-ai/code,better-sqlite3 ' +
+        '--ignore-scripts=false --include=optional --allow-scripts=@minimax-ai/code ' +
         '--registry https://registry.npmjs.org/',
     });
     await expect(application.apply(plan)).rejects.toThrow(/cannot be applied automatically/i);
@@ -394,8 +395,8 @@ describe('McodeUpdateApplication', () => {
   ])(
     'treats a local checkout containing a global-install marker as unsupported: %s',
     async (packageRoot) => {
-      const createManagedService = vi.fn();
-      const resolveLatestPackageVersion = vi.fn(async () => '9.9.9');
+      const createManagedService = mock();
+      const resolveLatestPackageVersion = mock(async () => '9.9.9');
       const application = createApplication({
         detectInstallSource: () =>
           detectMcodeInstallSource({
@@ -428,13 +429,13 @@ describe('McodeUpdateApplication', () => {
       kind: 'manual',
       command:
         'npm install --global @minimax-ai/code@latest ' +
-        '--ignore-scripts=false --include=optional --allow-scripts=@minimax-ai/code,better-sqlite3 ' +
+        '--ignore-scripts=false --include=optional --allow-scripts=@minimax-ai/code ' +
         '--registry https://registry.npmjs.org/',
     });
   });
 
   it('keeps a China mirror prefix on the same registry during updates', async () => {
-    const resolveLatestPackageVersion = vi.fn(async () => '1.2.4');
+    const resolveLatestPackageVersion = mock(async () => '1.2.4');
     const application = createApplication(
       {
         detectInstallSource: async () => 'npm-prefix',
@@ -463,7 +464,7 @@ describe('McodeUpdateApplication', () => {
           '@minimax-ai/code@1.2.4',
           '--ignore-scripts=false',
           '--include=optional',
-          '--allow-scripts=@minimax-ai/code,better-sqlite3',
+          '--allow-scripts=@minimax-ai/code',
           '--registry',
           'https://registry.npmmirror.com/',
         ],
@@ -560,13 +561,13 @@ describe('MCode update install-source commands', () => {
         '@minimax-ai/code@1.2.4',
         '--ignore-scripts=false',
         '--include=optional',
-        '--allow-scripts=@minimax-ai/code,better-sqlite3',
+        '--allow-scripts=@minimax-ai/code',
         '--registry',
         'https://registry.npmjs.org/',
       ],
       display:
         'npm install --global @minimax-ai/code@1.2.4 --ignore-scripts=false --include=optional ' +
-        '--allow-scripts=@minimax-ai/code,better-sqlite3 --registry https://registry.npmjs.org/',
+        '--allow-scripts=@minimax-ai/code --registry https://registry.npmjs.org/',
     });
     expect(buildMcodePackageManagerCommand('bun-global', '1.2.4', 'win32')).toEqual({
       executable: 'bun.exe',
@@ -607,13 +608,13 @@ describe('MCode update install-source commands', () => {
         '@minimax-ai/code@1.2.4',
         '--ignore-scripts=false',
         '--include=optional',
-        '--allow-scripts=@minimax-ai/code,better-sqlite3',
+        '--allow-scripts=@minimax-ai/code',
         '--registry',
         'https://registry.npmjs.org/',
       ],
       display:
         '/opt/minimax/runtime/node/bin/npm install --global --prefix /opt/minimax ' +
-        '@minimax-ai/code@1.2.4 --ignore-scripts=false --include=optional --allow-scripts=@minimax-ai/code,better-sqlite3 --registry https://registry.npmjs.org/',
+        '@minimax-ai/code@1.2.4 --ignore-scripts=false --include=optional --allow-scripts=@minimax-ai/code --registry https://registry.npmjs.org/',
     });
   });
 
@@ -643,7 +644,7 @@ describe('MCode update install-source commands', () => {
       '@minimax-ai/code@1.2.4',
       '--ignore-scripts=false',
       '--include=optional',
-      '--allow-scripts=@minimax-ai/code,better-sqlite3',
+      '--allow-scripts=@minimax-ai/code',
       '--registry',
       'https://registry.npmmirror.com/',
     ]);
@@ -653,23 +654,23 @@ describe('MCode update install-source commands', () => {
   });
 
   it('uses the active package manifest entry when argv points at the npm bin shim', async () => {
-    const runPackageManager = vi.fn(async () => undefined);
-    const activateVersionedPrefix = vi.fn(() => '/opt/minimax/releases/1.2.4');
-    const releasePrefixUpdateLock = vi.fn();
+    const runPackageManager = mock(async () => undefined);
+    const activateVersionedPrefix = mock(() => '/opt/minimax/releases/1.2.4');
+    const releasePrefixUpdateLock = mock();
     const application = createApplication(
       {
         detectInstallSource: async () => 'npm-prefix',
         resolveLatestPackageVersion: async () => '1.2.4',
         runPackageManager,
         createVersionedPrefixStaging: () => '/opt/minimax/releases/.staging-1.2.4',
-        prepareVersionedPrefixStaging: vi.fn(),
+        prepareVersionedPrefixStaging: mock(),
         readPrefixPackageMetadata: (prefix, packageName) => ({
           packageRoot: `${prefix}/lib/node_modules/${packageName}`,
           version: '1.2.4',
           binEntry: 'dist/index.js',
           mcodeToolsBinEntry: 'mcode-tools.js',
         }),
-        validatePrefixPackage: vi.fn(async () => undefined),
+        validatePrefixPackage: mock(async () => undefined),
         activateVersionedPrefix,
         acquirePrefixUpdateLock: () => releasePrefixUpdateLock,
       },
@@ -855,7 +856,7 @@ describe('MCode update install-source commands', () => {
         launchers: resolveMcodePrefixLauncherPairs(prefix, stagingPrefix, process.platform),
       });
 
-      const resolveLatestPackageVersion = vi.fn(async () => '1.2.5');
+      const resolveLatestPackageVersion = mock(async () => '1.2.5');
       const application = new McodeUpdateApplication(
         {
           currentVersion: '1.2.3',
@@ -983,7 +984,7 @@ describe('MCode update install-source commands', () => {
         launchers: resolveMcodePrefixLauncherPairs(prefix, stagingPrefix, process.platform),
       });
 
-      const resolveLatestPackageVersion = vi.fn(async () => '1.2.4');
+      const resolveLatestPackageVersion = mock(async () => '1.2.4');
       const application = new McodeUpdateApplication(
         {
           currentVersion: '1.2.4',
@@ -1170,7 +1171,7 @@ describe('MCode update install-source commands', () => {
     const command = buildMcodePackageManagerCommand(source, '1.2.4', 'linux');
     const scriptOptions =
       source === 'npm-global'
-        ? ' --ignore-scripts=false --include=optional --allow-scripts=@minimax-ai/code,better-sqlite3'
+        ? ' --ignore-scripts=false --include=optional --allow-scripts=@minimax-ai/code'
         : '';
 
     expect(command.args.slice(-2)).toEqual([
@@ -1183,7 +1184,7 @@ describe('MCode update install-source commands', () => {
   });
 
   it('resolves the target version from the internal registry with npm shipped by Node', async () => {
-    const run = vi.fn(async () => '"1.2.4"');
+    const run = mock(async () => '"1.2.4"');
 
     await expect(
       resolveLatestMcodeRegistryVersion('test', { platform: 'linux', run }),
@@ -1202,7 +1203,7 @@ describe('MCode update install-source commands', () => {
 
   it('uses installer-owned npm for a prefix installation registry lookup', async () => {
     const distribution = resolveMcodeNpmDistribution('@minimax-ai/code');
-    const run = vi.fn(async () => '"1.2.4"');
+    const run = mock(async () => '"1.2.4"');
 
     await expect(
       resolveLatestMcodeRegistryVersion('latest', {
@@ -1238,7 +1239,7 @@ describe('MCode update install-source commands', () => {
 
   it('keeps public package lookup and installation on the official npm registry', async () => {
     const distribution = resolveMcodeNpmDistribution('@minimax-ai/code');
-    const run = vi.fn(async () => '"1.2.4"');
+    const run = mock(async () => '"1.2.4"');
 
     expect(distribution).toEqual({
       packageName: '@minimax-ai/code',
@@ -1270,7 +1271,7 @@ describe('MCode update install-source commands', () => {
         '@minimax-ai/code@1.2.4',
         '--ignore-scripts=false',
         '--include=optional',
-        '--allow-scripts=@minimax-ai/code,better-sqlite3',
+        '--allow-scripts=@minimax-ai/code',
         '--registry',
         'https://registry.npmjs.org/',
       ],
@@ -1279,7 +1280,7 @@ describe('MCode update install-source commands', () => {
 
   it('does not fall back to the internal registry when the public package is absent', async () => {
     const distribution = resolveMcodeNpmDistribution('@minimax-ai/code');
-    const run = vi.fn(async () => {
+    const run = mock(async () => {
       throw new Error('E404 Not Found');
     });
 

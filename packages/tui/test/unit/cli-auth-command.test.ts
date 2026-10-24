@@ -1,18 +1,19 @@
-import { describe, expect, it, vi } from 'vitest';
+import { waitFor } from '../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock } from 'bun:test';
 
 import { runTuiLogin, runTuiLogout } from '../../src/cli/auth-command.js';
 
 describe('Minimax Code auth commands', () => {
   it.each([true, false])('returns after dispatching browser logout (%s)', async (openBrowser) => {
-    const writeError = vi.fn();
+    const writeError = mock();
     const logoutUrl =
       'https://agent.minimax.cn/auth/logout?logout_redirect_uri=https%3A%2F%2Fagent.minimax.cn';
-    const logout = vi.fn(async () => ({
+    const logout = mock(async () => ({
       state: 'signed-out' as const,
       message: 'Signed out of MiniMax.',
       logoutUrl,
     }));
-    const openExternalTarget = vi.fn(() => {
+    const openExternalTarget = mock(() => {
       expect(logout).toHaveBeenCalledOnce();
       expect(writeError).toHaveBeenCalledWith(expect.stringContaining(logoutUrl));
       return new Promise<void>(() => {});
@@ -20,7 +21,7 @@ describe('Minimax Code auth commands', () => {
 
     await expect(
       runTuiLogout({
-        createApplication: () => ({ login: vi.fn(), logout }),
+        createApplication: () => ({ login: mock(), logout }),
         writeError,
         openBrowser,
         openExternalTarget,
@@ -36,10 +37,10 @@ describe('Minimax Code auth commands', () => {
   it.each(['reject', 'throw'] as const)(
     'keeps logout successful when browser startup fails by %s',
     async (failure) => {
-      const writeError = vi.fn();
+      const writeError = mock();
       const logoutUrl =
         'https://agent.minimax.cn/auth/logout?logout_redirect_uri=https%3A%2F%2Fagent.minimax.cn';
-      const logout = vi.fn(async () => ({
+      const logout = mock(async () => ({
         state: 'signed-out' as const,
         message: 'Signed out of MiniMax.',
         logoutUrl,
@@ -47,7 +48,7 @@ describe('Minimax Code auth commands', () => {
 
       await expect(
         runTuiLogout({
-          createApplication: () => ({ login: vi.fn(), logout }),
+          createApplication: () => ({ login: mock(), logout }),
           writeError,
           openExternalTarget: () => {
             const error = new Error('no desktop session');
@@ -65,11 +66,11 @@ describe('Minimax Code auth commands', () => {
   );
 
   it('creates the logout application for the explicitly selected region', async () => {
-    const logout = vi.fn(async () => ({
+    const logout = mock(async () => ({
       state: 'signed-out' as const,
       message: 'Signed out of MiniMax Global.',
     }));
-    const createApplication = vi.fn(() => ({ login: vi.fn(), logout }));
+    const createApplication = mock(() => ({ login: mock(), logout }));
 
     await runTuiLogout({ region: 'en', createApplication });
 
@@ -80,7 +81,7 @@ describe('Minimax Code auth commands', () => {
   it('prints Device Flow instructions without exposing the internal device_code', async () => {
     const stderr: string[] = [];
     const openedTargets: string[] = [];
-    const login = vi.fn(async (onProgress) => {
+    const login = mock(async (onProgress) => {
       onProgress?.({
         state: 'device-authorization',
         userCode: 'ABCD-EFGH',
@@ -94,7 +95,7 @@ describe('Minimax Code auth commands', () => {
 
     await runTuiLogin({
       region: 'en',
-      createApplication: () => ({ login, logout: vi.fn() }),
+      createApplication: () => ({ login, logout: mock() }),
       writeError: (value) => stderr.push(value),
       openExternalTarget: async (target) => {
         openedTargets.push(target);
@@ -113,7 +114,7 @@ describe('Minimax Code auth commands', () => {
   it('keeps mcode login usable without a desktop browser when explicitly disabled', async () => {
     const stderr: string[] = [];
     const openedTargets: string[] = [];
-    const login = vi.fn(async (onProgress) => {
+    const login = mock(async (onProgress) => {
       onProgress?.({
         state: 'device-authorization',
         userCode: 'ABCD-EFGH',
@@ -125,7 +126,7 @@ describe('Minimax Code auth commands', () => {
 
     await runTuiLogin({
       openBrowser: false,
-      createApplication: () => ({ login, logout: vi.fn() }),
+      createApplication: () => ({ login, logout: mock() }),
       writeError: (value) => stderr.push(value),
       openExternalTarget: async (target) => {
         openedTargets.push(target);
@@ -140,7 +141,7 @@ describe('Minimax Code auth commands', () => {
 
   it('continues Device Flow when opening the default browser fails', async () => {
     const stderr: string[] = [];
-    const login = vi.fn(async (onProgress) => {
+    const login = mock(async (onProgress) => {
       onProgress?.({
         state: 'device-authorization',
         userCode: 'ABCD-EFGH',
@@ -152,14 +153,14 @@ describe('Minimax Code auth commands', () => {
 
     await expect(
       runTuiLogin({
-        createApplication: () => ({ login, logout: vi.fn() }),
+        createApplication: () => ({ login, logout: mock() }),
         writeError: (value) => stderr.push(value),
         openExternalTarget: async () => {
           throw new Error('no desktop session');
         },
       }),
     ).resolves.toBe('Signed in with MiniMax.');
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(stderr.join('')).toContain(
         "Couldn't open the default browser. Open the authorization URL above manually.",
       ),

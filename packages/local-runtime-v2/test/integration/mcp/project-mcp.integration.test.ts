@@ -1,3 +1,4 @@
+import { stubEnv, unstubAllEnvs, waitFor } from '../../../../../test/bun-test-setup.js';
 import {
   mkdtemp,
   mkdir,
@@ -11,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createServer } from "node:http";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it } from 'bun:test';
 import { McpConnectionPool } from "@mavis/mcp/runtime/connection-pool";
 import { LocalMcpService } from "../../../src/service/mcp/index.js";
 import { LocalMcpPublicFacade } from "../../../src/service/mcp/tools/public-facade.js";
@@ -19,7 +20,7 @@ import { LocalMcpPublicFacade } from "../../../src/service/mcp/tools/public-faca
 const roots: string[] = [];
 const services: LocalMcpService[] = [];
 afterEach(async () => {
-  vi.unstubAllEnvs();
+  unstubAllEnvs();
   for (const service of services.splice(0)) await service.close();
   for (const root of roots.splice(0))
     await rm(root, { recursive: true, force: true });
@@ -235,7 +236,7 @@ it("aborts an old project call on reload without marking the replacement as avai
   const context = { sessionId: "one", workspaceRoot: a };
   const calling = service.call("repo", "where", { hold: true }, { context });
   // Real subprocess startup under CI coverage can exceed Vitest's default one second.
-  await vi.waitFor(
+  await waitFor(
     async () => {
       expect(await readFile(join(a, "called"), "utf8")).toBe("yes");
     },
@@ -265,7 +266,7 @@ it("keeps built-in reserved names intact even when the project declares them", a
   const { data, a } = await setup();
   // This case inspects reserved-name configuration without starting Matrix.
   // Use the local fixture instead of requiring an unrelated package dist build.
-  vi.stubEnv("MAVIS_MATRIX_MCP_STDIO_ENTRYPOINT", join(a, "server.cjs"));
+  stubEnv("MAVIS_MATRIX_MCP_STDIO_ENTRYPOINT", join(a, "server.cjs"));
   const service = new LocalMcpService(() => data, {
     builtinMatrix: { enabled: true },
     connectionPool: new McpConnectionPool({ getResolvedServer: () => null }),
@@ -332,7 +333,7 @@ it("disposes project calls and ACP configuration together for a deleted session"
   ]);
   const calling = service.call("repo", "where", { hold: true }, { context });
   // Real subprocess startup under CI coverage can exceed Vitest's default one second.
-  await vi.waitFor(
+  await waitFor(
     async () => {
       expect(await readFile(join(a, "called"), "utf8")).toBe("yes");
     },

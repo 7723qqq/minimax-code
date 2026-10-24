@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { createToolPermissionContext } from '../../../src/context.js';
 import { PermissionEngine, type ToolPermissionChecker } from '../../../src/engine.js';

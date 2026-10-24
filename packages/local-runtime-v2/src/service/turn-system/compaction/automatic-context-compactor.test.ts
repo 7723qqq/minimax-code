@@ -1,3 +1,5 @@
+import { mocked } from '../../../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock, spyOn } from 'bun:test';
 import type { AgentMessage, StreamFn } from '@earendil-works/pi-agent-core';
 import {
   createAssistantMessageEventStream,
@@ -7,7 +9,6 @@ import {
 } from '@earendil-works/pi-ai';
 import { wrapInternalContext } from '@mavis/goal';
 import type { PromptReadSnapshot } from '@mavis/agent-runtime';
-import { describe, expect, it, vi } from 'vitest';
 
 import { buildLocalRequestPayloadTransform } from '../agent-host/assembly/local-turn-payload-transform.js';
 import { createAutomaticContextCompactionHook } from '../agent-host/compaction/context-compaction.js';
@@ -127,7 +128,7 @@ describe('AutomaticContextCompactor', () => {
     const messages: AgentMessage[] = [
       { role: 'user', content: [{ type: 'text', text: 'context' }], timestamp: 1 },
     ];
-    const captureSubagents = vi.fn(async () => undefined);
+    const captureSubagents = mock(async () => undefined);
     const compactor = automaticCompactor(undefined, { captureSubagents });
 
     await expect(
@@ -383,11 +384,11 @@ describe('AutomaticContextCompactor ToolResult reduction policy', () => {
       ];
     }).flat();
     const snapshot = structuredClone(messages);
-    const writeArtifact = vi.fn(async (input: { readonly toolCallId: string }) => ({
+    const writeArtifact = mock(async (input: { readonly toolCallId: string }) => ({
       reference: `/session/reports/tool-outputs/${input.toolCallId}.txt`,
     }));
     const archiver = new ToolResultArchiver({ writeArtifact });
-    const plan = vi.spyOn(archiver, 'plan');
+    const plan = spyOn(archiver, 'plan');
     const model: Model<'anthropic-messages'> = {
       id: 'model-1',
       name: 'Model 1',
@@ -470,9 +471,9 @@ describe('AutomaticContextCompactor destructive ToolResult policy', () => {
       ];
     }).flat();
     const snapshot = structuredClone(messages);
-    const writeArtifact = vi.fn(async () => ({ reference: '/must-not-be-written.txt' }));
+    const writeArtifact = mock(async () => ({ reference: '/must-not-be-written.txt' }));
     const archiver = new ToolResultArchiver({ writeArtifact });
-    const plan = vi.spyOn(archiver, 'plan');
+    const plan = spyOn(archiver, 'plan');
     const model: Model<'anthropic-messages'> = {
       id: 'model-1',
       name: 'Model 1',
@@ -553,7 +554,7 @@ describe('AutomaticContextCompactor ToolResult archive failure', () => {
         },
       ];
     }).flat();
-    const writeArtifact = vi.fn(async () => {
+    const writeArtifact = mock(async () => {
       throw new Error('disk unavailable');
     });
     const archiver = new ToolResultArchiver({ writeArtifact });
@@ -651,9 +652,9 @@ describe('AutomaticContextCompactor legacy ToolResult reduction compatibility', 
     };
     const rawTokens = createLocalContextFootprintMeasurer({ model }).measure(messages).inputTokens;
     const triggerAt = rawTokens - 1;
-    const onStarted = vi.fn();
+    const onStarted = mock();
     const usageAnchor = new ContextUsageAnchorState();
-    const invalidate = vi.spyOn(usageAnchor, 'invalidate');
+    const invalidate = spyOn(usageAnchor, 'invalidate');
 
     const result = await automaticCompactor(usageAnchor).compactBeforeLlm(
       {
@@ -740,7 +741,7 @@ describe('AutomaticContextCompactor checkpoint transport', () => {
       },
     ];
     const headers = { 'x-provider-route': 'route-a' };
-    const payloadTransform = vi.fn((payload: unknown) => payload);
+    const payloadTransform = mock((payload: unknown) => payload);
     const controller = new AbortController();
     const baseModel: Model<'anthropic-messages'> = {
       id: 'model-1',
@@ -802,9 +803,9 @@ Continue.
       stopReason: 'stop',
       timestamp: 2,
     };
-    const streamFn: StreamFn = vi.fn(() => completedStream(final));
-    const onStarted = vi.fn();
-    const captureSubagents = vi.fn(async () => ({
+    const streamFn: StreamFn = mock(() => completedStream(final));
+    const onStarted = mock();
+    const captureSubagents = mock(async () => ({
       capturedAtMs: 4,
       total: 1,
       counts: {
@@ -830,16 +831,16 @@ Continue.
         },
       ],
     }));
-    const onCheckpointAttemptSettled = vi.fn();
-    const onCheckpointGenerated = vi.fn();
-    const writeArtifact = vi.fn(async () => ({ reference: '/must-not-be-written.txt' }));
+    const onCheckpointAttemptSettled = mock();
+    const onCheckpointGenerated = mock();
+    const writeArtifact = mock(async () => ({ reference: '/must-not-be-written.txt' }));
     const archiver = new ToolResultArchiver({ writeArtifact });
     const promptSnapshot = {} as PromptReadSnapshot;
     const managedCheckpointPrompt = `${CHECKPOINT_SYSTEM_PROMPT}\nManaged checkpoint extension.`;
     const promptSnapshots = {
-      capture: vi.fn(async () => promptSnapshot),
-      captureBuiltin: vi.fn(async () => promptSnapshot),
-      read: vi.fn(async () => ({ kind: 'found' as const, content: managedCheckpointPrompt })),
+      capture: mock(async () => promptSnapshot),
+      captureBuiltin: mock(async () => promptSnapshot),
+      read: mock(async () => ({ kind: 'found' as const, content: managedCheckpointPrompt })),
     };
     const snapshot = structuredClone({ messages, systemPrompt, tools, headers });
 
@@ -883,7 +884,7 @@ Continue.
     );
     expect(onCheckpointGenerated).toHaveBeenCalledOnce();
     expect(streamFn).toHaveBeenCalledOnce();
-    const [calledModel, context, options] = vi.mocked(streamFn).mock.calls[0] ?? [];
+    const [calledModel, context, options] = mocked(streamFn).mock.calls[0] ?? [];
     expect(calledModel).toBe(model);
     expect(context).toEqual({
       systemPrompt: managedCheckpointPrompt,
@@ -1070,7 +1071,7 @@ describe('AutomaticContextCompactor request boundaries', () => {
     const messages: AgentMessage[] = [
       { role: 'user', content: [{ type: 'text', text: 'x'.repeat(20_000) }], timestamp: 1 },
     ];
-    const streamFn = vi.fn<StreamFn>();
+    const streamFn = mock<StreamFn>();
 
     await expect(
       automaticCompactor().compactBeforeLlm({
@@ -1136,8 +1137,8 @@ describe('AutomaticContextCompactor request boundaries', () => {
     const reason = new Error('cancelled before compaction');
     const controller = new AbortController();
     controller.abort(reason);
-    const streamFn = vi.fn<StreamFn>();
-    const onStarted = vi.fn();
+    const streamFn = mock<StreamFn>();
+    const onStarted = mock();
 
     await expect(
       automaticCompactor().compactBeforeLlm(
@@ -1198,7 +1199,7 @@ describe('AutomaticContextCompactor checkpoint output budget', () => {
     const model = { ...baseModel, contextWindow: rawTokens + 24_000 };
     const windowShare = Math.floor(model.contextWindow / 8);
     expect(windowShare).toBeGreaterThan(13_107);
-    const streamFn: StreamFn = vi.fn(() =>
+    const streamFn: StreamFn = mock(() =>
       completedStream({
         role: 'assistant',
         content: [{ type: 'text', text: '## Goal\nContinue.' }],
@@ -1228,7 +1229,7 @@ describe('AutomaticContextCompactor checkpoint output budget', () => {
         thinkingLevel: 'off',
       }),
     ).resolves.toMatchObject({ status: 'completed', method: 'llm_checkpoint' });
-    expect(vi.mocked(streamFn).mock.calls[0]?.[2]?.maxTokens).toBe(windowShare);
+    expect(mocked(streamFn).mock.calls[0]?.[2]?.maxTokens).toBe(windowShare);
   });
 });
 
@@ -1245,7 +1246,7 @@ async function expectBuiltinCheckpointPrompt(
   >,
   final: AssistantMessage,
 ): Promise<void> {
-  const streamFn: StreamFn = vi.fn(() => completedStream(final));
+  const streamFn: StreamFn = mock(() => completedStream(final));
   await expect(
     automaticCompactor().compactBeforeLlm({
       ...input,
@@ -1253,7 +1254,7 @@ async function expectBuiltinCheckpointPrompt(
       thinkingLevel: 'off',
     }),
   ).resolves.toMatchObject({ status: 'completed', method: 'llm_checkpoint' });
-  expect(vi.mocked(streamFn).mock.calls[0]?.[1]?.systemPrompt).toBe(CHECKPOINT_SYSTEM_PROMPT);
+  expect(mocked(streamFn).mock.calls[0]?.[1]?.systemPrompt).toBe(CHECKPOINT_SYSTEM_PROMPT);
 }
 
 describe('AutomaticContextCompactor byte failure protection', () => {
@@ -1297,8 +1298,8 @@ describe('AutomaticContextCompactor byte failure protection', () => {
         shouldStart: true,
       });
       const lifecycle = {
-        completeCommittedHistory: vi.fn(async () => undefined),
-        failCommittedHistory: vi.fn(async () => undefined),
+        completeCommittedHistory: mock(async () => undefined),
+        failCommittedHistory: mock(async () => undefined),
       };
       const hook = createAutomaticContextCompactionHook(
         { automatic: compactor, lifecycle },

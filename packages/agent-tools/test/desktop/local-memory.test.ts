@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 
 import { LocalMemoryTool } from '../../src/desktop/local-memory.js';
 import { MEMORY_TOOL_OUTPUT_MAX_BYTES } from '@mavis/shared/memory-limits';
@@ -16,7 +16,7 @@ describe('LocalMemoryTool output limit', () => {
     'bounds oversized %s reads in both model-facing fields',
     async (target) => {
       const text = 'FIRST_FACT\n' + '记忆🙂'.repeat(20_000) + '\nLATEST_FACT';
-      const execute = vi.fn(async () => ({ text, details: { ok: true, target } }));
+      const execute = mock(async () => ({ text, details: { ok: true, target } }));
       const tool = new LocalMemoryTool({ execute });
       const input = { target, operation: 'read' as const, topicName: 'work' };
       const result = await tool.execute(context, input);

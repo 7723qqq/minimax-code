@@ -1,11 +1,7 @@
-import { execFile as execFileCallback, type ExecFileException } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, realpath } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve } from 'node:path';
-import { promisify } from 'node:util';
-
-const execFile = promisify(execFileCallback);
 
 export type LocalRunLocationMode = 'current' | 'new-worktree' | 'existing-worktree';
 
@@ -337,28 +333,44 @@ async function assertSafeBranchName(branch: string, cwd: string): Promise<void> 
   }
 }
 
+/**
+ * Runs Git and reports failures as results rather than throwing.
+ *
+ * Callers branch on `code`, which is what the previous `execFile` catch block
+ * produced. `Bun.spawn` throws synchronously when Git cannot start, so that case
+ * is caught here and reported the same way.
+ *
+ * Expect the first spawn in a process to be slow on Windows: launching a native
+ * executable without a shell costs one multi-second wait before the runtime
+ * settles. That is an upstream runtime characteristic, recorded here rather than
+ * worked around.
+ */
 async function git(
   args: readonly string[],
   cwd: string,
   timeoutMs?: number,
 ): Promise<{ readonly code: number; readonly stdout: string; readonly stderr: string }> {
   try {
-    const result = await execFile('git', args, {
+    const child = Bun.spawn({
+      cmd: ['git', ...args],
       cwd,
-      encoding: 'utf-8',
       env: { ...gitEnv(), GIT_TERMINAL_PROMPT: '0' },
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
       ...(timeoutMs ? { timeout: timeoutMs } : {}),
     });
-    return { code: 0, stdout: String(result.stdout ?? ''), stderr: String(result.stderr ?? '') };
+    const [stdout, stderr, code] = await Promise.all([
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+      child.exited,
+    ]);
+    return { code, stdout, stderr };
   } catch (error) {
-    const failure = error as ExecFileException & {
-      readonly stdout?: string | Buffer;
-      readonly stderr?: string | Buffer;
-    };
     return {
-      code: typeof failure.code === 'number' ? failure.code : 1,
-      stdout: bufferToString(failure.stdout),
-      stderr: bufferToString(failure.stderr) || failure.message,
+      code: 1,
+      stdout: '',
+      stderr: error instanceof Error ? error.message : String(error),
     };
   }
 }
@@ -377,8 +389,4 @@ function generateDefaultWorktreeBranch(nowMs: number): string {
 function optionalField(value: object, key: string): Record<string, string> {
   const field = Reflect.get(value, key);
   return typeof field === 'string' && field.length > 0 ? { [key]: field } : {};
-}
-
-function bufferToString(value: string | Buffer | undefined): string {
-  return Buffer.isBuffer(value) ? value.toString('utf-8') : String(value ?? '');
 }

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'bun:test';
 
 import { applyTuiRenderTheme, getTuiThemeSnapshot, tuiChalk, tuiColors } from '../../src/tui/theme/runtime.js';
 import { MINIMAX_CODE_DARK_THEME, MINIMAX_CODE_LIGHT_THEME } from '../../src/tui/theme/palettes.js';

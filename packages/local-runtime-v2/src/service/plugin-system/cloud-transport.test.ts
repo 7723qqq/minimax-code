@@ -1,8 +1,7 @@
+import { afterEach, describe, expect, it, mock } from 'bun:test';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
-import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { PluginSystemCloudTransport, PluginSystemCloudTransportError } from './cloud-transport.js';
 import { writeFileChunkFully } from './file-chunk-writer.js';
@@ -18,7 +17,7 @@ describe('writeFileChunkFully', () => {
   it('retries short file writes until the complete download chunk is persisted', async () => {
     const persisted: number[] = [];
     const writer = {
-      write: vi.fn(async (buffer: Uint8Array, offset: number, length: number, _position: null) => {
+      write: mock(async (buffer: Uint8Array, offset: number, length: number, _position: null) => {
         const bytesWritten = Math.min(2, length);
         persisted.push(...buffer.subarray(offset, offset + bytesWritten));
         return { bytesWritten };
@@ -37,7 +36,7 @@ describe('writeFileChunkFully', () => {
 
   it('fails closed when a file write makes no progress', async () => {
     const writer = {
-      write: vi.fn(async () => ({ bytesWritten: 0 })),
+      write: mock(async () => ({ bytesWritten: 0 })),
     };
 
     await expect(
@@ -55,7 +54,7 @@ function downloadWriteError(): PluginSystemCloudTransportError {
 
 describe('PluginSystemCloudTransport admission credential', () => {
   it('uses an explicit admission credential without re-reading the live identity', async () => {
-    const fetchImpl = vi.fn<typeof fetch>(async () =>
+    const fetchImpl = mock<typeof fetch>(async () =>
       Response.json({ base_resp: { status_code: 0 } }),
     );
     const transport = new PluginSystemCloudTransport({
@@ -86,8 +85,8 @@ describe('PluginSystemCloudTransport admission credential', () => {
 
 describe('PluginSystemCloudTransport dispatch boundary', () => {
   it('does not mark dispatch when authentication preflight rejects before fetch', async () => {
-    const fetchImpl = vi.fn<typeof fetch>();
-    const onDispatch = vi.fn();
+    const fetchImpl = mock<typeof fetch>();
+    const onDispatch = mock();
     const transport = new PluginSystemCloudTransport({
       baseUrl: 'https://agent.example',
       fetchImpl,
@@ -107,10 +106,10 @@ describe('PluginSystemCloudTransport dispatch boundary', () => {
   });
 
   it('does not mark dispatch when fetch throws synchronously', async () => {
-    const fetchImpl = vi.fn<typeof fetch>(() => {
+    const fetchImpl = mock<typeof fetch>(() => {
       throw new Error('sync fetch setup failed');
     });
-    const onDispatch = vi.fn();
+    const onDispatch = mock();
     const transport = new PluginSystemCloudTransport({
       baseUrl: 'https://agent.example',
       fetchImpl,
@@ -131,11 +130,11 @@ describe('PluginSystemCloudTransport dispatch boundary', () => {
 
   it('marks dispatch once after fetch returns its response promise', async () => {
     const events: string[] = [];
-    const fetchImpl = vi.fn<typeof fetch>(() => {
+    const fetchImpl = mock<typeof fetch>(() => {
       events.push('fetch');
       return Promise.resolve(Response.json({ base_resp: { status_code: 0 } }));
     });
-    const onDispatch = vi.fn(() => events.push('dispatch'));
+    const onDispatch = mock(() => events.push('dispatch'));
     const transport = new PluginSystemCloudTransport({
       baseUrl: 'https://agent.example',
       fetchImpl,
@@ -157,7 +156,7 @@ describe('PluginSystemCloudTransport dispatch boundary', () => {
 describe('PluginSystemCloudTransport', () => {
   it('signs anonymous and authenticated requests from the live trusted identity', async () => {
     let identity: { accessToken?: string; realUserID?: string } | undefined;
-    const fetchImpl = vi.fn<typeof fetch>(async () =>
+    const fetchImpl = mock<typeof fetch>(async () =>
       Response.json({ base_resp: { status_code: 0 } }),
     );
     const transport = new PluginSystemCloudTransport({
@@ -226,7 +225,7 @@ describe('PluginSystemCloudTransport', () => {
   it('fails closed for missing auth and response errors without exposing response text', async () => {
     const transport = new PluginSystemCloudTransport({
       baseUrl: 'https://agent.example',
-      fetchImpl: vi.fn<typeof fetch>(async () => Response.json({ base_resp: { status_code: 7 } })),
+      fetchImpl: mock<typeof fetch>(async () => Response.json({ base_resp: { status_code: 7 } })),
       authContextGetter: () => undefined,
     });
 
@@ -239,7 +238,7 @@ describe('PluginSystemCloudTransport', () => {
 
     const broken = new PluginSystemCloudTransport({
       baseUrl: 'https://agent.example',
-      fetchImpl: vi.fn<typeof fetch>(async () => new Response('secret', { status: 503 })),
+      fetchImpl: mock<typeof fetch>(async () => new Response('secret', { status: 503 })),
       authContextGetter: () => undefined,
     });
     await expect(
@@ -250,7 +249,7 @@ describe('PluginSystemCloudTransport', () => {
   it('normalizes network, payload, path, and download failures to stable errors', async () => {
     const network = new PluginSystemCloudTransport({
       baseUrl: 'https://agent.example/',
-      fetchImpl: vi.fn<typeof fetch>(async () => {
+      fetchImpl: mock<typeof fetch>(async () => {
         throw new Error('private network detail');
       }),
       authContextGetter: () => ({ accessToken: 'partial' }),
@@ -273,7 +272,7 @@ describe('PluginSystemCloudTransport', () => {
     ];
     const malformed = new PluginSystemCloudTransport({
       baseUrl: 'https://agent.example',
-      fetchImpl: vi.fn<typeof fetch>(async () => responses.shift() ?? Response.json({})),
+      fetchImpl: mock<typeof fetch>(async () => responses.shift() ?? Response.json({})),
       authContextGetter: () => undefined,
     });
     await expect(
@@ -294,7 +293,7 @@ describe('PluginSystemCloudTransport', () => {
   });
 
   it('distinguishes caller cancellation from the bounded request timeout', async () => {
-    const waitingFetch = vi.fn<typeof fetch>(async (_url, init) => {
+    const waitingFetch = mock<typeof fetch>(async (_url, init) => {
       init?.signal?.throwIfAborted();
       await new Promise<void>((_resolve, reject) => {
         init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), { once: true });
@@ -329,7 +328,7 @@ describe('PluginSystemCloudTransport', () => {
     roots.push(root);
     const transport = new PluginSystemCloudTransport({
       baseUrl: 'https://agent.example',
-      fetchImpl: vi.fn<typeof fetch>(async () => new Response(Buffer.from('plugin-bytes'))),
+      fetchImpl: mock<typeof fetch>(async () => new Response(Buffer.from('plugin-bytes'))),
       authContextGetter: () => undefined,
     });
     const target = join(root, 'package.zip');
@@ -343,7 +342,7 @@ describe('PluginSystemCloudTransport', () => {
 
     const tooLarge = new PluginSystemCloudTransport({
       baseUrl: 'https://agent.example',
-      fetchImpl: vi.fn<typeof fetch>(
+      fetchImpl: mock<typeof fetch>(
         async () =>
           new Response(Buffer.from('x'), {
             headers: { 'content-length': String(1024 * 1024 * 1024) },
@@ -361,7 +360,7 @@ describe('PluginSystemCloudTransport', () => {
       () =>
         new PluginSystemCloudTransport({
           baseUrl: '/relative',
-          fetchImpl: vi.fn<typeof fetch>(),
+          fetchImpl: mock<typeof fetch>(),
           authContextGetter: () => undefined,
         }),
     ).toThrow(PluginSystemCloudTransportError);

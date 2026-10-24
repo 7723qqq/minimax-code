@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
+
 import type { PiEventWriter } from '@mavis/agent-core/pi-turn-runner';
 import {
   createLocalPluginHookEventReporter,
@@ -7,11 +8,11 @@ import {
 
 describe('Plugin Hook display messages', () => {
   it('deduplicates diagnostics but retains system messages across tool calls', async () => {
-    const appendEvents = vi.fn(
+    const appendEvents = mock(
       async (_events: Parameters<PiEventWriter['appendEvents']>[0]) => undefined,
     );
     const reporter = createLocalPluginHookEventReporter({
-      writer: { appendEvents, pushRuntime: vi.fn() },
+      writer: { appendEvents, pushRuntime: mock() },
       sessionId: 'session-dedupe',
       turnId: 'turn-dedupe',
     });
@@ -89,9 +90,9 @@ describe('Plugin Hook display messages', () => {
   });
 
   it('preserves identical text in different categories and keeps delivery failure best-effort', async () => {
-    const appendEvents = vi.fn<PiEventWriter['appendEvents']>().mockResolvedValue(undefined);
+    const appendEvents = mock<PiEventWriter['appendEvents']>().mockResolvedValue(undefined);
     const reporter = createLocalPluginHookEventReporter({
-      writer: { appendEvents, pushRuntime: vi.fn() },
+      writer: { appendEvents, pushRuntime: mock() },
       sessionId: 'category-session',
       turnId: 'category-turn',
     });

@@ -1,3 +1,4 @@
+import { describe, expect, it, mock, spyOn } from 'bun:test';
 /**
  * LocalOutputSafetyEventWriter × SafetyCheckV2 guide review path.
  *
@@ -9,7 +10,6 @@
  * - consumeGuidePrompt / resetGuideReview state machine.
  * - Metrics counting (`output_safety_check_total{decision=guide_review}`).
  */
-import { describe, it, expect, vi } from 'vitest';
 
 import { RespDataType } from '@mavis/agent-core/protocol/agent-message';
 import { RuntimeEventType, type IRuntimeEvent } from '@mavis/protocol';
@@ -100,7 +100,7 @@ const SENTINEL_GUIDE_PROMPT = 'V2-SECRET-GUIDE-PROMPT-DO-NOT-LEAK';
 
 describe('LocalOutputSafetyEventWriter — V2 guide review', () => {
   it('explicit Review with guide_prompt blocks the draft and preserves the next attempt guide', async () => {
-    const checkText = vi.fn(
+    const checkText = mock(
       async (): Promise<SafetyCheckResult> => ({
         pass: false,
         action: 'guide',
@@ -109,8 +109,8 @@ describe('LocalOutputSafetyEventWriter — V2 guide review', () => {
       }),
     );
     const { inner } = makeSink();
-    const sinkSpy = vi.spyOn(inner, 'pushRuntime');
-    const onBlocked = vi.fn();
+    const sinkSpy = spyOn(inner, 'pushRuntime');
+    const onBlocked = mock();
     const writer = new LocalOutputSafetyEventWriter(inner, {
       checkText,
       chunkThreshold: 0,
@@ -127,7 +127,7 @@ describe('LocalOutputSafetyEventWriter — V2 guide review', () => {
   });
 
   it('reject without guide_prompt → 走原 block 路径', async () => {
-    const checkText = vi.fn(
+    const checkText = mock(
       async (): Promise<SafetyCheckResult> => ({
         pass: false,
         reason: 'rejected',
@@ -146,7 +146,7 @@ describe('LocalOutputSafetyEventWriter — V2 guide review', () => {
   });
 
   it('reject + 空字符串 guide_prompt → 当作缺失,走 block 路径(防御性)', async () => {
-    const checkText = vi.fn(
+    const checkText = mock(
       async (): Promise<SafetyCheckResult> => ({
         pass: false,
         action: 'guide',
@@ -166,7 +166,7 @@ describe('LocalOutputSafetyEventWriter — V2 guide review', () => {
   });
 
   it('clean pass + 有 guide_prompt → 不动 guide state(guide_prompt 只在 reject 时有效)', async () => {
-    const checkText = vi.fn(
+    const checkText = mock(
       async (): Promise<SafetyCheckResult> => ({
         pass: true,
         guide_prompt: SENTINEL_GUIDE_PROMPT,
@@ -184,7 +184,7 @@ describe('LocalOutputSafetyEventWriter — V2 guide review', () => {
   });
 
   it('consumeGuidePrompt() 调用后清空状态(避免跨 attempt 残留)', async () => {
-    const checkText = vi.fn(
+    const checkText = mock(
       async (): Promise<SafetyCheckResult> => ({
         pass: false,
         action: 'guide',
@@ -206,7 +206,7 @@ describe('LocalOutputSafetyEventWriter — V2 guide review', () => {
   });
 
   it('resetGuideReview() 清空状态(host 每个 attempt 边界调一次)', async () => {
-    const checkText = vi.fn(
+    const checkText = mock(
       async (): Promise<SafetyCheckResult> => ({
         pass: false,
         action: 'guide',
@@ -228,7 +228,7 @@ describe('LocalOutputSafetyEventWriter — V2 guide review', () => {
   });
 
   it('CRITICAL: V2 guide_prompt 绝不出现在 final AgentMessage / user-visible 流事件里', async () => {
-    const checkText = vi.fn(
+    const checkText = mock(
       async (): Promise<SafetyCheckResult> => ({
         pass: false,
         action: 'guide',
@@ -242,7 +242,7 @@ describe('LocalOutputSafetyEventWriter — V2 guide review', () => {
       checkText,
       chunkThreshold: 0,
     });
-    const sinkSpy = vi.spyOn(inner, 'pushRuntime');
+    const sinkSpy = spyOn(inner, 'pushRuntime');
     await writer.pushRuntime(contentChunk('问题内容1'));
     await writer.pushRuntime(finalMessageEvent('问题内容 final', 'msg_1'));
     expect(sinkSpy).not.toHaveBeenCalled();
@@ -253,7 +253,7 @@ describe('LocalOutputSafetyEventWriter — V2 guide review', () => {
   });
 
   it('metrics: guide review 决策记 decision=guide_review, 不计 output_safety_block_total', async () => {
-    const checkText = vi.fn(
+    const checkText = mock(
       async (): Promise<SafetyCheckResult> => ({
         pass: false,
         action: 'guide',
@@ -264,7 +264,7 @@ describe('LocalOutputSafetyEventWriter — V2 guide review', () => {
     );
     const { inner } = makeSink();
     const metrics = createLocalRuntimeMetricsClient({ runtimeOwnerKind: 'test' });
-    const counterSpy = vi.spyOn(metrics, 'counter');
+    const counterSpy = spyOn(metrics, 'counter');
     const writer = new LocalOutputSafetyEventWriter(inner, {
       checkText,
       chunkThreshold: 0,
@@ -316,8 +316,7 @@ describe('LocalOutputSafetyEventWriter — V2 guide review', () => {
     async ({ apiVersion, instruction }) => {
       const prompts: string[] = [];
       let reviews = 0;
-      const fetchImpl = vi
-        .fn<typeof fetch>()
+      const fetchImpl = mock<typeof fetch>()
         .mockImplementation(async () => {
           const rejected = reviews++ === 0;
           if (apiVersion === 'v2') {
@@ -373,7 +372,7 @@ describe('callSafetyApi preserves the V1 response contract', () => {
     { pass: false, guide: 12345 },
     { pass: false, guide: null },
   ])('ignores V2-only fields from a V1 response: %j', async ({ pass, guide }) => {
-    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async () =>
+    const fetchImpl = mock<typeof fetch>().mockImplementation(async () =>
       Response.json({
         pass,
         decision: 'review',

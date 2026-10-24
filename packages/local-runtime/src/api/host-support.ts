@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import yaml from "js-yaml";
@@ -1193,8 +1193,8 @@ export function buildRuntimeDoctorSnapshot(input: {
       dataDir,
       configPath,
       authCachePath,
-      configPresent: existsSync(configPath),
-      authCachePresent: existsSync(authCachePath),
+      configPresent: pathExists(configPath),
+      authCachePresent: pathExists(authCachePath),
     },
     selection: {
       defaultModel: input.config.defaultModel ?? null,
@@ -1250,7 +1250,7 @@ function validateRuntimeConfigFile(
   configPath: string,
   effectiveConfig?: LocalRuntimeConfig,
 ): string[] {
-  if (!existsSync(configPath)) return ["Config file does not exist."];
+  if (!pathExists(configPath)) return ["Config file does not exist."];
 
   let parsed: unknown;
   try {
@@ -1343,4 +1343,22 @@ function doctorSurfaceForOwnerKind(kind: string): string {
   if (kind === "electron") return "electron";
   if (kind === "cli") return "cli-standalone";
   return kind;
+}
+
+/**
+ * Whether `target` exists.
+ *
+ * A `statSync` inside a `try` answers the same question as `existsSync` for a
+ * file, a directory, a missing entry and an unreadable path, at a fraction of the
+ * per-call cost: `existsSync` is the Node compatibility surface and measures
+ * roughly an order of magnitude slower in this runtime. This module is
+ * synchronous, so `Bun.file()` does not apply.
+ */
+function pathExists(target: string): boolean {
+  try {
+    statSync(target);
+    return true;
+  } catch {
+    return false;
+  }
 }

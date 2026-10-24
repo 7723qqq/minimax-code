@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { stubEnv, unstubAllEnvs } from '../../../../test/bun-test-setup.js';
+import { afterEach, describe, expect, it } from 'bun:test';
 import { McodeInteractiveRenderer } from "../../src/tui/renderer/interactive-renderer.js";
 import { TuiComposer } from "../../src/tui/shell/composer.js";
 import { Editor } from "../../src/tui/widgets/editor/editor.js";
@@ -71,7 +72,7 @@ function setup(
 
 afterEach(() => {
   Object.defineProperty(process, "platform", platformDescriptor);
-  vi.unstubAllEnvs();
+  unstubAllEnvs();
 });
 
 describe("IME cursor through the product renderer", () => {
@@ -86,7 +87,7 @@ describe("IME cursor through the product renderer", () => {
     "publishes a visible Windows input cursor in %s mode at width %s and after switching",
     async (mode, columns) => {
       Object.defineProperty(process, "platform", { value: "win32" });
-      vi.stubEnv("PI_HARDWARE_CURSOR", undefined);
+      stubEnv("PI_HARDWARE_CURSOR", undefined);
       const { terminal, renderer, editor } = setup(mode, undefined, columns);
       try {
         renderer.start();
@@ -132,7 +133,7 @@ describe("IME cursor through the product renderer", () => {
     "respects cursor policy on %s, env=%s, option=%s",
     (platform, env, option, expected) => {
       Object.defineProperty(process, "platform", { value: platform });
-      vi.stubEnv("PI_HARDWARE_CURSOR", env);
+      stubEnv("PI_HARDWARE_CURSOR", env);
       const { renderer } = setup("regular", option);
       try {
         expect(renderer.ui.getShowHardwareCursor()).toBe(expected);

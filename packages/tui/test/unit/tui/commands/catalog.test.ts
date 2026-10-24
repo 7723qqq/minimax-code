@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, mock } from 'bun:test';
+
 import {
   createTuiCommandCatalog,
   type TuiCommandContext,
@@ -18,9 +19,9 @@ describe("MiniMax Code TUI command catalog in side conversations", () => {
   };
 
   it("lets a side conversation run diagnostics and send feedback in place", async () => {
-    const doctorHandler = vi.fn();
-    const feedbackHandler = vi.fn();
-    const quitHandler = vi.fn();
+    const doctorHandler = mock();
+    const feedbackHandler = mock();
+    const quitHandler = mock();
     const catalog = createTuiCommandCatalog(
       [],
       { doctor: doctorHandler, feedback: feedbackHandler, quit: quitHandler },
@@ -41,7 +42,7 @@ describe("MiniMax Code TUI command catalog in side conversations", () => {
   });
 
   it("keeps commands that mutate Sessions unavailable in a side conversation", async () => {
-    const sessionsHandler = vi.fn();
+    const sessionsHandler = mock();
     const catalog = createTuiCommandCatalog([], { sessions: sessionsHandler }, () => sideContext);
 
     await expect(catalog.dispatch("/sessions")).resolves.toMatchObject({

@@ -1,4 +1,4 @@
-import type { BetterSqlite3Instance } from './client.js';
+import type { SqliteDatabase } from './client.js';
 import {
   canonicalizeSqlContract,
   canonicalizeSqlDefault,
@@ -279,7 +279,7 @@ const REMOVED_TABLES = [
   'local_runtime_v2_cron_session_deliveries',
 ] as const;
 
-export function assertDatabaseSchemaConsistent(db: BetterSqlite3Instance): void {
+export function assertDatabaseSchemaConsistent(db: SqliteDatabase): void {
   assertSessionMetadataComplete();
   assertRemovedTablesAbsent(db);
   assertRequiredTableColumns(db);
@@ -318,7 +318,7 @@ function assertSessionMetadataComplete(): void {
   if (!complete) throw new Error('Session storage schema metadata is incomplete');
 }
 
-function assertRemovedTablesAbsent(db: BetterSqlite3Instance): void {
+function assertRemovedTablesAbsent(db: SqliteDatabase): void {
   for (const removedTable of REMOVED_TABLES) {
     const found = db
       .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
@@ -327,7 +327,7 @@ function assertRemovedTablesAbsent(db: BetterSqlite3Instance): void {
   }
 }
 
-function assertRequiredTableColumns(db: BetterSqlite3Instance): void {
+function assertRequiredTableColumns(db: SqliteDatabase): void {
   for (const [table, expected] of Object.entries(EXPECTED_TABLES)) {
     if (shouldSkipRequiredTableCheck(db, table)) continue;
     const actual = new Set(db.prepare(`PRAGMA table_info(${table})`).all().map(readName));
@@ -352,14 +352,14 @@ function assertRequiredTableColumns(db: BetterSqlite3Instance): void {
   }
 }
 
-function shouldSkipRequiredTableCheck(db: BetterSqlite3Instance, table: string): boolean {
+function shouldSkipRequiredTableCheck(db: SqliteDatabase, table: string): boolean {
   return (
     (table === 'agents' && !agentMigrationApplied(db)) ||
     (table === MINIAPP_STATE_TABLE_METADATA.name && !miniAppStateContractApplied(db))
   );
 }
 
-function assertMiniAppStateTable(db: BetterSqlite3Instance): void {
+function assertMiniAppStateTable(db: SqliteDatabase): void {
   if (!miniAppStateContractApplied(db)) return;
   const table = MINIAPP_STATE_TABLE_METADATA;
   const rows = db.prepare(`PRAGMA table_info(${table.name})`).all();
@@ -387,7 +387,7 @@ function assertMiniAppStateTable(db: BetterSqlite3Instance): void {
   }
 }
 
-function assertSessionTables(db: BetterSqlite3Instance): void {
+function assertSessionTables(db: SqliteDatabase): void {
   for (const table of activeSessionTables(db)) {
     const actual = new Set(db.prepare(`PRAGMA table_info(${table.name})`).all().map(readName));
     const expectedColumns = currentTableColumns(db, table);
@@ -401,7 +401,7 @@ function assertSessionTables(db: BetterSqlite3Instance): void {
 }
 
 function assertOptionalTables(
-  db: BetterSqlite3Instance,
+  db: SqliteDatabase,
   tables: typeof OPTIONAL_DIAGNOSTIC_TABLE_CONFIGS | typeof CONDITIONAL_LEGACY_TABLE_CONFIGS,
 ): void {
   for (const table of tables) {
@@ -417,7 +417,7 @@ function assertOptionalTables(
   }
 }
 
-function assertSessionChecks(db: BetterSqlite3Instance): void {
+function assertSessionChecks(db: SqliteDatabase): void {
   for (const table of allPresentSessionTables(db)) {
     if (table.name === 'local_runtime_projects' && isTransitionalProjectTable(db)) continue;
     const row = db
@@ -433,7 +433,7 @@ function assertSessionChecks(db: BetterSqlite3Instance): void {
   }
 }
 
-function assertSessionPhysicalTables(db: BetterSqlite3Instance): void {
+function assertSessionPhysicalTables(db: SqliteDatabase): void {
   for (const table of activeSessionTables(db)) {
     if (table.name === 'local_runtime_projects' && isTransitionalProjectTable(db)) continue;
     assertPhysicalTable(db, table);
@@ -444,7 +444,7 @@ function assertSessionPhysicalTables(db: BetterSqlite3Instance): void {
 }
 
 function assertPhysicalTable(
-  db: BetterSqlite3Instance,
+  db: SqliteDatabase,
   table: (typeof SESSION_TABLE_CONFIGS)[number],
 ): void {
   const rows = db.prepare(`PRAGMA table_info(${table.name})`).all();
@@ -473,7 +473,7 @@ function columnDefinitionMatches(
 }
 
 function assertAutoIncrement(
-  db: BetterSqlite3Instance,
+  db: SqliteDatabase,
   table: (typeof SESSION_TABLE_CONFIGS)[number],
 ): void {
   const row = db
@@ -490,7 +490,7 @@ function assertAutoIncrement(
 }
 
 function assertForeignKeys(
-  db: BetterSqlite3Instance,
+  db: SqliteDatabase,
   table: (typeof SESSION_TABLE_CONFIGS)[number],
 ): void {
   const actual = db
@@ -510,7 +510,7 @@ function assertForeignKeys(
   }
 }
 
-function isTransitionalProjectTable(db: BetterSqlite3Instance): boolean {
+function isTransitionalProjectTable(db: SqliteDatabase): boolean {
   const transitional = SESSION_STORAGE_TRANSITIONAL_TABLE_METADATA[0];
   const rows = db.prepare(`PRAGMA table_info(${transitional.name})`).all();
   if (rows.map(readName).join(',') !== transitional.columns.join(',')) return false;
@@ -534,7 +534,7 @@ function compareForeignKeys(
   );
 }
 
-function assertRequiredIndexes(db: BetterSqlite3Instance): void {
+function assertRequiredIndexes(db: SqliteDatabase): void {
   const indexes = new Set(
     db.prepare("SELECT name FROM sqlite_master WHERE type = 'index'").all().map(readName),
   );
@@ -551,7 +551,7 @@ function assertRequiredIndexes(db: BetterSqlite3Instance): void {
   if (missing.length > 0) throw new Error(`Database schema indexes missing: ${missing.join(',')}`);
 }
 
-function assertSessionIndexDefinitions(db: BetterSqlite3Instance): void {
+function assertSessionIndexDefinitions(db: SqliteDatabase): void {
   const migrationGates = indexMigrationGates(db);
   const expectedIndexes = [
     ...activeSessionTables(db),
@@ -586,7 +586,7 @@ function assertSessionIndexDefinitions(db: BetterSqlite3Instance): void {
   }
 }
 
-function indexMigrationGates(db: BetterSqlite3Instance) {
+function indexMigrationGates(db: SqliteDatabase) {
   return [
     { applied: sharedProjectSchemaCompatibilityApplied(db), names: CHANNEL_PROJECT_INDEX_NAMES },
     { applied: queryIndexesApplied(db), names: SESSION_QUERY_INDEX_NAMES },
@@ -603,7 +603,7 @@ function isIndexExpected(name: string, gates: ReturnType<typeof indexMigrationGa
   return gates.every((gate) => gate.applied || !gate.names.has(name));
 }
 
-function assertAgentIndexDefinitions(db: BetterSqlite3Instance): void {
+function assertAgentIndexDefinitions(db: SqliteDatabase): void {
   if (!agentMigrationApplied(db)) return;
   if (!tableExists(db, 'agents')) {
     throw new Error('Database schema mismatch: agents table missing after migration 14');
@@ -625,7 +625,7 @@ function assertAgentIndexDefinitions(db: BetterSqlite3Instance): void {
   }
 }
 
-function assertAgentPhysicalTable(db: BetterSqlite3Instance): void {
+function assertAgentPhysicalTable(db: SqliteDatabase): void {
   if (!agentMigrationApplied(db)) return;
   const rows = db.prepare('PRAGMA table_info(agents)').all();
   if (rows.length === 0) return;
@@ -645,21 +645,21 @@ function assertAgentPhysicalTable(db: BetterSqlite3Instance): void {
   }
 }
 
-function assertLegacyHistoryNoticeRepairCutoff(db: BetterSqlite3Instance): void {
+function assertLegacyHistoryNoticeRepairCutoff(db: SqliteDatabase): void {
   if (!tableExists(db, LEGACY_HISTORY_NOTICE_REPAIR_CUTOFF_TABLE)) return;
   assertLegacyHistoryNoticeRepairMarker(db);
   assertLegacyHistoryNoticeRepairColumns(db);
   assertLegacyHistoryNoticeRepairMetadata(db);
 }
 
-function assertLegacyHistoryNoticeRepairMarker(db: BetterSqlite3Instance): void {
+function assertLegacyHistoryNoticeRepairMarker(db: SqliteDatabase): void {
   if (legacyHistoryNoticeRepairApplied(db)) return;
   throw new Error(
     `Database schema mismatch: ${LEGACY_HISTORY_NOTICE_REPAIR_CUTOFF_TABLE} before migration 32`,
   );
 }
 
-function assertLegacyHistoryNoticeRepairColumns(db: BetterSqlite3Instance): void {
+function assertLegacyHistoryNoticeRepairColumns(db: SqliteDatabase): void {
   const actualByName = new Map(
     db
       .prepare(`PRAGMA table_info(${LEGACY_HISTORY_NOTICE_REPAIR_CUTOFF_TABLE})`)
@@ -690,7 +690,7 @@ function legacyHistoryNoticeRepairColumnMatches(
   );
 }
 
-function assertLegacyHistoryNoticeRepairMetadata(db: BetterSqlite3Instance): void {
+function assertLegacyHistoryNoticeRepairMetadata(db: SqliteDatabase): void {
   const rows = db
     .prepare(`SELECT singleton, cutoff_at_ms FROM ${LEGACY_HISTORY_NOTICE_REPAIR_CUTOFF_TABLE}`)
     .all();
@@ -706,7 +706,7 @@ function assertLegacyHistoryNoticeRepairMetadata(db: BetterSqlite3Instance): voi
 }
 
 function expectedAgentColumnsForDatabase(
-  db: BetterSqlite3Instance,
+  db: SqliteDatabase,
   table: string,
   expectedColumns: readonly string[],
 ): readonly string[] {
@@ -714,7 +714,7 @@ function expectedAgentColumnsForDatabase(
   return expectedColumns.filter((column) => !LEGACY_HISTORY_NOTICE_AGENT_COLUMNS.has(column));
 }
 
-function agentColumnDefinitionsForDatabase(db: BetterSqlite3Instance) {
+function agentColumnDefinitionsForDatabase(db: SqliteDatabase) {
   if (legacyHistoryNoticeMigrationApplied(db)) return AGENT_COLUMN_DEFINITIONS;
   return AGENT_COLUMN_DEFINITIONS.filter(
     (column) => !LEGACY_HISTORY_NOTICE_AGENT_COLUMNS.has(column.name),
@@ -722,7 +722,7 @@ function agentColumnDefinitionsForDatabase(db: BetterSqlite3Instance) {
 }
 
 function hasCompatibleOptionalIndex(
-  db: BetterSqlite3Instance,
+  db: SqliteDatabase,
   table: string,
   expected: (typeof OPTIONAL_DIAGNOSTIC_TABLE_CONFIGS)[number]['indexDefinitions'][number],
 ): boolean {
@@ -749,7 +749,7 @@ function hasCompatibleOptionalIndex(
     });
 }
 
-function assertRequiredObjects(db: BetterSqlite3Instance): void {
+function assertRequiredObjects(db: SqliteDatabase): void {
   const missingObjects = REQUIRED_OBJECTS.flatMap((required) => {
     const row = db
       .prepare('SELECT type, sql FROM sqlite_master WHERE type = ? AND name = ?')
@@ -763,7 +763,7 @@ function assertRequiredObjects(db: BetterSqlite3Instance): void {
   }
 }
 
-function assertTriggerDefinitions(db: BetterSqlite3Instance): void {
+function assertTriggerDefinitions(db: SqliteDatabase): void {
   if (!projectV5TriggerCompatibilityRestored(db)) return;
   const expectedTriggers = intermediateChannelProjectSchemaApplied(db)
     ? surfacedChannelProjectTriggerMetadata()
@@ -778,7 +778,7 @@ function assertTriggerDefinitions(db: BetterSqlite3Instance): void {
   }
 }
 
-function assertVirtualTableDefinitions(db: BetterSqlite3Instance): void {
+function assertVirtualTableDefinitions(db: SqliteDatabase): void {
   for (const table of SESSION_STORAGE_VIRTUAL_TABLE_METADATA) {
     const columns = db.prepare(`PRAGMA table_info(${table.name})`).all().map(readName);
     const row = db
@@ -793,7 +793,7 @@ function assertVirtualTableDefinitions(db: BetterSqlite3Instance): void {
   }
 }
 
-function allPresentSessionTables(db: BetterSqlite3Instance) {
+function allPresentSessionTables(db: SqliteDatabase) {
   return [
     ...activeSessionTables(db),
     ...OPTIONAL_DIAGNOSTIC_TABLE_CONFIGS.filter((table) => tableExists(db, table.name)),
@@ -801,13 +801,13 @@ function allPresentSessionTables(db: BetterSqlite3Instance) {
   ];
 }
 
-function activeSessionTables(db: BetterSqlite3Instance) {
+function activeSessionTables(db: SqliteDatabase) {
   return SESSION_TABLE_CONFIGS.filter(
     (table) => baseSessionTableActive(db, table.name) && lateSessionTableActive(db, table.name),
   );
 }
 
-function baseSessionTableActive(db: BetterSqlite3Instance, tableName: string): boolean {
+function baseSessionTableActive(db: SqliteDatabase, tableName: string): boolean {
   return (
     (queueConvergenceApplied(db) || !QUEUE_CONVERGENCE_TABLE_NAMES.has(tableName)) &&
     (fileApiCacheApplied(db) || !FILE_API_TABLE_NAMES.has(tableName)) &&
@@ -816,7 +816,7 @@ function baseSessionTableActive(db: BetterSqlite3Instance, tableName: string): b
   );
 }
 
-function lateSessionTableActive(db: BetterSqlite3Instance, tableName: string): boolean {
+function lateSessionTableActive(db: SqliteDatabase, tableName: string): boolean {
   if (QUEUE_PAUSE_TABLE_NAMES.has(tableName)) return queuePauseApplied(db);
   if (SOURCE_RESOURCE_TABLE_NAMES.has(tableName)) return sourceResourcesApplied(db);
   if (SESSION_AGENT_DEFINITION_TABLE_NAMES.has(tableName))
@@ -824,11 +824,11 @@ function lateSessionTableActive(db: BetterSqlite3Instance, tableName: string): b
   return true;
 }
 
-function tableExists(db: BetterSqlite3Instance, name: string): boolean {
+function tableExists(db: SqliteDatabase, name: string): boolean {
   return db.prepare(`PRAGMA table_info(${name})`).all().length > 0;
 }
 
-function readIndexDefinition(db: BetterSqlite3Instance, name: string) {
+function readIndexDefinition(db: SqliteDatabase, name: string) {
   const row = db
     .prepare("SELECT tbl_name, sql FROM sqlite_master WHERE type = 'index' AND name = ?")
     .get(name);
@@ -852,7 +852,7 @@ function readIndexDefinition(db: BetterSqlite3Instance, name: string) {
 }
 
 function readIndexColumns(
-  db: BetterSqlite3Instance,
+  db: SqliteDatabase,
   name: string,
 ): { readonly columns: string[]; readonly collations: string[] } {
   const createRow = db
@@ -916,7 +916,7 @@ function indexColumnStep(
 }
 
 function currentTableColumns(
-  db: BetterSqlite3Instance,
+  db: SqliteDatabase,
   table: (typeof SESSION_TABLE_CONFIGS)[number],
 ): readonly string[] {
   if (table.name === 'local_runtime_queue_items' && !queryIndexesApplied(db)) {
@@ -929,7 +929,7 @@ function currentTableColumns(
 }
 
 function currentColumnDefinitions(
-  db: BetterSqlite3Instance,
+  db: SqliteDatabase,
   table: (typeof SESSION_TABLE_CONFIGS)[number],
 ) {
   const compatibleDefinitions =
@@ -944,61 +944,61 @@ function currentColumnDefinitions(
   return compatibleDefinitions;
 }
 
-function queryIndexesApplied(db: BetterSqlite3Instance): boolean {
+function queryIndexesApplied(db: SqliteDatabase): boolean {
   return Boolean(
     db.prepare('SELECT 1 FROM local_runtime_v2_schema_migrations WHERE version = ?').get(9),
   );
 }
 
-function queueConvergenceApplied(db: BetterSqlite3Instance): boolean {
+function queueConvergenceApplied(db: SqliteDatabase): boolean {
   return Boolean(
     db.prepare('SELECT 1 FROM local_runtime_v2_schema_migrations WHERE version = ?').get(10),
   );
 }
 
-function fileApiCacheApplied(db: BetterSqlite3Instance): boolean {
+function fileApiCacheApplied(db: SqliteDatabase): boolean {
   return Boolean(
     db.prepare('SELECT 1 FROM local_runtime_v2_schema_migrations WHERE version = ?').get(11),
   );
 }
 
-function agentMigrationApplied(db: BetterSqlite3Instance): boolean {
+function agentMigrationApplied(db: SqliteDatabase): boolean {
   return Boolean(
     db.prepare('SELECT 1 FROM local_runtime_v2_schema_migrations WHERE version = ?').get(14),
   );
 }
 
-function queryCollapseApplied(db: BetterSqlite3Instance): boolean {
+function queryCollapseApplied(db: SqliteDatabase): boolean {
   return Boolean(
     db.prepare('SELECT 1 FROM local_runtime_v2_schema_migrations WHERE version = ?').get(16),
   );
 }
 
-function projectV5TriggerCompatibilityRestored(db: BetterSqlite3Instance): boolean {
+function projectV5TriggerCompatibilityRestored(db: SqliteDatabase): boolean {
   return Boolean(
     db.prepare('SELECT 1 FROM local_runtime_v2_schema_migrations WHERE version = ?').get(18),
   );
 }
 
 // Version 33 reapplies the published Channel schema; versions 34–35 restore its old contract.
-function intermediateChannelProjectSchemaApplied(db: BetterSqlite3Instance): boolean {
+function intermediateChannelProjectSchemaApplied(db: SqliteDatabase): boolean {
   if (sharedProjectSchemaCompatibilityApplied(db)) return false;
   return Boolean(
     db.prepare('SELECT 1 FROM local_runtime_v2_schema_migrations WHERE version = ?').get(33),
   );
 }
 
-function sharedProjectSchemaCompatibilityApplied(db: BetterSqlite3Instance): boolean {
+function sharedProjectSchemaCompatibilityApplied(db: SqliteDatabase): boolean {
   return migration35ConvergenceApplied(db) || migrationApplied(db, 34);
 }
 
-function legacyHistoryNoticeMigrationApplied(db: BetterSqlite3Instance): boolean {
+function legacyHistoryNoticeMigrationApplied(db: SqliteDatabase): boolean {
   return (
     migration35ConvergenceApplied(db) || tableHasColumn(db, 'agents', 'legacy_history_session_id')
   );
 }
 
-function legacyHistoryNoticeRepairApplied(db: BetterSqlite3Instance): boolean {
+function legacyHistoryNoticeRepairApplied(db: SqliteDatabase): boolean {
   return migration35ConvergenceApplied(db) || migrationApplied(db, 32);
 }
 
@@ -1022,69 +1022,69 @@ function surfacedChannelProjectTriggerMetadata() {
   }));
 }
 
-function miniAppStateContractApplied(db: BetterSqlite3Instance): boolean {
+function miniAppStateContractApplied(db: SqliteDatabase): boolean {
   return migration35ConvergenceApplied(db) || tableExists(db, MINIAPP_STATE_TABLE_METADATA.name);
 }
 
-function taskSessionBindingsApplied(db: BetterSqlite3Instance): boolean {
+function taskSessionBindingsApplied(db: SqliteDatabase): boolean {
   return (
     migration35ConvergenceApplied(db) || tableExists(db, 'local_runtime_task_session_bindings')
   );
 }
 
-function sessionHistoryLocationApplied(db: BetterSqlite3Instance): boolean {
+function sessionHistoryLocationApplied(db: SqliteDatabase): boolean {
   return (
     migration35ConvergenceApplied(db) ||
     tableHasColumn(db, 'local_runtime_sessions', 'history_relative_dir')
   );
 }
 
-function queuePauseApplied(db: BetterSqlite3Instance): boolean {
+function queuePauseApplied(db: SqliteDatabase): boolean {
   return migration35ConvergenceApplied(db) || tableExists(db, 'local_runtime_queue_pauses');
 }
 
-function sourceResourcesApplied(db: BetterSqlite3Instance): boolean {
+function sourceResourcesApplied(db: SqliteDatabase): boolean {
   return (
     migration35ConvergenceApplied(db) ||
     (tableExists(db, 'session_resources') && tableExists(db, 'session_turn_resources'))
   );
 }
 
-function sourceToolCallIndexRelaxed(db: BetterSqlite3Instance): boolean {
+function sourceToolCallIndexRelaxed(db: SqliteDatabase): boolean {
   return migration35ConvergenceApplied(db) || migrationApplied(db, 26);
 }
 
-function sessionAgentDefinitionsApplied(db: BetterSqlite3Instance): boolean {
+function sessionAgentDefinitionsApplied(db: SqliteDatabase): boolean {
   return (
     migration35ConvergenceApplied(db) || tableExists(db, 'local_runtime_session_agent_definitions')
   );
 }
 
-function cronExecutionFieldsApplied(db: BetterSqlite3Instance): boolean {
+function cronExecutionFieldsApplied(db: SqliteDatabase): boolean {
   return (
     migration35ConvergenceApplied(db) ||
     tableHasColumn(db, 'local_runtime_v2_cron_runs', 'manual_request_id')
   );
 }
 
-function cronSessionTargetModeApplied(db: BetterSqlite3Instance): boolean {
+function cronSessionTargetModeApplied(db: SqliteDatabase): boolean {
   return (
     migration35ConvergenceApplied(db) ||
     tableHasColumn(db, 'local_runtime_v2_cron_definitions', 'session_target_mode')
   );
 }
 
-function migration35ConvergenceApplied(db: BetterSqlite3Instance): boolean {
+function migration35ConvergenceApplied(db: SqliteDatabase): boolean {
   return migrationApplied(db, 35);
 }
 
-function migrationApplied(db: BetterSqlite3Instance, version: number): boolean {
+function migrationApplied(db: SqliteDatabase, version: number): boolean {
   return Boolean(
     db.prepare('SELECT 1 FROM local_runtime_v2_schema_migrations WHERE version = ?').get(version),
   );
 }
 
-function tableHasColumn(db: BetterSqlite3Instance, tableName: string, columnName: string): boolean {
+function tableHasColumn(db: SqliteDatabase, tableName: string, columnName: string): boolean {
   return (
     db.prepare(`SELECT name FROM pragma_table_info('${tableName}') WHERE name = ?`).all(columnName)
       .length > 0

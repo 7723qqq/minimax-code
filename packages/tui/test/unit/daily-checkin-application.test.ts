@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 
 import {
   SigninClaimResult,
@@ -37,8 +37,8 @@ function claimData(claimResult: SigninClaimResult = SigninClaimResult.Claimed): 
 
 function gateway(statusPanel: SigninPanel, claim = claimData()): TuiDailyCheckinGateway {
   return {
-    getSigninPanel: vi.fn(async () => statusPanel),
-    claimSignin: vi.fn(async () => claim),
+    getSigninPanel: mock(async () => statusPanel),
+    claimSignin: mock(async () => claim),
   };
 }
 
@@ -107,8 +107,8 @@ describe('TuiDailyCheckinApplication', () => {
       release = resolve;
     });
     const adapter: TuiDailyCheckinGateway = {
-      getSigninPanel: vi.fn(async () => panel(SigninDayStatus.Claimable)),
-      claimSignin: vi.fn(() => claim),
+      getSigninPanel: mock(async () => panel(SigninDayStatus.Claimable)),
+      claimSignin: mock(() => claim),
     };
     const application = new TuiDailyCheckinApplication(adapter);
 

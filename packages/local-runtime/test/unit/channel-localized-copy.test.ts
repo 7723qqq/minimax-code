@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'bun:test';
 
 import { channelRouteBrokenReceiptText } from '../../src/channels/channel-im-receipts.js';
 import { formatQueuedNoticeText } from '../../src/channels/channel-queue-drain.js';

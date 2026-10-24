@@ -12,7 +12,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 
-// Single definition of the full verification pipeline. GitHub CI runs `pnpm verify`
+// Single definition of the full verification pipeline. GitHub CI runs `bun run verify`
 // so a local run executes the same gates in the same order; previously the order
 // only existed inside the workflow file and could not be reproduced locally.
 // Platform-conditional gates declare the platforms they support instead of being
@@ -98,8 +98,9 @@ if (values.list) {
 }
 
 // `npm_execpath` may be a JavaScript entry point or a native package-manager
-// binary depending on how pnpm was installed, so dispatch on what it actually is
-// instead of assuming it can be passed to node.
+// binary depending on how the script runner was invoked, so dispatch on what it
+// actually is instead of assuming it can be passed to node. The fallback covers
+// a direct `bun scripts/verify.mjs` call, where Bun is the package manager.
 function runScript(name) {
   const execPath = process.env.npm_execpath;
   if (execPath && /\.[cm]?js$/u.test(execPath))
@@ -107,7 +108,7 @@ function runScript(name) {
       stdio: "inherit",
       cwd: root,
     });
-  const command = execPath ?? "pnpm";
+  const command = execPath ?? "bun";
   const shell = process.platform === "win32";
   return spawnSync(shell ? `"${command}"` : command, ["run", name], {
     stdio: "inherit",

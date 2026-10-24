@@ -1,14 +1,11 @@
-import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
 
+import { execGitStdout } from './git-exec.js';
 import type { ReviewPreferencesService } from './preferences.js';
 import type { ReviewChangedFile, ReviewChangedRange, ReviewMode, ReviewTrigger } from './types.js';
-
-const execFileAsync = promisify(execFile);
 
 export interface PreparedReviewContext {
   reviewRunId: string;
@@ -240,12 +237,7 @@ function parseNameStatus(output: string): ReviewChangedFile[] {
 }
 
 async function execGit(workspace: string, args: string[]): Promise<{ stdout: string }> {
-  const result = await execFileAsync('git', args, {
-    cwd: workspace,
-    encoding: 'utf8',
-    maxBuffer: 16 * 1024 * 1024,
-  });
-  return { stdout: result.stdout };
+  return { stdout: await execGitStdout(workspace, args) };
 }
 
 function splitNul(value: string): string[] {

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { EN_CONFIG_COPY } from '../src/copy.en.js';
 import { ZH_HANS_CONFIG_COPY } from '../src/copy.zh-Hans.js';

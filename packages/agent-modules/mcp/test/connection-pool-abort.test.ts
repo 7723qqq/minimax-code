@@ -11,7 +11,7 @@
  * can observe the exact `RequestOptions` the pool hands to
  * `client.callTool(...)` without spinning up any transport.
  */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { McpConnectionPool } from '../src/runtime/connection-pool.js';
 import type {

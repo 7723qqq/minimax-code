@@ -109,6 +109,6 @@ See https://github.com/MiniMax-AI/minimax-code/blob/${revision}/docs/installatio
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [tag, out] = process.argv.slice(2);
-  if (!tag || !out) throw new Error('Usage: node scripts/package-cli-release.mjs vX.Y.Z /path/to/output');
+  if (!tag || !out) throw new Error('Usage: bun scripts/package-cli-release.mjs vX.Y.Z /path/to/output');
   await packageCliRelease({ tag, out: path.resolve(out) });
 }

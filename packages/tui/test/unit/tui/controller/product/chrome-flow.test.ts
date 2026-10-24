@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, mock } from 'bun:test';
 
 import type { TuiChatSnapshot } from "../../../../../src/tui/controller/chat-controller.js";
 import type { TuiAgentInteractionReadback } from "../../../../../src/tui/controller/interaction/interaction-flow.js";
@@ -19,7 +19,7 @@ describe("TuiChromeFlow agent status sequence", () => {
   it("projects the live Draft as prompt, command, or Skill instructions", () => {
     let draft = "Explain this repository";
     const composers: TuiComposerState[] = [];
-    const shellSink = { setState: vi.fn() };
+    const shellSink = { setState: mock() };
     const skillCommands: readonly TuiCommand[] = [
       {
         name: "docs",
@@ -37,8 +37,8 @@ describe("TuiChromeFlow agent status sequence", () => {
       queueEnabled: true,
       isStarted: () => true,
       isStopped: () => false,
-      setTerminalTitle: vi.fn(),
-      setProgramStatus: vi.fn(),
+      setTerminalTitle: mock(),
+      setProgramStatus: mock(),
       connection: () => ({ phase: "live", generation: 1 }),
       liveRunId: () => undefined,
       runProjection: () => ({
@@ -61,7 +61,7 @@ describe("TuiChromeFlow agent status sequence", () => {
       permissionMode: () => undefined,
       welcome: shellSink,
       status: shellSink,
-      activity: { setState: vi.fn() },
+      activity: { setState: mock() },
       composer: { setState: (state) => composers.push(state) },
     });
     const snapshot = {
@@ -94,15 +94,15 @@ describe("TuiChromeFlow agent status sequence", () => {
 
   it("carries warning hints to the composer and clears the tone on replacement or dismissal", () => {
     const composers: TuiComposerState[] = [];
-    const shellSink = { setState: vi.fn() };
+    const shellSink = { setState: mock() };
     const flow = new TuiChromeFlow({
       version: "0.1.0",
       workspace: "/workspace",
       queueEnabled: true,
       isStarted: () => true,
       isStopped: () => false,
-      setTerminalTitle: vi.fn(),
-      setProgramStatus: vi.fn(),
+      setTerminalTitle: mock(),
+      setProgramStatus: mock(),
       connection: () => ({ phase: "live", generation: 1 }),
       liveRunId: () => undefined,
       runProjection: () => ({
@@ -121,7 +121,7 @@ describe("TuiChromeFlow agent status sequence", () => {
       permissionMode: () => undefined,
       welcome: shellSink,
       status: shellSink,
-      activity: { setState: vi.fn() },
+      activity: { setState: mock() },
       composer: { setState: (state) => composers.push(state) },
     });
     const snapshot = {
@@ -152,15 +152,15 @@ describe("TuiChromeFlow agent status sequence", () => {
   it("places the server startup animation in the composer header slot", () => {
     const activities: TuiActivityLineState[] = [];
     const composers: TuiComposerState[] = [];
-    const shellSink = { setState: vi.fn() };
+    const shellSink = { setState: mock() };
     const flow = new TuiChromeFlow({
       version: "0.1.0",
       workspace: "/workspace",
       queueEnabled: true,
       isStarted: () => true,
       isStopped: () => false,
-      setTerminalTitle: vi.fn(),
-      setProgramStatus: vi.fn(),
+      setTerminalTitle: mock(),
+      setProgramStatus: mock(),
       connection: () => ({ phase: "live", generation: 1 }),
       liveRunId: () => undefined,
       runProjection: () => ({
@@ -217,8 +217,8 @@ describe("TuiChromeFlow agent status sequence", () => {
     let agentCounts = { active: 0, total: 0 };
     let backgroundTasks = 0;
     const shells: TuiShellState[] = [];
-    const setTerminalTitle = vi.fn();
-    const setProgramStatus = vi.fn();
+    const setTerminalTitle = mock();
+    const setProgramStatus = mock();
     const shellSink = {
       setState: (state: TuiShellState) => shells.push(state),
     };
@@ -251,8 +251,8 @@ describe("TuiChromeFlow agent status sequence", () => {
       permissionMode: () => undefined,
       welcome: shellSink,
       status: shellSink,
-      activity: { setState: vi.fn() },
-      composer: { setState: vi.fn() },
+      activity: { setState: mock() },
+      composer: { setState: mock() },
     });
     const snapshot = (sessionId: string): TuiChatSnapshot =>
       ({

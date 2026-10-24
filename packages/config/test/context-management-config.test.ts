@@ -1,20 +1,21 @@
+import { stubEnv, unstubAllEnvs } from '../../../test/bun-test-setup.js';
 import fs from "node:fs";
 import os from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import { resolveConfigFromRaw } from "../src/config.js";
 
 let dataDir: string;
 
 beforeEach(() => {
   dataDir = fs.mkdtempSync(join(os.tmpdir(), "mcode-context-management-"));
-  vi.stubEnv("MINIMAX_DATA_DIR", dataDir);
-  vi.stubEnv("__MAVIS_RUNTIME_DATA_DIR", dataDir);
-  vi.stubEnv("__MAVIS_RUNTIME_DISABLE_GIT_AUTO_CONFIG", "1");
+  stubEnv("MINIMAX_DATA_DIR", dataDir);
+  stubEnv("__MAVIS_RUNTIME_DATA_DIR", dataDir);
+  stubEnv("__MAVIS_RUNTIME_DISABLE_GIT_AUTO_CONFIG", "1");
 });
 
 afterEach(() => {
-  vi.unstubAllEnvs();
+  unstubAllEnvs();
   fs.rmSync(dataDir, { recursive: true, force: true });
 });
 

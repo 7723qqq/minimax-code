@@ -39,7 +39,8 @@ export function recoverProjectPreferencesBeforeBackfill(options: {
        WHERE key = 'project-user-state'`,
     )
     .get();
-  if (row === undefined) return 0;
+  // bun:sqlite returns null for a missing row; better-sqlite3 returned undefined.
+  if (row === null || row === undefined) return 0;
 
   const recovery = planPreferenceRecovery(readField(row, 'value_json'));
   if (recovery.recoveredCount === 0) return 0;

@@ -1,6 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { z } from 'zod';
 
 import {
@@ -22,7 +20,7 @@ import {
   parseReviewCandidateXml,
 } from './candidate-xml.js';
 
-const execFileAsync = promisify(execFile);
+import { execGitStdout } from './git-exec.js';
 
 const lineTargetSchema = z
   .object({
@@ -473,10 +471,7 @@ function serializeReviewResult(input: {
 }
 
 async function readGitBlobRevision(workspace: string, path: string): Promise<`git-blob:${string}`> {
-  const { stdout } = await execFileAsync('git', ['rev-parse', `HEAD:${path}`], {
-    cwd: workspace,
-    encoding: 'utf8',
-  });
+  const stdout = await execGitStdout(workspace, ['rev-parse', `HEAD:${path}`]);
   const oid = stdout.trim();
   if (!/^[a-f0-9]{40,64}$/u.test(oid)) {
     throw new Error(`Invalid Git blob identity for deleted review target: ${path}`);

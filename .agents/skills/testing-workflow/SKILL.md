@@ -11,41 +11,67 @@ steps in `scripts/verify.mjs`.
 
 ## Focused iteration
 
-Vitest files belong to groups in `test/vitest-suites.json`; aliases and inclusion
-come from `vitest.oss.config.mjs`. Select an existing declared file for a focused
-run, for example:
+Test files belong to groups in `test/vitest-suites.json`. The suites run under
+`bun test`; workspace packages resolve from source through the `paths` table in
+`tsconfig.standalone.json`. Select an existing declared file for a focused run,
+for example:
 
 ```bash
-pnpm exec vitest run --config vitest.oss.config.mjs packages/tui/test/unit/headless-contract.test.ts
+bun scripts/run-bun-tests.mjs packages/tui/test/unit/headless-contract.test.ts
 ```
 
-Register new Vitest files in the suite declaration. Do not add hard-coded file
-lists to package scripts or the Vitest configuration. Vendored upstream test
-suites are outside this distribution's verification.
+`test/bun-test-setup.ts` is the preload that registers the few matchers and
+helpers `bun:test` does not ship (`waitFor`, `mocked`, `stubEnv`,
+`toHaveBeenCalledExactlyOnceWith`).
+
+Register new test files in the suite declaration. Do not add hard-coded file
+lists to package scripts. Vendored upstream test suites are outside this
+distribution's verification.
 
 | Scope | Repository gate |
 | --- | --- |
-| Runtime, TUI, providers, plugins and ACP | `pnpm test:capabilities` |
-| Headless CLI and offline BYOK behavior | `pnpm test:byok` |
-| CLI artifact smoke | `pnpm test:smoke` |
-| Public artifact content | `pnpm test:artifact` |
-| TUI build-mode contract | `pnpm test:status-contract` |
-| Permission facade on macOS/Linux | `pnpm test:policy` |
-| Sandbox on macOS | `pnpm test:sandbox` |
-| Source-sync, workflow and release tools | `pnpm test:release-tools` |
-| npm release archive installation | `MCODE_RELEASE_TAG=vX.Y.Z MCODE_RELEASE_ARCHIVE=/path/to/package.tar.gz pnpm verify --profile package` |
-| TUI source and test lint | `pnpm lint:tui` |
-| Types and standalone build boundary | `pnpm typecheck`, `pnpm build`, `pnpm check:standalone` |
-| Published files and generated paths | `pnpm check:source`, `pnpm check:tsconfig` |
+| Runtime, TUI, providers, plugins and ACP | `bun run test:capabilities` |
+| Headless CLI and offline BYOK behavior | `bun run test:byok` |
+| CLI artifact smoke | `bun run test:smoke` |
+| Public artifact content | `bun run test:artifact` |
+| TUI build-mode contract | `bun run test:status-contract` |
+| Permission facade on macOS/Linux | `bun run test:policy` |
+| Sandbox on macOS | `bun run test:sandbox` |
+| Source-sync, workflow and release tools | `bun run test:release-tools` |
+| npm release archive installation | `MCODE_RELEASE_TAG=vX.Y.Z MCODE_RELEASE_ARCHIVE=/path/to/package.tar.gz bun run verify --profile package` |
+| TUI source and test lint | `bun run lint:tui` |
+| Types and standalone build boundary | `bun run typecheck`, `bun run build`, `bun run check:standalone` |
+| Published files and generated paths | `bun run check:source`, `bun run check:tsconfig` |
 
-Artifact-dependent tests require a current `pnpm build`. Keep test state and
+Artifact-dependent tests require a current `bun run build`. Keep test state and
 reports outside the repository, using synthetic data and temporary directories.
 
-The declared Vitest gate runner serializes test files on Windows to limit
-filesystem contention while retaining individual test deadlines. Run the owning
-gate for platform acceptance; a direct Vitest invocation uses its default worker
-count. Full-runtime smoke children have a 30-second Windows startup budget,
-matching ACP; lightweight help and validation checks retain 15 seconds.
+The declared gate runner runs the suite files under `bun test`. Run the owning
+gate for platform acceptance. Full-runtime smoke children have a 30-second
+Windows startup budget, matching ACP; lightweight help and validation checks
+retain 15 seconds.
+
+`bun:test` differs from Vitest in ways that matter when writing a suite:
+
+- `expect(promise).rejects` waits for the promise before it returns, so a test
+  that triggers the rejection afterwards must capture it with
+  `promise.catch()` and assert on the captured value.
+- `mock.module()` replaces the named exports of a module but not its `default`
+  export. A module consumed through a default import needs the factory to
+  provide `default` as well.
+- The replacement is process-global, so a suite that mocks a module must
+  re-register the real one in `afterAll`; otherwise the mock leaks into the
+  files that run after it.
+- `toMatchObject` writes the matcher instance into the value it asserts on, and
+  unfreezes what it touches. Read every value the later assertions need before
+  the structural match runs, and match nested arrays on their own rather than
+  through a nested asymmetric matcher — a replaced entry is then gone for every
+  later reader of the same object, including the code under test.
+- `advanceTimersByTimeAsync` has no `bun:test` equivalent. The helper in
+  `test/bun-test-setup.ts` drains the microtask queue *before* moving the
+  clock: a timer that the code under test registers after an `await` only
+  exists once that await has settled, and a clock that has already passed its
+  deadline never fires it.
 
 ## Delivery verification
 
@@ -53,11 +79,11 @@ Run `git diff --check` and the relevant individual gates while editing. Review
 new or removed files before regenerating `release/public-source.json` with
 `node scripts/source-inventory.mjs --write`.
 
-Before opening a PR, run `pnpm verify` on the reviewed commit with a clean tracked
+Before opening a PR, run `bun run verify` on the reviewed commit with a clean tracked
 working tree. Source export reads committed HEAD and rejects uncommitted tracked
 changes; report that limitation if only iteration checks are possible.
 
-Use `pnpm verify --list` to inspect the current platform's gates. Use the `docs`
+Use `bun run verify --list` to inspect the current platform's gates. Use the `docs`
 profile only when every changed path qualifies under `scripts/ci-changes.mjs`.
 Skills under `.agents/skills`, unknown paths and inventory changes require the
 full profile. The `archive` profile is for source-archive validation, not a way to

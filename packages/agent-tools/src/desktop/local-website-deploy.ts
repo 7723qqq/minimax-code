@@ -46,6 +46,7 @@ import {
   type ToolResult,
 } from '@mavis/agent-core/tools';
 
+import { websiteDeployText } from './copy.js';
 import { resolveWithinWorkspace } from './path-guard.js';
 import type {
   LocalRuntimeToolContext,
@@ -178,7 +179,7 @@ export class LocalWebsiteDeployTool implements ToolImpl<
     signal?: AbortSignal,
   ): Promise<ToolResult> {
     if (signal?.aborted) {
-      return aiReadableFailure(`Deploy was aborted before it started.`, {
+      return aiReadableFailure(websiteDeployText('aborted.beforeStart'), {
         reason: 'aborted',
         path: input.path,
       });
@@ -188,13 +189,13 @@ export class LocalWebsiteDeployTool implements ToolImpl<
     const sourcePath: unknown = input.source_path;
     if (typeof sourcePath !== 'string') {
       return sourcePathValidationFailure(
-        'Cannot deploy: source_path is required.',
+        websiteDeployText('sourcePath.required'),
         'missing_source_path',
       );
     }
     if (!sourcePath.trim()) {
       return sourcePathValidationFailure(
-        'Cannot deploy: source_path must not be empty.',
+        websiteDeployText('sourcePath.empty'),
         'invalid_source_path',
         {
           source_path: sourcePath,
@@ -206,7 +207,7 @@ export class LocalWebsiteDeployTool implements ToolImpl<
     let nodeId: string | undefined;
     if (rawNodeId !== undefined) {
       if (typeof rawNodeId !== 'string' || !rawNodeId.trim() || rawNodeId !== rawNodeId.trim()) {
-        return aiReadableFailure('Cannot deploy: node_id must be a non-empty exact string.', {
+        return aiReadableFailure(websiteDeployText('nodeId.invalid'), {
           reason: 'invalid_node_id',
         });
       }
@@ -219,8 +220,7 @@ export class LocalWebsiteDeployTool implements ToolImpl<
       dir = await resolveWithinWorkspace(input.path, this.workspaceRoot);
     } catch (err) {
       return aiReadableFailure(
-        `Cannot deploy: '${input.path}' is outside the workspace or invalid. ` +
-          `Pass a path that lives under the current working directory.`,
+        websiteDeployText('path.outsideWorkspace', { path: input.path }),
         { reason: 'path_escape', path: input.path, detail: describeError(err) },
       );
     }
@@ -234,22 +234,18 @@ export class LocalWebsiteDeployTool implements ToolImpl<
       const code = (err as NodeJS.ErrnoException).code;
       if (code === 'ENOENT') {
         return aiReadableFailure(
-          `Cannot deploy: '${input.path}' does not exist. website_deploy needs a built ` +
-            `static site (a bundler dist/ output). Run the build step first, then pass the ` +
-            `output directory path.`,
+          websiteDeployText('path.missing', { path: input.path }),
           { reason: 'not_found', path: input.path },
         );
       }
       return aiReadableFailure(
-        `Cannot deploy: unable to read '${input.path}'. Check the path and permissions, ` +
-          `then retry.`,
+        websiteDeployText('path.unreadable', { path: input.path }),
         { reason: 'stat_failed', path: input.path, detail: describeError(err) },
       );
     }
     if (!dirStat.isDirectory()) {
       return aiReadableFailure(
-        `Cannot deploy: '${input.path}' is not a directory. Pass the path to the built ` +
-          `site directory (containing index.html), not a single file.`,
+        websiteDeployText('path.notDirectory', { path: input.path }),
         { reason: 'not_a_directory', path: input.path },
       );
     }
@@ -267,24 +263,18 @@ export class LocalWebsiteDeployTool implements ToolImpl<
       const code = (err as NodeJS.ErrnoException).code;
       if (code === 'ENOENT') {
         return aiReadableFailure(
-          `Cannot deploy: '${input.path}' has no index.html at the root. website_deploy needs ` +
-            `a built static site (a bundler dist/ output, e.g. from \`vite build\` / ` +
-            `\`next export\`), not source code or an unbuilt project. The site won't load ` +
-            `without a root index.html — run the build step first and try again.`,
+          websiteDeployText('entry.missing', { path: input.path }),
           { reason: 'missing_index_html', path: input.path },
         );
       }
       return aiReadableFailure(
-        `Cannot deploy: unable to read '${input.path}/index.html'. Check the file is present ` +
-          `and readable, then retry.`,
+        websiteDeployText('entry.unreadable', { path: input.path }),
         { reason: 'index_stat_failed', path: input.path, detail: describeError(err) },
       );
     }
     if (!indexStat.isFile()) {
       return aiReadableFailure(
-        `Cannot deploy: '${input.path}/index.html' isn't a regular file (it's a directory or ` +
-          `symlink). The deploy packager skips symlinks, so the published site would be missing ` +
-          `its root index.html — make sure the build produced a real index.html file.`,
+        websiteDeployText('entry.notRegularFile', { path: input.path }),
         { reason: 'index_not_a_file', path: input.path },
       );
     }
@@ -293,7 +283,7 @@ export class LocalWebsiteDeployTool implements ToolImpl<
     if (input.source_path !== undefined) {
       if (!input.source_path.trim()) {
         return sourcePathValidationFailure(
-          'Cannot deploy: source_path must not be empty.',
+          websiteDeployText('sourcePath.empty'),
           'invalid_source_path',
           { source_path: input.source_path },
         );
@@ -302,8 +292,7 @@ export class LocalWebsiteDeployTool implements ToolImpl<
         sourceDir = await resolveWithinWorkspace(input.source_path, this.workspaceRoot);
       } catch (err) {
         return sourcePathValidationFailure(
-          `Cannot deploy: '${input.source_path}' is outside the workspace or invalid. ` +
-            `Pass a source path that lives under the current working directory.`,
+          websiteDeployText('sourcePath.outsideWorkspace', { path: input.source_path }),
           'source_path_escape',
           { source_path: input.source_path, detail: describeError(err) },
         );
@@ -316,20 +305,20 @@ export class LocalWebsiteDeployTool implements ToolImpl<
         const code = (err as NodeJS.ErrnoException).code;
         if (code === 'ENOENT') {
           return sourcePathValidationFailure(
-            `Cannot deploy: '${input.source_path}' does not exist.`,
+            websiteDeployText('sourcePath.missing', { path: input.source_path }),
             'source_not_found',
             { source_path: input.source_path },
           );
         }
         return sourcePathValidationFailure(
-          `Cannot deploy: unable to read '${input.source_path}'.`,
+          websiteDeployText('sourcePath.unreadable', { path: input.source_path }),
           'source_stat_failed',
           { source_path: input.source_path, detail: describeError(err) },
         );
       }
       if (!sourceStat.isDirectory()) {
         return sourcePathValidationFailure(
-          `Cannot deploy: '${input.source_path}' is not a real directory.`,
+          websiteDeployText('sourcePath.notDirectory', { path: input.source_path }),
           'source_not_a_directory',
           { source_path: input.source_path },
         );
@@ -344,14 +333,14 @@ export class LocalWebsiteDeployTool implements ToolImpl<
         ]);
       } catch (err) {
         return sourcePathValidationFailure(
-          'Cannot deploy: unable to resolve the source directory safely.',
+          websiteDeployText('sourcePath.unsafe'),
           'source_realpath_failed',
           { source_path: input.source_path, detail: describeError(err) },
         );
       }
       if (canonicalDir !== canonicalSourceDir && isPathInside(canonicalDir, canonicalSourceDir)) {
         return sourcePathValidationFailure(
-          'Cannot deploy: source_path cannot be nested inside the built site directory.',
+          websiteDeployText('sourcePath.nested'),
           'source_inside_build',
           { source_path: input.source_path },
         );

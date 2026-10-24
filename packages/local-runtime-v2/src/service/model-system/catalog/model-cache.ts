@@ -2,6 +2,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import fs, { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
+import { KeyedOperationLane } from '@mavis/shared/keyed-operation-lane';
+
 import type {
   LocalModelCacheLike,
   ModelCacheData,
@@ -19,7 +21,7 @@ export type { ModelCacheData, ModelCacheState, ModelCacheStatusEntry } from '../
 const MODEL_CACHE_FILE = 'model-cache.json';
 const CACHE_STATES = new Set<ModelCacheState>(['unknown', 'available', 'failed']);
 const MAX_ERROR_MESSAGE_LENGTH = 500;
-const mutationTails = new Map<string, Promise<void>>();
+const mutationLane = new KeyedOperationLane<string>();
 
 export function emptyModelCacheData(): ModelCacheData {
   return { version: 3, provider_status: {}, model_status: {} };
@@ -120,27 +122,14 @@ export class LocalModelCache implements LocalModelCacheLike {
 
   private async mutate<T>(mutate: (data: ModelCacheData) => T): Promise<T> {
     const filePath = resolve(this.getDataDir(), MODEL_CACHE_FILE);
-    const previous = mutationTails.get(filePath) ?? Promise.resolve();
-    const operation = this.runMutation(previous, filePath, mutate);
-    const tail = ignorePromiseOutcome(operation);
-    mutationTails.set(filePath, tail);
-    try {
-      return await operation;
-    } finally {
-      if (mutationTails.get(filePath) === tail) mutationTails.delete(filePath);
-    }
-  }
-
-  private async runMutation<T>(
-    previous: Promise<void>,
-    filePath: string,
-    mutate: (data: ModelCacheData) => T,
-  ): Promise<T> {
-    await ignorePromiseOutcome(previous);
-    const data = loadModelCacheFile(filePath);
-    const result = mutate(data);
-    await this.write(filePath, data);
-    return result;
+    // Serialized per cache file: each mutation reloads, applies and rewrites the
+    // whole document, so two overlapping writes would drop one another.
+    return mutationLane.run(filePath, async () => {
+      const data = loadModelCacheFile(filePath);
+      const result = mutate(data);
+      await this.write(filePath, data);
+      return result;
+    });
   }
 
   private async write(filePath: string, data: ModelCacheData): Promise<void> {
@@ -232,14 +221,6 @@ function readStatusEntry(
       ? { config_fingerprint: raw.config_fingerprint }
       : {}),
   };
-}
-
-async function ignorePromiseOutcome(value: Promise<unknown>): Promise<void> {
-  try {
-    await value;
-  } catch {
-    // Serialization continues after a failed predecessor.
-  }
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {

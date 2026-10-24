@@ -48,7 +48,7 @@ if (process.argv.includes("--write")) {
   ];
   if (drift.length)
     throw new Error(
-      `${configPath} paths are stale; run \`pnpm gen:tsconfig\`:\n${drift.join("\n")}`,
+      `${configPath} paths are stale; run \`bun run gen:tsconfig\`:\n${drift.join("\n")}`,
     );
   console.log(
     `${configPath} paths match ${Object.keys(expected).length} package exports.`,

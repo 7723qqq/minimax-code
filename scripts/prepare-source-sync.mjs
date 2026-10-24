@@ -105,7 +105,7 @@ export function prepareSourceSync({ root, source, ref, out }) {
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const args = process.argv.slice(2), options = {};
   for (let i = 0; i < args.length; i += 2) {
-    if (!['--source', '--ref', '--out'].includes(args[i]) || !args[i + 1]) throw new Error('Usage: node scripts/prepare-source-sync.mjs --source <repository> --ref <commit> --out <new-private-directory>');
+    if (!['--source', '--ref', '--out'].includes(args[i]) || !args[i + 1]) throw new Error('Usage: bun scripts/prepare-source-sync.mjs --source <repository> --ref <commit> --out <new-private-directory>');
     options[args[i].slice(2)] = args[i + 1];
   }
   if (!options.source || !options.ref || !options.out) throw new Error('source, ref and out are required');

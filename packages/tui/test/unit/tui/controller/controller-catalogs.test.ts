@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { EN_CONTROLLER_COPY } from '../../../../src/tui/controller/copy.en.js';
 import { ZH_HANS_CONTROLLER_COPY } from '../../../../src/tui/controller/copy.zh-Hans.js';

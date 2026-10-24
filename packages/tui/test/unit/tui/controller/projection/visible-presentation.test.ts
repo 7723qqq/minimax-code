@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, mock } from 'bun:test';
+
 import { resolveTuiVisiblePresentation } from "../../../../../src/tui/controller/projection/visible-presentation.js";
 import { createTranscriptCell } from "../../../../../src/tui/transcript/model.js";
 import { TranscriptStore } from "../../../../../src/tui/transcript/store.js";
@@ -256,7 +257,7 @@ describe("visible presentation selector", () => {
   });
 
   it("anchors the run timer to the recorded Turn start instead of the projection switch", () => {
-    const turnStartedAtMs = vi.fn((turnId: string) => (turnId === "turn-1" ? 1_000 : undefined));
+    const turnStartedAtMs = mock((turnId: string) => (turnId === "turn-1" ? 1_000 : undefined));
 
     expect(
       resolve({

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 
 import { TuiSessionFlow } from '../../../../src/tui/controller/session-flow.js';
 import type { TuiSession } from '../../../../src/runtime/port.js';
@@ -15,10 +15,10 @@ function createFlow(options: {
   current: Partial<TuiSession> & { sessionId: string };
   canFork?: boolean;
   omitForkProbe?: boolean;
-  createSession?: ReturnType<typeof vi.fn>;
-  deleteSession?: ReturnType<typeof vi.fn>;
-  abortForegroundRun?: ReturnType<typeof vi.fn>;
-  loadSessionProjection?: ReturnType<typeof vi.fn>;
+  createSession?: ReturnType<typeof mock>;
+  deleteSession?: ReturnType<typeof mock>;
+  abortForegroundRun?: ReturnType<typeof mock>;
+  loadSessionProjection?: ReturnType<typeof mock>;
   activeRunState?: 'running' | 'decision-blocked' | 'terminal' | 'idle';
   hasLiveRun?: boolean;
 }) {
@@ -32,28 +32,28 @@ function createFlow(options: {
 
   const createSession =
     options.createSession ??
-    vi.fn(async () => ({ sessionId: SIDE_ID, parentSessionId: PARENT_ID }) as TuiSession);
-  const deleteSession = options.deleteSession ?? vi.fn(async () => undefined);
-  const getSessionForkOptions = vi.fn(async () => ({ canFork: options.canFork !== false }));
+    mock(async () => ({ sessionId: SIDE_ID, parentSessionId: PARENT_ID }) as TuiSession);
+  const deleteSession = options.deleteSession ?? mock(async () => undefined);
+  const getSessionForkOptions = mock(async () => ({ canFork: options.canFork !== false }));
   const loadSessionProjection =
     options.loadSessionProjection ??
-    vi.fn(async (sessionId: string) => {
+    mock(async (sessionId: string) => {
       activeSessionId = sessionId;
     });
-  const append = vi.fn();
-  const recordSideSessionFailure = vi.fn();
-  const abortForegroundRun = options.abortForegroundRun ?? vi.fn(async () => true);
-  const abortSessionRun = vi.fn(async () => true);
-  const onSideSessionOpened = vi.fn();
-  const onSideSessionClosed = vi.fn();
-  const onSideConversationChanged = vi.fn();
+  const append = mock();
+  const recordSideSessionFailure = mock();
+  const abortForegroundRun = options.abortForegroundRun ?? mock(async () => true);
+  const abortSessionRun = mock(async () => true);
+  const onSideSessionOpened = mock();
+  const onSideSessionClosed = mock();
+  const onSideConversationChanged = mock();
 
   const runtime = {
-    listSessionPage: vi.fn(async () => ({ sessions: [], hasMore: false })),
-    getSession: vi.fn(async (sessionId: string) => records[sessionId]),
+    listSessionPage: mock(async () => ({ sessions: [], hasMore: false })),
+    getSession: mock(async (sessionId: string) => records[sessionId]),
     createSession,
     deleteSession,
-    getActiveRun: vi.fn(async (sessionId: string) => ({
+    getActiveRun: mock(async (sessionId: string) => ({
       schemaVersion: 1 as const,
       sessionId,
       state: options.activeRunState ?? ('terminal' as const),
@@ -66,28 +66,28 @@ function createFlow(options: {
     observability: { recordSideSessionFailure },
     runtime: runtime as never,
     controller: {
-      snapshot: vi.fn(() => ({
+      snapshot: mock(() => ({
         session: records[activeSessionId] ?? { sessionId: activeSessionId },
         sessions: [],
       })),
       loadSessionProjection,
-      whenIdle: vi.fn(async () => undefined),
-      refreshSessionList: vi.fn(async () => undefined),
+      whenIdle: mock(async () => undefined),
+      refreshSessionList: mock(async () => undefined),
     } as never,
-    stateStore: { dispatch: vi.fn() } as never,
-    composerDraft: { discard: vi.fn(async () => undefined) } as never,
-    interactionFlow: { deactivate: vi.fn(), recover: vi.fn(async () => undefined) } as never,
+    stateStore: { dispatch: mock() } as never,
+    composerDraft: { discard: mock(async () => undefined) } as never,
+    interactionFlow: { deactivate: mock(), recover: mock(async () => undefined) } as never,
     featureFlow: {
-      resetSessionState: vi.fn(),
-      refreshSelectedModel: vi.fn(async () => undefined),
+      resetSessionState: mock(),
+      refreshSelectedModel: mock(async () => undefined),
     } as never,
-    queueFlow: { reset: vi.fn(), refresh: vi.fn(async () => []) } as never,
-    delegationFlow: { reset: vi.fn(), refresh: vi.fn(async () => undefined) } as never,
-    activeRunFlow: { refresh: vi.fn(async () => undefined) },
-    runProjection: { markRecoveredTurn: vi.fn() } as never,
+    queueFlow: { reset: mock(), refresh: mock(async () => []) } as never,
+    delegationFlow: { reset: mock(), refresh: mock(async () => undefined) } as never,
+    activeRunFlow: { refresh: mock(async () => undefined) },
+    runProjection: { markRecoveredTurn: mock() } as never,
     append,
-    onChanged: vi.fn(),
-    requestWelcomeRebuild: vi.fn(),
+    onChanged: mock(),
+    requestWelcomeRebuild: mock(),
     hasLiveRun: () => options.hasLiveRun === true,
     abortForegroundRun,
     currentRunId: () => (options.hasLiveRun ? 'turn-side' : undefined),
@@ -251,11 +251,11 @@ describe('startSideSession', () => {
   });
 
   it('cleans up the hidden side session when foreground activation fails', async () => {
-    const deleteSession = vi.fn(async () => undefined);
+    const deleteSession = mock(async () => undefined);
     const { flow, append } = createFlow({
       current: { sessionId: PARENT_ID, workspaceDir: '/repo' },
       deleteSession,
-      loadSessionProjection: vi.fn(async () => {
+      loadSessionProjection: mock(async () => {
         throw new Error('projection failed');
       }),
     });
@@ -271,7 +271,7 @@ describe('startSideSession', () => {
   it('stays in the parent session when creation fails', async () => {
     const { flow, append, loadSessionProjection } = createFlow({
       current: { sessionId: PARENT_ID, workspaceDir: '/repo' },
-      createSession: vi.fn(async () => {
+      createSession: mock(async () => {
         throw new Error('runtime down');
       }),
     });
@@ -430,7 +430,7 @@ describe('closeSideConversation', () => {
   });
 
   it('stays in the side session when abort is not confirmed', async () => {
-    const abortForegroundRun = vi.fn(async () => false);
+    const abortForegroundRun = mock(async () => false);
     const { flow, append, loadSessionProjection, deleteSession } = createFlow({
       current: {
         sessionId: SIDE_ID,
@@ -449,8 +449,7 @@ describe('closeSideConversation', () => {
   });
 
   it('retries one transient cleanup failure after restoring the parent', async () => {
-    const deleteSession = vi
-      .fn<() => Promise<void>>()
+    const deleteSession = mock<() => Promise<void>>()
       .mockRejectedValueOnce(new Error('transient'))
       .mockResolvedValueOnce(undefined);
     const { flow, loadSessionProjection } = createFlow({
@@ -469,7 +468,7 @@ describe('closeSideConversation', () => {
   });
 
   it('reports persistent cleanup failure after restoring the parent', async () => {
-    const deleteSession = vi.fn(async () => {
+    const deleteSession = mock(async () => {
       throw new Error('delete failed');
     });
     const { flow, append, loadSessionProjection } = createFlow({
@@ -497,7 +496,7 @@ describe('side conversation failure diagnostics', () => {
     const error = Object.assign(new Error('Fork failed', { cause }), { code: 'fork-failed' });
     const fixture = createFlow({
       current: { sessionId: PARENT_ID },
-      createSession: vi.fn(async () => {
+      createSession: mock(async () => {
         throw error;
       }),
     });
@@ -516,7 +515,7 @@ describe('side conversation failure diagnostics', () => {
     const error = Object.assign(new Error('missing boundary'), { code: 'assistant-not-found' });
     const fixture = createFlow({
       current: { sessionId: PARENT_ID },
-      createSession: vi.fn(async () => {
+      createSession: mock(async () => {
         throw error;
       }),
     });
@@ -527,7 +526,7 @@ describe('side conversation failure diagnostics', () => {
     const error = new Error('projection read failed');
     const fixture = createFlow({
       current: { sessionId: PARENT_ID },
-      loadSessionProjection: vi.fn(async () => {
+      loadSessionProjection: mock(async () => {
         throw error;
       }),
     });

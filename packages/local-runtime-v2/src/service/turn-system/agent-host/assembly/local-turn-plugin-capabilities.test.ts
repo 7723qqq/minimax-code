@@ -1,6 +1,7 @@
+import { describe, expect, it, mock } from 'bun:test';
 import { buildLocalTurnToolCatalog } from './local-turn-tool-catalog.js';
 import { Type } from '@sinclair/typebox';
-import { describe, expect, it, vi } from 'vitest';
+
 import type { RuntimeTool } from '@mavis/agent-core/tools';
 import {
   detectPluginReferencesForMessages,
@@ -15,7 +16,7 @@ function tool(name: string): RuntimeTool {
   return {
     def: { name, description: 'Synthetic test tool', schema: Type.Object({}) },
     impl: {
-      execute: vi.fn(async () => ({
+      execute: mock(async () => ({
         tool_name: name,
         text: 'ok',
         content: [{ type: 'text' as const, text: 'ok' }],

@@ -1,6 +1,6 @@
 import type { Component } from "../../src/tui/rendering/component.js";
 import { stripAnsi, visibleWidth } from "../../src/tui/rendering/text.js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'bun:test';
 import {
   TuiComposer,
   resolveTuiComposerBorderColor,

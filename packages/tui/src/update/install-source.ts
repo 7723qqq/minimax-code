@@ -211,7 +211,7 @@ export function buildMcodePackageManagerCommand(
   const npmInstallArgs = [
     '--ignore-scripts=false',
     '--include=optional',
-    `--allow-scripts=${distribution.packageName},better-sqlite3`,
+    `--allow-scripts=${distribution.packageName}`,
   ];
   const npmInstallDisplay = npmInstallArgs.join(' ');
   switch (source) {

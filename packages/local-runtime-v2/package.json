@@ -106,7 +106,6 @@
     "@mavis/system-reminder": "workspace:^",
     "@minimax/mcode-sandbox-runtime": "workspace:*",
     "@sinclair/typebox": "^0.34.0",
-    "better-sqlite3": "12.11.1",
     "croner": "^9",
     "drizzle-orm": "^0.45.2",
     "handlebars": "^4.7.9",

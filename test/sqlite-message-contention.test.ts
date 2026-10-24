@@ -1,3 +1,4 @@
+import { afterEach, expect, it, mock, spyOn } from 'bun:test';
 import { fork } from 'node:child_process';
 import { once } from 'node:events';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
@@ -7,7 +8,7 @@ import { join } from 'node:path';
 import { sql } from 'drizzle-orm';
 import { RUNTIME_EVENT_SCHEMA, RuntimeEventType } from '@mavis/agent-core/protocol';
 import { RespDataType, type AgentMessage } from '@mavis/agent-core/protocol/agent-message';
-import { afterEach, expect, it, vi } from 'vitest';
+
 import {
   DatabaseClient,
   type AppDb,
@@ -44,21 +45,20 @@ async function holdWriter(dataDir: string, durationMs: number) {
   await writeFile(
     file,
     `
-    const Database = require(process.argv[2]);
-    const db = new Database(process.argv[3]);
+    const { Database } = require('bun:sqlite');
+    const db = new Database(process.argv[2]);
     db.exec('BEGIN IMMEDIATE');
     process.send('locked');
     setTimeout(() => {
       db.exec('COMMIT');
       db.close();
       process.disconnect();
-    }, Number(process.argv[4]));
+    }, Number(process.argv[3]));
   `,
   );
   const child = fork(
     file,
     [
-      createRequire(import.meta.url).resolve('better-sqlite3'),
       join(dataDir, 'v2', 'sqlite', 'runtime-state.sqlite'),
       String(durationMs),
     ],
@@ -104,14 +104,14 @@ it('bounds admission retries and restores the shared connection timeout before y
   const { client, dataDir } = await fixture();
   client.db.run(sql`PRAGMA busy_timeout = 1234`);
   await holdWriter(dataDir, 2_000);
-  const mutation = vi.fn();
+  const mutation = mock();
   const started = performance.now();
   const pending = runWithWriteLock(client.db, mutation, { timeoutMs: 200 });
-  expect(client.db.get(sql`PRAGMA busy_timeout`)).toEqual({ timeout: 1234 });
+  expect(client.db.all(sql`PRAGMA busy_timeout`)).toEqual([{ timeout: 1234 }]);
   await expect(pending).rejects.toMatchObject({ code: 'SQLITE_BUSY' });
   expect(performance.now() - started).toBeLessThan(1_000);
   expect(mutation).not.toHaveBeenCalled();
-  expect(client.db.get(sql`PRAGMA busy_timeout`)).toEqual({ timeout: 1234 });
+  expect(client.db.all(sql`PRAGMA busy_timeout`)).toEqual([{ timeout: 1234 }]);
 });
 
 it.each(['SQLITE_BUSY', 'SQLITE_CONSTRAINT_UNIQUE'])(
@@ -120,15 +120,19 @@ it.each(['SQLITE_BUSY', 'SQLITE_CONSTRAINT_UNIQUE'])(
     const { client } = await fixture();
     client.db.run(sql`CREATE TABLE contention_probe (value INTEGER)`);
     const error = Object.assign(new Error('Synthetic callback failure'), { code });
-    const mutation = vi.fn((tx: AppDb) => {
-      expect(client.db.get(sql`PRAGMA busy_timeout`)).toEqual({ timeout: 5000 });
+    const mutation = mock((tx: AppDb) => {
+      expect(client.db.all(sql`PRAGMA busy_timeout`)).toEqual([{ timeout: 5000 }]);
       tx.run(sql`INSERT INTO contention_probe VALUES (1)`);
       throw error;
     });
-    await expect(runWithWriteLock(client.db, mutation)).rejects.toBe(error);
+    const rejection = await runWithWriteLock(client.db, mutation).then(
+      () => undefined,
+      (reason: unknown) => reason,
+    );
+    expect(rejection).toBe(error);
     expect(mutation).toHaveBeenCalledTimes(1);
     expect(client.db.all(sql`SELECT * FROM contention_probe`)).toEqual([]);
-    expect(client.db.get(sql`PRAGMA busy_timeout`)).toEqual({ timeout: 5000 });
+    expect(client.db.all(sql`PRAGMA busy_timeout`)).toEqual([{ timeout: 5000 }]);
   },
 );
 
@@ -163,7 +167,7 @@ it('does not wait for a contended cleanup write when its lease is already cancel
     cause: controller.signal.reason,
   });
   expect(performance.now() - started).toBeLessThan(500);
-  expect(client.db.get(sql`PRAGMA busy_timeout`)).toEqual({ timeout: 5000 });
+  expect(client.db.all(sql`PRAGMA busy_timeout`)).toEqual([{ timeout: 5000 }]);
   await exited;
   expect((await messages.list('synthetic')).messages.map((message) => message.msg_id)).toEqual([
     'seed',
@@ -177,18 +181,18 @@ async function pipelineFixture() {
   const context = { sessionId: 'synthetic', turnId: 'turn', turnSequence: 1 };
   const projection = createSessionSystemAgentProjection({
     messages,
-    sessions: { update: vi.fn() },
-    state: { markStarted: vi.fn(), markIdle: vi.fn(), markTerminal: vi.fn() },
-    stream: { write: vi.fn() },
-    conversationFacts: { handle: vi.fn() },
+    sessions: { update: mock() },
+    state: { markStarted: mock(), markIdle: mock(), markTerminal: mock() },
+    stream: { write: mock() },
+    conversationFacts: { handle: mock() },
   });
-  const stream = { projectRuntimeEvent: vi.fn() };
+  const stream = { projectRuntimeEvent: mock() };
   const events = new RequiredAgentEventDelivery({
     projectors: {
       session: projection.session,
       messages: projection.messages,
       stream,
-      turnFacts: { projectRuntimeEvent: vi.fn(), projectHistoryCommitted: vi.fn() },
+      turnFacts: { projectRuntimeEvent: mock(), projectHistoryCommitted: mock() },
     },
   });
   const pipeline = new TurnCommitPipeline({
@@ -205,7 +209,7 @@ async function pipelineFixture() {
     events,
     committedHistory: new AgentHostCommittedHistoryWriter({
       events,
-      history: { read: vi.fn(), append: vi.fn(), replace: vi.fn() },
+      history: { read: mock(), append: mock(), replace: mock() },
     }),
     isRuntimeErrorRetryable: () => false,
   });
@@ -223,7 +227,7 @@ it('cancels a blocked write through the turn event pipeline without persisting i
   } finally {
     clearTimeout(timer);
   }
-  expect(client.db.get(sql`PRAGMA busy_timeout`)).toEqual({ timeout: 5000 });
+  expect(client.db.all(sql`PRAGMA busy_timeout`)).toEqual([{ timeout: 5000 }]);
   expect(stream.projectRuntimeEvent).not.toHaveBeenCalled();
   await exited;
   expect((await messages.list('synthetic')).messages.map((message) => message.msg_id)).toEqual([
@@ -295,7 +299,7 @@ it.each(['unrelated-abort', 'different-lease', 'mutation-failure'])(
       kind === 'different-lease'
         ? new WriteLockWaitAbortedError(other.signal)
         : new DOMException('Synthetic unrelated failure', 'AbortError');
-    vi.spyOn(messages, 'upsert').mockImplementation(async () => {
+    spyOn(messages, 'upsert').mockImplementation(async () => {
       if (kind === 'mutation-failure') {
         // Cancellation during a callback must not reclassify its error as an
         // abandoned admission: the transaction started and must fail closed.

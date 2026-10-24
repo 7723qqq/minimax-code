@@ -2,7 +2,7 @@
  * `LocalThreadGoalIntegration` — host-side wiring for steering injection.
  *
  * Targets the MR-2/3/4 surfaces in isolation: the integration class
- * doesn't depend on `LocalApiHost`, so we can drive it with vi.fn() deps
+ * doesn't depend on `LocalApiHost`, so we can drive it with mock() deps
  * and pin the codex-parity behaviour without a SQLite round trip.
  *
  * Pins:
@@ -22,7 +22,7 @@
  *     by Goal id + epoch; repeated settlement does not enqueue twice
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, mock } from "bun:test";
 import type {
   InternalTurnPromptReadRegistry,
   PromptSnapshotSource,
@@ -148,16 +148,16 @@ function makeIntegration(
     dataDir?: string;
     isSessionBusy?: () => boolean;
     useTurnTimingBusyFallback?: boolean;
-    startContinuationTurn?: ReturnType<typeof vi.fn>;
-    steerContinuationTurn?: ReturnType<typeof vi.fn>;
-    emitBusEvent?: ReturnType<typeof vi.fn>;
-    emitRuntimeEvent?: ReturnType<typeof vi.fn>;
-    reportFailure?: ReturnType<typeof vi.fn>;
-    enqueueInitialContinuationTurn?: ReturnType<typeof vi.fn>;
-    enqueuePostTurnContinuation?: ReturnType<typeof vi.fn>;
-    abortThreadGoalTurn?: ReturnType<typeof vi.fn>;
-    requestQueueDispatch?: ReturnType<typeof vi.fn>;
-    cancelInitialContinuation?: ReturnType<typeof vi.fn>;
+    startContinuationTurn?: ReturnType<typeof mock>;
+    steerContinuationTurn?: ReturnType<typeof mock>;
+    emitBusEvent?: ReturnType<typeof mock>;
+    emitRuntimeEvent?: ReturnType<typeof mock>;
+    reportFailure?: ReturnType<typeof mock>;
+    enqueueInitialContinuationTurn?: ReturnType<typeof mock>;
+    enqueuePostTurnContinuation?: ReturnType<typeof mock>;
+    abortThreadGoalTurn?: ReturnType<typeof mock>;
+    requestQueueDispatch?: ReturnType<typeof mock>;
+    cancelInitialContinuation?: ReturnType<typeof mock>;
     hasPendingInitialContinuation?: (
       sessionId: string,
       clientRequestId: string,
@@ -181,29 +181,29 @@ function makeIntegration(
   } = {},
 ): {
   integration: LocalThreadGoalIntegration;
-  startContinuationTurn: ReturnType<typeof vi.fn>;
-  steerContinuationTurn?: ReturnType<typeof vi.fn>;
-  emitBusEvent: ReturnType<typeof vi.fn>;
-  emitRuntimeEvent: ReturnType<typeof vi.fn>;
-  reportFailure: ReturnType<typeof vi.fn>;
-  enqueueInitialContinuationTurn: ReturnType<typeof vi.fn>;
-  enqueuePostTurnContinuation: ReturnType<typeof vi.fn>;
-  cancelInitialContinuation: ReturnType<typeof vi.fn>;
-  requestQueueDispatch: ReturnType<typeof vi.fn>;
+  startContinuationTurn: ReturnType<typeof mock>;
+  steerContinuationTurn?: ReturnType<typeof mock>;
+  emitBusEvent: ReturnType<typeof mock>;
+  emitRuntimeEvent: ReturnType<typeof mock>;
+  reportFailure: ReturnType<typeof mock>;
+  enqueueInitialContinuationTurn: ReturnType<typeof mock>;
+  enqueuePostTurnContinuation: ReturnType<typeof mock>;
+  cancelInitialContinuation: ReturnType<typeof mock>;
+  requestQueueDispatch: ReturnType<typeof mock>;
   turnTimings: LocalActiveTurnTimingRegistry;
 } {
   const startContinuationTurn =
-    opts.startContinuationTurn ?? vi.fn(async () => undefined);
-  const emitBusEvent = opts.emitBusEvent ?? vi.fn();
-  const emitRuntimeEvent = opts.emitRuntimeEvent ?? vi.fn();
-  const reportFailure = opts.reportFailure ?? vi.fn();
+    opts.startContinuationTurn ?? mock(async () => undefined);
+  const emitBusEvent = opts.emitBusEvent ?? mock();
+  const emitRuntimeEvent = opts.emitRuntimeEvent ?? mock();
+  const reportFailure = opts.reportFailure ?? mock();
   const enqueueInitialContinuationTurn =
-    opts.enqueueInitialContinuationTurn ?? vi.fn(async () => undefined);
+    opts.enqueueInitialContinuationTurn ?? mock(async () => undefined);
   const enqueuePostTurnContinuation =
-    opts.enqueuePostTurnContinuation ?? vi.fn(async () => undefined);
-  const requestQueueDispatch = opts.requestQueueDispatch ?? vi.fn();
+    opts.enqueuePostTurnContinuation ?? mock(async () => undefined);
+  const requestQueueDispatch = opts.requestQueueDispatch ?? mock();
   const cancelInitialContinuation =
-    opts.cancelInitialContinuation ?? vi.fn(async () => undefined);
+    opts.cancelInitialContinuation ?? mock(async () => undefined);
   const store = opts.store ?? makeStore();
   const now = opts.now ?? (() => 1_700_000_000_000);
   const turnTimings =
@@ -403,9 +403,9 @@ export {
   kickoffQueueItem,
   makeIntegration,
   makeStore,
+  mock,
   settledDecision,
   submitGoalProposal,
-  vi,
 };
 
 export type {

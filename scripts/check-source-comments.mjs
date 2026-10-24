@@ -22,7 +22,9 @@ export const CJK_PATTERN =
 
 /** Only workspace sources are in scope; third_party keeps its upstream text. */
 const SOURCE_DIRECTORY = "src";
-const SOURCE_FILE = /\.(?:ts|tsx)$/u;
+// Package sources are TypeScript; the tooling directories added below are mostly
+// `.mjs`, so the pattern has to cover both or those trees walk empty.
+const SOURCE_FILE = /\.(?:ts|tsx|mjs|cjs|js)$/u;
 const SKIPPED_DIRECTORIES = new Set(["node_modules", "dist", ".git"]);
 
 /**
@@ -48,6 +50,27 @@ export const COMMENT_LANGUAGE_EXEMPTIONS = Object.freeze([
   { path: "third_party/", reason: "vendored upstream code" },
   { path: "packages/local-runtime/assets/", reason: "bundled skill assets" },
 ]);
+
+/**
+ * Trees outside `packageRoots`.
+ *
+ * The package walk above only reaches each package's `src` directory. Build
+ * tooling, the repository-level test suites and root configuration live elsewhere
+ * and used to go unchecked, so a Chinese comment there would reach publication
+ * without an English counterpart. These are walked as well; any package `src`
+ * tree is already covered above.
+ */
+const ADDITIONAL_ROOTS = ["scripts", "test", "tools"];
+
+/**
+ * Root-level files (`*.mjs` config, generated scripts) that sit beside
+ * `package.json` rather than inside a directory.
+ */
+function listRootSourceFiles(repositoryRoot) {
+  return readdirSync(repositoryRoot, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && SOURCE_FILE.test(entry.name))
+    .map((entry) => path.join(repositoryRoot, entry.name));
+}
 
 const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/u;
 
@@ -105,8 +128,9 @@ export function findChineseComments(options = {}) {
   const repositoryRoot = options.root ?? root;
   const packageRoots = options.packageRoots ?? readExtraction(repositoryRoot).packageRoots;
   const violations = [];
-  for (const packageRoot of packageRoots) {
-    const sourceRoot = path.join(repositoryRoot, packageRoot, SOURCE_DIRECTORY);
+  const roots = packageRoots.map((packageRoot) => path.join(repositoryRoot, packageRoot, SOURCE_DIRECTORY));
+  for (const extra of ADDITIONAL_ROOTS) roots.push(path.join(repositoryRoot, extra));
+  for (const sourceRoot of roots) {
     let files;
     try {
       files = listSourceFiles(sourceRoot);
@@ -127,6 +151,19 @@ export function findChineseComments(options = {}) {
           text: comment.text.trim().slice(0, 120),
         });
       }
+    }
+  }
+  for (const file of listRootSourceFiles(repositoryRoot)) {
+    const relativePath = path.relative(repositoryRoot, file).split(path.sep).join("/");
+    if (isExempt(relativePath)) continue;
+    const text = readFileSync(file, "utf8");
+    for (const comment of readComments(text)) {
+      if (!CJK_PATTERN.test(comment.text)) continue;
+      violations.push({
+        file: relativePath,
+        line: comment.line,
+        text: comment.text.trim().slice(0, 120),
+      });
     }
   }
   return violations;

@@ -545,13 +545,15 @@ test('npm release manifests require native SQLite and pin installed external dep
   assert.equal(manifest.version, '0.4.13');
   assert.equal(manifest.private, true);
   assert.equal(manifest.bin.mcode, 'cli.js');
-  assert.equal(manifest.dependencies['better-sqlite3'], '1.2.3');
+  // SQLite is provided by the runtime itself, so it is no longer an installed
+  // dependency of the release.
+  assert.equal(manifest.dependencies['better-sqlite3'], undefined);
   assert.equal(manifest.dependencies['@vscode/ripgrep'], '1.2.3');
   assert.equal(manifest.optionalDependencies['@mariozechner/clipboard'], '1.2.3');
   assert.equal(manifest.scripts, undefined);
-  const conflicting = path.join(f.source, 'node_modules/better-sqlite3');
+  const conflicting = path.join(f.source, 'node_modules/@vscode/ripgrep');
   mkdirSync(conflicting, { recursive: true });
-  writeFileSync(path.join(conflicting, 'package.json'), JSON.stringify({ name: 'better-sqlite3', version: '9.9.9' }));
+  writeFileSync(path.join(conflicting, 'package.json'), JSON.stringify({ name: '@vscode/ripgrep', version: '9.9.9' }));
   assert.throws(() => releaseManifest([f.root, f.source], '0.4.13'), /Expected one installed version/);
 });
 
@@ -564,11 +566,11 @@ test('CLI publication requires every supported installation receipt for the exac
   const revision = 'a'.repeat(40);
   const reports = path.join(f.root, 'reports');
   for (const target of cliReleaseTargets) {
-    const directory = path.join(reports, `cli-install-${target.os}-${target.node}`);
+    const directory = path.join(reports, `cli-install-${target.os}-bun-${target.bun}`);
     mkdirSync(directory, { recursive: true });
     writeFileSync(path.join(directory, 'package-install.json'), JSON.stringify({
       status: 'PASS', version: '0.4.13', revision, sha256,
-      platform: target.os.startsWith('ubuntu') ? 'linux' : 'darwin', node: `v${target.node}`,
+      platform: target.os.startsWith('ubuntu') ? 'linux' : 'darwin', bun: target.bun,
     }));
     writeFileSync(path.join(directory, 'verification.json'), JSON.stringify({
       status: 'PASS', profile: 'package', revision, gates: [{ name: 'test:release-package', status: 'PASS' }],
@@ -579,9 +581,9 @@ test('CLI publication requires every supported installation receipt for the exac
   assert.throws(() => validateReleaseReports({ ...options, version: '0.4.14' }));
   assert.throws(() => validateReleaseReports({ ...options, revision: 'b'.repeat(40) }));
   const target = cliReleaseTargets.at(-1);
-  const receipt = path.join(reports, `cli-install-${target.os}-${target.node}`, 'package-install.json');
+  const receipt = path.join(reports, `cli-install-${target.os}-bun-${target.bun}`, 'package-install.json');
   const original = readFileSync(receipt, 'utf8');
-  for (const override of [{ sha256: '0'.repeat(64) }, { status: 'FAIL' }, { node: 'v20.0.0' }]) {
+  for (const override of [{ sha256: '0'.repeat(64) }, { status: 'FAIL' }, { bun: '1.3.0' }]) {
     writeFileSync(receipt, JSON.stringify({ ...JSON.parse(original), ...override }));
     assert.throws(() => validateReleaseReports(options));
   }
@@ -598,13 +600,13 @@ test('CLI release publishes only tag pushes after full verification and archive 
   assert.equal(workflow.on.workflow_dispatch.inputs.tag.required, false);
   assert.equal(workflow.permissions.contents, 'read');
   assert.equal(workflow.concurrency['cancel-in-progress'], false);
-  assert.ok(workflow.jobs.build.steps.some(step => step.run === 'pnpm verify'));
+  assert.ok(workflow.jobs.build.steps.some(step => step.run === 'bun run verify'));
   assert.ok(workflow.jobs.build.steps.some(step => step.run?.includes('cliBuildVersion(process.cwd(), tag)')));
   assert.deepEqual(workflow.jobs.publish.needs, ['build', 'install']);
   assert.equal(workflow.jobs.publish.if, "github.event_name == 'push'");
   assert.equal(workflow.jobs.publish.permissions.contents, 'write');
   assert.equal(workflow.jobs.install.strategy.matrix, '${{ fromJSON(needs.build.outputs.matrix) }}');
-  const install = workflow.jobs.install.steps.find(step => step.run === 'pnpm verify --profile package');
+  const install = workflow.jobs.install.steps.find(step => step.run === 'bun run verify --profile package');
   assert.ok(install.env.MCODE_RELEASE_ARCHIVE.endsWith('.tar.gz'));
   for (const job of Object.values(workflow.jobs)) {
     for (const step of job.steps) {
@@ -853,7 +855,7 @@ test('ordinary CI runs a focused Windows contract while compatibility remains ma
   assert.equal(ci.jobs.docs.if, "needs.changes.outputs.docs_only == 'true'");
   assert.equal(ci.jobs.verification.if, '${{ always() }}');
   assert.deepEqual(ci.jobs.verification.needs, ['changes', 'docs', 'verify']);
-  assert.ok(ci.jobs.verify.steps.some(step => step.run === "pnpm verify --profile ${{ matrix.profile || 'platform' }}"));
+  assert.ok(ci.jobs.verify.steps.some(step => step.run === "bun run verify --profile ${{ matrix.profile || 'platform' }}"));
   const compatibility = readWorkflow('compatibility');
   assert.deepEqual(Object.keys(compatibility.on).sort(), ['schedule', 'workflow_dispatch']);
   assert.deepEqual(compatibility.jobs.compatibility.strategy.matrix.node, ['22.19.0', '24.2.0', '25', '26']);
@@ -879,7 +881,7 @@ test('manual source candidates pin every checkout and receipt to the selected re
   const validate = workflow.jobs.validate;
   assert.deepEqual(validate.strategy.matrix.os, ['ubuntu-latest', 'macos-latest']);
   assert.ok(validate.steps.some(step => step.run?.includes('--store-dir "$RUNNER_TEMP/candidate-store" --registry https://registry.npmjs.org/')));
-  const verify = validate.steps.find(step => step.run === 'pnpm verify --profile archive');
+  const verify = validate.steps.find(step => step.run === 'bun run verify --profile archive');
   assert.equal(verify.env.MCODE_VERIFY_REVISION, revision);
   assert.deepEqual(workflow.jobs.publish.needs, ['export', 'validate']);
   assert.ok(workflow.jobs.publish.steps.some(step => step.run?.includes('scripts/source-candidate.mjs finalize')));
@@ -1038,8 +1040,8 @@ test('source inventory rejects unregistered, missing and duplicate first-party t
   const missing = 'packages/example/test/missing.test.ts';
   const files = [existing, omitted, 'third_party/vendor/vendor.test.ts', 'test/release.test.mjs'];
   assert.deepEqual(suiteInventoryViolations(files, { capability: [existing, existing, missing] }), [
-    `${existing}: duplicate Vitest registration`,
-    `${missing}: registered Vitest file is missing`,
+    `${existing}: duplicate test registration`,
+    `${missing}: registered test file is missing`,
     `${omitted}: first-party test is absent from test/vitest-suites.json`,
   ]);
   assert.deepEqual(suiteInventoryViolations(files, { capability: [existing, omitted] }), []);
@@ -1048,14 +1050,30 @@ test('source inventory rejects unregistered, missing and duplicate first-party t
 test('suite runner pins its locale, preserves gate arguments and canonicalizes Windows temporary paths', t => {
   const root = mkdtempSync(path.join(tmpdir(), 'suite-runner-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  for (const directory of ['scripts/lib', 'test', 'node_modules/vitest', 'temporary'])
+  for (const directory of ['scripts/lib', 'scripts', 'test'])
     mkdirSync(path.join(root, directory), { recursive: true });
-  for (const file of ['scripts/run-vitest-suite.mjs', 'scripts/lib/vitest-suites.mjs'])
+  for (const file of [
+    'scripts/run-vitest-suite.mjs',
+    'scripts/run-bun-tests.mjs',
+    'scripts/lib/vitest-suites.mjs',
+  ])
     copyFileSync(new URL(`../${file}`, import.meta.url), path.join(root, file));
   writeFileSync(path.join(root, 'test/vitest-suites.json'), JSON.stringify({ suites: { fixture: ['test/example.test.ts'] } }));
-  writeFileSync(path.join(root, 'node_modules/vitest/package.json'), JSON.stringify({ bin: { vitest: 'cli.cjs' } }));
-  writeFileSync(path.join(root, 'node_modules/vitest/cli.cjs'), 'console.log(JSON.stringify({args:process.argv.slice(2),temp:process.env.TEMP,tmp:process.env.TMP,cwd:process.cwd(),lang:process.env.LANG,language:process.env.LANGUAGE,lcAll:process.env.LC_ALL,lcMessages:process.env.LC_MESSAGES,mcodeLocale:process.env.MCODE_LOCALE})); process.exit(17);');
+  // The runner drives `bun test` over the declared files. The preload reports
+  // the arguments and the environment the test process actually received, so
+  // the assertions below describe the real invocation rather than a stand-in.
+  const report = path.join(root, 'report.json');
+  writeFileSync(
+    path.join(root, 'test', 'bun-test-setup.ts'),
+    `import { writeFileSync } from 'node:fs';\n` +
+      `writeFileSync(${JSON.stringify(report)}, JSON.stringify({ cwd: process.cwd(), temp: process.env.TEMP, tmp: process.env.TMP, lang: process.env.LANG, language: process.env.LANGUAGE, lcAll: process.env.LC_ALL, lcMessages: process.env.LC_MESSAGES, mcodeLocale: process.env.MCODE_LOCALE }));\n`,
+  );
+  writeFileSync(
+    path.join(root, 'test', 'example.test.ts'),
+    "import { expect, it } from 'bun:test';\nit('runs', () => { expect(1).toBe(1); });\n",
+  );
   const alias = path.join(root, 'temporary-alias');
+  mkdirSync(path.join(root, 'temporary'), { recursive: true });
   symlinkSync(path.join(root, 'temporary'), alias, process.platform === 'win32' ? 'junction' : 'dir');
   for (const platform of ['linux', 'darwin', 'win32']) {
     const preload = path.join(root, 'platform.cjs');
@@ -1074,15 +1092,13 @@ test('suite runner pins its locale, preserves gate arguments and canonicalizes W
         GITHUB_ACTIONS: 'true',
       },
     });
-    assert.equal(result.status, 17, result.stderr);
-    const child = JSON.parse(result.stdout);
-    assert.deepEqual(child.args, ['run', '--config', 'vitest.oss.config.mjs',
-      ...(platform === 'win32' ? ['--maxWorkers', '1'] : []),
-      // In Actions the failing tests are annotated; this check pins that the
-      // reporters are added there and nowhere else.
-      '--reporter=default', '--reporter=github-actions', 'test/example.test.ts']);
+    assert.equal(result.status, 0, result.stderr);
+    const child = JSON.parse(readFileSync(report, 'utf8'));
     assert.equal(realpathSync(child.cwd), realpathSync(root));
-    const expected = platform === 'win32' ? realpathSync.native(alias) : alias;
+    // The runner always canonicalizes the temporary path on the host, not on
+    // the platform the test pretends to run on. On Windows that resolves the
+    // alias to its target and uses the long form.
+    const expected = process.platform === 'win32' ? realpathSync.native(alias) : alias;
     assert.equal(child.temp, expected);
     assert.equal(child.tmp, expected);
     assert.deepEqual(
@@ -1098,7 +1114,8 @@ test('suite runner pins its locale, preserves gate arguments and canonicalizes W
       { lang: 'C', language: 'C', lcAll: 'C', lcMessages: 'C', mcodeLocale: 'en' },
     );
   }
-  // Outside Actions there is no annotation channel, so the plain reporter stays.
+  // Outside Actions there is no annotation channel, so the runner keeps
+  // streaming the child's output unchanged.
   const plainEnvironment = { ...process.env, TEMP: alias, TMP: alias, TMPDIR: alias };
   delete plainEnvironment.GITHUB_ACTIONS;
   const plain = spawnSync(
@@ -1106,14 +1123,7 @@ test('suite runner pins its locale, preserves gate arguments and canonicalizes W
     [path.join(root, 'scripts/run-vitest-suite.mjs'), 'fixture'],
     { encoding: 'utf8', env: plainEnvironment },
   );
-  assert.equal(plain.status, 17, plain.stderr);
-  assert.deepEqual(JSON.parse(plain.stdout).args, [
-    'run',
-    '--config',
-    'vitest.oss.config.mjs',
-    ...(process.platform === 'win32' ? ['--maxWorkers', '1'] : []),
-    'test/example.test.ts',
-  ]);
+  assert.equal(plain.status, 0, plain.stderr);
 });
 
 test('public support forms preserve destination URLs and separate Desktop from CLI reports', () => {
@@ -1223,7 +1233,14 @@ test('issue notification is restricted to public destination events and builds p
   };
   const eventPath = path.join(directory, 'event.json');
   writeFileSync(eventPath, JSON.stringify(event));
-  const result = spawnSync(process.execPath, ['--input-type=commonjs'], {
+  // The workflow step runs this inline script with `node <<'EOF'`. Feed the
+  // extracted script through a `.cjs` file so the test runner's own interpreter
+  // (Bun or Node) executes it: Bun does not support Node's
+  // `--input-type=commonjs` stdin form — it prints its help text and exits 0
+  // without running the script — while both runtimes execute a `.cjs` file.
+  const scriptPath = path.join(directory, 'payload-builder.cjs');
+  writeFileSync(scriptPath, script);
+  const result = spawnSync(process.execPath, [scriptPath], {
     input: script, cwd: directory, encoding: 'utf8', timeout: 10000,
     env: { ...process.env, GITHUB_EVENT_PATH: eventPath, FEISHU_BOT_SECRET: '', FEISHU_BOT_WEBHOOK: '' },
   });

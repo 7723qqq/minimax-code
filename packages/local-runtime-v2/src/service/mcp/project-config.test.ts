@@ -1,18 +1,19 @@
+import { stubEnv, unstubAllEnvs } from '../../../../../test/bun-test-setup.js';
 import { mkdtemp, writeFile, readFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it } from 'bun:test';
 import { readProjectMcpConfig } from "./project-config.js";
 
 const roots: string[] = [];
 afterEach(async () => {
-  vi.unstubAllEnvs();
+  unstubAllEnvs();
   for (const root of roots.splice(0))
     await rm(root, { recursive: true, force: true });
 });
 async function parse(mcpServers: unknown, env: Record<string, string> = {}) {
   for (const name of ["BIN", "ARG", "SECRET", "BASE", "MISSING"])
-    vi.stubEnv(name, env[name]);
+    stubEnv(name, env[name]);
   const root = await mkdtemp(join(tmpdir(), "project-mcp-parse-"));
   roots.push(root);
   await writeFile(join(root, ".mcp.json"), JSON.stringify({ mcpServers }));

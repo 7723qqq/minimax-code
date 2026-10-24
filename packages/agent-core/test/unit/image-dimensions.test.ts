@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { imageDimensions } from '../../src/pi-turn-runner/image-dimensions.js';
 import {

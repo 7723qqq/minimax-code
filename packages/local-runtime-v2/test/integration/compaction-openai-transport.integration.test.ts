@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 
 import { streamSimple, type Context, type Model } from "@earendil-works/pi-ai";
 import { Type } from "typebox";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { compactContext } from "../../src/service/turn-system/compaction/algorithm/compact-context.js";
 import { createCheckpointSession } from "../../src/service/turn-system/compaction/execution/checkpoint-provider.js";

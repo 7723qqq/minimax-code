@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 
 import { TuiRunCoordinator } from '../../src/application/run-coordinator.js';
 import type { TuiMessage } from '../../src/runtime/stream-events.js';
@@ -15,12 +15,12 @@ describe('TuiRunCoordinator response usage', () => {
       { ...first, id: 'compaction', kind: 'compaction', usage: undefined },
     ];
     const runtime = {
-      sendMessage: vi.fn(async function* () {
+      sendMessage: mock(async function* () {
         for (const message of messages) yield { type: 'message' as const, message };
         yield { type: 'session-status' as const, status: 'finished' as const };
       }),
-      abortSession: vi.fn(async () => true),
-      steer: vi.fn(async () => ({ queueItemId: 'unused' })),
+      abortSession: mock(async () => true),
+      steer: mock(async () => ({ queueItemId: 'unused' })),
     };
     const result = await new TuiRunCoordinator(runtime).execute({
       turnId: 'turn-1', session: Promise.resolve({ sessionId: 'session-1' }),

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 
 import type { AgentHostTurnOutcome } from '../agent-host/contracts.js';
 import type { TurnSubmissionPreparation } from '../contracts.js';
@@ -31,11 +31,11 @@ describe('user stop cascade trigger', () => {
     fixture.cascadeBegin.mockImplementation(async () => {
       order.push('cascade-begin');
       return {
-        accept: vi.fn(async () => undefined),
-        complete: vi.fn(() => {
+        accept: mock(async () => undefined),
+        complete: mock(() => {
           order.push('cascade-complete');
         }),
-        cancel: vi.fn(),
+        cancel: mock(),
       };
     });
     fixture.controller.abort.mockImplementation(async () => {
@@ -122,7 +122,7 @@ describe('user stop cascade trigger', () => {
   it('accepts once, after the caller onAccepted, when the controller accepts the stop', async () => {
     const fixture = harness();
     const order: string[] = [];
-    const callerOnAccepted = vi.fn(async () => {
+    const callerOnAccepted = mock(async () => {
       order.push('caller-onAccepted');
     });
     fixture.cascadeAccept.mockImplementation(async () => {
@@ -226,14 +226,14 @@ describe('user stop cascade trigger', () => {
 });
 
 function harness() {
-  const commit = vi.fn(async () => undefined);
-  const rollback = vi.fn(async () => undefined);
-  const compensate = vi.fn(async () => undefined);
+  const commit = mock(async () => undefined);
+  const rollback = mock(async () => undefined);
+  const compensate = mock(async () => undefined);
   const preparation = {
     commit,
     rollback,
     compensate,
-    prepare: vi.fn<TurnSubmissionPreparation['prepare']>(async () => ({
+    prepare: mock<TurnSubmissionPreparation['prepare']>(async () => ({
       status: 'ready',
       commit,
       rollback,
@@ -241,70 +241,70 @@ function harness() {
     })),
   };
   const repository = {
-    tryAcquireSessionMaintenance: vi.fn<TurnRepository['tryAcquireSessionMaintenance']>(
+    tryAcquireSessionMaintenance: mock<TurnRepository['tryAcquireSessionMaintenance']>(
       async () => undefined,
     ),
-    renewSessionMaintenance: vi.fn<TurnRepository['renewSessionMaintenance']>(async () => true),
-    releaseSessionMaintenance: vi.fn<TurnRepository['releaseSessionMaintenance']>(
+    renewSessionMaintenance: mock<TurnRepository['renewSessionMaintenance']>(async () => true),
+    releaseSessionMaintenance: mock<TurnRepository['releaseSessionMaintenance']>(
       async () => undefined,
     ),
-    admit: vi.fn<TurnRepository['admit']>(async () => ({
+    admit: mock<TurnRepository['admit']>(async () => ({
       status: 'accepted',
       leaseId: 'lease-1',
       acceptedSequence: 1,
       acceptedAtMs: 100,
     })),
-    renew: vi.fn<TurnRepository['renew']>(async () => true),
-    settle: vi.fn<TurnRepository['settle']>(async ({ outcome }) => ({
+    renew: mock<TurnRepository['renew']>(async () => true),
+    settle: mock<TurnRepository['settle']>(async ({ outcome }) => ({
       status: 'settled',
       completedAtMs: 100,
       outcome,
     })),
-    recoverExpired: vi.fn<TurnRepository['recoverExpired']>(async () => ({
+    recoverExpired: mock<TurnRepository['recoverExpired']>(async () => ({
       released: false,
       terminalFacts: [],
     })),
-    recoverProcessRestart: vi.fn<TurnRepository['recoverProcessRestart']>(async () => ({
+    recoverProcessRestart: mock<TurnRepository['recoverProcessRestart']>(async () => ({
       recovered: [],
       terminalFacts: [],
     })),
-    findActiveTurn: vi.fn<TurnRepository['findActiveTurn']>(async () => undefined),
-    findLatestTurnActivity: vi.fn<TurnRepository['findLatestTurnActivity']>(async () => undefined),
-    preparePluginHookSessionOwnership: vi.fn<TurnRepository['preparePluginHookSessionOwnership']>(
+    findActiveTurn: mock<TurnRepository['findActiveTurn']>(async () => undefined),
+    findLatestTurnActivity: mock<TurnRepository['findLatestTurnActivity']>(async () => undefined),
+    preparePluginHookSessionOwnership: mock<TurnRepository['preparePluginHookSessionOwnership']>(
       async () => undefined,
     ),
-    activatePluginHookSessionOwnership: vi.fn<TurnRepository['activatePluginHookSessionOwnership']>(
+    activatePluginHookSessionOwnership: mock<TurnRepository['activatePluginHookSessionOwnership']>(
       async () => undefined,
     ),
-    findLatestPluginHookSessionOwnership: vi.fn<
+    findLatestPluginHookSessionOwnership: mock<
       TurnRepository['findLatestPluginHookSessionOwnership']
     >(async () => undefined),
-    tryClaimPluginHookSessionEnd: vi.fn<TurnRepository['tryClaimPluginHookSessionEnd']>(
+    tryClaimPluginHookSessionEnd: mock<TurnRepository['tryClaimPluginHookSessionEnd']>(
       async () => ({ status: 'claimed' }),
     ),
-    completePluginHookSessionEnd: vi.fn<TurnRepository['completePluginHookSessionEnd']>(
+    completePluginHookSessionEnd: mock<TurnRepository['completePluginHookSessionEnd']>(
       async () => true,
     ),
-    findReceipt: vi.fn<TurnRepository['findReceipt']>(async () => undefined),
-    findSteeringReceipt: vi.fn<TurnRepository['findSteeringReceipt']>(async () => undefined),
-    reserveSteeringReceipt: vi.fn<TurnRepository['reserveSteeringReceipt']>(async () => ({
+    findReceipt: mock<TurnRepository['findReceipt']>(async () => undefined),
+    findSteeringReceipt: mock<TurnRepository['findSteeringReceipt']>(async () => undefined),
+    reserveSteeringReceipt: mock<TurnRepository['reserveSteeringReceipt']>(async () => ({
       status: 'not-accepted',
     })),
-    releaseSteeringReceipt: vi.fn<TurnRepository['releaseSteeringReceipt']>(async () => undefined),
-    revokeAdmission: vi.fn<TurnRepository['revokeAdmission']>(async () => true),
-    beginSessionDeletion: vi.fn<TurnRepository['beginSessionDeletion']>(async () => ({
+    releaseSteeringReceipt: mock<TurnRepository['releaseSteeringReceipt']>(async () => undefined),
+    revokeAdmission: mock<TurnRepository['revokeAdmission']>(async () => true),
+    beginSessionDeletion: mock<TurnRepository['beginSessionDeletion']>(async () => ({
       status: 'quiescent',
     })),
-    readSessionDeletion: vi.fn<TurnRepository['readSessionDeletion']>(async () => ({
+    readSessionDeletion: mock<TurnRepository['readSessionDeletion']>(async () => ({
       status: 'not-started',
     })),
-    isSessionDeleting: vi.fn<TurnRepository['isSessionDeleting']>(async () => false),
-    deleteSessionData: vi.fn<TurnRepository['deleteSessionData']>(async () => undefined),
-    completeSessionDeletion: vi.fn<TurnRepository['completeSessionDeletion']>(
+    isSessionDeleting: mock<TurnRepository['isSessionDeleting']>(async () => false),
+    deleteSessionData: mock<TurnRepository['deleteSessionData']>(async () => undefined),
+    completeSessionDeletion: mock<TurnRepository['completeSessionDeletion']>(
       async () => undefined,
     ),
-    isAcceptedInTransaction: vi.fn<TurnRepository['isAcceptedInTransaction']>(() => true),
-    markAcknowledgedInTransaction: vi.fn<TurnRepository['markAcknowledgedInTransaction']>(),
+    isAcceptedInTransaction: mock<TurnRepository['isAcceptedInTransaction']>(() => true),
+    markAcknowledgedInTransaction: mock<TurnRepository['markAcknowledgedInTransaction']>(),
   };
   const lease = {
     sessionId: 'session-1',
@@ -316,42 +316,42 @@ function harness() {
     signal: new AbortController().signal,
   };
   const controller = {
-    register: vi.fn(() => lease),
-    abort: vi.fn<TurnController['abort']>(async () => ({ status: 'not-running' })),
-    steerActiveTurn: vi.fn<TurnController['steerActiveTurn']>(async () => ({
+    register: mock(() => lease),
+    abort: mock<TurnController['abort']>(async () => ({ status: 'not-running' })),
+    steerActiveTurn: mock<TurnController['steerActiveTurn']>(async () => ({
       status: 'not-running',
     })),
-    steerToolResultTail: vi.fn<TurnController['steerToolResultTail']>(async () => ({
+    steerToolResultTail: mock<TurnController['steerToolResultTail']>(async () => ({
       status: 'not-running',
     })),
-    beginClose: vi.fn<TurnController['beginClose']>(() => ({ closed: true })),
-    complete: vi.fn<TurnController['complete']>(),
-    activeTurnId: vi.fn<TurnController['activeTurnId']>(() => undefined),
-    close: vi.fn<TurnController['close']>(async () => undefined),
+    beginClose: mock<TurnController['beginClose']>(() => ({ closed: true })),
+    complete: mock<TurnController['complete']>(),
+    activeTurnId: mock<TurnController['activeTurnId']>(() => undefined),
+    close: mock<TurnController['close']>(async () => undefined),
   };
   const completion: Promise<AgentHostTurnOutcome> = Promise.resolve({ status: 'completed' });
   const coordinator = {
-    startTurn: vi.fn<ExecutionCoordinator['startTurn']>(async () => ({ completion })),
-    failTurn: vi.fn<ExecutionCoordinator['failTurn']>(async ({ error }) => ({
+    startTurn: mock<ExecutionCoordinator['startTurn']>(async () => ({ completion })),
+    failTurn: mock<ExecutionCoordinator['failTurn']>(async ({ error }) => ({
       completion: Promise.resolve({ status: 'failed', error }),
     })),
-    failAdmission: vi.fn<ExecutionCoordinator['failAdmission']>(async ({ error }) => ({
+    failAdmission: mock<ExecutionCoordinator['failAdmission']>(async ({ error }) => ({
       completion: Promise.resolve({ status: 'failed', error }),
     })),
-    compact: vi.fn<ExecutionCoordinator['compact']>(async () => ({
+    compact: mock<ExecutionCoordinator['compact']>(async () => ({
       status: 'unchanged',
       reason: 'nothing-to-compact',
     })),
   };
-  const sessionPreparation = { projectStarted: vi.fn(async () => undefined) };
-  const failures = { project: vi.fn(async () => undefined) };
+  const sessionPreparation = { projectStarted: mock(async () => undefined) };
+  const failures = { project: mock(async () => undefined) };
   const operations = createSessionOperationGate();
-  const onInterruptSendReleased = vi.fn(async () => undefined);
-  const cascadeComplete = vi.fn();
-  const cascadeCancel = vi.fn();
-  const cascadeAccept = vi.fn(async () => undefined);
-  const loggerInfo = vi.fn();
-  const cascadeBegin = vi.fn(async () => ({
+  const onInterruptSendReleased = mock(async () => undefined);
+  const cascadeComplete = mock();
+  const cascadeCancel = mock();
+  const cascadeAccept = mock(async () => undefined);
+  const loggerInfo = mock();
+  const cascadeBegin = mock(async () => ({
     accept: cascadeAccept,
     complete: cascadeComplete,
     cancel: cascadeCancel,
@@ -362,7 +362,7 @@ function harness() {
     coordinator,
     operations,
     onInterruptSendReleased,
-    sessions: { has: vi.fn(async () => true) },
+    sessions: { has: mock(async () => true) },
     submissionPreparation: preparation,
     preparation: sessionPreparation,
     failures,

@@ -1,5 +1,5 @@
+import { describe, expect, it, mock } from 'bun:test';
 import path from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
 
 import { applyPermissionUpdate, createToolPermissionContext } from '../../../src/context.js';
 import { BashToolPermissionChecker } from '../../../src/tools/bash-checker.js';
@@ -77,7 +77,7 @@ describe('permission context rule updates', () => {
     '%s preserves local-script classification and the host file probe',
     (type) => {
       const workingDirectory = path.resolve('synthetic-workspace');
-      const isFile = vi.fn((file: string) => file === path.join(workingDirectory, 'build.js'));
+      const isFile = mock((file: string) => file === path.join(workingDirectory, 'build.js'));
       const ctx = createToolPermissionContext({
         workingDirectory,
         dataDir: path.join(workingDirectory, 'data'),

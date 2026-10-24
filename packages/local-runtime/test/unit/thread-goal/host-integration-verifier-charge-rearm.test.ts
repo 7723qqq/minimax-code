@@ -1,8 +1,7 @@
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   digestThreadGoalObjective,
@@ -48,7 +47,7 @@ let dataDir: string;
 let now: number;
 let integration: LocalThreadGoalIntegration;
 let turnTimings: LocalActiveTurnTimingRegistry;
-let enqueuePostTurnContinuation: ReturnType<typeof vi.fn>;
+let enqueuePostTurnContinuation: ReturnType<typeof mock>;
 let verifierStarted: Deferred<void>;
 let verifierVerdict: Deferred<VerificationResult>;
 
@@ -69,17 +68,17 @@ beforeEach(async () => {
   dataDir = await mkdtemp(join(tmpdir(), "goal-verifier-charge-rearm-"));
   now = 1_700_000_000_000;
   turnTimings = new LocalActiveTurnTimingRegistry(() => now);
-  enqueuePostTurnContinuation = vi.fn(async () => undefined);
+  enqueuePostTurnContinuation = mock(async () => undefined);
   verifierStarted = deferred<void>();
   verifierVerdict = deferred<VerificationResult>();
   const verifier: VerifierPort = {
-    dispatch: vi.fn(async () => {
+    dispatch: mock(async () => {
       verifierStarted.resolve();
       return verifierVerdict.promise;
     }),
   };
   const transcriptReader: TranscriptWindowReader = {
-    capture: vi.fn(async () => ({
+    capture: mock(async () => ({
       messages: [{ role: "assistant", content: "Release checks finished." }],
       truncated: false,
     })),
@@ -88,7 +87,7 @@ beforeEach(async () => {
     dataDir,
     nowMs: () => now,
     turnTimingReader: turnTimings,
-    publishGlobalEvent: vi.fn(),
+    publishGlobalEvent: mock(),
     isSessionBusy: (sessionId) =>
       turnTimings.getBySession(sessionId) !== undefined,
     hasPendingQuestionnaire: async () => false,
@@ -100,10 +99,10 @@ beforeEach(async () => {
     enqueueInitialContinuationTurn: async () => undefined,
     enqueuePostTurnContinuation,
     cancelInitialContinuation: async () => undefined,
-    requestQueueDispatch: vi.fn(),
+    requestQueueDispatch: mock(),
     hasPendingInitialContinuation: async () => false,
-    reportFailure: vi.fn(),
-    emitRuntimeEvent: vi.fn(),
+    reportFailure: mock(),
+    emitRuntimeEvent: mock(),
     formatError: (error) =>
       error instanceof Error ? error.message : String(error),
     isEnabled: () => true,

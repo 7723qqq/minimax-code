@@ -1,7 +1,8 @@
+import { describe, expect, it, mock } from 'bun:test';
 import { LocalOutputSafetyEventWriter } from '../../src/runtime/output-safety-writer.js';
 import { RuntimeEventType, type IRuntimeEvent } from '@mavis/protocol';
 import { RespDataType } from '@mavis/agent-core/protocol/agent-message';
-import { describe, expect, it, vi } from 'vitest';
+
 import { createContentSafetyChecker, SAFETY_SCENE } from '../../src/content-safety/api.js';
 
 const deps = {
@@ -12,7 +13,7 @@ const deps = {
 
 describe('production turn safety routing', () => {
   it.each([undefined, '', '  '])('normalizes an empty input guide before runtime delivery: %j', async (guide) => {
-    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async () => Response.json({
+    const fetchImpl = mock<typeof fetch>().mockImplementation(async () => Response.json({
       action: 4, errorCode: 50201, ...(guide !== undefined ? { guide_prompt: guide } : {}),
     }));
     const checker = createContentSafetyChecker({ ...deps, fetchImpl });
@@ -49,11 +50,10 @@ describe('production turn safety routing', () => {
   )(
     'applies HTTP action $body.action at the output boundary (thinking=$thinking)',
     async ({ body, blocked, immediate, guide, thinking }) => {
-      const fetchImpl = vi
-        .fn<typeof fetch>()
+      const fetchImpl = mock<typeof fetch>()
         .mockImplementation(async () => Response.json(body));
-      const pushRuntime = vi.fn();
-      const appendEvents = vi.fn();
+      const pushRuntime = mock();
+      const appendEvents = mock();
       const writer = new LocalOutputSafetyEventWriter(
         { pushRuntime, appendEvents },
         { checkText: createContentSafetyChecker({ ...deps, fetchImpl }), chunkThreshold: 1 },
@@ -97,8 +97,7 @@ describe('production turn safety routing', () => {
   );
 
   it('retains the V1 endpoint and payload unless V2 is explicitly selected', async () => {
-    const fetchImpl = vi
-      .fn<typeof fetch>()
+    const fetchImpl = mock<typeof fetch>()
       .mockImplementation(async () => Response.json({ pass: true, decision: 'pass' }));
     const legacyDeps = { region: deps.region, buildEnv: deps.buildEnv };
     const checker = createContentSafetyChecker({ ...legacyDeps, fetchImpl });
@@ -114,11 +113,10 @@ describe('production turn safety routing', () => {
     { action: 4, errorCode: 50201, guide_prompt: 'thinking guide' },
     { action: 2, errorCode: 50201 },
   ])('keeps DesktopThinking scene 13 after a V2 transport error before action $action', async (body) => {
-    const fetchImpl = vi
-      .fn<typeof fetch>()
+    const fetchImpl = mock<typeof fetch>()
       .mockImplementationOnce(async () => new Response('{}', { status: 503 }))
       .mockImplementationOnce(async () => Response.json(body));
-    const inner = { pushRuntime: vi.fn(), appendEvents: vi.fn() };
+    const inner = { pushRuntime: mock(), appendEvents: mock() };
     const writer = new LocalOutputSafetyEventWriter(inner, {
       checkText: createContentSafetyChecker({ ...deps, fetchImpl }),
       retryDelay: async () => {},
@@ -154,14 +152,14 @@ describe('production turn safety routing', () => {
 
   it('keeps retries of a failed V2 window on V2 even if V1 would now allow', async () => {
     let v2Calls = 0;
-    const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+    const fetchImpl = mock<typeof fetch>().mockImplementation(async (url) => {
       if (String(url).includes('/v1/content')) return Response.json({ pass: false });
       return ++v2Calls === 1
         ? new Response('{}', { status: 503 })
         : Response.json({ action: 2, errorCode: 50201 });
     });
     const writer = new LocalOutputSafetyEventWriter(
-      { pushRuntime: vi.fn(), appendEvents: vi.fn() },
+      { pushRuntime: mock(), appendEvents: mock() },
       {
         checkText: createContentSafetyChecker({ ...deps, fetchImpl }),
         retryDelay: async () => {},
@@ -191,8 +189,7 @@ describe('production turn safety routing', () => {
     [SAFETY_SCENE.ThinkingContent, 13],
     [SAFETY_SCENE.StreamChunk, 11],
   ] as const)('uses V2 for scene %s', async (scene, wireScene) => {
-    const fetchImpl = vi
-      .fn<typeof fetch>()
+    const fetchImpl = mock<typeof fetch>()
       .mockImplementation(async () =>
         Response.json({ action: 4, errorCode: 50201, guide_prompt: 'MODEL_ONLY' }),
       );
@@ -211,8 +208,7 @@ describe('production turn safety routing', () => {
   });
 
   it('keeps ConfigField on its existing V1 endpoint', async () => {
-    const fetchImpl = vi
-      .fn<typeof fetch>()
+    const fetchImpl = mock<typeof fetch>()
       .mockImplementation(async () => Response.json({ pass: true, decision: 'pass' }));
     expect(
       await createContentSafetyChecker({ ...deps, fetchImpl })('text', SAFETY_SCENE.ConfigField),
@@ -222,8 +218,7 @@ describe('production turn safety routing', () => {
   });
 
   it('sends a streaming output window directly to V2 as an assistant reply', async () => {
-    const fetchImpl = vi
-      .fn<typeof fetch>()
+    const fetchImpl = mock<typeof fetch>()
       .mockImplementation(async () =>
         Response.json({ action: 4, errorCode: 50201, guide_prompt: 'model guide' }),
       );
@@ -248,14 +243,14 @@ describe('production turn safety routing', () => {
     async (status) => {
       let accessToken = 'expired-token';
       let v2Calls = 0;
-      const fetchImpl = vi.fn<typeof fetch>().mockImplementation(async (url) => {
+      const fetchImpl = mock<typeof fetch>().mockImplementation(async (url) => {
         expect(String(url)).toContain('/v2/content?require_auth=true');
         v2Calls += 1;
         return v2Calls === 1
           ? new Response('{}', { status })
           : Response.json({ action: 2, errorCode: 50201 });
       });
-      const authContextInvalidator = vi.fn(async () => {
+      const authContextInvalidator = mock(async () => {
         accessToken = 'fresh-token';
       });
       const result = await createContentSafetyChecker({
@@ -290,11 +285,10 @@ describe('production turn safety routing', () => {
     'preserves ConfigField V1 routing on an initial HTTP %s refresh',
     async (status) => {
       let accessToken = 'expired-token';
-      const fetchImpl = vi
-        .fn<typeof fetch>()
+      const fetchImpl = mock<typeof fetch>()
         .mockImplementationOnce(async () => new Response('{}', { status }))
         .mockImplementationOnce(async () => Response.json({ pass: true }));
-      const authContextInvalidator = vi.fn(async () => {
+      const authContextInvalidator = mock(async () => {
         accessToken = 'fresh-token';
       });
       const result = await createContentSafetyChecker({
@@ -328,8 +322,7 @@ describe('production turn safety routing', () => {
     [SAFETY_SCENE.StreamChunk, 11],
   ] as const)('preserves V2 scene %s after authentication refresh', async (scene, wireScene) => {
     let accessToken = 'expired-token';
-    const fetchImpl = vi
-      .fn<typeof fetch>()
+    const fetchImpl = mock<typeof fetch>()
       .mockImplementationOnce(async () => new Response('{}', { status: 401 }))
       .mockImplementationOnce(async () => Response.json({ action: 1 }));
     const result = await createContentSafetyChecker({
@@ -355,8 +348,7 @@ describe('production turn safety routing', () => {
   it.each([400, 401, 503])(
     'does not downgrade a failed V2 streaming output review to V1 allow (HTTP %s)',
     async (status) => {
-      const fetchImpl = vi
-        .fn<typeof fetch>()
+      const fetchImpl = mock<typeof fetch>()
         .mockImplementation(async () => new Response('{}', { status }));
       const result = await createContentSafetyChecker({ ...deps, fetchImpl })(
         'draft',
@@ -372,8 +364,7 @@ describe('production turn safety routing', () => {
 
   it('keeps default V1 thinking on scene 3 without consuming extra guide fields', async () => {
     const legacyDeps = { region: deps.region, buildEnv: deps.buildEnv };
-    const fetchImpl = vi
-      .fn<typeof fetch>()
+    const fetchImpl = mock<typeof fetch>()
       .mockImplementation(async () =>
         Response.json({ pass: false, guide_prompt: 'ignored V1 guide' }),
       );

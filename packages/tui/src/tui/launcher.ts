@@ -2,7 +2,6 @@ import { spawn } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
-import { performance } from 'node:perf_hooks';
 import { ProcessTerminal, setKeybindings, type Terminal, type TuiMode } from './engine/public.js';
 import { detectProcessTerminalCapabilities } from './platform/terminal-capabilities.js';
 import {

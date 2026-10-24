@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { stubGlobal, unstubAllGlobals } from '../../../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock } from 'bun:test';
 
 import { ModelConnectionTester } from './test-connection.js';
 
@@ -51,7 +52,7 @@ function openAiResponsesOkResponse(): Response {
 
 describe('ModelConnectionTester requests', () => {
   it('sends a Messages-compatible completion with the default output limit', async () => {
-    const fetchImpl = vi.fn(async () => messagesOkResponse());
+    const fetchImpl = mock(async () => messagesOkResponse());
     const tester = new ModelConnectionTester({
       fetchImpl: fetchImpl as unknown as typeof fetch,
     });
@@ -81,7 +82,7 @@ describe('ModelConnectionTester requests', () => {
   });
 
   it('reuses a Messages-compatible base that already ends in /v1', async () => {
-    const fetchImpl = vi.fn(async () => messagesOkResponse());
+    const fetchImpl = mock(async () => messagesOkResponse());
     const tester = new ModelConnectionTester({ fetchImpl: fetchImpl as unknown as typeof fetch });
     await tester.test('p-v1', {
       api: 'anthropic-messages',
@@ -94,7 +95,7 @@ describe('ModelConnectionTester requests', () => {
   });
 
   it('sends openai-completions to <base>/chat/completions with bearer auth', async () => {
-    const fetchImpl = vi.fn(async () => openAiOkResponse());
+    const fetchImpl = mock(async () => openAiOkResponse());
     const tester = new ModelConnectionTester({ fetchImpl: fetchImpl as unknown as typeof fetch });
 
     await tester.test('p2', {
@@ -117,7 +118,7 @@ describe('ModelConnectionTester requests', () => {
   });
 
   it('attributes OpenRouter completion tests to MiniMax Code', async () => {
-    const fetchImpl = vi.fn(async () => openAiOkResponse());
+    const fetchImpl = mock(async () => openAiOkResponse());
     const tester = new ModelConnectionTester({ fetchImpl: fetchImpl as unknown as typeof fetch });
 
     await tester.test('openrouter-attribution', {
@@ -139,7 +140,7 @@ describe('ModelConnectionTester requests', () => {
   });
 
   it('sends openai-responses to <base>/responses and validates a Responses payload', async () => {
-    const fetchImpl = vi.fn(async () => openAiResponsesOkResponse());
+    const fetchImpl = mock(async () => openAiResponsesOkResponse());
     const tester = new ModelConnectionTester({ fetchImpl: fetchImpl as unknown as typeof fetch });
 
     const result = await tester.test('responses', {
@@ -197,7 +198,7 @@ describe('ModelConnectionTester requests', () => {
       },
     ],
   ] as const)('keeps a custom effort in the exact %s payload', async (api, response, expected) => {
-    const fetchImpl = vi.fn(async () => response());
+    const fetchImpl = mock(async () => response());
     const tester = new ModelConnectionTester({ fetchImpl: fetchImpl as unknown as typeof fetch });
 
     await expect(
@@ -224,7 +225,7 @@ describe('ModelConnectionTester requests', () => {
   ] as const)(
     'sends MiniMax M3 %s Think Effort %s with the protocol-specific field',
     async (api, effort, response, expectedPatch) => {
-      const fetchImpl = vi.fn(async () => response());
+      const fetchImpl = mock(async () => response());
       const tester = new ModelConnectionTester({ fetchImpl: fetchImpl as unknown as typeof fetch });
 
       await expect(
@@ -249,7 +250,7 @@ describe('ModelConnectionTester output budget', () => {
     ['openai-completions', openAiOkResponse],
     ['openai-responses', openAiResponsesOkResponse],
   ] as const)('sends the configured output limit to %s', async (api, response) => {
-    const fetchImpl = vi.fn(async () => response());
+    const fetchImpl = mock(async () => response());
     const tester = new ModelConnectionTester({ fetchImpl: fetchImpl as unknown as typeof fetch });
 
     await expect(
@@ -273,7 +274,7 @@ describe('ModelConnectionTester output budget', () => {
   ] as const)(
     'sends the configured output limit for the MiniMax M3 provider-level Thinking %s probe',
     async (mode, expectedPatch) => {
-      const fetchImpl = vi.fn(async () => messagesOkResponse());
+      const fetchImpl = mock(async () => messagesOkResponse());
       const tester = new ModelConnectionTester({ fetchImpl: fetchImpl as unknown as typeof fetch });
 
       await expect(
@@ -297,7 +298,7 @@ describe('ModelConnectionTester output budget', () => {
   );
 
   it('clears the MiniMax M3 thinking output floor from the configured output limit', async () => {
-    const fetchImpl = vi.fn(async (_url: unknown, init?: RequestInit) => {
+    const fetchImpl = mock(async (_url: unknown, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as { max_tokens?: number };
       if ((body.max_tokens ?? 0) < 1_024) {
         return new Response(
@@ -331,7 +332,7 @@ describe('ModelConnectionTester output budget', () => {
 
 describe('ModelConnectionTester response errors', () => {
   it('applies custom headers case-insensitively after protocol defaults', async () => {
-    const fetchImpl = vi.fn(async () => openAiOkResponse());
+    const fetchImpl = mock(async () => openAiOkResponse());
     const tester = new ModelConnectionTester({ fetchImpl: fetchImpl as unknown as typeof fetch });
 
     await tester.test('custom-headers', {
@@ -356,7 +357,7 @@ describe('ModelConnectionTester response errors', () => {
 describe('ModelConnectionTester HTTP response errors', () => {
   it('maps 401/403 to unauthorized without leaking the key', async () => {
     for (const status of [401, 403]) {
-      const fetchImpl = vi.fn(async () => new Response(`bad key ${API_KEY}`, { status }));
+      const fetchImpl = mock(async () => new Response(`bad key ${API_KEY}`, { status }));
       const tester = new ModelConnectionTester({ fetchImpl: fetchImpl as unknown as typeof fetch });
       const result = await tester.test(`p-${status}`, {
         api: 'openai-completions',
@@ -371,7 +372,7 @@ describe('ModelConnectionTester HTTP response errors', () => {
   });
 
   it('maps other http failures to http_<status> with a sanitized upstream reason', async () => {
-    const fetchImpl = vi.fn(
+    const fetchImpl = mock(
       async () =>
         new Response(JSON.stringify({ error: { message: `upstream broke with ${API_KEY}` } }), {
           status: 503,
@@ -392,7 +393,7 @@ describe('ModelConnectionTester HTTP response errors', () => {
 
   it('shows the structured HTTP 400 reason without exposing custom Header values', async () => {
     const tenantSecret = 'tenant-secret-value';
-    const fetchImpl = vi.fn(
+    const fetchImpl = mock(
       async () =>
         new Response(
           JSON.stringify({
@@ -423,7 +424,7 @@ describe('ModelConnectionTester HTTP response errors', () => {
 
 describe('ModelConnectionTester Responses validation order', () => {
   it('lets the upstream validate an invalid Responses effort before the output budget', async () => {
-    const fetchImpl = vi.fn(async (_url: unknown, init?: RequestInit) => {
+    const fetchImpl = mock(async (_url: unknown, init?: RequestInit) => {
       const body = JSON.parse(String(init?.body)) as {
         max_output_tokens?: number;
         reasoning?: { effort?: string };
@@ -466,7 +467,7 @@ describe('ModelConnectionTester Responses validation order', () => {
 
 describe('ModelConnectionTester provider error envelopes', () => {
   it('shows a sanitized provider error returned inside a 2xx response', async () => {
-    const fetchImpl = vi.fn(
+    const fetchImpl = mock(
       async () =>
         new Response(
           JSON.stringify({
@@ -497,7 +498,7 @@ describe('ModelConnectionTester provider error envelopes', () => {
   });
 
   it('shows a non-zero MiniMax base_resp reason returned inside a 2xx response', async () => {
-    const fetchImpl = vi.fn(
+    const fetchImpl = mock(
       async () =>
         new Response(
           JSON.stringify({
@@ -564,7 +565,7 @@ describe('ModelConnectionTester provider error envelopes', () => {
       'HTTP 500: invalid account',
     ],
   ] as const)('normalizes an upstream %s', async (_label, body, errorMessage) => {
-    const fetchImpl = vi.fn(async () => new Response(body, { status: 500 }));
+    const fetchImpl = mock(async () => new Response(body, { status: 500 }));
     const tester = new ModelConnectionTester({ fetchImpl: fetchImpl as unknown as typeof fetch });
 
     await expect(
@@ -580,7 +581,7 @@ describe('ModelConnectionTester provider error envelopes', () => {
 
 describe('ModelConnectionTester invalid responses and concurrency', () => {
   it('does not treat a successful base_resp without protocol content as a provider error', async () => {
-    const fetchImpl = vi.fn(
+    const fetchImpl = mock(
       async () =>
         new Response(JSON.stringify({ base_resp: { status_code: 0, status_msg: 'success' } }), {
           status: 200,
@@ -604,7 +605,7 @@ describe('ModelConnectionTester invalid responses and concurrency', () => {
   });
 
   it('rejects openai-completions 2xx HTML fallback responses', async () => {
-    const fetchImpl = vi.fn(async () => new Response('<html>not the api</html>', { status: 200 }));
+    const fetchImpl = mock(async () => new Response('<html>not the api</html>', { status: 200 }));
     const tester = new ModelConnectionTester({ fetchImpl: fetchImpl as unknown as typeof fetch });
     const result = await tester.test('openrouter-root', {
       api: 'openai-completions',
@@ -623,7 +624,7 @@ describe('ModelConnectionTester invalid responses and concurrency', () => {
   });
 
   it('rejects openai-completions 2xx JSON without chat choices', async () => {
-    const fetchImpl = vi.fn(
+    const fetchImpl = mock(
       async () => new Response(JSON.stringify({ ok: true }), { status: 200 }),
     );
     const tester = new ModelConnectionTester({
@@ -641,7 +642,7 @@ describe('ModelConnectionTester invalid responses and concurrency', () => {
   });
 
   it('maps abort to timeout', async () => {
-    const fetchImpl = vi.fn(
+    const fetchImpl = mock(
       (_url: unknown, init?: RequestInit) =>
         new Promise<Response>((_resolve, reject) => {
           init?.signal?.addEventListener('abort', () => {
@@ -667,11 +668,11 @@ describe('ModelConnectionTester invalid responses and concurrency', () => {
     const response = {
       ok: true,
       status: 200,
-      json: vi.fn(async () => {
+      json: mock(async () => {
         throw Object.assign(new Error('The operation was aborted'), { name: 'AbortError' });
       }),
     } as unknown as Response;
-    const fetchImpl = vi.fn(async () => response);
+    const fetchImpl = mock(async () => response);
     const tester = new ModelConnectionTester({ fetchImpl: fetchImpl as unknown as typeof fetch });
     const result = await tester.test('body-abort', {
       api: 'openai-completions',
@@ -685,7 +686,7 @@ describe('ModelConnectionTester invalid responses and concurrency', () => {
   });
 
   it('maps an AbortError-like rejection to timeout', async () => {
-    const fetchImpl = vi.fn(async () => {
+    const fetchImpl = mock(async () => {
       throw { name: 'AbortError' };
     });
     const tester = new ModelConnectionTester({ fetchImpl: fetchImpl as unknown as typeof fetch });
@@ -701,7 +702,7 @@ describe('ModelConnectionTester invalid responses and concurrency', () => {
   });
 
   it('maps fetch rejection to network with sanitized message', async () => {
-    const fetchImpl = vi.fn(async () => {
+    const fetchImpl = mock(async () => {
       throw new TypeError(`fetch failed for key ${API_KEY}`);
     });
     const tester = new ModelConnectionTester({ fetchImpl: fetchImpl as unknown as typeof fetch });
@@ -717,7 +718,7 @@ describe('ModelConnectionTester invalid responses and concurrency', () => {
 
   it('deduplicates concurrent tests for the same key', async () => {
     let resolveFetch: ((value: Response) => void) | undefined;
-    const fetchImpl = vi.fn(
+    const fetchImpl = mock(
       () =>
         new Promise<Response>((resolve) => {
           resolveFetch = resolve;
@@ -747,7 +748,7 @@ describe('ModelConnectionTester invalid responses and concurrency', () => {
   });
 
   it('does not deduplicate across different keys', async () => {
-    const fetchImpl = vi.fn(async () => openAiOkResponse());
+    const fetchImpl = mock(async () => openAiOkResponse());
     const tester = new ModelConnectionTester({ fetchImpl: fetchImpl as unknown as typeof fetch });
     const target = {
       api: 'openai-completions' as const,
@@ -766,7 +767,7 @@ describe('OpenCode Go connection identity', () => {
     ['openai-responses', openAiResponsesOkResponse],
     ['anthropic-messages', messagesOkResponse],
   ] as const)('adds independent probe identities for %s', async (api, response) => {
-    const fetchImpl = vi.fn<typeof fetch>(async () => response());
+    const fetchImpl = mock<typeof fetch>(async () => response());
     const tester = new ModelConnectionTester({ fetchImpl });
     const target = {
       api,
@@ -797,9 +798,9 @@ describe('Google connection tests through Pi', () => {
 
   it.each([undefined, 'off', 'high'])('uses Pi with effort %s and the configured output limit', async (effort) => {
     let request: Request | undefined;
-    vi.stubGlobal(
+    stubGlobal(
       'fetch',
-      vi.fn<typeof fetch>(async (input, init) => {
+      mock<typeof fetch>(async (input, init) => {
         request = new Request(input, init);
         return new Response(
           `data: ${JSON.stringify({
@@ -835,14 +836,14 @@ describe('Google connection tests through Pi', () => {
         expect(body.generationConfig).not.toHaveProperty('thinkingConfig');
       }
     } finally {
-      vi.unstubAllGlobals();
+      unstubAllGlobals();
     }
   });
 
   it('redacts provider errors returned by Pi', async () => {
-    vi.stubGlobal(
+    stubGlobal(
       'fetch',
-      vi.fn<typeof fetch>(
+      mock<typeof fetch>(
         async () =>
           new Response(
             JSON.stringify({
@@ -862,14 +863,14 @@ describe('Google connection tests through Pi', () => {
       expect(result.errorMessage).toContain('Invalid key');
       expect(result.errorMessage).not.toContain(API_KEY);
     } finally {
-      vi.unstubAllGlobals();
+      unstubAllGlobals();
     }
   });
 
   it('honors the caller timeout while Pi is waiting for Google', async () => {
-    vi.stubGlobal(
+    stubGlobal(
       'fetch',
-      vi.fn<typeof fetch>(
+      mock<typeof fetch>(
         (input, init) =>
           new Promise((_resolve, reject) => {
             const signal = new Request(input, init).signal;
@@ -884,7 +885,7 @@ describe('Google connection tests through Pi', () => {
         await new ModelConnectionTester({ timeoutMs: 50 }).test('google-timeout', target),
       ).toMatchObject({ ok: false, errorCode: 'timeout' });
     } finally {
-      vi.unstubAllGlobals();
+      unstubAllGlobals();
     }
   });
 });

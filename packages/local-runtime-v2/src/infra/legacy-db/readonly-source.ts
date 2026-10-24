@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
 import { Buffer } from 'node:buffer';
-import { existsSync, statSync } from 'node:fs';
-import { createRequire } from 'node:module';
+import { statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+
+import { FinalizingSqliteDatabase } from '@mavis/shared';
 
 import {
   buildLegacyMessagePage,
@@ -40,10 +41,6 @@ interface ReadonlyDatabase {
   prepare(sql: string): Statement;
   close(): void;
 }
-type DatabaseConstructor = new (
-  path: string,
-  options: { readonly: true; fileMustExist: true },
-) => ReadonlyDatabase;
 const DEFAULT_MESSAGE_PAGE_BYTES = 8 * 1024 * 1024;
 export function createLegacyOpencodeReadonlySource(
   options: LegacyOpencodeReadonlySourceOptions,
@@ -89,9 +86,11 @@ class SqliteLegacyOpencodeReadonlySource {
     pageSize: number,
     maxPageBytes: number = DEFAULT_MESSAGE_PAGE_BYTES,
   ): AsyncGenerator<readonly LegacyOpencodeDisplayMessage[], void, void> {
-    if (!existsSync(this.daemonPath)) return;
-    const Database = this.constructorFor();
-    const db = new Database(this.daemonPath, { readonly: true, fileMustExist: true });
+    if (!pathExists(this.daemonPath)) return;
+    const db = new FinalizingSqliteDatabase(this.daemonPath, {
+      readonly: true,
+      fileMustExist: true,
+    });
     let rows: IterableIterator<unknown> | undefined;
     try {
       const schema = inspectSchema(db);
@@ -153,8 +152,8 @@ class SqliteLegacyOpencodeReadonlySource {
     session: LegacyOpencodeSessionRecord,
   ): Promise<LegacyOpenCodeNativeReadResult | undefined> {
     for (const candidateInput of resolveLegacyNativeCandidateInputs(this.options)) {
-      if (!existsSync(candidateInput.dbPath)) continue;
-      const candidate = inspectNativeCandidate(candidateInput, this.constructorFor());
+      if (!pathExists(candidateInput.dbPath)) continue;
+      const candidate = inspectNativeCandidate(candidateInput);
       const result = this.withDatabase(candidate.dbPath, (db) =>
         readNative(db, candidate, session.legacyFrameworkSessionId ?? session.sessionId),
       );
@@ -177,7 +176,7 @@ class SqliteLegacyOpencodeReadonlySource {
     const walPath = `${this.daemonPath}-wal`;
     const shmPath = `${this.daemonPath}-shm`;
     const candidates = resolveLegacyNativeCandidateInputs(this.options).map((candidate) =>
-      inspectNativeCandidate(candidate, this.constructorFor()),
+      inspectNativeCandidate(candidate),
     );
     const sourceOpenCodeDataPath = join(this.options.sourceDataDir, 'opencode', 'data', 'opencode');
     const sourceOpenCodeStatePath = join(
@@ -191,29 +190,29 @@ class SqliteLegacyOpencodeReadonlySource {
     const base: LegacyOpencodeSourceManifest = {
       sourceDataDir: this.options.sourceDataDir,
       sourceSqlitePath: this.daemonPath,
-      sourceSqliteExists: existsSync(this.daemonPath),
+      sourceSqliteExists: pathExists(this.daemonPath),
       ...size('sourceSqliteSizeBytes', this.daemonPath),
       sourceSqliteWalPath: walPath,
-      sourceSqliteWalExists: existsSync(walPath),
+      sourceSqliteWalExists: pathExists(walPath),
       ...size('sourceSqliteWalSizeBytes', walPath),
       sourceSqliteShmPath: shmPath,
-      sourceSqliteShmExists: existsSync(shmPath),
+      sourceSqliteShmExists: pathExists(shmPath),
       ...size('sourceSqliteShmSizeBytes', shmPath),
       sourceOpenCodeDataPath,
-      sourceOpenCodeDataExists: existsSync(sourceOpenCodeDataPath),
+      sourceOpenCodeDataExists: pathExists(sourceOpenCodeDataPath),
       sourceOpenCodeStatePath,
-      sourceOpenCodeStateExists: existsSync(sourceOpenCodeStatePath),
+      sourceOpenCodeStateExists: pathExists(sourceOpenCodeStatePath),
       sourceOpenCodeXdgDataPath,
       sourceOpenCodeXdgDataExists: Boolean(
-        sourceOpenCodeXdgDataPath && existsSync(sourceOpenCodeXdgDataPath),
+        sourceOpenCodeXdgDataPath && pathExists(sourceOpenCodeXdgDataPath),
       ),
       sourceOpenCodeXdgStatePath,
       sourceOpenCodeXdgStateExists: Boolean(
-        sourceOpenCodeXdgStatePath && existsSync(sourceOpenCodeXdgStatePath),
+        sourceOpenCodeXdgStatePath && pathExists(sourceOpenCodeXdgStatePath),
       ),
       opencodeNative: { candidates },
     };
-    if (!existsSync(this.daemonPath)) return base;
+    if (!pathExists(this.daemonPath)) return base;
     try {
       const details = this.withDatabase(this.daemonPath, (db) => {
         const schema = inspectSchema(db);
@@ -229,7 +228,7 @@ class SqliteLegacyOpencodeReadonlySource {
   }
 
   private withDaemon<T>(operation: (db: ReadonlyDatabase) => T): T | undefined {
-    if (!existsSync(this.daemonPath)) return undefined;
+    if (!pathExists(this.daemonPath)) return undefined;
     return this.withDatabase(this.daemonPath, operation);
   }
   private decodeSession(row: unknown): LegacyOpencodeSessionRecord {
@@ -245,21 +244,12 @@ class SqliteLegacyOpencodeReadonlySource {
     };
   }
   private withDatabase<T>(path: string, operation: (db: ReadonlyDatabase) => T): T {
-    const Database = this.constructorFor();
-    const db = new Database(path, { readonly: true, fileMustExist: true });
+    const db = new FinalizingSqliteDatabase(path, { readonly: true, fileMustExist: true });
     try {
       return operation(db);
     } finally {
       db.close();
     }
-  }
-  private constructorFor(): DatabaseConstructor {
-    const overridePath = process.env.MAVIS_SQLITE3_MODULE_PATH?.trim();
-    const require = overridePath
-      ? createRequire(join(overridePath, 'package.json'))
-      : createRequire(import.meta.url);
-    const loaded = require('better-sqlite3') as unknown;
-    return ((loaded as { default?: DatabaseConstructor }).default ?? loaded) as DatabaseConstructor;
   }
 }
 
@@ -427,19 +417,21 @@ function normalizeMessagePageBytes(value: number): number {
 }
 function inspectNativeCandidate(
   input: LegacyOpenCodeNativeCandidateInput,
-  Database: DatabaseConstructor,
 ): LegacyOpenCodeNativeCandidate {
   const base = {
     kind: input.kind,
     path: dirname(input.dbPath),
-    exists: existsSync(dirname(input.dbPath)),
+    exists: pathExists(dirname(input.dbPath)),
     dbPath: input.dbPath,
-    dbExists: existsSync(input.dbPath),
+    dbExists: pathExists(input.dbPath),
     ...size('dbSizeBytes', input.dbPath),
   };
   if (!base.dbExists) return base;
   try {
-    const db = new Database(input.dbPath, { readonly: true, fileMustExist: true });
+    const db = new FinalizingSqliteDatabase(input.dbPath, {
+      readonly: true,
+      fileMustExist: true,
+    });
     try {
       const schema = inspectSchema(db);
       const tables = Object.fromEntries(
@@ -804,7 +796,7 @@ function digest(value: string) {
   return createHash('sha256').update(value).digest('hex');
 }
 function size<Key extends string>(key: Key, path: string) {
-  return existsSync(path) ? ({ [key]: statSync(path).size } as Record<Key, number>) : {};
+  return pathExists(path) ? ({ [key]: statSync(path).size } as Record<Key, number>) : {};
 }
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -829,4 +821,23 @@ function readNumber(value: unknown, key: string) {
     throw new LegacyOpencodeSourceCorruptionError(key);
   }
   return found;
+}
+
+/**
+ * Whether `target` exists.
+ *
+ * A `statSync` inside a `try` gives the same answer as `existsSync` for a file, a
+ * directory, a missing entry and an unreadable path, without paying for the
+ * second syscall: `existsSync` is the Node compatibility surface and measures
+ * roughly an order of magnitude slower per call in this runtime, while
+ * `statSync` already reports what the call sites here then inspect. The module is
+ * synchronous, so `Bun.file()` does not apply.
+ */
+function pathExists(target: string): boolean {
+  try {
+    statSync(target);
+    return true;
+  } catch {
+    return false;
+  }
 }

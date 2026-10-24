@@ -1,3 +1,5 @@
+import { mocked, waitFor } from '../../../../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock, spyOn } from 'bun:test';
 import { createLocalTurnEventWriter } from '../events/runtime-event-writer.js';
 import { createLocalTurnOutcomeTracker } from '../runner/turn-outcome.js';
 import { RespDataType, ToolCallStatus } from '@mavis/agent-core/protocol/agent-message';
@@ -46,7 +48,6 @@ import { Type } from "@sinclair/typebox";
 import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
 
 import { digestSafetyInput } from "../../../content-safety/index.js";
 import type {
@@ -116,8 +117,8 @@ const assembly = (): AssemblyResult => ({
   userPromptPrefix: "extension user",
   tools: [],
   hooks: {
-    beforeLlmCallHook: [vi.fn()],
-    onHistoryChangedHook: [vi.fn()],
+    beforeLlmCallHook: [mock()],
+    onHistoryChangedHook: [mock()],
   },
   reminders: [
     {
@@ -223,21 +224,21 @@ function executionInput(
       await terminalPipeline.onRuntimeEvent(event);
       await observeRuntimeEvent?.(event);
     },
-    onHistoryChanged: vi.fn(async () => undefined),
-    registerCanonicalUserMessageIds: vi.fn(),
-    rearmPrimaryUserMessageIdAfterOutputRecall: vi.fn(),
+    onHistoryChanged: mock(async () => undefined),
+    registerCanonicalUserMessageIds: mock(),
+    rearmPrimaryUserMessageIdAfterOutputRecall: mock(),
     resolveTerminalOutcome:
       resolveTerminalOutcome ??
       ((reconcile) => terminalPipeline.resolveOutcome(reconcile)),
     control: {
-      sealAbnormalTerminal: vi.fn(async () => undefined),
-      openToolResultTail: vi.fn(() => true),
-      closeAndClaimToolResultTail: vi.fn(() => []),
-      ackToolResultTail: vi.fn(),
-      drainSteering: vi.fn(() => []),
-      ackSteering: vi.fn(),
-      restoreSteering: vi.fn(),
-      tryBeginClose: vi.fn((): AgentHostCloseResult => ({ closed: true })),
+      sealAbnormalTerminal: mock(async () => undefined),
+      openToolResultTail: mock(() => true),
+      closeAndClaimToolResultTail: mock(() => []),
+      ackToolResultTail: mock(),
+      drainSteering: mock(() => []),
+      ackSteering: mock(),
+      restoreSteering: mock(),
+      tryBeginClose: mock((): AgentHostCloseResult => ({ closed: true })),
     },
     ...remainingOverrides,
   };
@@ -346,13 +347,13 @@ function videoGateExecutionInput(
 
 function createTerminalPipeline(): TurnCommitPipeline {
   const history: CanonicalHistoryStore = {
-    read: vi.fn(),
-    append: vi.fn(),
-    replace: vi.fn(),
+    read: mock(),
+    append: mock(),
+    replace: mock(),
   };
   const events: AgentEventDelivery = {
-    handleRuntimeEvent: vi.fn(async () => ({ terminal: false as const })),
-    handleHistoryCommitted: vi.fn(),
+    handleRuntimeEvent: mock(async () => ({ terminal: false as const })),
+    handleHistoryCommitted: mock(),
   };
   return new TurnCommitPipeline({
     context: { sessionId: "session-1", turnId: "turn-1", turnSequence: 1 },
@@ -403,7 +404,7 @@ function runtimeMatrixTool(): RuntimeTool {
       description: "test Matrix tool",
       schema: { type: "object" } as never,
     },
-    impl: { execute: vi.fn(async () => result) },
+    impl: { execute: mock(async () => result) },
     source: "builtin-matrix",
   };
 }
@@ -419,7 +420,7 @@ function options(
       new ContextUsageAnchorState(),
     ),
     executionPreparation: {
-      prepare: vi.fn(async ({ execution }) => ({
+      prepare: mock(async ({ execution }) => ({
         userMessage: {
           attachments: [
             { type: "image" as const, data: "data", mimeType: "image/png" },
@@ -427,15 +428,15 @@ function options(
         },
         caller: "chat" as const,
         reminderBlocks: [],
-        loadBackgroundReminder: vi.fn(async () => ({
+        loadBackgroundReminder: mock(async () => ({
           tasks: [],
           undeliveredTotal: 0,
           terminalTotal: 0,
         })),
-        confirmBackgroundTaskReads: vi.fn(async () => undefined),
+        confirmBackgroundTaskReads: mock(async () => undefined),
         toolResolution: {
           disableBuiltinToolFallback: true,
-          permissionGuard: vi.fn(async () => undefined),
+          permissionGuard: mock(async () => undefined),
           context: {
             sessionId: execution.lease.sessionId,
             turnId: execution.lease.turnId,
@@ -445,14 +446,14 @@ function options(
       })),
     },
     fileChanges: {
-      begin: vi.fn(async () => undefined),
-      finalize: vi.fn(async () => undefined),
-      markFailed: vi.fn(async () => undefined),
+      begin: mock(async () => undefined),
+      finalize: mock(async () => undefined),
+      markFailed: mock(async () => undefined),
     },
     attemptRecall: {
-      recallAssistantAttempt: vi.fn(async () => undefined),
+      recallAssistantAttempt: mock(async () => undefined),
     },
-    captureToolTiming: vi.fn(() => true),
+    captureToolTiming: mock(() => true),
   };
 }
 
@@ -510,16 +511,16 @@ function agentReferenceExecutionPreparation(
     new LocalTurnInputPreparer({
       agentReferenceProjection: { resolveAgentReference },
       reminders: {
-        buildBackground: vi.fn(async () => ({
+        buildBackground: mock(async () => ({
           tasks: [],
           undeliveredTotal: 0,
           terminalTotal: 0,
         })),
-        buildSystem: vi.fn(async () => ({ content: "" })),
-        confirmBackgroundTaskReads: vi.fn(async () => []),
+        buildSystem: mock(async () => ({ content: "" })),
+        confirmBackgroundTaskReads: mock(async () => []),
       },
     }),
-    { beforeToolCall: vi.fn(async () => undefined) } as never,
+    { beforeToolCall: mock(async () => undefined) } as never,
   );
 }
 
@@ -592,11 +593,9 @@ describe("LocalRuntimeTurnExecutor", () => {
       },
     ];
     const frozenHandlers = [...handlers];
-    const handlersForTurn = vi
-      .spyOn(localPluginHookCoordinator, "handlersForTurn")
+    const handlersForTurn = spyOn(localPluginHookCoordinator, "handlersForTurn")
       .mockReturnValue(frozenHandlers);
-    const beginTurn = vi
-      .spyOn(localPluginHookCoordinator, "beginTurn")
+    const beginTurn = spyOn(localPluginHookCoordinator, "beginTurn")
       .mockResolvedValue({
         decision: {
           decision: "allow",
@@ -604,23 +603,22 @@ describe("LocalRuntimeTurnExecutor", () => {
         },
         diagnostics: [],
       });
-    const startSubagent = vi
-      .spyOn(localPluginHookCoordinator, "startSubagent")
+    const startSubagent = spyOn(localPluginHookCoordinator, "startSubagent")
       .mockResolvedValue({
         decision: "allow",
         additionalContext: "child context",
       });
-    const resumeIdle = vi.spyOn(
+    const resumeIdle = spyOn(
       localPluginHookCoordinator,
       "resumeIdleCountdown",
     );
-    const bindOwnership = vi.spyOn(
+    const bindOwnership = spyOn(
       localPluginHookCoordinator,
       "bindSessionOwnershipClaim",
     );
-    const clearPluginHookSessionPermissions = vi.fn(async () => undefined);
-    const preparePluginHookSessionOwnership = vi.fn(async () => undefined);
-    const activatePluginHookSessionOwnership = vi.fn(async () => undefined);
+    const clearPluginHookSessionPermissions = mock(async () => undefined);
+    const preparePluginHookSessionOwnership = mock(async () => undefined);
+    const activatePluginHookSessionOwnership = mock(async () => undefined);
     const executorOptions = {
       ...options(async (runInput) => {
         captured = runInput;
@@ -712,28 +710,26 @@ describe("LocalRuntimeTurnExecutor", () => {
   });
 
   it("restores the prior process-local Hook owner when durable activation fails", async () => {
-    const beginTurn = vi
-      .spyOn(localPluginHookCoordinator, "beginTurn")
+    const beginTurn = spyOn(localPluginHookCoordinator, "beginTurn")
       .mockResolvedValue({
         decision: { decision: "allow" },
         diagnostics: [],
       });
-    const bindOwnership = vi
-      .spyOn(localPluginHookCoordinator, "bindSessionOwnershipClaim")
+    const bindOwnership = spyOn(localPluginHookCoordinator, "bindSessionOwnershipClaim")
       .mockReturnValue("previous-claim");
-    const rollbackOwnership = vi.spyOn(
+    const rollbackOwnership = spyOn(
       localPluginHookCoordinator,
       "rollbackSessionOwnershipClaim",
     );
-    const resumeIdle = vi.spyOn(
+    const resumeIdle = spyOn(
       localPluginHookCoordinator,
       "resumeIdleCountdown",
     );
-    const preparePluginHookSessionOwnership = vi.fn(async () => undefined);
-    const activatePluginHookSessionOwnership = vi.fn(async () => {
+    const preparePluginHookSessionOwnership = mock(async () => undefined);
+    const activatePluginHookSessionOwnership = mock(async () => {
       throw new Error("activation CAS failed");
     });
-    const runTurn = vi.fn(async () => undefined);
+    const runTurn = mock(async () => undefined);
     const executorOptions = {
       ...options(runTurn),
       preparePluginHookSessionOwnership,
@@ -769,7 +765,7 @@ describe("LocalRuntimeTurnExecutor", () => {
       timeoutMs: 100,
       declarationOrder: 0,
     };
-    const preparePluginHookSessionOwnership = vi.fn(async () => {
+    const preparePluginHookSessionOwnership = mock(async () => {
       throw new Error("ownership preparation failed");
     });
     const executorOptions = {
@@ -778,7 +774,7 @@ describe("LocalRuntimeTurnExecutor", () => {
         transcriptPath: "/requested/transcript.jsonl",
       }),
       preparePluginHookSessionOwnership,
-      activatePluginHookSessionOwnership: vi.fn(async () => undefined),
+      activatePluginHookSessionOwnership: mock(async () => undefined),
     };
 
     await expect(
@@ -802,19 +798,18 @@ describe("LocalRuntimeTurnExecutor", () => {
 
 describe("LocalRuntimeTurnExecutor Plugin prompt admission", () => {
   it("rejects a prompt denied by a Plugin Hook and still resumes the idle countdown", async () => {
-    const beginTurn = vi
-      .spyOn(localPluginHookCoordinator, "beginTurn")
+    const beginTurn = spyOn(localPluginHookCoordinator, "beginTurn")
       .mockResolvedValue({
         decision: { decision: "deny" },
         diagnostics: [],
       });
-    const resumeIdle = vi.spyOn(
+    const resumeIdle = spyOn(
       localPluginHookCoordinator,
       "resumeIdleCountdown",
     );
-    const runTurn = vi.fn(async () => undefined);
-    const preparePluginHookSessionOwnership = vi.fn(async () => undefined);
-    const activatePluginHookSessionOwnership = vi.fn(async () => undefined);
+    const runTurn = mock(async () => undefined);
+    const preparePluginHookSessionOwnership = mock(async () => undefined);
+    const activatePluginHookSessionOwnership = mock(async () => undefined);
 
     await expect(
       new LocalRuntimeTurnExecutor({
@@ -836,11 +831,11 @@ describe("LocalRuntimeTurnExecutor Bash output capability", () => {
   it.each([true, false])(
     "bounds Bash receipt purpose text (run_in_background=%s)",
     async (runInBackground) => {
-      const startBackground = vi.fn(async (_ctx: unknown, _input: unknown) => ({
+      const startBackground = mock(async (_ctx: unknown, _input: unknown) => ({
         status: "started" as const,
         taskId: "receipt-task",
       }));
-      const runManagedForeground = vi.fn(async (_ctx: unknown, _input: unknown) => ({
+      const runManagedForeground = mock(async (_ctx: unknown, _input: unknown) => ({
         status: "auto_promoted" as const,
         taskId: "receipt-task",
       }));
@@ -934,15 +929,15 @@ describe("LocalRuntimeTurnExecutor Bash output capability", () => {
         undefined,
         definition?.capabilityOverride,
       );
-      const runManagedForeground = vi.fn(async () => ({
+      const runManagedForeground = mock(async () => ({
         status: "auto_promoted" as const,
         taskId: "managed-task",
       }));
-      const startBackground = vi.fn(async () => ({
+      const startBackground = mock(async () => ({
         status: "started" as const,
         taskId: "background-task",
       }));
-      const direct = vi.fn<
+      const direct = mock<
         ReturnType<LocalSandboxBashOperationsFactory["create"]>["exec"]
       >(async (_command, _cwd, opts) => {
         opts.onData(Buffer.from("foreground output"));
@@ -1067,7 +1062,7 @@ describe("LocalRuntimeTurnExecutor Bash output capability", () => {
     "allows explicit background Bash only for trusted native output provenance: $source",
     async ({ source, allowed }) => {
       const input = executionInput();
-      const startBackground = vi.fn(async () => ({
+      const startBackground = mock(async () => ({
         status: "started" as const,
         taskId: "background-task",
       }));
@@ -1146,7 +1141,7 @@ describe("LocalRuntimeTurnExecutor", () => {
         description: "Fixture tool",
         schema: { type: "object", properties: { value: { type: "string" } } },
       },
-      impl: { execute: vi.fn() },
+      impl: { execute: mock() },
     } as never;
     const captures: LocalRuntimeTurnRunnerInput<LocalToolContext>[] = [];
     const runner = new LocalRuntimeTurnExecutor(
@@ -1231,7 +1226,7 @@ describe("LocalRuntimeTurnExecutor", () => {
     let captured: LocalRuntimeTurnRunnerInput<LocalToolContext> | undefined;
     const tool = {
       def: { name: "read", description: "Read", schema: { type: "object" } },
-      impl: { execute: vi.fn() },
+      impl: { execute: mock() },
     } as never;
     const runner = new LocalRuntimeTurnExecutor(
       options(async (runInput) => {
@@ -1268,7 +1263,7 @@ describe("LocalRuntimeTurnExecutor", () => {
   it("projects runtime events before they reach the v2 commit pipeline", async () => {
     const delivered: string[] = [];
     const input = executionInput({
-      onRuntimeEvent: vi.fn(async (event) => {
+      onRuntimeEvent: mock(async (event) => {
         delivered.push(event.event_id);
       }),
     });
@@ -1283,7 +1278,7 @@ describe("LocalRuntimeTurnExecutor", () => {
         terminalEvent(RuntimeEventStatus.COMPLETED),
       ]);
     });
-    const projectRuntimeEvent = vi.fn(
+    const projectRuntimeEvent = mock(
       async ({ event }: { readonly event: RuntimeEvent }) =>
         event.event_id === "candidate-xml-chunk" ? undefined : event,
     );
@@ -1309,10 +1304,10 @@ describe("LocalRuntimeTurnExecutor", () => {
     let captured: LocalRuntimeTurnRunnerInput<LocalToolContext> | undefined;
     const order: string[] = [];
     const input = executionInput({
-      onRuntimeEvent: vi.fn(async (event) => {
+      onRuntimeEvent: mock(async (event) => {
         order.push(`event:${event.event_id}`);
       }),
-      onHistoryChanged: vi.fn(async () => {
+      onHistoryChanged: mock(async () => {
         await Promise.resolve();
         order.push("history");
       }),
@@ -1386,7 +1381,7 @@ describe("LocalRuntimeTurnExecutor runtime contracts", () => {
   it("starts continuation with the selected canonical provider history", async () => {
     let captured: LocalRuntimeTurnRunnerInput<LocalToolContext> | undefined;
     const history = agentReferenceText("unfinished work");
-    const resolveAgentReference = vi.fn(async () => "authorized" as const);
+    const resolveAgentReference = mock(async () => "authorized" as const);
     const runner = new LocalRuntimeTurnExecutor({
       ...options(async (runInput) => {
         captured = runInput;
@@ -1452,22 +1447,22 @@ describe("LocalRuntimeTurnExecutor runtime contracts", () => {
         terminalEvent(RuntimeEventStatus.COMPLETED),
       );
     });
-    vi.mocked(executorOptions.executionPreparation.prepare).mockImplementation(
+    mocked(executorOptions.executionPreparation.prepare).mockImplementation(
       async ({ execution }) => ({
         promptText:
           '<deployed-website-context>{"node_id":"node-1","source_path":"/workspace/source"}</deployed-website-context>',
         userMessage: {},
         caller: "chat",
         reminderBlocks: [],
-        loadBackgroundReminder: vi.fn(async () => ({
+        loadBackgroundReminder: mock(async () => ({
           tasks: [],
           undeliveredTotal: 0,
           terminalTotal: 0,
         })),
-        confirmBackgroundTaskReads: vi.fn(async () => undefined),
+        confirmBackgroundTaskReads: mock(async () => undefined),
         toolResolution: {
           disableBuiltinToolFallback: true,
-          permissionGuard: vi.fn(async () => undefined),
+          permissionGuard: mock(async () => undefined),
           context: {
             sessionId: execution.lease.sessionId,
             turnId: execution.lease.turnId,
@@ -1505,7 +1500,7 @@ describe("LocalRuntimeTurnExecutor Agent reference canonical history", () => {
   it("projects current references once and keeps committed history unchanged", async () => {
     const current = agentReferenceText("fix current");
     const history = agentReferenceText("fix history");
-    const resolveAgentReference = vi.fn(async () => "authorized" as const);
+    const resolveAgentReference = mock(async () => "authorized" as const);
     let captured: LocalRuntimeTurnRunnerInput<LocalToolContext> | undefined;
     let initialHookInput: PiBeforeLlmCallHookInput | undefined;
     const executor = new LocalRuntimeTurnExecutor({
@@ -1519,7 +1514,7 @@ describe("LocalRuntimeTurnExecutor Agent reference canonical history", () => {
         resolveAgentReference,
       ),
       backgroundCadenceReminder: {
-        prepare: vi.fn(async ({ hookInput }) => {
+        prepare: mock(async ({ hookInput }) => {
           initialHookInput = hookInput;
           return { beforeUserMessages: [], hook: async () => undefined };
         }),
@@ -1582,7 +1577,7 @@ describe("LocalRuntimeTurnExecutor Agent reference canonical history", () => {
     async (_label, agentProfile) => {
       const current = agentReferenceText("fix current");
       const history = agentReferenceText("fix history");
-      const resolveAgentReference = vi.fn(async () => "authorized" as const);
+      const resolveAgentReference = mock(async () => "authorized" as const);
       let captured: LocalRuntimeTurnRunnerInput<LocalToolContext> | undefined;
       const executor = new LocalRuntimeTurnExecutor({
         ...options(async (runInput) => {
@@ -1629,7 +1624,7 @@ describe("LocalRuntimeTurnExecutor Agent reference canonical history", () => {
     async (_label, resolution, reference) => {
       const current = agentReferenceText("fix current", reference);
       const history = agentReferenceText("fix history", reference);
-      const resolveAgentReference = vi.fn(async () => resolution);
+      const resolveAgentReference = mock(async () => resolution);
       let captured: LocalRuntimeTurnRunnerInput<LocalToolContext> | undefined;
       const executor = new LocalRuntimeTurnExecutor({
         ...options(async (runInput) => {
@@ -1709,7 +1704,7 @@ describe("LocalRuntimeTurnExecutor structured output", () => {
 
   it("rejects json_object for an OpenAI-compatible model without an explicit capability", async () => {
     const baseInput = executionInput();
-    const runTurn = vi.fn(async () => undefined);
+    const runTurn = mock(async () => undefined);
     const input = executionInput({
       request: {
         ...baseInput.request,
@@ -1787,7 +1782,7 @@ describe("LocalRuntimeTurnExecutor structured output", () => {
 
   it("rejects an unsupported output contract before invoking the Turn runtime", async () => {
     const baseInput = executionInput();
-    const runTurn = vi.fn(async () => undefined);
+    const runTurn = mock(async () => undefined);
     const input = executionInput({
       request: {
         ...baseInput.request,
@@ -1820,7 +1815,7 @@ describe("LocalRuntimeTurnExecutor structured output", () => {
 
 describe("LocalRuntimeTurnExecutor File API", () => {
   it("binds the native Session upload store and turn cancellation to the final payload", async () => {
-    const fetchImpl = vi.fn(
+    const fetchImpl = mock(
       async () =>
         new Response(
           JSON.stringify({
@@ -1830,8 +1825,8 @@ describe("LocalRuntimeTurnExecutor File API", () => {
           { status: 200 },
         ),
     );
-    const get = vi.fn(() => undefined);
-    const set = vi.fn(() => undefined);
+    const get = mock(() => undefined);
+    const set = mock(() => undefined);
     const base = executionInput();
     const input = executionInput({
       preparation: {
@@ -2073,10 +2068,10 @@ describe("LocalRuntimeTurnExecutor user query provenance", () => {
 describe("LocalRuntimeTurnExecutor live control", () => {
   it("creates one isolated tool safety guard for the admitted Turn", async () => {
     const guard = {
-      beforeToolCall: vi.fn(() => undefined),
-      afterToolCall: vi.fn(() => undefined),
+      beforeToolCall: mock(() => undefined),
+      afterToolCall: mock(() => undefined),
     };
-    const createTurnToolSafetyGuard = vi.fn(() => guard);
+    const createTurnToolSafetyGuard = mock(() => guard);
     const executorOptions = {
       ...options(async (runInput) => {
         const beforeToolCall = runInput.hooks?.beforeToolCallHook?.[0];
@@ -2124,26 +2119,26 @@ describe("LocalRuntimeTurnExecutor live control", () => {
         );
       }),
       toolPolicyGuard: {
-        beforeToolCall: vi.fn(async () => {
+        beforeToolCall: mock(async () => {
           order.push("plan");
           return undefined;
         }),
       },
     };
-    vi.mocked(executorOptions.executionPreparation.prepare).mockImplementation(
+    mocked(executorOptions.executionPreparation.prepare).mockImplementation(
       async ({ execution }) => ({
         userMessage: {},
         caller: "chat",
         reminderBlocks: [],
-        loadBackgroundReminder: vi.fn(async () => ({
+        loadBackgroundReminder: mock(async () => ({
           tasks: [],
           undeliveredTotal: 0,
           terminalTotal: 0,
         })),
-        confirmBackgroundTaskReads: vi.fn(async () => undefined),
+        confirmBackgroundTaskReads: mock(async () => undefined),
         toolResolution: {
           disableBuiltinToolFallback: true,
-          permissionGuard: vi.fn(async () => {
+          permissionGuard: mock(async () => {
             order.push("permission");
             return undefined;
           }),
@@ -2156,7 +2151,7 @@ describe("LocalRuntimeTurnExecutor live control", () => {
       }),
     );
     const base = executionInput();
-    const userHook = vi.fn(async () => {
+    const userHook = mock(async () => {
       order.push("user-hook");
       return undefined;
     });
@@ -2306,15 +2301,15 @@ describe("LocalRuntimeTurnExecutor video generation tool execution", () => {
     async ({ mode, toolName, args }) => {
       const order: string[] = [];
       let decision: unknown;
-      const permissionGuard = vi.fn(async () => {
+      const permissionGuard = mock(async () => {
         order.push("permission");
         return undefined;
       });
-      const extensionHook = vi.fn(async () => {
+      const extensionHook = mock(async () => {
         order.push("extension");
         return undefined;
       });
-      const toolPolicyGuard = vi.fn(async () => {
+      const toolPolicyGuard = mock(async () => {
         order.push("plan");
         return undefined;
       });
@@ -2340,18 +2335,18 @@ describe("LocalRuntimeTurnExecutor video generation tool execution", () => {
         }),
         toolPolicyGuard: { beforeToolCall: toolPolicyGuard },
       };
-      vi.mocked(
+      mocked(
         executorOptions.executionPreparation.prepare,
       ).mockImplementation(async ({ execution }) => ({
         userMessage: {},
         caller: "chat",
         reminderBlocks: [],
-        loadBackgroundReminder: vi.fn(async () => ({
+        loadBackgroundReminder: mock(async () => ({
           tasks: [],
           undeliveredTotal: 0,
           terminalTotal: 0,
         })),
-        confirmBackgroundTaskReads: vi.fn(async () => undefined),
+        confirmBackgroundTaskReads: mock(async () => undefined),
         toolResolution: {
           disableBuiltinToolFallback: true,
           permissionGuard,
@@ -2395,7 +2390,7 @@ describe("LocalRuntimeTurnExecutor live message control", () => {
     let captured: LocalRuntimeTurnRunnerInput<LocalToolContext> | undefined;
     const query = "review the attached report";
     const preparedText = `<system-reminder>attachment facts</system-reminder>\n\n${query}`;
-    const prepareSteering = vi.fn(async () => ({
+    const prepareSteering = mock(async () => ({
       userMessage: { text: preparedText },
       genuineUserQueryText: query,
     }));
@@ -2405,21 +2400,21 @@ describe("LocalRuntimeTurnExecutor live message control", () => {
         terminalEvent(RuntimeEventStatus.COMPLETED),
       );
     });
-    vi.mocked(executorOptions.executionPreparation.prepare).mockImplementation(
+    mocked(executorOptions.executionPreparation.prepare).mockImplementation(
       async ({ execution }) => ({
         userMessage: {},
         caller: "chat",
         reminderBlocks: [],
-        loadBackgroundReminder: vi.fn(async () => ({
+        loadBackgroundReminder: mock(async () => ({
           tasks: [],
           undeliveredTotal: 0,
           terminalTotal: 0,
         })),
-        confirmBackgroundTaskReads: vi.fn(async () => undefined),
+        confirmBackgroundTaskReads: mock(async () => undefined),
         prepareSteering,
         toolResolution: {
           disableBuiltinToolFallback: true,
-          permissionGuard: vi.fn(async () => undefined),
+          permissionGuard: mock(async () => undefined),
           context: {
             sessionId: execution.lease.sessionId,
             turnId: execution.lease.turnId,
@@ -2444,7 +2439,7 @@ describe("LocalRuntimeTurnExecutor live message control", () => {
       executionInput({
         control: {
           ...base.control,
-          drainSteering: vi.fn(() => [steering]),
+          drainSteering: mock(() => [steering]),
         },
       }),
     );
@@ -2485,9 +2480,9 @@ describe("LocalRuntimeTurnExecutor exit-boundary steering", () => {
 
   async function runWithSteering(buffer: readonly unknown[]) {
     let captured: LocalRuntimeTurnRunnerInput<LocalToolContext> | undefined;
-    const onSteeringConsumed = vi.fn(async () => undefined);
-    const restoreSteering = vi.fn();
-    const ackSteering = vi.fn();
+    const onSteeringConsumed = mock(async () => undefined);
+    const restoreSteering = mock();
+    const ackSteering = mock();
     const executorOptions = {
       ...options(async (runInput) => {
         captured = runInput;
@@ -2502,7 +2497,7 @@ describe("LocalRuntimeTurnExecutor exit-boundary steering", () => {
       executionInput({
         control: {
           ...base.control,
-          drainSteering: vi.fn(() => [...buffer] as never),
+          drainSteering: mock(() => [...buffer] as never),
           restoreSteering,
           ackSteering,
         },
@@ -2583,9 +2578,9 @@ describe("LocalRuntimeTurnExecutor live message control", () => {
       };
     let captured: ControlAwareRunnerInput | undefined;
     let afterToolDecision: unknown;
-    const permissionGuard = vi.fn(async () => undefined);
-    const onSteeringConsumed = vi.fn(async () => undefined);
-    const registerCanonicalUserMessageIds = vi.fn();
+    const permissionGuard = mock(async () => undefined);
+    const onSteeringConsumed = mock(async () => undefined);
+    const registerCanonicalUserMessageIds = mock();
     const executorOptions = {
       ...options(async (runInput) => {
         captured = runInput;
@@ -2632,17 +2627,17 @@ describe("LocalRuntimeTurnExecutor live message control", () => {
       }),
       onSteeringConsumed,
     };
-    vi.mocked(executorOptions.executionPreparation.prepare).mockImplementation(
+    mocked(executorOptions.executionPreparation.prepare).mockImplementation(
       async ({ execution }) => ({
         userMessage: {},
         caller: "chat",
         reminderBlocks: [],
-        loadBackgroundReminder: vi.fn(async () => ({
+        loadBackgroundReminder: mock(async () => ({
           tasks: [],
           undeliveredTotal: 0,
           terminalTotal: 0,
         })),
-        confirmBackgroundTaskReads: vi.fn(async () => undefined),
+        confirmBackgroundTaskReads: mock(async () => undefined),
         toolResolution: {
           disableBuiltinToolFallback: true,
           permissionGuard,
@@ -2654,7 +2649,7 @@ describe("LocalRuntimeTurnExecutor live message control", () => {
         },
       }),
     );
-    const drainSteering = vi.fn(() => [
+    const drainSteering = mock(() => [
       {
         producerId: "test",
         idempotencyKey: "steering-1",
@@ -2667,7 +2662,7 @@ describe("LocalRuntimeTurnExecutor live message control", () => {
         },
       },
     ]);
-    const closeAndClaimToolResultTail = vi.fn(() => [
+    const closeAndClaimToolResultTail = mock(() => [
       {
         producerId: "test",
         idempotencyKey: "tail-1",
@@ -2679,11 +2674,11 @@ describe("LocalRuntimeTurnExecutor live message control", () => {
         },
       },
     ]);
-    const ackToolResultTail = vi.fn();
-    const ackSteering = vi.fn();
-    const restoreSteering = vi.fn();
-    const openToolResultTail = vi.fn(() => true);
-    const tryBeginClose = vi.fn(
+    const ackToolResultTail = mock();
+    const ackSteering = mock();
+    const restoreSteering = mock();
+    const openToolResultTail = mock(() => true);
+    const tryBeginClose = mock(
       (): AgentHostCloseResult => ({ closed: false, reason: "steer-pending" }),
     );
     const input = executionInput({
@@ -2696,7 +2691,7 @@ describe("LocalRuntimeTurnExecutor live message control", () => {
               description: "runtime tool",
               schema: { type: "object", properties: {} },
             },
-            impl: { execute: vi.fn() },
+            impl: { execute: mock() },
           } as never,
         ],
       },
@@ -2771,7 +2766,7 @@ describe("LocalRuntimeTurnExecutor live message recovery", () => {
       );
     });
     const claim = { ...members[0]!, batchMembers: members.slice(0, 2) };
-    const ackSteering = vi.fn();
+    const ackSteering = mock();
     await new LocalRuntimeTurnExecutor(opts).execute(
       executionInput({
         control: {
@@ -2809,10 +2804,9 @@ describe("LocalRuntimeTurnExecutor live message recovery", () => {
       genuineUserQueryText: text,
       provenance: { source: "api" as const, routingFingerprint: `api:${text}` },
     }));
-    const ackSteering = vi.fn();
-    const restoreSteering = vi.fn();
-    const consumed = vi
-      .fn()
+    const ackSteering = mock();
+    const restoreSteering = mock();
+    const consumed = mock()
       .mockResolvedValueOnce(undefined)
       .mockRejectedValueOnce(new Error("B failed"));
     const opts = {
@@ -2850,7 +2844,7 @@ describe("LocalRuntimeTurnExecutor live message recovery", () => {
           terminalEvent(RuntimeEventStatus.COMPLETED),
         );
       }),
-      onSteeringConsumed: vi.fn(async () => {
+      onSteeringConsumed: mock(async () => {
         throw new Error("message commit failed");
       }),
     };
@@ -2864,12 +2858,12 @@ describe("LocalRuntimeTurnExecutor live message recovery", () => {
         routingFingerprint: "communication:message-1",
       },
     } as const;
-    const ackSteering = vi.fn();
-    const restoreSteering = vi.fn();
+    const ackSteering = mock();
+    const restoreSteering = mock();
     const input = executionInput({
       control: {
         ...executionInput().control,
-        drainSteering: vi.fn(() => [steering]),
+        drainSteering: mock(() => [steering]),
         ackSteering,
         restoreSteering,
       },
@@ -2918,12 +2912,11 @@ describe("LocalRuntimeTurnExecutor Plugin lifecycle hooks", () => {
       idempotencyKey: "accepted",
       message: { text: "accepted first" },
     };
-    const restoreSteering = vi.fn();
-    const ackSteering = vi.fn();
-    const onSteeringConsumed = vi.fn(async () => undefined);
+    const restoreSteering = mock();
+    const ackSteering = mock();
+    const onSteeringConsumed = mock(async () => undefined);
     const runtimeEvents: RuntimeEvent[] = [];
-    const runEvent = vi
-      .spyOn(localPluginHookCoordinator, "runEvent")
+    const runEvent = spyOn(localPluginHookCoordinator, "runEvent")
       .mockResolvedValueOnce({
         decision: { decision: "allow" },
         diagnostics: [],
@@ -2967,7 +2960,7 @@ describe("LocalRuntimeTurnExecutor Plugin lifecycle hooks", () => {
         },
         control: {
           ...base.control,
-          drainSteering: vi.fn(() => [accepted, stopped, later]),
+          drainSteering: mock(() => [accepted, stopped, later]),
           restoreSteering,
           ackSteering,
         },
@@ -2990,8 +2983,7 @@ describe("LocalRuntimeTurnExecutor Plugin lifecycle closure hooks", () => {
   it("applies UserPromptSubmit and Stop Hook decisions to live steering and turn closure", async () => {
     let captured: LocalRuntimeTurnRunnerInput<LocalToolContext> | undefined;
     let promptAttempt = 0;
-    const runEvent = vi
-      .spyOn(localPluginHookCoordinator, "runEvent")
+    const runEvent = spyOn(localPluginHookCoordinator, "runEvent")
       .mockImplementation(async (_handlers, event) => {
         if (event.event !== "UserPromptSubmit") {
           return { decision: { decision: "allow" }, diagnostics: [] };
@@ -3007,8 +2999,7 @@ describe("LocalRuntimeTurnExecutor Plugin lifecycle closure hooks", () => {
               diagnostics: [],
             };
       });
-    const finishTurn = vi
-      .spyOn(localPluginHookCoordinator, "finishTurn")
+    const finishTurn = spyOn(localPluginHookCoordinator, "finishTurn")
       .mockResolvedValueOnce({
         decision: {
           decision: "allow",
@@ -3028,7 +3019,7 @@ describe("LocalRuntimeTurnExecutor Plugin lifecycle closure hooks", () => {
         decision: { decision: "allow" },
         diagnostics: [],
       });
-    const completeTurn = vi.spyOn(localPluginHookCoordinator, "completeTurn");
+    const completeTurn = spyOn(localPluginHookCoordinator, "completeTurn");
     const executorOptions = options(async (runInput) => {
       captured = runInput;
       await runInput.eventWriter.pushRuntime(
@@ -3057,11 +3048,10 @@ describe("LocalRuntimeTurnExecutor Plugin lifecycle closure hooks", () => {
         routingFingerprint: "communication:accepted",
       },
     } as const;
-    const drainSteering = vi
-      .fn()
+    const drainSteering = mock()
       .mockReturnValueOnce([denied, accepted])
       .mockReturnValue([]);
-    const registerCanonicalUserMessageIds = vi.fn();
+    const registerCanonicalUserMessageIds = mock();
     const runtimeEvents: RuntimeEvent[] = [];
     const base = executionInput();
 
@@ -3119,13 +3109,12 @@ describe("LocalRuntimeTurnExecutor Plugin lifecycle closure hooks", () => {
 
   it("forces turn closure after at most eight consecutive Stop Hook continuations", async () => {
     let captured: LocalRuntimeTurnRunnerInput<LocalToolContext> | undefined;
-    const finishTurn = vi
-      .spyOn(localPluginHookCoordinator, "finishTurn")
+    const finishTurn = spyOn(localPluginHookCoordinator, "finishTurn")
       .mockResolvedValue({
         decision: { decision: "allow", continuePrompt: "continue again" },
         diagnostics: [],
       });
-    const completeTurn = vi.spyOn(localPluginHookCoordinator, "completeTurn");
+    const completeTurn = spyOn(localPluginHookCoordinator, "completeTurn");
     const executor = new LocalRuntimeTurnExecutor(
       options(async (runInput) => {
         captured = runInput;
@@ -3168,8 +3157,7 @@ describe("LocalRuntimeTurnExecutor Plugin lifecycle closure hooks", () => {
 
 describe("LocalRuntimeTurnExecutor after-tool hooks", () => {
   it("fails closed when a Compatible PreToolUse Hook requests unsupported deferred execution", async () => {
-    const runEvent = vi
-      .spyOn(localPluginHookCoordinator, "runEvent")
+    const runEvent = spyOn(localPluginHookCoordinator, "runEvent")
       .mockResolvedValue({
         decision: {
           decision: "defer",
@@ -3228,8 +3216,7 @@ describe("LocalRuntimeTurnExecutor after-tool hooks", () => {
 describe("LocalRuntimeTurnExecutor Plugin tool-boundary decisions", () => {
   it("applies Plugin Hook input, approval, denial, and result decisions at the tool boundary", async () => {
     let preToolAttempt = 0;
-    const runEvent = vi
-      .spyOn(localPluginHookCoordinator, "runEvent")
+    const runEvent = spyOn(localPluginHookCoordinator, "runEvent")
       .mockImplementation(async (_handlers, event) => {
         if (event.event === "PreToolUse") {
           preToolAttempt += 1;
@@ -3273,7 +3260,7 @@ describe("LocalRuntimeTurnExecutor Plugin tool-boundary decisions", () => {
       string,
       { readonly behavior: "allow" | "ask"; readonly reason?: string }
     >();
-    const permissionGuard = vi.fn(async (context) => {
+    const permissionGuard = mock(async (context) => {
       if (context.toolCall.id === "tool-call-a") {
         expect(approvals.get("tool-call-a")).toEqual({
           behavior: "ask",
@@ -3282,8 +3269,7 @@ describe("LocalRuntimeTurnExecutor Plugin tool-boundary decisions", () => {
       }
       return undefined;
     });
-    const openToolResultTail = vi
-      .fn()
+    const openToolResultTail = mock()
       .mockReturnValueOnce(true)
       .mockReturnValueOnce(false);
     let afterToolDecision: unknown;
@@ -3338,12 +3324,12 @@ describe("LocalRuntimeTurnExecutor Plugin tool-boundary decisions", () => {
         terminalEvent(RuntimeEventStatus.COMPLETED),
       );
     });
-    vi.mocked(executorOptions.executionPreparation.prepare).mockImplementation(
+    mocked(executorOptions.executionPreparation.prepare).mockImplementation(
       async ({ execution }) => ({
         userMessage: {},
         caller: "chat",
         reminderBlocks: [],
-        loadBackgroundReminder: vi.fn(async () => ({
+        loadBackgroundReminder: mock(async () => ({
           tasks: [],
           undeliveredTotal: 0,
           terminalTotal: 0,
@@ -3398,7 +3384,7 @@ describe("LocalRuntimeTurnExecutor Plugin tool-boundary decisions", () => {
                 { additionalProperties: false },
               ),
             },
-            impl: { execute: vi.fn() },
+            impl: { execute: mock() },
           } as never,
         ],
       },
@@ -3428,8 +3414,7 @@ describe("LocalRuntimeTurnExecutor Codex after-tool hooks", () => {
     let hookInput:
       | Parameters<typeof localPluginHookCoordinator.runEvent>[1]
       | undefined;
-    const runEvent = vi
-      .spyOn(localPluginHookCoordinator, "runEvent")
+    const runEvent = spyOn(localPluginHookCoordinator, "runEvent")
       .mockImplementation(async (_handlers, input) => {
         hookInput = input;
         return {
@@ -3468,7 +3453,7 @@ describe("LocalRuntimeTurnExecutor Codex after-tool hooks", () => {
           hooks: {
             ...base.assembly.hooks,
             afterToolCallHook: [
-              vi.fn(async () => ({
+              mock(async () => ({
                 content: [
                   { type: "text" as const, text: "normalized tool output" },
                 ],
@@ -3515,8 +3500,7 @@ describe("LocalRuntimeTurnExecutor Codex after-tool hooks", () => {
     let hookInput:
       | Parameters<typeof localPluginHookCoordinator.runEvent>[1]
       | undefined;
-    const runEvent = vi
-      .spyOn(localPluginHookCoordinator, "runEvent")
+    const runEvent = spyOn(localPluginHookCoordinator, "runEvent")
       .mockImplementation(async (_handlers, input) => {
         hookInput = input;
         return { decision: { decision: "allow" }, diagnostics: [] };
@@ -3594,8 +3578,7 @@ describe("LocalRuntimeTurnExecutor mixed after-tool compatibility", () => {
       input: Parameters<typeof localPluginHookCoordinator.runEvent>[1];
       result: Awaited<ReturnType<typeof localPluginHookCoordinator.runEvent>>;
     }> = [];
-    const runEvent = vi
-      .spyOn(localPluginHookCoordinator, "runEvent")
+    const runEvent = spyOn(localPluginHookCoordinator, "runEvent")
       .mockImplementation(async (handlers, input, signal) => {
         const result = await realRunEvent(handlers, input, signal);
         hookRuns.push({ input, result });
@@ -3679,14 +3662,17 @@ describe("LocalRuntimeTurnExecutor mixed after-tool compatibility", () => {
         code: "ENOENT",
       });
       const codexInput = JSON.parse(await readFile(codexCapture, "utf8"));
+      // `toMatchObject` writes the matcher instance into the object it asserts
+      // on, so the command is read before the assertion replaces it.
+      const command = codexInput.tool_input.command;
       expect(codexInput).toMatchObject({
         hook_event_name: "PostToolUse",
         tool_name: "apply_patch",
         tool_input: { command: expect.any(String) },
         tool_response: "Successfully wrote result.txt",
       });
-      expect(codexInput.tool_input.command).toContain("result.txt");
-      expect(codexInput.tool_input.command).toContain("+done");
+      expect(command).toContain("result.txt");
+      expect(command).toContain("+done");
     } finally {
       runEvent.mockRestore();
       await rm(root, { recursive: true, force: true });
@@ -3694,7 +3680,7 @@ describe("LocalRuntimeTurnExecutor mixed after-tool compatibility", () => {
   });
 
   it("triggers Codex but not Compatible PostToolUse for transport or details.ok=false failures", async () => {
-    const runEvent = vi.spyOn(localPluginHookCoordinator, "runEvent");
+    const runEvent = spyOn(localPluginHookCoordinator, "runEvent");
     const afterToolDecisions: unknown[] = [];
     const executor = new LocalRuntimeTurnExecutor(
       options(async (runInput) => {
@@ -3775,8 +3761,7 @@ describe("LocalRuntimeTurnExecutor mixed after-tool compatibility", () => {
 
 describe("LocalRuntimeTurnExecutor after-tool context and ordering", () => {
   it("keeps Plugin Hook context when a background tool-result tail is appended", async () => {
-    const runEvent = vi
-      .spyOn(localPluginHookCoordinator, "runEvent")
+    const runEvent = spyOn(localPluginHookCoordinator, "runEvent")
       .mockImplementation(async (_handlers, input) => ({
         decision: {
           decision: "allow",
@@ -3816,7 +3801,7 @@ describe("LocalRuntimeTurnExecutor after-tool context and ordering", () => {
           ],
           control: {
             ...base.control,
-            closeAndClaimToolResultTail: vi.fn(() => [
+            closeAndClaimToolResultTail: mock(() => [
               {
                 producerId: "test",
                 idempotencyKey: "tail",
@@ -3851,8 +3836,8 @@ describe("LocalRuntimeTurnExecutor after-tool context and ordering", () => {
       content: [{ type: "text" as const, text: "approved by first hook" }],
       details: { approved: true },
     };
-    const secondHookContext = vi.fn();
-    const closeAndClaimToolResultTail = vi.fn(() => []);
+    const secondHookContext = mock();
+    const closeAndClaimToolResultTail = mock(() => []);
     let afterToolDecision: unknown;
     const executorOptions = options(async (runInput) => {
       const afterToolHook = runInput.hooks?.afterToolCallHook?.[0];
@@ -3864,7 +3849,7 @@ describe("LocalRuntimeTurnExecutor after-tool context and ordering", () => {
         terminalEvent(RuntimeEventStatus.COMPLETED),
       );
     });
-    const firstAfterHook = vi.fn(
+    const firstAfterHook = mock(
       (
         context: Parameters<
           NonNullable<AssemblyResult["hooks"]["afterToolCallHook"]>[number]
@@ -3884,7 +3869,7 @@ describe("LocalRuntimeTurnExecutor after-tool context and ordering", () => {
         return firstPatch;
       },
     );
-    const secondAfterHook = vi.fn(
+    const secondAfterHook = mock(
       async (
         context: Parameters<
           NonNullable<AssemblyResult["hooks"]["afterToolCallHook"]>[number]
@@ -4169,7 +4154,7 @@ describe("LocalRuntimeTurnExecutor input and tool safety", () => {
 
   it("omits input review and its resolution callback for a hidden continuation", async () => {
     let captured: LocalRuntimeTurnRunnerInput<LocalToolContext> | undefined;
-    const onInputReviewResolved = vi.fn();
+    const onInputReviewResolved = mock();
     const executorOptions = {
       ...options(async (runInput) => {
         captured = runInput;
@@ -4193,7 +4178,7 @@ describe("LocalRuntimeTurnExecutor input and tool safety", () => {
   });
 
   it("reports an approved visible input with canonical text for deferred title generation", async () => {
-    const onInputReviewResolved = vi.fn();
+    const onInputReviewResolved = mock();
     const executorOptions = {
       ...options(async (runInput) => {
         runInput.onInputReviewResolved?.(false);
@@ -4217,8 +4202,8 @@ describe("LocalRuntimeTurnExecutor input and tool safety", () => {
   });
 
   it("applies the host tool-disable safety switch before extension and permission hooks", async () => {
-    const extensionHook = vi.fn(async () => undefined);
-    const permissionGuard = vi.fn(async () => undefined);
+    const extensionHook = mock(async () => undefined);
+    const permissionGuard = mock(async () => undefined);
     let decision: unknown;
     const executorOptions = {
       ...options(async (runInput) => {
@@ -4238,17 +4223,17 @@ describe("LocalRuntimeTurnExecutor input and tool safety", () => {
       }),
       disableTools: true,
     };
-    vi.mocked(executorOptions.executionPreparation.prepare).mockImplementation(
+    mocked(executorOptions.executionPreparation.prepare).mockImplementation(
       async ({ execution }) => ({
         userMessage: {},
         caller: "chat",
         reminderBlocks: [],
-        loadBackgroundReminder: vi.fn(async () => ({
+        loadBackgroundReminder: mock(async () => ({
           tasks: [],
           undeliveredTotal: 0,
           terminalTotal: 0,
         })),
-        confirmBackgroundTaskReads: vi.fn(async () => undefined),
+        confirmBackgroundTaskReads: mock(async () => undefined),
         toolResolution: {
           disableBuiltinToolFallback: true,
           permissionGuard,
@@ -4339,7 +4324,7 @@ describe("LocalRuntimeTurnExecutor session id reminder context", () => {
   ] as const)(
     "tells the system reminder whether the session id is in context: %s",
     async (_label, history, expected) => {
-      const buildSystem = vi.fn(async () => ({ content: "" }));
+      const buildSystem = mock(async () => ({ content: "" }));
       const base = executionInput();
       const sessionId = base.session.sessionId;
       await new LocalRuntimeTurnExecutor({
@@ -4351,16 +4336,16 @@ describe("LocalRuntimeTurnExecutor session id reminder context", () => {
         executionPreparation: new NativeLocalTurnExecutionPreparationSource(
           new LocalTurnInputPreparer({
             reminders: {
-              buildBackground: vi.fn(async () => ({
+              buildBackground: mock(async () => ({
                 tasks: [],
                 undeliveredTotal: 0,
                 terminalTotal: 0,
               })),
               buildSystem,
-              confirmBackgroundTaskReads: vi.fn(async () => []),
+              confirmBackgroundTaskReads: mock(async () => []),
             },
           }),
-          { beforeToolCall: vi.fn(async () => undefined) } as never,
+          { beforeToolCall: mock(async () => undefined) } as never,
         ),
       }).execute(
         executionInput({
@@ -4534,8 +4519,8 @@ describe("LocalRuntimeTurnExecutor execution budget reminders", () => {
 
   it("samples budget context while preserving existing request observers", async () => {
     let nowMs = 1_000;
-    const existingObserver = vi.fn();
-    const logger = { info: vi.fn() };
+    const existingObserver = mock();
+    const logger = { info: mock() };
     const executorOptions = options(async (runInput) => {
       const messages = [
         { role: "user" as const, content: "hello", timestamp: 1 },
@@ -4647,7 +4632,7 @@ describe("LocalRuntimeTurnExecutor execution budget reminders", () => {
     // budget reminder registered after it would be silently skipped for every
     // request where the background reminder fires. The relative order is the
     // only thing keeping the request-only reminder observable.
-    const backgroundHook = vi.fn(() => undefined);
+    const backgroundHook = mock(() => undefined);
     const executorOptions = options(async (runInput) => {
       const messages = [
         { role: "user" as const, content: "hello", timestamp: 1 },
@@ -4714,7 +4699,7 @@ describe("LocalRuntimeTurnExecutor budget with durable reminders", () => {
         display: false as const,
         timestamp: 2,
       };
-      const backgroundHook = vi.fn(() => ({
+      const backgroundHook = mock(() => ({
         type: "appendMessage" as const,
         reason: "background_cadence",
         message: marker,
@@ -4743,8 +4728,8 @@ describe("LocalRuntimeTurnExecutor budget with durable reminders", () => {
           };
         },
       });
-      const laterHook = vi.fn(replacement);
-      const canAppend = vi.fn((hookInput: PiBeforeLlmCallHookInput) => {
+      const laterHook = mock(replacement);
+      const canAppend = mock((hookInput: PiBeforeLlmCallHookInput) => {
         // The request-only reminder runs before the appending background
         // reminder and before any post-commit callback, so it samples the
         // pre-append request view.
@@ -4836,7 +4821,7 @@ describe("LocalRuntimeTurnExecutor budget with durable reminders", () => {
       expect(canAppend).toHaveBeenCalledOnce();
       expect(backgroundHook).toHaveBeenCalledOnce();
       expect(laterHook).toHaveBeenCalledTimes(mode === "defer" ? 1 : 0);
-      const historyChanges = vi.mocked(input.onHistoryChanged).mock.calls;
+      const historyChanges = mocked(input.onHistoryChanged).mock.calls;
       expect(historyChanges.length).toBeGreaterThan(0);
       const history = historyChanges.flatMap(([change]) => change.messages);
       expect(JSON.stringify(history).includes(marker.content)).toBe(
@@ -4925,13 +4910,13 @@ describe("LocalRuntimeTurnExecutor continuation recovery with compaction reminde
       display: false as const,
       timestamp: 5,
     };
-    const backgroundHook = vi.fn(() => ({
+    const backgroundHook = mock(() => ({
       type: "appendMessage" as const,
       reason: "background_task_cadence_reminder",
       placement: "before-current-user" as const,
       message: marker,
     }));
-    const compactionHook = vi.fn((hookInput: PiBeforeLlmCallHookInput) => ({
+    const compactionHook = mock((hookInput: PiBeforeLlmCallHookInput) => ({
       type: "replaceMessages" as const,
       messages: [
         {
@@ -5002,7 +4987,7 @@ describe("LocalRuntimeTurnExecutor continuation recovery with compaction reminde
     expect(providerContexts[0]).toContain(marker.content);
     expect(providerContexts[0]).not.toContain("tool-call-pending");
     expect(providerContexts[0]).not.toContain("tool-call-complete");
-    const changes = vi.mocked(input.onHistoryChanged).mock.calls.map(([change]) => change);
+    const changes = mocked(input.onHistoryChanged).mock.calls.map(([change]) => change);
     expect(changes.slice(0, 2).map((change) => change.reason)).toEqual([
       "replaceMessages",
       "messageDelta",
@@ -5018,8 +5003,7 @@ describe("LocalRuntimeTurnExecutor beforeLlmCall and reconcile", () => {
   it("runs PostCompact and compact SessionStart after an automatic replacement commits", async () => {
     let captured: LocalRuntimeTurnRunnerInput<LocalToolContext> | undefined;
     let mode: "context" | "aborted" | "failure" = "context";
-    const runEvent = vi
-      .spyOn(localPluginHookCoordinator, "runEvent")
+    const runEvent = spyOn(localPluginHookCoordinator, "runEvent")
       .mockImplementation(async (_handlers, event) => {
         if (mode === "failure") throw new Error("hook runtime unavailable");
         if (event.event === "SessionStart" && mode === "aborted") {
@@ -5045,12 +5029,12 @@ describe("LocalRuntimeTurnExecutor beforeLlmCall and reconcile", () => {
           diagnostics: [],
         };
       });
-    const complete = vi.spyOn(
+    const complete = spyOn(
       localPluginHookCoordinator,
       "completeAutomaticCompaction",
     );
-    const markCompacted = vi.spyOn(localPluginHookCoordinator, "markCompacted");
-    const contextCompactionHook = vi.fn(async () => ({
+    const markCompacted = spyOn(localPluginHookCoordinator, "markCompacted");
+    const contextCompactionHook = mock(async () => ({
       type: "replaceMessages" as const,
       messages: [],
       metadata: { compactionAttemptId: "attempt-1" },
@@ -5106,8 +5090,8 @@ describe("LocalRuntimeTurnExecutor beforeLlmCall and reconcile", () => {
   });
 
   it("retracts the rejected attempt before rearming its primary user identity", async () => {
-    const recallOutputAttemptHistory = vi.fn(async () => undefined);
-    const rearmPrimaryUserMessageIdAfterOutputRecall = vi.fn();
+    const recallOutputAttemptHistory = mock(async () => undefined);
+    const rearmPrimaryUserMessageIdAfterOutputRecall = mock();
     const executorOptions = options(async (runInput) => {
       await runInput.recallOutputAttemptHistory?.(1);
       await runInput.eventWriter.pushRuntime(
@@ -5136,7 +5120,7 @@ describe("LocalRuntimeTurnExecutor beforeLlmCall and reconcile", () => {
 
   it("does not rearm the primary identity when the durable attempt retraction fails", async () => {
     const retractionFailure = new Error("canonical retraction failed");
-    const rearmPrimaryUserMessageIdAfterOutputRecall = vi.fn();
+    const rearmPrimaryUserMessageIdAfterOutputRecall = mock();
     const executorOptions = options(async (runInput) => {
       await runInput.recallOutputAttemptHistory?.(1);
     });
@@ -5149,7 +5133,7 @@ describe("LocalRuntimeTurnExecutor beforeLlmCall and reconcile", () => {
             messages: [{ role: "user", content: "history", timestamp: 1 }],
             identityVector: ["msg-user-v1-history"],
           },
-          recallOutputAttemptHistory: vi.fn(async () =>
+          recallOutputAttemptHistory: mock(async () =>
             Promise.reject(retractionFailure),
           ),
           rearmPrimaryUserMessageIdAfterOutputRecall,
@@ -5188,9 +5172,9 @@ describe("LocalRuntimeTurnExecutor beforeLlmCall and reconcile", () => {
 describe("LocalRuntimeTurnExecutor beforeLlmCall compaction hooks", () => {
   it("wraps automatic compaction after every replacement or abort-capable normal hook", async () => {
     let captured: LocalRuntimeTurnRunnerInput<LocalToolContext> | undefined;
-    const hostHook = vi.fn(async () => undefined);
-    const compactionHook = vi.fn(async () => undefined);
-    const afterCompactionHook = vi.fn(async () => undefined);
+    const hostHook = mock(async () => undefined);
+    const compactionHook = mock(async () => undefined);
+    const afterCompactionHook = mock(async () => undefined);
     const executorOptions = {
       ...options(async (runInput) => {
         captured = runInput;
@@ -5198,7 +5182,7 @@ describe("LocalRuntimeTurnExecutor beforeLlmCall compaction hooks", () => {
           terminalEvent(RuntimeEventStatus.COMPLETED),
         );
       }),
-      resolveBeforeLlmCallHooks: vi.fn(async () => [hostHook]),
+      resolveBeforeLlmCallHooks: mock(async () => [hostHook]),
       afterCompactionBeforeLlmCallHooks: [afterCompactionHook],
     };
     const input = executionInput({ contextCompactionHook: compactionHook });
@@ -5252,7 +5236,7 @@ describe("LocalRuntimeTurnExecutor beforeLlmCall compaction hooks", () => {
           },
         },
       });
-      const writeCurrent = vi.fn<
+      const writeCurrent = mock<
         SessionLlmCallReportCapability["writeCurrent"]
       >(async () => undefined);
       const reportingRuntime = await createAgentRuntime({
@@ -5408,7 +5392,7 @@ describe("LocalRuntimeTurnExecutor failure handling", () => {
 
     const permissionError = new Error("permission context unavailable");
     const permissionOptions = options(async () => undefined);
-    vi.mocked(permissionOptions.executionPreparation.prepare).mockRejectedValue(
+    mocked(permissionOptions.executionPreparation.prepare).mockRejectedValue(
       permissionError,
     );
     await expect(
@@ -5417,18 +5401,18 @@ describe("LocalRuntimeTurnExecutor failure handling", () => {
   });
 
   it("fails closed before runtime when the tool owner omits its permission guard", async () => {
-    const runTurn = vi.fn(async () => undefined);
+    const runTurn = mock(async () => undefined);
     const executorOptions = options(runTurn);
-    vi.mocked(executorOptions.executionPreparation.prepare).mockResolvedValue({
+    mocked(executorOptions.executionPreparation.prepare).mockResolvedValue({
       userMessage: {},
       caller: "chat",
       reminderBlocks: [],
-      loadBackgroundReminder: vi.fn(async () => ({
+      loadBackgroundReminder: mock(async () => ({
         tasks: [],
         undeliveredTotal: 0,
         terminalTotal: 0,
       })),
-      confirmBackgroundTaskReads: vi.fn(async () => undefined),
+      confirmBackgroundTaskReads: mock(async () => undefined),
       toolResolution: {
         disableBuiltinToolFallback: true,
         context: {
@@ -5446,7 +5430,7 @@ describe("LocalRuntimeTurnExecutor failure handling", () => {
   });
 
   it("rejects a raw reminder body before invoking the runtime", async () => {
-    const runTurn = vi.fn(async () => undefined);
+    const runTurn = mock(async () => undefined);
     const runner = new LocalRuntimeTurnExecutor(options(runTurn));
     const input = executionInput({
       assembly: {
@@ -5467,7 +5451,7 @@ describe("LocalRuntimeTurnExecutor failure handling", () => {
   });
 
   it("rejects an empty reminder block before invoking the runtime", async () => {
-    const runTurn = vi.fn(async () => undefined);
+    const runTurn = mock(async () => undefined);
     const runner = new LocalRuntimeTurnExecutor(options(runTurn));
     const input = executionInput({
       assembly: {
@@ -5538,7 +5522,7 @@ describe("LocalRuntimeTurnExecutor committed facts", () => {
         },
       };
     });
-    vi.mocked(executorOptions.fileChanges.finalize).mockResolvedValue({
+    mocked(executorOptions.fileChanges.finalize).mockResolvedValue({
       fileChange: "change_observed",
       changedFiles: ["src/result.ts"],
       observationNotes: [],
@@ -5601,19 +5585,19 @@ describe("LocalRuntimeTurnExecutor lifecycle failure handling", () => {
         return { outcome: { status: "completed", messageId: "assistant-1" } };
       }),
     };
-    vi.mocked(executorOptions.executionPreparation.prepare).mockImplementation(
+    mocked(executorOptions.executionPreparation.prepare).mockImplementation(
       async ({ execution }) => ({
         userMessage: {},
         caller: "chat",
         reminderBlocks: [],
-        loadBackgroundReminder: vi.fn(async () => ({
+        loadBackgroundReminder: mock(async () => ({
           tasks: [],
           undeliveredTotal: 0,
           terminalTotal: 0,
         })),
         toolResolution: {
           disableBuiltinToolFallback: true,
-          permissionGuard: vi.fn(async () => undefined),
+          permissionGuard: mock(async () => undefined),
           context: {
             sessionId: execution.lease.sessionId,
             turnId: execution.lease.turnId,
@@ -5622,12 +5606,12 @@ describe("LocalRuntimeTurnExecutor lifecycle failure handling", () => {
         },
       }),
     );
-    vi.mocked(executorOptions.fileChanges.begin).mockImplementation(
+    mocked(executorOptions.fileChanges.begin).mockImplementation(
       async () => {
         order.push("file:begin");
       },
     );
-    vi.mocked(executorOptions.fileChanges.finalize).mockImplementation(
+    mocked(executorOptions.fileChanges.finalize).mockImplementation(
       async (input) => {
         order.push(`file:finalize:${input.assistantMessageId}`);
         return undefined;
@@ -5652,7 +5636,7 @@ describe("LocalRuntimeTurnExecutor lifecycle failure handling", () => {
   });
 
   it("suppresses a due reminder during the tool loop after a successful task_output read", async () => {
-    const loadBackgroundReminder = vi.fn(async () => ({
+    const loadBackgroundReminder = mock(async () => ({
       tasks: [
         { taskId: "task-1", status: "succeeded" as const, endedAtMs: 10 },
       ],
@@ -5696,7 +5680,7 @@ describe("LocalRuntimeTurnExecutor lifecycle failure handling", () => {
         terminalEvent(RuntimeEventStatus.COMPLETED),
       );
     });
-    vi.mocked(executorOptions.executionPreparation.prepare).mockImplementation(
+    mocked(executorOptions.executionPreparation.prepare).mockImplementation(
       async ({ execution }) => ({
         userMessage: {},
         caller: "chat",
@@ -5704,7 +5688,7 @@ describe("LocalRuntimeTurnExecutor lifecycle failure handling", () => {
         loadBackgroundReminder,
         toolResolution: {
           disableBuiltinToolFallback: true,
-          permissionGuard: vi.fn(async () => undefined),
+          permissionGuard: mock(async () => undefined),
           context: {
             sessionId: execution.lease.sessionId,
             turnId: execution.lease.turnId,
@@ -5744,20 +5728,20 @@ describe("LocalRuntimeTurnExecutor abnormal lifecycle failure handling", () => {
         );
         await runInput.eventWriter.pushRuntime(terminalEvent(terminalStatus));
       });
-      vi.mocked(
+      mocked(
         executorOptions.executionPreparation.prepare,
       ).mockImplementation(async ({ execution }) => ({
         userMessage: {},
         caller: "chat",
         reminderBlocks: [],
-        loadBackgroundReminder: vi.fn(async () => ({
+        loadBackgroundReminder: mock(async () => ({
           tasks: [],
           undeliveredTotal: 0,
           terminalTotal: 0,
         })),
         toolResolution: {
           disableBuiltinToolFallback: true,
-          permissionGuard: vi.fn(async () => undefined),
+          permissionGuard: mock(async () => undefined),
           context: {
             sessionId: execution.lease.sessionId,
             turnId: execution.lease.turnId,
@@ -5794,7 +5778,7 @@ describe("LocalRuntimeTurnExecutor abnormal lifecycle failure handling", () => {
       fileChange: "no_observed_change",
       observationNotes: ["runtime_failed_without_observed_write"],
     };
-    vi.mocked(executorOptions.fileChanges.finalize).mockResolvedValue(
+    mocked(executorOptions.fileChanges.finalize).mockResolvedValue(
       observation,
     );
 
@@ -5825,7 +5809,7 @@ describe("LocalRuntimeTurnExecutor abnormal lifecycle failure handling", () => {
         terminalEvent(RuntimeEventStatus.ABORTED),
       );
     });
-    vi.mocked(executorOptions.fileChanges.finalize).mockResolvedValue({
+    mocked(executorOptions.fileChanges.finalize).mockResolvedValue({
       fileChange: "uncertain",
       observationNotes: ["aborted_before_capture_completed"],
     });
@@ -5855,18 +5839,18 @@ describe("LocalRuntimeTurnExecutor abnormal lifecycle failure handling", () => {
         terminalEvent(RuntimeEventStatus.COMPLETED),
       );
     });
-    vi.mocked(executorOptions.fileChanges.begin).mockImplementation(
+    mocked(executorOptions.fileChanges.begin).mockImplementation(
       async () => {
         order.push("file:begin");
       },
     );
-    vi.mocked(executorOptions.fileChanges.finalize).mockImplementation(
+    mocked(executorOptions.fileChanges.finalize).mockImplementation(
       async () => {
         order.push("file:finalize");
         throw finalizeError;
       },
     );
-    vi.mocked(executorOptions.fileChanges.markFailed).mockImplementation(
+    mocked(executorOptions.fileChanges.markFailed).mockImplementation(
       async () => {
         order.push("file:failed");
         throw markError;
@@ -5991,7 +5975,7 @@ describe("LocalRuntimeTurnExecutor host output token cap", () => {
   });
 
   it("hands the resolver the turn intent it must key on", async () => {
-    const resolveOutputTokenCap = vi.fn(() => 1_000);
+    const resolveOutputTokenCap = mock(() => 1_000);
 
     await capturedLlm(
       {
@@ -6027,16 +6011,16 @@ describe("child Bash continuation ownership", () => {
     const completion = new Promise<string | undefined>((resolve) => {
       release = resolve;
     });
-    const poll = vi.fn(async ({ wait }: { wait: boolean }) =>
+    const poll = mock(async ({ wait }: { wait: boolean }) =>
       wait ? completion : undefined,
     );
-    const close = vi.fn(async () => undefined);
-    const createChildBashLifecycle = vi.fn(() => ({
+    const close = mock(async () => undefined);
+    const createChildBashLifecycle = mock(() => ({
       poll,
       close,
       hasPending: async () => true,
     }));
-    const started = vi.fn();
+    const started = mock();
     const config = options(async (run) => {
       expect(await run.getSteeringMessages?.({ boundary: "mid-turn" })).toEqual(
         [],
@@ -6063,7 +6047,7 @@ describe("child Bash continuation ownership", () => {
         parentSessionId: "parent",
       },
     });
-    await vi.waitFor(() => expect(started).toHaveBeenCalled());
+    await waitFor(() => expect(started).toHaveBeenCalled());
     expect(close).not.toHaveBeenCalled();
     release("bash finished");
     await pending;
@@ -6079,7 +6063,7 @@ describe("child Bash continuation ownership", () => {
   });
   it("cleans up child Bash when runtime execution fails", async () => {
     const input = executionInput();
-    const close = vi.fn(async () => undefined);
+    const close = mock(async () => undefined);
     const executor = new LocalRuntimeTurnExecutor({
       ...options(async () => {
         throw new Error("provider failed");
@@ -6103,7 +6087,7 @@ describe("child Bash continuation ownership", () => {
     expect(close).toHaveBeenCalledOnce();
   });
   it("does not wait or stop Bash belonging to an ordinary conversation", async () => {
-    const createChildBashLifecycle = vi.fn();
+    const createChildBashLifecycle = mock();
     await new LocalRuntimeTurnExecutor({
       ...options(async (run) => {
         await run.getSteeringMessages?.({ boundary: "exit" });
@@ -6159,7 +6143,7 @@ describe("child Bash waiting steering", () => {
         }
         return messages;
       };
-      const poll = vi.fn(
+      const poll = mock(
         async (request: { wait: boolean; steeringSignal?: AbortSignal }) => {
           if (!request.wait || request.steeringSignal?.aborted)
             return undefined;
@@ -6174,8 +6158,8 @@ describe("child Bash waiting steering", () => {
           });
         },
       );
-      const close = vi.fn(async () => undefined);
-      const consumed = vi.fn(async () => undefined);
+      const close = mock(async () => undefined);
+      const consumed = mock(async () => undefined);
       const executor = new LocalRuntimeTurnExecutor({
         ...options(async (run) => {
           const messages = await run.getSteeringMessages?.({
@@ -6204,7 +6188,7 @@ describe("child Bash waiting steering", () => {
           control: { ...control, drainSteering },
         });
         if (arrival === "during-wait") {
-          await vi.waitFor(() => expect(poll).toHaveBeenCalled());
+          await waitFor(() => expect(poll).toHaveBeenCalled());
           await append();
         }
         await running;
@@ -6216,7 +6200,7 @@ describe("child Bash waiting steering", () => {
     },
   );
   it("preserves exit requeue for user steering when the child has no pending Bash", async () => {
-    const discarded = vi.fn();
+    const discarded = mock();
     const controller = createTurnController({
       renew: async () => true,
       onSteeringDiscarded: discarded,
@@ -6238,7 +6222,7 @@ describe("child Bash waiting steering", () => {
       turnId: lease.turnId,
       message,
     });
-    const consumed = vi.fn(async () => undefined);
+    const consumed = mock(async () => undefined);
     const executor = new LocalRuntimeTurnExecutor({
       ...options(async (run) => {
         expect(await run.getSteeringMessages?.({ boundary: "exit" })).toEqual(
@@ -6272,7 +6256,6 @@ describe("child Bash waiting steering", () => {
     }
   });
 });
-
 
 describe("incremental runtime event outcomes", () => {
   function stream(payload: unknown, id = "stream"): RuntimeEvent {

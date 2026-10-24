@@ -1,5 +1,6 @@
 import { PassThrough } from "node:stream";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { createRequire } from "node:module";
+import { afterEach, describe, expect, it, jest, mock, spyOn } from "bun:test";
 import {
   ProcessTerminal,
   TuiMainScreen,
@@ -8,33 +9,40 @@ import {
 import { createObservedTerminal } from "../../src/tui/platform/observed-terminal.js";
 import { TuiExternalEditorFlow } from "../../src/tui/controller/interaction/external-editor-flow.js";
 import { VirtualTerminal } from "../pi-084-upstream/virtual-terminal.js";
+import { advanceTimersByTimeAsync, stubEnv, unstubAllEnvs, waitFor } from "../../../../test/bun-test-setup.js";
 
 type WriteCallback = (
   error: NodeJS.ErrnoException | null,
   bytes: number,
 ) => void;
-const { write } = vi.hoisted(() => ({
-  write:
-    vi.fn<
-      (
-        fd: number,
-        buffer: Buffer,
-        offset: number,
-        length: number,
-        position: null,
-        callback: WriteCallback,
-      ) => void
-    >(),
-}));
-vi.mock("node:fs", async (original) => ({
-  ...(await original<typeof import("node:fs")>()),
+const write = mock<
+  (
+    fd: number,
+    buffer: Buffer,
+    offset: number,
+    length: number,
+    position: null,
+    callback: WriteCallback,
+  ) => void
+>();
+// `require` inside the factory reads the real module: a static namespace
+// import would already be replaced by the mock and would resolve to itself.
+// The `default` export is spelled out because the terminal engine imports
+// `node:fs` as a default binding, and a Bun module mock replaces the named
+// exports only.
+const require = createRequire(import.meta.url);
+const realFs = require("node:fs") as typeof import("node:fs");
+
+mock.module("node:fs", () => ({
+  ...realFs,
   write,
+  default: { ...realFs, write },
 }));
 
 afterEach(() => {
-  vi.useRealTimers();
-  vi.restoreAllMocks();
-  vi.unstubAllEnvs();
+  jest.useRealTimers();
+  jest.restoreAllMocks();
+  unstubAllEnvs();
   write.mockReset();
 });
 
@@ -45,11 +53,11 @@ function outputHarness() {
     columns: 80,
     rows: 24,
   });
-  const synchronousWrite = vi.spyOn(stdout, "write").mockReturnValue(true);
-  vi.spyOn(process, "stdout", "get").mockReturnValue(
+  const synchronousWrite = spyOn(stdout, "write").mockReturnValue(true);
+  spyOn(process, "stdout", "get").mockReturnValue(
     stdout as typeof process.stdout,
   );
-  vi.spyOn(process, "platform", "get").mockReturnValue("linux");
+  spyOn(process, "platform", "get").mockReturnValue("linux");
   const pending: {
     buffer: Buffer;
     offset: number;
@@ -77,15 +85,15 @@ describe("terminal output backpressure", () => {
     const h = outputHarness();
     const stdin = Object.assign(new PassThrough(), {
       isRaw: false,
-      setRawMode: vi.fn(),
+      setRawMode: mock(),
     });
-    vi.spyOn(process, "stdin", "get").mockReturnValue(
+    spyOn(process, "stdin", "get").mockReturnValue(
       stdin as typeof process.stdin,
     );
-    vi.spyOn(process, "kill").mockReturnValue(true);
-    vi.stubEnv("TERM_PROGRAM", "");
+    spyOn(process, "kill").mockReturnValue(true);
+    stubEnv("TERM_PROGRAM", "");
     const terminal = new ProcessTerminal();
-    const input = vi.fn();
+    const input = mock();
     terminal.start(input, () => {});
     while (h.pending.length) h.complete();
     h.delivered.length = 0;
@@ -122,15 +130,23 @@ describe("terminal output backpressure", () => {
 
   it("reports async terminal failures and releases drain waiters without retrying a dead fd", async () => {
     const h = outputHarness();
-    const onError = vi.fn();
+    const onError = mock();
     h.stdout.on("error", onError);
     const terminal = new ProcessTerminal();
     terminal.write("x".repeat(100000));
     expect(h.pending).toHaveLength(1);
     const error = Object.assign(new Error("closed"), { code: "EPIPE" });
-    const failed = expect(terminal.drainOutput()).rejects.toBe(error);
+    // `expect(promise).rejects` waits for the promise before it returns, so the
+    // rejection cannot be triggered after the assertion is created. Capture the
+    // rejection first and assert on the captured value instead.
+    const failed = terminal.drainOutput().then(
+      () => {
+        throw new Error("Expected drainOutput to reject");
+      },
+      (reason: unknown) => reason,
+    );
     h.pending.shift()!.callback(error, 0);
-    await failed;
+    await expect(failed).resolves.toBe(error);
     expect(onError).toHaveBeenCalledExactlyOnceWith(error);
     expect(terminal.outputPending).toBe(false);
     expect(() => terminal.write("later")).not.toThrow();
@@ -146,7 +162,7 @@ describe("terminal output backpressure", () => {
       Object.assign(new Error("interrupted"), { code: "EINTR" }),
       0,
     );
-    await vi.waitFor(() => expect(h.pending).toHaveLength(1));
+    await waitFor(() => expect(h.pending).toHaveLength(1));
     expect(h.pending[0]!.offset).toBe(0);
     h.complete(1);
     expect(h.pending[0]!.offset).toBe(1);
@@ -162,19 +178,19 @@ describe("terminal output backpressure", () => {
     const stopped = new Promise<void>((resolve) => {
       release = resolve;
     });
-    const editDraft = vi.fn(async () => "edited draft");
-    const start = vi.fn();
-    const editor = { getExpandedText: () => "draft", setText: vi.fn() };
+    const editDraft = mock(async () => "edited draft");
+    const start = mock();
+    const editor = { getExpandedText: () => "draft", setText: mock() };
     const flow = new TuiExternalEditorFlow({
       editor,
-      tui: { stop: () => stopped, start, requestRender: vi.fn() },
+      tui: { stop: () => stopped, start, requestRender: mock() },
       workspaceDir: "/workspace",
       configuredCommand: "editor",
       editDraft,
       isAppStopped: () => false,
-      append: vi.fn(),
-      setHint: vi.fn(),
-      onChanged: vi.fn(),
+      append: mock(),
+      setHint: mock(),
+      onChanged: mock(),
     });
     const opened = flow.open();
     await Promise.resolve();
@@ -192,18 +208,18 @@ describe("terminal output backpressure", () => {
       release = resolve;
     });
     let appStopped = false;
-    const editDraft = vi.fn(async () => "edited");
-    const start = vi.fn();
+    const editDraft = mock(async () => "edited");
+    const start = mock();
     const flow = new TuiExternalEditorFlow({
-      editor: { getExpandedText: () => "draft", setText: vi.fn() },
-      tui: { stop: () => drained, start, requestRender: vi.fn() },
+      editor: { getExpandedText: () => "draft", setText: mock() },
+      tui: { stop: () => drained, start, requestRender: mock() },
       workspaceDir: "/workspace",
       configuredCommand: "editor",
       editDraft,
       isAppStopped: () => appStopped,
-      append: vi.fn(),
-      setHint: vi.fn(),
-      onChanged: vi.fn(),
+      append: mock(),
+      setHint: mock(),
+      onChanged: mock(),
     });
     const opened = flow.open();
     appStopped = true;
@@ -263,19 +279,19 @@ describe("terminal output backpressure", () => {
   );
 
   it("waits for keyboard-disable output before starting the input drain idle window", async () => {
-    vi.useFakeTimers();
+    jest.useFakeTimers();
     const h = outputHarness();
     const stdin = Object.assign(new PassThrough(), {
       isRaw: false,
-      setRawMode: vi.fn(),
+      setRawMode: mock(),
     });
-    vi.spyOn(process, "stdin", "get").mockReturnValue(
+    spyOn(process, "stdin", "get").mockReturnValue(
       stdin as typeof process.stdin,
     );
-    vi.spyOn(process, "kill").mockReturnValue(true);
-    vi.stubEnv("TERM_PROGRAM", "");
+    spyOn(process, "kill").mockReturnValue(true);
+    stubEnv("TERM_PROGRAM", "");
     const terminal = new ProcessTerminal();
-    const input = vi.fn();
+    const input = mock();
     terminal.start(input, () => {});
     while (h.pending.length) h.complete();
     terminal.write("held replay");
@@ -284,22 +300,22 @@ describe("terminal output backpressure", () => {
       drained = true;
     });
     try {
-      await vi.advanceTimersByTimeAsync(100);
+      await advanceTimersByTimeAsync(100);
       expect(drained).toBe(false);
       stdin.emit("data", "x");
       expect(input).not.toHaveBeenCalled();
       while (h.pending.length) h.complete();
-      await vi.advanceTimersByTimeAsync(25);
+      await advanceTimersByTimeAsync(25);
       expect(drained).toBe(false);
       stdin.emit("data", "y");
-      await vi.advanceTimersByTimeAsync(75);
+      await advanceTimersByTimeAsync(75);
       await done;
       expect(input).not.toHaveBeenCalled();
       stdin.emit("data", "z");
       expect(input).toHaveBeenCalledExactlyOnceWith("z");
     } finally {
       while (h.pending.length) h.complete();
-      await vi.advanceTimersByTimeAsync(1000);
+      await advanceTimersByTimeAsync(1000);
       await done;
       terminal.stop();
       while (h.pending.length) h.complete();
@@ -322,7 +338,7 @@ describe("terminal output backpressure", () => {
       }
     }
     const terminal = new BackpressuredTerminal(80, 24);
-    const tui = new TuiMainScreen(createObservedTerminal(terminal, vi.fn()));
+    const tui = new TuiMainScreen(createObservedTerminal(terminal, mock()));
     let tail = "first";
     const history = Array.from({ length: 80 }, (_, i) => `History ${i}`);
     tui.addChild({
@@ -340,7 +356,7 @@ describe("terminal output backpressure", () => {
     expect(terminal.writes).toEqual([]);
     terminal.outputPending = false;
     terminal.release?.();
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(terminal.writes.join("")).toContain("latest input"),
     );
     await terminal.flush();

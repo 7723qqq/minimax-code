@@ -27,7 +27,6 @@
     "@mavis/skills": "workspace:^",
     "@mavis/system-reminder": "workspace:^",
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "better-sqlite3": "12.11.1",
     "croner": "^9",
     "diff": "^8.0.4",
     "handlebars": "^4.7.9",

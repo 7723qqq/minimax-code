@@ -1,5 +1,5 @@
+import { describe, expect, it, mock, spyOn } from 'bun:test';
 import type { LLMModelConfig, PiBeforeLlmCallHookInput } from '@mavis/agent-core/pi-turn-runner';
-import { describe, expect, it, vi } from 'vitest';
 
 import type { AgentEventContext } from '../events/contracts.js';
 import type {
@@ -170,21 +170,21 @@ function hookInput(overrides: Partial<PiBeforeLlmCallHookInput> = {}): PiBeforeL
 
 describe('automatic ContextCompactor trigger probe', () => {
   it('returns unchanged history without taking a semantic snapshot', async () => {
-    const probeBeforeLlm = vi.fn(() => ({ shouldStart: false }));
-    const compactBeforeLlm = vi.fn();
+    const probeBeforeLlm = mock(() => ({ shouldStart: false }));
+    const compactBeforeLlm = mock();
     const hook = createAutomaticContextCompactionHook(
       {
         automatic: { probeBeforeLlm, compactBeforeLlm },
         lifecycle: {
-          completeCommittedHistory: vi.fn(async () => undefined),
-          failCommittedHistory: vi.fn(async () => undefined),
+          completeCommittedHistory: mock(async () => undefined),
+          failCommittedHistory: mock(async () => undefined),
         },
       },
       context,
       'lease-trigger-probe',
     );
     const input = hookInput();
-    const structuredCloneSpy = vi.spyOn(globalThis, 'structuredClone');
+    const structuredCloneSpy = spyOn(globalThis, 'structuredClone');
 
     try {
       await expect(hook(input)).resolves.toEqual({ type: 'continue' });
@@ -199,7 +199,7 @@ describe('automatic ContextCompactor trigger probe', () => {
   });
 
   it('detaches triggered compaction from the borrowed History before any await', async () => {
-    const probeBeforeLlm = vi.fn((_input: AutomaticContextCompactionInput) => ({
+    const probeBeforeLlm = mock((_input: AutomaticContextCompactionInput) => ({
       shouldStart: true,
     }));
     let releaseCompactor: (() => void) | undefined;
@@ -207,7 +207,7 @@ describe('automatic ContextCompactor trigger probe', () => {
       releaseCompactor = resolve;
     });
     let capturedMessages: PiBeforeLlmCallHookInput['messages'] | undefined;
-    const compactBeforeLlm = vi.fn(async (compactionInput: AutomaticContextCompactionInput) => {
+    const compactBeforeLlm = mock(async (compactionInput: AutomaticContextCompactionInput) => {
       capturedMessages = compactionInput.messages;
       await compactorGate;
       return { status: 'unchanged' as const, reason: 'nothing-to-compact' as const };
@@ -216,8 +216,8 @@ describe('automatic ContextCompactor trigger probe', () => {
       {
         automatic: { probeBeforeLlm, compactBeforeLlm },
         lifecycle: {
-          completeCommittedHistory: vi.fn(async () => undefined),
-          failCommittedHistory: vi.fn(async () => undefined),
+          completeCommittedHistory: mock(async () => undefined),
+          failCommittedHistory: mock(async () => undefined),
         },
       },
       context,
@@ -244,8 +244,8 @@ describe('automatic ContextCompactor trigger probe', () => {
 
   it('isolates a probe failure through the existing automatic failure path', async () => {
     const root = new Error('probe measurement failed');
-    const compactBeforeLlm = vi.fn();
-    const failCommittedHistory = vi.fn(async () => undefined);
+    const compactBeforeLlm = mock();
+    const failCommittedHistory = mock(async () => undefined);
     const hook = createAutomaticContextCompactionHook(
       {
         automatic: {
@@ -255,7 +255,7 @@ describe('automatic ContextCompactor trigger probe', () => {
           compactBeforeLlm,
         },
         lifecycle: {
-          completeCommittedHistory: vi.fn(async () => undefined),
+          completeCommittedHistory: mock(async () => undefined),
           failCommittedHistory,
         },
       },
@@ -278,10 +278,10 @@ describe('automatic ContextCompactor trigger probe', () => {
 
 describe('automatic ContextCompactor diagnostics', () => {
   it('logs only bounded checkpoint metadata with Host correlation', async () => {
-    const logger = { info: vi.fn(), error: vi.fn() };
-    const counter = vi.fn();
-    const histogram = vi.fn();
-    const compactBeforeLlm = vi.fn(async (_input: unknown, hooks?: ContextCompactionHooks) => {
+    const logger = { info: mock(), error: mock() };
+    const counter = mock();
+    const histogram = mock();
+    const compactBeforeLlm = mock(async (_input: unknown, hooks?: ContextCompactionHooks) => {
       hooks?.onStarted();
       hooks?.onCheckpointGenerated?.({
         responseContentKinds: ['thinking', 'text', 'thinking'],
@@ -314,8 +314,8 @@ describe('automatic ContextCompactor diagnostics', () => {
       {
         automatic: { compactBeforeLlm },
         lifecycle: {
-          completeCommittedHistory: vi.fn(async () => undefined),
-          failCommittedHistory: vi.fn(async () => undefined),
+          completeCommittedHistory: mock(async () => undefined),
+          failCommittedHistory: mock(async () => undefined),
         },
         metricsClient: { counter, histogram },
       },
@@ -392,8 +392,8 @@ describe('automatic ContextCompactor diagnostics', () => {
   });
 
   it('keeps hostile checkpoint metadata inside best-effort diagnostics', async () => {
-    const logger = { info: vi.fn(), error: vi.fn() };
-    const compactBeforeLlm = vi.fn(async (_input: unknown, hooks?: ContextCompactionHooks) => {
+    const logger = { info: mock(), error: mock() };
+    const compactBeforeLlm = mock(async (_input: unknown, hooks?: ContextCompactionHooks) => {
       hooks?.onStarted();
       hooks?.onCheckpointGenerated?.({
         get responseContentKinds(): readonly ['text'] {
@@ -421,8 +421,8 @@ describe('automatic ContextCompactor diagnostics', () => {
       {
         automatic: { compactBeforeLlm },
         lifecycle: {
-          completeCommittedHistory: vi.fn(async () => undefined),
-          failCommittedHistory: vi.fn(async () => undefined),
+          completeCommittedHistory: mock(async () => undefined),
+          failCommittedHistory: mock(async () => undefined),
         },
       },
       context,
@@ -439,8 +439,8 @@ describe('automatic ContextCompactor diagnostics', () => {
 describe('automatic ContextCompactor failure diagnostics', () => {
   it('logs a stable checkpoint rejection without sensitive error text', async () => {
     const logger = {
-      info: vi.fn(),
-      error: vi.fn(() => {
+      info: mock(),
+      error: mock(() => {
         throw new Error('diagnostic logger unavailable');
       }),
     };
@@ -449,7 +449,7 @@ describe('automatic ContextCompactor failure diagnostics', () => {
       'llm_checkpoint',
       'private Provider response detail',
     );
-    const compactBeforeLlm = vi.fn(async (_input: unknown, hooks?: ContextCompactionHooks) => {
+    const compactBeforeLlm = mock(async (_input: unknown, hooks?: ContextCompactionHooks) => {
       hooks?.onStarted();
       hooks?.onCheckpointGenerated?.({
         responseContentKinds: ['thinking', 'toolCall'],
@@ -462,8 +462,8 @@ describe('automatic ContextCompactor failure diagnostics', () => {
       {
         automatic: { compactBeforeLlm },
         lifecycle: {
-          completeCommittedHistory: vi.fn(async () => undefined),
-          failCommittedHistory: vi.fn(async () => undefined),
+          completeCommittedHistory: mock(async () => undefined),
+          failCommittedHistory: mock(async () => undefined),
         },
       },
       context,
@@ -500,7 +500,7 @@ describe('automatic ContextCompactor failure diagnostics', () => {
   });
 
   it('fails open with a skip when the Provider admission rejects the checkpoint', async () => {
-    const failCommittedHistory = vi.fn(async () => undefined);
+    const failCommittedHistory = mock(async () => undefined);
     const rejection = new ContextCompactionError(
       'POST_ADMISSION_FAILED',
       'post_admission',
@@ -509,12 +509,12 @@ describe('automatic ContextCompactor failure diagnostics', () => {
     const hook = createAutomaticContextCompactionHook(
       {
         automatic: {
-          compactBeforeLlm: vi.fn(async () => {
+          compactBeforeLlm: mock(async () => {
             throw rejection;
           }),
         },
         lifecycle: {
-          completeCommittedHistory: vi.fn(async () => undefined),
+          completeCommittedHistory: mock(async () => undefined),
           failCommittedHistory,
         },
       },
@@ -534,7 +534,7 @@ describe('automatic ContextCompactor failure diagnostics', () => {
   });
 
   it('fails open with a skip when local estimates reject every checkpoint candidate', async () => {
-    const failCommittedHistory = vi.fn(async () => undefined);
+    const failCommittedHistory = mock(async () => undefined);
     const rejection = new ContextCompactionError(
       'COMPACTION_INPUT_TOO_LARGE',
       'llm_checkpoint',
@@ -543,12 +543,12 @@ describe('automatic ContextCompactor failure diagnostics', () => {
     const hook = createAutomaticContextCompactionHook(
       {
         automatic: {
-          compactBeforeLlm: vi.fn(async () => {
+          compactBeforeLlm: mock(async () => {
             throw rejection;
           }),
         },
         lifecycle: {
-          completeCommittedHistory: vi.fn(async () => undefined),
+          completeCommittedHistory: mock(async () => undefined),
           failCommittedHistory,
         },
       },
@@ -576,7 +576,7 @@ describe('automatic ContextCompactor diagnostic error normalization', () => {
     ['COMPACTION_INPUT_TOO_LARGE', 'llm_checkpoint'],
     ['POST_ADMISSION_FAILED', 'post_admission'],
   ] as const)('preserves the stable %s/%s pair', (code, stage) => {
-    const logger = { error: vi.fn() };
+    const logger = { error: mock() };
 
     logCompactionFailureBestEffort(logger, {
       context,
@@ -594,7 +594,7 @@ describe('automatic ContextCompactor diagnostic error normalization', () => {
   });
 
   it('logs content-free sizing diagnostics attached to an input-too-large failure', () => {
-    const logger = { error: vi.fn() };
+    const logger = { error: mock() };
 
     logCompactionFailureBestEffort(logger, {
       context,
@@ -635,7 +635,7 @@ describe('automatic ContextCompactor diagnostic error normalization', () => {
   });
 
   it('logs content-free before/after sizing attached to a post-admission failure', () => {
-    const logger = { error: vi.fn() };
+    const logger = { error: mock() };
 
     logCompactionFailureBestEffort(logger, {
       context,
@@ -676,7 +676,7 @@ describe('automatic ContextCompactor diagnostic error normalization', () => {
   });
 
   it('drops malformed sizing diagnostics without failing the log', () => {
-    const logger = { error: vi.fn() };
+    const logger = { error: mock() };
     const error = new ContextCompactionError(
       'COMPACTION_INPUT_TOO_LARGE',
       'llm_checkpoint',
@@ -707,7 +707,7 @@ describe('automatic ContextCompactor diagnostic error normalization', () => {
   });
 
   it('keeps a throwing error getter inside the best-effort boundary', () => {
-    const logger = { error: vi.fn() };
+    const logger = { error: mock() };
     const error = Object.defineProperty({}, 'code', {
       get: () => {
         throw new Error('private getter detail');
@@ -730,7 +730,7 @@ describe('automatic ContextCompactor diagnostic error normalization', () => {
   });
 
   it('classifies an aborted checkpoint without exposing the abort error', () => {
-    const logger = { error: vi.fn() };
+    const logger = { error: mock() };
 
     logCompactionFailureBestEffort(logger, {
       context,
@@ -758,8 +758,8 @@ describe('automatic ContextCompactor diagnostic error normalization', () => {
 
 describe('automatic ContextCompactor adapter', () => {
   it('returns a bounded skip when the Plugin Hook defers an admitted compaction', async () => {
-    const beforeCompaction = vi.fn(async () => false);
-    const compactBeforeLlm = vi.fn(async (_input: unknown, hooks?: ContextCompactionHooks) => {
+    const beforeCompaction = mock(async () => false);
+    const compactBeforeLlm = mock(async (_input: unknown, hooks?: ContextCompactionHooks) => {
       await hooks?.onStarted();
       throw new Error('compaction must not continue after defer');
     });
@@ -767,8 +767,8 @@ describe('automatic ContextCompactor adapter', () => {
       {
         automatic: { compactBeforeLlm },
         lifecycle: {
-          completeCommittedHistory: vi.fn(async () => undefined),
-          failCommittedHistory: vi.fn(async () => undefined),
+          completeCommittedHistory: mock(async () => undefined),
+          failCommittedHistory: mock(async () => undefined),
         },
       },
       context,
@@ -784,12 +784,12 @@ describe('automatic ContextCompactor adapter', () => {
   });
 
   it('aborts before compaction when a Plugin Hook stops the turn', async () => {
-    const failCommittedHistory = vi.fn(async () => undefined);
-    const beforeCompaction = vi.fn(async () => ({
+    const failCommittedHistory = mock(async () => undefined);
+    const beforeCompaction = mock(async () => ({
       abort: true as const,
       reason: 'context_compaction_stopped_by_plugin_hook',
     }));
-    const compactBeforeLlm = vi.fn(async (_input: unknown, hooks?: ContextCompactionHooks) => {
+    const compactBeforeLlm = mock(async (_input: unknown, hooks?: ContextCompactionHooks) => {
       await hooks?.onStarted();
       throw new Error('compaction must not continue after a Hook stop');
     });
@@ -797,7 +797,7 @@ describe('automatic ContextCompactor adapter', () => {
       {
         automatic: { compactBeforeLlm },
         lifecycle: {
-          completeCommittedHistory: vi.fn(async () => undefined),
+          completeCommittedHistory: mock(async () => undefined),
           failCommittedHistory,
         },
       },
@@ -815,9 +815,9 @@ describe('automatic ContextCompactor adapter', () => {
 
   it('forwards detached history and every optional transport fact into a replacement', async () => {
     const signal = new AbortController().signal;
-    const streamFn = vi.fn();
-    const payloadTransform = vi.fn((payload: unknown) => payload);
-    const auxiliaryPayloadTransform = vi.fn((payload: unknown) => payload);
+    const streamFn = mock();
+    const payloadTransform = mock((payload: unknown) => payload);
+    const auxiliaryPayloadTransform = mock((payload: unknown) => payload);
     const tools: PiBeforeLlmCallHookInput['tools'] = [
       {
         name: 'search',
@@ -825,7 +825,7 @@ describe('automatic ContextCompactor adapter', () => {
         parameters: { type: 'object', properties: {} },
       },
     ];
-    const compactBeforeLlm = vi.fn(async (_input: unknown, hooks?: ContextCompactionHooks) => {
+    const compactBeforeLlm = mock(async (_input: unknown, hooks?: ContextCompactionHooks) => {
       hooks?.onStarted();
       return {
         status: 'completed' as const,
@@ -855,17 +855,17 @@ describe('automatic ContextCompactor adapter', () => {
         },
       };
     });
-    const manualCompact = vi.fn(async (_input: ManualContextCompactionInput) => ({
+    const manualCompact = mock(async (_input: ManualContextCompactionInput) => ({
       status: 'unchanged' as const,
       reason: 'nothing-to-compact' as const,
     }));
-    const observe = vi.fn(async () => undefined);
+    const observe = mock(async () => undefined);
     const dependencies = {
       automatic: { compactBeforeLlm },
       manual: { compactManual: manualCompact },
       lifecycle: {
-        completeCommittedHistory: vi.fn(async () => undefined),
-        failCommittedHistory: vi.fn(async () => undefined),
+        completeCommittedHistory: mock(async () => undefined),
+        failCommittedHistory: mock(async () => undefined),
       },
       observer: { observe },
     };
@@ -885,6 +885,17 @@ describe('automatic ContextCompactor adapter', () => {
       signal,
     });
     const decision = await hook(input);
+    if (!decision || decision.type !== 'replaceMessages') {
+      throw new Error('Expected replacement metadata.');
+    }
+    // `toMatchObject` writes the matcher instance into the object it asserts
+    // on and unfreezes what it touches, so every value the assertions below
+    // read is captured before the structural match runs.
+    const metadata = decision.metadata;
+    const metadataFrozen = Object.isFrozen(metadata);
+    const compactedMessagesFrozen = Object.isFrozen(metadata?.compactedMessages);
+    const keptMessagesFrozen = Object.isFrozen(metadata?.keptMessages);
+    const contextUsage = readCompactionLifecycleMetadata(metadata)?.contextUsage;
     expect(decision).toMatchObject({
       type: 'replaceMessages',
       metadata: {
@@ -893,15 +904,10 @@ describe('automatic ContextCompactor adapter', () => {
         contextUsage: expect.objectContaining({ usedTokens: 20.4 }),
       },
     });
-    if (!decision || decision.type !== 'replaceMessages') {
-      throw new Error('Expected replacement metadata.');
-    }
-    expect(Object.isFrozen(decision.metadata)).toBe(true);
-    expect(Object.isFrozen(decision.metadata?.compactedMessages)).toBe(true);
-    expect(Object.isFrozen(decision.metadata?.keptMessages)).toBe(true);
-    expect(readCompactionLifecycleMetadata(decision.metadata)?.contextUsage).toEqual(
-      expect.objectContaining({ usedTokens: 20.4 }),
-    );
+    expect(metadataFrozen).toBe(true);
+    expect(compactedMessagesFrozen).toBe(true);
+    expect(keptMessagesFrozen).toBe(true);
+    expect(contextUsage).toEqual(expect.objectContaining({ usedTokens: 20.4 }));
     expect(compactBeforeLlm).toHaveBeenCalledWith(
       {
         sessionId: context.sessionId,
@@ -936,20 +942,20 @@ describe('automatic ContextCompactor adapter', () => {
 
 describe('automatic ContextCompactor continuation', () => {
   it('returns continue for an unchanged result and keeps observation best-effort', async () => {
-    const observe = vi.fn(async () => {
+    const observe = mock(async () => {
       throw new Error('live observer unavailable');
     });
     const hook = createAutomaticContextCompactionHook(
       {
         automatic: {
-          compactBeforeLlm: vi.fn(async () => ({
+          compactBeforeLlm: mock(async () => ({
             status: 'unchanged' as const,
             reason: 'nothing-to-compact' as const,
           })),
         },
         lifecycle: {
-          completeCommittedHistory: vi.fn(async () => undefined),
-          failCommittedHistory: vi.fn(async () => undefined),
+          completeCommittedHistory: mock(async () => undefined),
+          failCommittedHistory: mock(async () => undefined),
         },
         observer: { observe },
       },
@@ -966,8 +972,8 @@ describe('automatic ContextCompactor continuation', () => {
 
   it('maps filter-only replacement without retaining message bodies in metadata', async () => {
     const lifecycle = {
-      completeCommittedHistory: vi.fn(async () => undefined),
-      failCommittedHistory: vi.fn(async () => undefined),
+      completeCommittedHistory: mock(async () => undefined),
+      failCommittedHistory: mock(async () => undefined),
     };
     const inputMessages = [
       {
@@ -987,7 +993,7 @@ describe('automatic ContextCompactor continuation', () => {
     const hook = createAutomaticContextCompactionHook(
       {
         automatic: {
-          compactBeforeLlm: vi.fn(async (input) => ({
+          compactBeforeLlm: mock(async (input) => ({
             status: 'replaced' as const,
             reason: 'internal-context-filter' as const,
             replacementId: 'filter-1',
@@ -1025,14 +1031,14 @@ describe('automatic ContextCompactor observer and failure isolation', () => {
     const hook = createAutomaticContextCompactionHook(
       {
         automatic: {
-          compactBeforeLlm: vi.fn(async () => ({
+          compactBeforeLlm: mock(async () => ({
             status: 'unchanged' as const,
             reason: 'nothing-to-compact' as const,
           })),
         },
         lifecycle: {
-          completeCommittedHistory: vi.fn(async () => undefined),
-          failCommittedHistory: vi.fn(async () => undefined),
+          completeCommittedHistory: mock(async () => undefined),
+          failCommittedHistory: mock(async () => undefined),
         },
         observer: { observe: () => new Promise<void>(() => undefined) },
       },
@@ -1053,17 +1059,17 @@ describe('automatic ContextCompactor observer and failure isolation', () => {
   it('isolates retained observer context from required automatic failure lifecycle', async () => {
     const root = new Error('summary transport failed');
     const mutableContext = { ...context };
-    const failCommittedHistory = vi.fn(async () => undefined);
+    const failCommittedHistory = mock(async () => undefined);
     const observed: AgentEventContext[] = [];
     const hook = createAutomaticContextCompactionHook(
       {
         automatic: {
-          compactBeforeLlm: vi.fn(async () => {
+          compactBeforeLlm: mock(async () => {
             throw root;
           }),
         },
         lifecycle: {
-          completeCommittedHistory: vi.fn(async () => undefined),
+          completeCommittedHistory: mock(async () => undefined),
           failCommittedHistory,
         },
         observer: {
@@ -1097,18 +1103,18 @@ describe('automatic ContextCompactor observer and failure isolation', () => {
   it('keeps a required failure lifecycle rejection isolated from the parent Turn', async () => {
     const root = new Error('summary transport failed');
     const lifecycle = new Error('failure fact failed');
-    const failCommittedHistory = vi.fn(async () => {
+    const failCommittedHistory = mock(async () => {
       throw lifecycle;
     });
     const hook = createAutomaticContextCompactionHook(
       {
         automatic: {
-          compactBeforeLlm: vi.fn(async () => {
+          compactBeforeLlm: mock(async () => {
             throw root;
           }),
         },
         lifecycle: {
-          completeCommittedHistory: vi.fn(async () => undefined),
+          completeCommittedHistory: mock(async () => undefined),
           failCommittedHistory,
         },
       },
@@ -1131,17 +1137,17 @@ describe('automatic ContextCompactor observer and failure isolation', () => {
     const controller = new AbortController();
     controller.abort('user-stop');
     const root = new Error('Local context compaction was aborted.');
-    const failCommittedHistory = vi.fn(async () => undefined);
-    const observe = vi.fn(async () => undefined);
+    const failCommittedHistory = mock(async () => undefined);
+    const observe = mock(async () => undefined);
     const hook = createAutomaticContextCompactionHook(
       {
         automatic: {
-          compactBeforeLlm: vi.fn(async () => {
+          compactBeforeLlm: mock(async () => {
             throw root;
           }),
         },
         lifecycle: {
-          completeCommittedHistory: vi.fn(async () => undefined),
+          completeCommittedHistory: mock(async () => undefined),
           failCommittedHistory,
         },
         observer: { observe },
@@ -1161,19 +1167,19 @@ describe('automatic ContextCompactor observer and failure isolation', () => {
   it('projects a terminal abort when the parent Turn aborts after start', async () => {
     const controller = new AbortController();
     const root = new Error('Local context compaction was aborted.');
-    const failCommittedHistory = vi.fn(async () => undefined);
-    const observe = vi.fn(async () => undefined);
+    const failCommittedHistory = mock(async () => undefined);
+    const observe = mock(async () => undefined);
     const hook = createAutomaticContextCompactionHook(
       {
         automatic: {
-          compactBeforeLlm: vi.fn(async (_input, hooks) => {
+          compactBeforeLlm: mock(async (_input, hooks) => {
             hooks?.onStarted();
             controller.abort('user-stop');
             throw root;
           }),
         },
         lifecycle: {
-          completeCommittedHistory: vi.fn(async () => undefined),
+          completeCommittedHistory: mock(async () => undefined),
           failCommittedHistory,
         },
         observer: { observe },
@@ -1211,13 +1217,13 @@ describe('automatic ContextCompactor attempt settlement', () => {
     const hook = createAutomaticContextCompactionHook(
       {
         automatic: {
-          compactBeforeLlm: vi.fn(async () => {
+          compactBeforeLlm: mock(async () => {
             throw root;
           }),
         },
         lifecycle: {
-          completeCommittedHistory: vi.fn(async () => undefined),
-          failCommittedHistory: vi.fn(() => rejectWithoutError(undefined)),
+          completeCommittedHistory: mock(async () => undefined),
+          failCommittedHistory: mock(() => rejectWithoutError(undefined)),
         },
       },
       context,
@@ -1232,13 +1238,13 @@ describe('automatic ContextCompactor attempt settlement', () => {
 
   it('settles a malformed completed attempt with its pre-result lifecycle identity', async () => {
     let automaticInput: unknown;
-    const failCommittedHistory = vi.fn<ContextCompactionLifecycle['failCommittedHistory']>(
+    const failCommittedHistory = mock<ContextCompactionLifecycle['failCommittedHistory']>(
       async () => undefined,
     );
     const hook = createAutomaticContextCompactionHook(
       {
         automatic: {
-          compactBeforeLlm: vi.fn(async (input) => {
+          compactBeforeLlm: mock(async (input) => {
             automaticInput = input;
             return {
               status: 'completed' as const,
@@ -1257,7 +1263,7 @@ describe('automatic ContextCompactor attempt settlement', () => {
           }),
         },
         lifecycle: {
-          completeCommittedHistory: vi.fn(async () => undefined),
+          completeCommittedHistory: mock(async () => undefined),
           failCommittedHistory,
         },
       },
@@ -1477,10 +1483,10 @@ describe('bounded compaction replacement metadata', () => {
     async (method) => {
       const hook = createAutomaticContextCompactionHook(
         {
-          automatic: { compactBeforeLlm: vi.fn(async () => completed(method) as never) },
+          automatic: { compactBeforeLlm: mock(async () => completed(method) as never) },
           lifecycle: {
-            completeCommittedHistory: vi.fn(async () => undefined),
-            failCommittedHistory: vi.fn(async () => undefined),
+            completeCommittedHistory: mock(async () => undefined),
+            failCommittedHistory: mock(async () => undefined),
           },
         },
         context,

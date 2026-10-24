@@ -15,7 +15,7 @@ import {
   makeStore,
   settledDecision,
   submitGoalProposal,
-  vi,
+  mock,
   type GoalTurnBinding,
   type HostGoalStore,
   type LocalQueuedMessage,
@@ -28,9 +28,9 @@ import {
 describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
   it("accounts a bound main Turn and durably queues its continuation", async () => {
     const active = goal();
-    const bumpBoundUsage = vi.fn(async () => boundUsageResult(active));
-    const updateBreaker = vi.fn();
-    const enqueuePostTurnContinuation = vi.fn(async () => undefined);
+    const bumpBoundUsage = mock(async () => boundUsageResult(active));
+    const updateBreaker = mock();
+    const enqueuePostTurnContinuation = mock(async () => undefined);
     const { integration, emitRuntimeEvent } = makeIntegration({
       store: makeStore({
         getBySession: async () => active,
@@ -98,8 +98,8 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
       statusReason: "paused(accounting_unavailable)",
       updatedAt: active.updatedAt + 1,
     });
-    const settleBoundTurn = vi.fn(async () => settledDecision(paused));
-    const reportFailure = vi.fn();
+    const settleBoundTurn = mock(async () => settledDecision(paused));
+    const reportFailure = mock();
     const { integration, emitBusEvent } = makeIntegration({
       store: makeStore({
         getBySession: async () => active,
@@ -168,7 +168,7 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
       replyFingerprint: "checked",
       updatedAt: breakerChecked.updatedAt + 1,
     });
-    const updateBreaker = vi.fn(async () => {
+    const updateBreaker = mock(async () => {
       current = breakerChecked;
       return {
         action: "none" as const,
@@ -176,11 +176,11 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
         epoch: breakerChecked.updatedAt,
       };
     });
-    const settleBoundTurn = vi.fn(async () => {
+    const settleBoundTurn = mock(async () => {
       current = completed;
       return settledDecision(completed);
     });
-    const enqueuePostTurnContinuation = vi.fn(async () => undefined);
+    const enqueuePostTurnContinuation = mock(async () => undefined);
     const { integration } = makeIntegration({
       store: makeStore({
         getBySession: async () => current,
@@ -248,8 +248,8 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
       turnsUsed: 1,
       updatedAt: accounted.updatedAt + 1,
     });
-    const updateBreaker = vi.fn();
-    const settleBoundTurn = vi.fn(async () => settledDecision(blocked));
+    const updateBreaker = mock();
+    const settleBoundTurn = mock(async () => settledDecision(blocked));
     const { integration, emitRuntimeEvent, enqueuePostTurnContinuation } =
       makeIntegration({
         store: makeStore({
@@ -316,7 +316,7 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
       statusReason: "paused(user_requested)",
       updatedAt: current.updatedAt + 1,
     });
-    const settleBoundTurn = vi.fn();
+    const settleBoundTurn = mock();
     const { integration, enqueuePostTurnContinuation } = makeIntegration({
       store: makeStore({
         getBySession: async () => current,
@@ -354,8 +354,8 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
     let current = active;
     const accounted = goal({ turnsUsed: 1, updatedAt: active.updatedAt + 1 });
     let pendingPermission = false;
-    const settleBoundTurn = vi.fn();
-    const updateBreaker = vi.fn();
+    const settleBoundTurn = mock();
+    const updateBreaker = mock();
     const { integration, enqueuePostTurnContinuation } = makeIntegration({
       store: makeStore({
         getBySession: async () => current,
@@ -406,7 +406,7 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
   it("applies the dependency gate even without a terminal proposal", async () => {
     const active = goal();
     let pendingQuestionnaire = false;
-    const updateBreaker = vi.fn();
+    const updateBreaker = mock();
     const { integration, enqueuePostTurnContinuation } = makeIntegration({
       store: makeStore({
         getBySession: async () => active,
@@ -444,8 +444,8 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
         statusReason: "paused(verifier_unavailable)",
         updatedAt: active.updatedAt + 1,
       });
-      const updateBreaker = vi.fn();
-      const settleBoundTurn = vi.fn(async () => settledDecision(paused));
+      const updateBreaker = mock();
+      const settleBoundTurn = mock(async () => settledDecision(paused));
       const { integration, enqueuePostTurnContinuation } = makeIntegration({
         store: makeStore({
           getBySession: async () => active,
@@ -488,8 +488,8 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
 
   it("discards a collected proposal when the process-local Turn lifecycle is lost", async () => {
     const active = goal();
-    const bumpBoundUsage = vi.fn();
-    const settleBoundTurn = vi.fn();
+    const bumpBoundUsage = mock();
+    const settleBoundTurn = mock();
     const { integration, turnTimings, enqueuePostTurnContinuation } =
       makeIntegration({
         store: makeStore({
@@ -520,9 +520,9 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
     "rejects an unbound proposal without ending the user Turn or changing the %s Goal",
     async (status) => {
       const currentGoal = goal({ status });
-      const bumpBoundUsage = vi.fn();
-      const settleBoundTurn = vi.fn();
-      const enqueuePostTurnContinuation = vi.fn(async () => undefined);
+      const bumpBoundUsage = mock();
+      const settleBoundTurn = mock();
+      const enqueuePostTurnContinuation = mock(async () => undefined);
       const { integration } = makeIntegration({
         store: makeStore({
           getBySession: async () => currentGoal,
@@ -574,12 +574,12 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
       goalId: "tg_replacement",
       objective: "Replacement objective",
     });
-    const bumpBoundUsage = vi.fn(async (binding: GoalTurnBinding) => {
+    const bumpBoundUsage = mock(async (binding: GoalTurnBinding) => {
       expect(binding.goalId).toBe("tg_old");
       return { staleReason: "missing_goal" as const };
     });
-    const settleBoundTurn = vi.fn();
-    const enqueuePostTurnContinuation = vi.fn(async () => undefined);
+    const settleBoundTurn = mock();
+    const enqueuePostTurnContinuation = mock(async () => undefined);
     const { integration } = makeIntegration({
       store: makeStore({
         getBySession: async () => current,
@@ -620,7 +620,7 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
     async (staleReason) => {
       let current = goal();
       const admitted = current;
-      const bumpBoundUsage = vi.fn(
+      const bumpBoundUsage = mock(
         async (_binding, delta: ThreadGoalBoundUsageDelta) => {
           current = {
             ...current,
@@ -638,9 +638,9 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
           return boundUsageResult(current, { staleReason });
         },
       );
-      const updateBreaker = vi.fn();
-      const settleBoundTurn = vi.fn();
-      const enqueuePostTurnContinuation = vi.fn(async () => undefined);
+      const updateBreaker = mock();
+      const settleBoundTurn = mock();
+      const enqueuePostTurnContinuation = mock(async () => undefined);
       const { integration } = makeIntegration({
         store: makeStore({
           getBySession: async () => current,
@@ -676,7 +676,7 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
       noProgressStreak: 1,
       updatedAt: current.updatedAt + 1,
     });
-    const updateBreaker = vi.fn(async () => {
+    const updateBreaker = mock(async () => {
       current = repeated;
       return {
         action: "nudge" as const,
@@ -684,7 +684,7 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
         epoch: repeated.updatedAt,
       };
     });
-    const enqueuePostTurnContinuation = vi.fn(async () => undefined);
+    const enqueuePostTurnContinuation = mock(async () => undefined);
     const { integration, emitRuntimeEvent } = makeIntegration({
       store: makeStore({
         getBySession: async () => current,
@@ -732,7 +732,7 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
     const admitted = goal({ turnsUsed: 4 });
     let current = admitted;
     const accounted = goal({ turnsUsed: 5, updatedAt: admitted.updatedAt + 1 });
-    const enqueuePostTurnContinuation = vi.fn(async () => undefined);
+    const enqueuePostTurnContinuation = mock(async () => undefined);
     const { integration, emitRuntimeEvent } = makeIntegration({
       store: makeStore({
         getBySession: async () => current,
@@ -785,12 +785,12 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
       replyFingerprint: "persisted-fingerprint",
       updatedAt: active.updatedAt + 1,
     });
-    const updateBreaker = vi.fn(async () => ({
+    const updateBreaker = mock(async () => ({
       action: "pause" as const,
       goal: paused,
       epoch: paused.updatedAt,
     }));
-    const enqueuePostTurnContinuation = vi.fn(async () => undefined);
+    const enqueuePostTurnContinuation = mock(async () => undefined);
     const { integration, emitBusEvent, emitRuntimeEvent } = makeIntegration({
       store: makeStore({
         getBySession: async () => active,
@@ -854,7 +854,7 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
     let current = goal();
     const admitted = current;
     const observed: Array<{ toolActivity: string; limit: number }> = [];
-    const updateBreaker = vi.fn(
+    const updateBreaker = mock(
       async (
         _goalId: string,
         input: { toolActivity: string; limit: number; expectedEpoch: number },
@@ -922,7 +922,7 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
 
   it("reports a real tool call as `used` and a missing work signal as `unknown`", async () => {
     const active = goal();
-    const updateBreaker = vi.fn(async () => ({
+    const updateBreaker = mock(async () => ({
       action: "none" as const,
       goal: active,
       epoch: active.updatedAt,
@@ -965,9 +965,8 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
 
   it("retries a failed continuation enqueue without charging the same Turn twice", async () => {
     const active = goal();
-    const bumpBoundUsage = vi.fn(async () => boundUsageResult(active));
-    const enqueuePostTurnContinuation = vi
-      .fn()
+    const bumpBoundUsage = mock(async () => boundUsageResult(active));
+    const enqueuePostTurnContinuation = mock()
       .mockRejectedValueOnce(new Error("queue unavailable"))
       .mockResolvedValueOnce(undefined);
     const { integration, reportFailure } = makeIntegration({
@@ -1012,13 +1011,12 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
       noToolStreak: 1,
       updatedAt: active.updatedAt + 1,
     });
-    const updateBreaker = vi.fn(async () => ({
+    const updateBreaker = mock(async () => ({
       action: "none" as const,
       goal: afterBreaker,
       epoch: afterBreaker.updatedAt,
     }));
-    const enqueuePostTurnContinuation = vi
-      .fn()
+    const enqueuePostTurnContinuation = mock()
       .mockRejectedValueOnce(new Error("queue unavailable"))
       .mockResolvedValueOnce(undefined);
     const { integration } = makeIntegration({
@@ -1060,7 +1058,7 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
     let current = goal({ noToolStreak: 2 });
     const admitted = current;
     const cleared = goal({ noToolStreak: 0, updatedAt: current.updatedAt + 1 });
-    const updateBreaker = vi.fn(async () => {
+    const updateBreaker = mock(async () => {
       current = cleared;
       return {
         action: "none" as const,
@@ -1068,7 +1066,7 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
         epoch: cleared.updatedAt,
       };
     });
-    const enqueuePostTurnContinuation = vi.fn(async () => undefined);
+    const enqueuePostTurnContinuation = mock(async () => undefined);
     let permissionPending = false;
     const { integration } = makeIntegration({
       store: makeStore({
@@ -1106,7 +1104,7 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
 
   it("leaves a dependency wait alone when there is no live no-tool streak", async () => {
     const active = goal();
-    const updateBreaker = vi.fn(async () => ({
+    const updateBreaker = mock(async () => ({
       action: "none" as const,
       goal: active,
       epoch: active.updatedAt,
@@ -1151,8 +1149,8 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
         statusReason,
         updatedAt: active.updatedAt + 1,
       });
-      const settleBoundTurn = vi.fn(async () => settledDecision(settled));
-      const enqueuePostTurnContinuation = vi.fn(async () => undefined);
+      const settleBoundTurn = mock(async () => settledDecision(settled));
+      const enqueuePostTurnContinuation = mock(async () => undefined);
       const { integration, emitBusEvent, emitRuntimeEvent } = makeIntegration({
         store: makeStore({
           getBySession: async () => active,
@@ -1199,7 +1197,7 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
       statusReason: "paused(retracted)",
       updatedAt: active.updatedAt + 1,
     });
-    const settleBoundTurn = vi.fn(async () => settledDecision(paused));
+    const settleBoundTurn = mock(async () => settledDecision(paused));
     const { integration, enqueuePostTurnContinuation } = makeIntegration({
       store: makeStore({
         getBySession: async () => active,
@@ -1228,8 +1226,8 @@ describe("LocalThreadGoalIntegration injected v2 Turn settlement", () => {
 
   it("accounts an aborted bound Turn but leaves Goal completion authority untouched", async () => {
     const active = goal();
-    const bumpBoundUsage = vi.fn(async () => boundUsageResult(active));
-    const settleBoundTurn = vi.fn();
+    const bumpBoundUsage = mock(async () => boundUsageResult(active));
+    const settleBoundTurn = mock();
     const { integration, enqueuePostTurnContinuation } = makeIntegration({
       store: makeStore({
         getBySession: async () => active,

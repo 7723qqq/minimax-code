@@ -17,7 +17,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import Database from "better-sqlite3";
+import { Database } from "bun:sqlite";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { withoutProxyEnvironment } from "./offline-environment.mjs";
 
@@ -528,7 +528,7 @@ test(
       assert.ok(!JSON.stringify(requests.slice(beforeResume)).includes(marker),
         "The resumed provider request must not contain Hook display messages");
     }
-    const displayDb = new Database(dbPath, { readonly: true });
+    const displayDb = new Database(dbPath, { readonly: true, create: false });
     try {
       const notices = displayDb.prepare("SELECT data_json FROM local_runtime_message_rows").all()
         .map((row) => JSON.parse(row.data_json))

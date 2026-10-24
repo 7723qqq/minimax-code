@@ -13,7 +13,7 @@ export function suiteFiles(root, name) {
   const files = suites[name];
   if (!files)
     throw new Error(
-      `Unknown Vitest suite "${name}"; ${suitesPath} declares ${Object.keys(suites).join(", ")}`,
+      `Unknown test suite "${name}"; ${suitesPath} declares ${Object.keys(suites).join(", ")}`,
     );
   return files;
 }
@@ -26,7 +26,7 @@ export const repositoryRoot = fileURLToPath(new URL("../../", import.meta.url));
 
 // Use the source inventory rather than Git so exported source archives enforce
 // the same coverage contract. Vendored suites and repository node:test gates
-// are deliberately outside the first-party Vitest discovery boundary.
+// are deliberately outside the first-party test discovery boundary.
 export function suiteInventoryViolations(files, suites) {
   const actual = new Set(files);
   const declared = Object.values(suites).flat();
@@ -34,10 +34,10 @@ export function suiteInventoryViolations(files, suites) {
   const violations = [];
   for (const file of declared) {
     if (registered.has(file))
-      violations.push(`${file}: duplicate Vitest registration`);
+      violations.push(`${file}: duplicate test registration`);
     registered.add(file);
     if (!actual.has(file))
-      violations.push(`${file}: registered Vitest file is missing`);
+      violations.push(`${file}: registered test file is missing`);
   }
   for (const file of files) {
     if (

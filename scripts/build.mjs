@@ -83,7 +83,7 @@ const result = await build({
     'mcode-tools': 'packages/tui/src/cli/mcode-tools-entry.ts',
     'matrix-mcp-stdio': 'packages/agent-tools/src/desktop/matrix-mcp-stdio.ts',
   },
-  external: cliExternalModules,
+  external: [...cliExternalModules, 'bun:sqlite'],
   outdir,
   bundle: true,
   splitting: true,

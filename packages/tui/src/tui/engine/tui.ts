@@ -4,7 +4,6 @@
 
 import * as os from "node:os";
 import * as path from "node:path";
-import { performance } from "node:perf_hooks";
 import { isKeyRelease, matchesKey } from "./keys.js";
 import type { Terminal } from "./terminal.js";
 import {

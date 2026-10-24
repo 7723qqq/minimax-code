@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { EN_AUTH_COPY } from '../../src/tui/features/auth/copy.en.js';
 import { ZH_HANS_AUTH_COPY } from '../../src/tui/features/auth/copy.zh-Hans.js';

@@ -26,7 +26,6 @@ import {
 } from './embedded-host.js';
 import { createTuiRuntimeLogging, type TuiRuntimeLogging } from './logging.js';
 import { TuiRuntimeAdapter } from './adapter.js';
-import { performance } from 'node:perf_hooks';
 import { join } from 'node:path';
 import {
   createTuiObservability,

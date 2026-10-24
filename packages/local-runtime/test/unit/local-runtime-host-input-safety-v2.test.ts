@@ -1,4 +1,6 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { waitFor } from '../../../../test/bun-test-setup.js';
+import { afterEach, describe, expect, it, jest, mock, spyOn } from 'bun:test';
+
 import { RespDataType } from '@mavis/agent-core/protocol/agent-message';
 import { RuntimeEventStatus, RuntimeEventType, type IRuntimeEvent } from '@mavis/protocol';
 import { LocalRuntimeHost, type LocalTurnRunner } from '../../src/runtime/host.js';
@@ -29,12 +31,12 @@ const finalMessage = (content: string): IRuntimeEvent =>
   }) as IRuntimeEvent;
 const pass = { action: 1 };
 function installInputVerdict(verdict: unknown) {
-  return vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+  return spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
     const body = JSON.parse(String(init?.body));
     return Response.json(body.scene === 110 ? verdict : pass);
   });
 }
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => jest.restoreAllMocks());
 
 describe('LocalRuntimeHost V2 input safety', () => {
   it('starts generation while input review is pending', async () => {
@@ -42,16 +44,16 @@ describe('LocalRuntimeHost V2 input safety', () => {
     const pending = new Promise<Response>((resolve) => {
       resolveReview = resolve;
     });
-    vi.spyOn(globalThis, 'fetch')
+    spyOn(globalThis, 'fetch')
       .mockImplementationOnce(() => pending)
       .mockImplementation(async () => Response.json(pass));
-    const runTurn = vi.fn(async (input) => {
+    const runTurn = mock(async (input) => {
       await input.eventWriter.pushRuntime(finalMessage('answer'));
     });
     const run = new LocalRuntimeHost({ safetyApiVersion: 'v2', piRunner: { runTurn } }).runTurn(
       baseTurn,
     );
-    await vi.waitFor(() => expect(runTurn).toHaveBeenCalledOnce());
+    await waitFor(() => expect(runTurn).toHaveBeenCalledOnce());
     resolveReview(Response.json(pass));
     expect((await run).retracted).toBe(false);
     expect(runTurn).toHaveBeenCalledOnce();
@@ -62,10 +64,10 @@ describe('LocalRuntimeHost V2 input safety', () => {
     const pendingReview = new Promise<Response>((resolve) => {
       resolveReview = resolve;
     });
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => pendingReview);
+    spyOn(globalThis, 'fetch').mockImplementation(() => pendingReview);
     const abort = new AbortController();
-    const observer = vi.fn();
-    const runTurn = vi.fn(async (input) => {
+    const observer = mock();
+    const runTurn = mock(async (input) => {
       await input.eventWriter.pushRuntime({
         schema: 'runtime.event/v1',
         event_id: 'held-completed',
@@ -87,9 +89,9 @@ describe('LocalRuntimeHost V2 input safety', () => {
       });
     })();
     try {
-      await vi.waitFor(() => expect(runTurn).toHaveBeenCalledOnce());
+      await waitFor(() => expect(runTurn).toHaveBeenCalledOnce());
       abort.abort();
-      await vi.waitFor(() => expect(output).toBeDefined(), { timeout: 500 });
+      await waitFor(() => expect(output).toBeDefined(), { timeout: 500 });
       expect(
         output?.events
           .filter((event) => event.type === RuntimeEventType.SESSION_STATUS)
@@ -117,26 +119,26 @@ describe('LocalRuntimeHost V2 input safety', () => {
     const pendingReview = new Promise<Response>((resolve) => {
       resolveReview = resolve;
     });
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+    spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
       const body = JSON.parse(String(init?.body));
       return body.scene === 110
         ? pendingReview
         : Response.json({ action: 2, errorCode: 50201 });
     });
-    const outputBlocked = vi.fn();
-    const runTurn = vi.fn(async (input) => {
+    const outputBlocked = mock();
+    const runTurn = mock(async (input) => {
       await input.eventWriter.pushRuntime(finalMessage('BLOCKED_DRAFT'));
       expect(input.signal?.aborted).toBe(true);
       outputBlocked();
     });
-    const onOutputRecall = vi.fn();
-    const rewindPiHistory = vi.fn();
+    const onOutputRecall = mock();
+    const rewindPiHistory = mock();
     const run = new LocalRuntimeHost({ safetyApiVersion: 'v2', piRunner: { runTurn } }).runTurn({
       ...baseTurn,
       onOutputRecall,
       rewindPiHistory,
     });
-    await vi.waitFor(() => expect(outputBlocked).toHaveBeenCalledOnce());
+    await waitFor(() => expect(outputBlocked).toHaveBeenCalledOnce());
     resolveReview(
       Response.json({
         action: 4,
@@ -168,15 +170,15 @@ describe('LocalRuntimeHost V2 input safety', () => {
       const pendingOutput = new Promise<Response>((resolve) => {
         resolveOutput = resolve;
       });
-      const outputReviewStarted = vi.fn();
-      vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+      const outputReviewStarted = mock();
+      spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
         const body = JSON.parse(String(init?.body));
         if (body.scene === 110) return pendingInput;
         outputReviewStarted();
         return pendingOutput;
       });
       let attemptSignal: AbortSignal | undefined;
-      const runTurn = vi.fn(async (input) => {
+      const runTurn = mock(async (input) => {
         attemptSignal = input.signal;
         const event =
           kind === 'final'
@@ -198,9 +200,9 @@ describe('LocalRuntimeHost V2 input safety', () => {
       const run = new LocalRuntimeHost({ safetyApiVersion: 'v2', piRunner: { runTurn } }).runTurn(
         baseTurn,
       );
-      await vi.waitFor(() => expect(outputReviewStarted).toHaveBeenCalledOnce());
+      await waitFor(() => expect(outputReviewStarted).toHaveBeenCalledOnce());
       resolveInput(Response.json({ action: 2, errorCode: 50201 }));
-      await vi.waitFor(() => expect(attemptSignal?.aborted).toBe(true));
+      await waitFor(() => expect(attemptSignal?.aborted).toBe(true));
       resolveOutput(Response.json(pass));
       const output = await run;
       expect(output).toMatchObject({ retracted: true, retractionVariant: 'content' });
@@ -219,7 +221,7 @@ describe('LocalRuntimeHost V2 input safety', () => {
     ],
   ])('restarts a concurrent draft with the input guide once: %j', async (verdict, instruction) => {
     let outputIndex = 0;
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+    spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
       const body = JSON.parse(String(init?.body));
       return Response.json(
         body.scene === 110
@@ -230,7 +232,7 @@ describe('LocalRuntimeHost V2 input safety', () => {
       );
     });
     const prompts: string[] = [];
-    const onInputReviewResolved = vi.fn();
+    const onInputReviewResolved = mock();
     const piRunner: LocalTurnRunner = {
       async runTurn(input) {
         prompts.push(input.systemPrompt);
@@ -245,8 +247,8 @@ describe('LocalRuntimeHost V2 input safety', () => {
     const output = await new LocalRuntimeHost({ safetyApiVersion: 'v2', piRunner }).runTurn({
       ...baseTurn,
       onInputReviewResolved,
-      rewindPiHistory: vi.fn(),
-      onOutputRecall: vi.fn(),
+      rewindPiHistory: mock(),
+      onOutputRecall: mock(),
     });
     expect(prompts).toEqual([
       'base',
@@ -261,10 +263,10 @@ describe('LocalRuntimeHost V2 input safety', () => {
 
   it.each([undefined, '', '  '])('passes an input guide without text: %j', async (guide) => {
     installInputVerdict({ action: 4, errorCode: 50201, ...(guide !== undefined ? { guide_prompt: guide } : {}) });
-    const onInputReviewResolved = vi.fn();
-    const onOutputRecall = vi.fn();
-    const rewindPiHistory = vi.fn();
-    const runTurn = vi.fn(async (input) => {
+    const onInputReviewResolved = mock();
+    const onOutputRecall = mock();
+    const rewindPiHistory = mock();
+    const runTurn = mock(async (input) => {
       await input.eventWriter.pushRuntime(finalMessage('original answer'));
       expect(input.signal?.aborted).toBe(false);
     });
@@ -286,8 +288,8 @@ describe('LocalRuntimeHost V2 input safety', () => {
       errorCode: 50201,
       suggestion: 'fixed answer',
     });
-    const runTurn = vi.fn();
-    const history = vi.fn();
+    const runTurn = mock();
+    const history = mock();
     const output = await new LocalRuntimeHost({
       safetyApiVersion: 'v2',
       piRunner: { runTurn },
@@ -312,8 +314,8 @@ describe('LocalRuntimeHost V2 input safety', () => {
       action: 2,
       errorCode: 50201,
     });
-    const runTurn = vi.fn();
-    const onInputReviewResolved = vi.fn();
+    const runTurn = mock();
+    const onInputReviewResolved = mock();
     const output = await new LocalRuntimeHost({
       safetyApiVersion: 'v2',
       piRunner: { runTurn },
@@ -332,10 +334,10 @@ describe('LocalRuntimeHost V2 input safety', () => {
   it.each([401, 503, 200])(
     'fails closed without a usable input verdict (HTTP %s)',
     async (status) => {
-      vi.spyOn(globalThis, 'fetch').mockImplementation(
+      spyOn(globalThis, 'fetch').mockImplementation(
         async () => new Response('invalid', { status }),
       );
-      const runTurn = vi.fn();
+      const runTurn = mock();
       const output = await new LocalRuntimeHost({
         safetyApiVersion: 'v2',
         piRunner: { runTurn },
@@ -346,9 +348,9 @@ describe('LocalRuntimeHost V2 input safety', () => {
   );
 
   it('retracts the concurrent draft when input review is unavailable', async () => {
-    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
-    const runTurn = vi.fn();
-    const onInputReviewResolved = vi.fn();
+    spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
+    const runTurn = mock();
+    const onInputReviewResolved = mock();
     const output = await new LocalRuntimeHost({
       safetyApiVersion: 'v2',
       piRunner: { runTurn },
@@ -370,10 +372,10 @@ describe('LocalRuntimeHost V2 input safety', () => {
     const pending = new Promise<Response>((resolve) => {
       resolveReview = resolve;
     });
-    vi.spyOn(globalThis, 'fetch').mockImplementation(() => pending);
-    const runTurn = vi.fn();
-    const history = vi.fn();
-    const observer = vi.fn();
+    spyOn(globalThis, 'fetch').mockImplementation(() => pending);
+    const runTurn = mock();
+    const history = mock();
+    const observer = mock();
     const abort = new AbortController();
     const run = new LocalRuntimeHost({ safetyApiVersion: 'v2', piRunner: { runTurn } }).runTurn({
       ...baseTurn,
@@ -401,11 +403,11 @@ describe('LocalRuntimeHost V2 input safety', () => {
     const held = new Promise<void>((resolve) => {
       releaseHistory = resolve;
     });
-    const history = vi.fn().mockImplementationOnce(async () => {
+    const history = mock().mockImplementationOnce(async () => {
       enterHistory();
       await held;
     });
-    const runTurn = vi.fn();
+    const runTurn = mock();
     const abort = new AbortController();
     const baseline = [{ role: 'user' as const, content: 'PRIOR', timestamp: 1 }];
     const pending = new LocalRuntimeHost({ safetyApiVersion: 'v2', piRunner: { runTurn } }).runTurn(
@@ -432,7 +434,7 @@ describe('LocalRuntimeHost V2 input safety', () => {
 
   it('does not review absent input on continuation turns', async () => {
     const fetchSpy = installInputVerdict({ action: 2, errorCode: 50201 });
-    const runTurn = vi.fn(async (input) => {
+    const runTurn = mock(async (input) => {
       await input.eventWriter.pushRuntime(finalMessage('answer'));
     });
     const { reviewUserInput: _, ...continuation } = baseTurn;

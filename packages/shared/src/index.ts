@@ -12,7 +12,11 @@ export {
   DAILY_DIGEST_TTL_DAYS,
   CLEANUP_DEDUP_WINDOW_MS,
 } from './memory-limits.js';
-export { loadBetterSqlite3 } from './sqlite-driver.js';
+export {
+  loadSqliteDatabase,
+  FinalizingSqliteDatabase,
+  type SqliteDatabaseConstructor,
+} from './sqlite-driver.js';
 export {
   normalizeProductBuildEnvironment,
   resolveProductBuildIdentity,

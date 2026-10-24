@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, jest, mock } from 'bun:test';
+
 import type { Terminal, TUI } from '../../src/tui/engine/public.js';
 import type { Component } from '../../src/tui/rendering/component.js';
 import {
@@ -49,18 +50,18 @@ function createRecordingPresenter(): {
   presentations: Array<{
     id: string;
     focus: Component;
-    close: ReturnType<typeof vi.fn>;
+    close: ReturnType<typeof mock>;
   }>;
 } {
   const presentations: Array<{
     id: string;
     focus: Component;
-    close: ReturnType<typeof vi.fn>;
+    close: ReturnType<typeof mock>;
   }> = [];
   return {
     presenter: {
       show: (feature, focus) => {
-        const presentation = { id: feature.id, focus, close: vi.fn() };
+        const presentation = { id: feature.id, focus, close: mock() };
         presentations.push(presentation);
         return presentation;
       },
@@ -80,10 +81,10 @@ describe('TuiSurfaceHost', () => {
       chat: { component: inline, focus: component([]) },
       chatMode: mode,
       mode: () => mode,
-      setFocus: vi.fn(),
-      requestRender: vi.fn(),
+      setFocus: mock(),
+      requestRender: mock(),
     });
-    const requestRender = vi.fn();
+    const requestRender = mock();
     const interaction = new TuiInteractionSurface(inline, host, requestRender);
     const panel = { ...component(['inspection']), fullscreenViewport };
 
@@ -104,20 +105,20 @@ describe('TuiSurfaceHost', () => {
         {
           showOverlay: (overlay: Component) => {
             overlays.push(overlay);
-            return { hide: vi.fn() };
+            return { hide: mock() };
           },
         } as unknown as TUI,
-        vi.fn(),
+        mock(),
       );
-      const renderViewport = vi.fn((width: number, height: number) => [`${width}x${height}`]);
+      const renderViewport = mock((width: number, height: number) => [`${width}x${height}`]);
       const host = createSurfaceHost({
         chat: { component: component(['chat']), focus: component([]) },
         chatMode: mode,
         mode: () => mode,
         viewportRows: () => terminal.rows,
         regularFeaturePresenter: presenter,
-        setFocus: vi.fn(),
-        requestRender: vi.fn(),
+        setFocus: mock(),
+        requestRender: mock(),
       });
       host.pushFeature({ screen: { ...screen('history', () => ['unbounded']), renderViewport } });
       const render = () => (mode === 'regular' ? overlays[0]!.render(40) : host.render(40));
@@ -131,15 +132,15 @@ describe('TuiSurfaceHost', () => {
   );
 
   it('invalidates only the mounted chat root in regular mode', () => {
-    const chatInvalidate = vi.fn();
-    const featureInvalidate = vi.fn();
+    const chatInvalidate = mock();
+    const featureInvalidate = mock();
     const host = createSurfaceHost({
       chat: {
         component: { render: () => ['chat'], invalidate: chatInvalidate },
         focus: component([]),
       },
-      setFocus: vi.fn(),
-      requestRender: vi.fn(),
+      setFocus: mock(),
+      requestRender: mock(),
     });
     const handle = host.pushFeature({
       screen: {
@@ -163,9 +164,9 @@ describe('TuiSurfaceHost', () => {
   });
 
   it('invalidates only the active fullscreen feature', () => {
-    const chatInvalidate = vi.fn();
-    const firstInvalidate = vi.fn();
-    const secondInvalidate = vi.fn();
+    const chatInvalidate = mock();
+    const firstInvalidate = mock();
+    const secondInvalidate = mock();
     const host = createSurfaceHost({
       chat: {
         component: { render: () => ['chat'], invalidate: chatInvalidate },
@@ -173,8 +174,8 @@ describe('TuiSurfaceHost', () => {
       },
       chatMode: 'fullscreen',
       mode: () => 'fullscreen',
-      setFocus: vi.fn(),
-      requestRender: vi.fn(),
+      setFocus: mock(),
+      requestRender: mock(),
     });
     host.pushFeature({
       screen: { ...screen('first', () => ['first']), invalidate: firstInvalidate },
@@ -196,20 +197,20 @@ describe('TuiSurfaceHost', () => {
   it('lets a feature screen own invalidation of its Pi layout root', () => {
     const overlays: Component[] = [];
     const tui = {
-      showOverlay: vi.fn((overlay: Component) => {
+      showOverlay: mock((overlay: Component) => {
         overlays.push(overlay);
-        return { hide: vi.fn() };
+        return { hide: mock() };
       }),
     } as unknown as TUI;
-    const layoutInvalidate = vi.fn();
-    const screenInvalidate = vi.fn(() => layoutInvalidate());
+    const layoutInvalidate = mock();
+    const screenInvalidate = mock(() => layoutInvalidate());
     const feature = {
       id: 'sessions',
       layoutRoot: { render: () => ['layout'], invalidate: layoutInvalidate },
       render: () => ['sessions'],
       invalidate: screenInvalidate,
     };
-    const presenter = new TuiOverlayRegularFeaturePresenter({ rows: 24 } as Terminal, tui, vi.fn());
+    const presenter = new TuiOverlayRegularFeaturePresenter({ rows: 24 } as Terminal, tui, mock());
 
     presenter.show(feature, feature);
     overlays[0]?.invalidate();
@@ -219,9 +220,9 @@ describe('TuiSurfaceHost', () => {
   });
 
   it('stops periodic terminal renders while an interaction owns the viewport', () => {
-    vi.useFakeTimers();
+    jest.useFakeTimers();
     try {
-      const requestActivityRender = vi.fn();
+      const requestActivityRender = mock();
       const activity = new TuiActivityLine(
         { phase: 'running', runId: 'turn-1' },
         { requestRender: requestActivityRender },
@@ -229,29 +230,29 @@ describe('TuiSurfaceHost', () => {
       const host = new TuiInlinePanelHost();
       const surfaces = createSurfaceHost({
         chat: { component: component(['chat']), focus: component([]) },
-        setFocus: vi.fn(),
-        requestRender: vi.fn(),
+        setFocus: mock(),
+        requestRender: mock(),
       });
-      const interaction = new TuiInteractionSurface(host, surfaces, vi.fn(), (active) =>
+      const interaction = new TuiInteractionSurface(host, surfaces, mock(), (active) =>
         activity.setAnimationPaused(active),
       );
       const panel = component(['question']);
 
-      vi.advanceTimersByTime(160);
+      jest.advanceTimersByTime(160);
       expect(requestActivityRender).toHaveBeenCalledTimes(2);
 
       interaction.show(panel);
       requestActivityRender.mockClear();
-      vi.advanceTimersByTime(320);
+      jest.advanceTimersByTime(320);
       expect(requestActivityRender).not.toHaveBeenCalled();
 
       interaction.close(panel);
-      vi.advanceTimersByTime(80);
+      jest.advanceTimersByTime(80);
       expect(requestActivityRender).toHaveBeenCalledOnce();
 
       activity.dispose();
     } finally {
-      vi.useRealTimers();
+      jest.useRealTimers();
     }
   });
 
@@ -260,8 +261,8 @@ describe('TuiSurfaceHost', () => {
     const focus = component([]);
     const host = createSurfaceHost({
       chat: { component: chat, focus },
-      setFocus: vi.fn(),
-      requestRender: vi.fn(),
+      setFocus: mock(),
+      requestRender: mock(),
     });
 
     expect(host.getActiveSurface()).toEqual({ kind: 'chat', id: 'chat' });
@@ -272,8 +273,8 @@ describe('TuiSurfaceHost', () => {
     const chat = component(['chat']);
     const chatFocus = component([]);
     const featureFocus = component([]);
-    const setFocus = vi.fn();
-    const requestRender = vi.fn();
+    const setFocus = mock();
+    const requestRender = mock();
     const { presenter, presentations } = createRecordingPresenter();
     const host = createSurfaceHost({
       chat: { component: chat, focus: chatFocus },
@@ -303,11 +304,11 @@ describe('TuiSurfaceHost', () => {
     const chatFocus = component([]);
     const firstFocus = component([]);
     const secondFocus = component([]);
-    const setFocus = vi.fn();
+    const setFocus = mock();
     const host = createSurfaceHost({
       chat: { component: component(['chat']), focus: chatFocus },
       setFocus,
-      requestRender: vi.fn(),
+      requestRender: mock(),
     });
     const first = host.pushFeature({
       screen: screen('sessions', () => ['sessions']),
@@ -328,15 +329,15 @@ describe('TuiSurfaceHost', () => {
 
   it('keeps a regular renderer stable while a feature stack opens and closes', () => {
     let mode: 'regular' | 'fullscreen' = 'regular';
-    const switchMode = vi.fn((next: typeof mode) => {
+    const switchMode = mock((next: typeof mode) => {
       mode = next;
       return true;
     });
     const host = createSurfaceHost({
       chat: { component: component(['chat']), focus: component([]) },
       mode: () => mode,
-      setFocus: vi.fn(),
-      requestRender: vi.fn(),
+      setFocus: mock(),
+      requestRender: mock(),
       switchMode,
     });
 
@@ -352,13 +353,13 @@ describe('TuiSurfaceHost', () => {
   });
 
   it('keeps chat and feature screens fullscreen when fullscreen is the configured chat mode', () => {
-    const switchMode = vi.fn(() => true);
+    const switchMode = mock(() => true);
     const host = createSurfaceHost({
       chat: { component: component(['chat']), focus: component([]) },
       chatMode: 'fullscreen',
       mode: () => 'fullscreen',
-      setFocus: vi.fn(),
-      requestRender: vi.fn(),
+      setFocus: mock(),
+      requestRender: mock(),
       switchMode,
     });
 
@@ -372,11 +373,11 @@ describe('TuiSurfaceHost', () => {
   });
 
   it('switches the visible chat immediately when its configured mode changes', () => {
-    const switchMode = vi.fn(() => true);
+    const switchMode = mock(() => true);
     const host = createSurfaceHost({
       chat: { component: component(['chat']), focus: component([]) },
-      setFocus: vi.fn(),
-      requestRender: vi.fn(),
+      setFocus: mock(),
+      requestRender: mock(),
       switchMode,
     });
 
@@ -388,7 +389,7 @@ describe('TuiSurfaceHost', () => {
 
   it('changes the renderer immediately while keeping the active feature in the selected mode', () => {
     let mode: 'regular' | 'fullscreen' = 'fullscreen';
-    const switchMode = vi.fn((next: typeof mode) => {
+    const switchMode = mock((next: typeof mode) => {
       mode = next;
       return true;
     });
@@ -398,8 +399,8 @@ describe('TuiSurfaceHost', () => {
       chatMode: 'fullscreen',
       mode: () => mode,
       regularFeaturePresenter: presenter,
-      setFocus: vi.fn(),
-      requestRender: vi.fn(),
+      setFocus: mock(),
+      requestRender: mock(),
       switchMode,
     });
     const feature = host.pushFeature({ screen: screen('sessions', () => ['sessions']) });
@@ -416,11 +417,11 @@ describe('TuiSurfaceHost', () => {
   });
 
   it('rolls back the configured chat mode when Pi refuses the renderer switch', () => {
-    const switchMode = vi.fn(() => false);
+    const switchMode = mock(() => false);
     const host = createSurfaceHost({
       chat: { component: component(['chat']), focus: component([]) },
-      setFocus: vi.fn(),
-      requestRender: vi.fn(),
+      setFocus: mock(),
+      requestRender: mock(),
       switchMode,
     });
 
@@ -431,8 +432,8 @@ describe('TuiSurfaceHost', () => {
   it('rolls back the configured chat mode when the renderer switch throws', () => {
     const host = createSurfaceHost({
       chat: { component: component(['chat']), focus: component([]) },
-      setFocus: vi.fn(),
-      requestRender: vi.fn(),
+      setFocus: mock(),
+      requestRender: mock(),
       switchMode: () => {
         throw new Error('terminal restart failed');
       },
@@ -445,7 +446,7 @@ describe('TuiSurfaceHost', () => {
 
   it('restores fullscreen when a regular feature cannot be presented after a mode change', () => {
     let mode: 'regular' | 'fullscreen' = 'fullscreen';
-    const switchMode = vi.fn((next: typeof mode) => {
+    const switchMode = mock((next: typeof mode) => {
       mode = next;
       return true;
     });
@@ -458,8 +459,8 @@ describe('TuiSurfaceHost', () => {
           throw new Error('regular feature presentation failed');
         },
       },
-      setFocus: vi.fn(),
-      requestRender: vi.fn(),
+      setFocus: mock(),
+      requestRender: mock(),
       switchMode,
     });
     host.pushFeature({ screen: screen('sessions', () => ['sessions']) });
@@ -479,8 +480,8 @@ describe('TuiSurfaceHost', () => {
           throw new Error('regular feature presentation failed');
         },
       },
-      setFocus: vi.fn(),
-      requestRender: vi.fn(),
+      setFocus: mock(),
+      requestRender: mock(),
     });
     const feature = screen('sessions', () => ['sessions']);
 
@@ -493,25 +494,25 @@ describe('TuiSurfaceHost', () => {
 
   it('restores a nested feature stack when presenting the previous feature throws on close', () => {
     let failNextPresentation = false;
-    const presentations: Array<{ id: string; close: ReturnType<typeof vi.fn> }> = [];
+    const presentations: Array<{ id: string; close: ReturnType<typeof mock> }> = [];
     const presenter: TuiRegularFeaturePresenter = {
       show: (feature, focus) => {
         if (failNextPresentation) {
           failNextPresentation = false;
           throw new Error('regular feature presentation failed');
         }
-        const presentation = { id: feature.id, focus, close: vi.fn() };
+        const presentation = { id: feature.id, focus, close: mock() };
         presentations.push(presentation);
         return presentation;
       },
     };
-    const firstDispose = vi.fn();
-    const secondDispose = vi.fn();
+    const firstDispose = mock();
+    const secondDispose = mock();
     const host = createSurfaceHost({
       chat: { component: component(['chat']), focus: component([]) },
       regularFeaturePresenter: presenter,
-      setFocus: vi.fn(),
-      requestRender: vi.fn(),
+      setFocus: mock(),
+      requestRender: mock(),
     });
 
     const first = host.pushFeature({
@@ -538,11 +539,11 @@ describe('TuiSurfaceHost', () => {
     const initialChatFocus = component([]);
     const pendingDecisionFocus = component([]);
     const featureFocus = component([]);
-    const setFocus = vi.fn();
+    const setFocus = mock();
     const host = createSurfaceHost({
       chat: { component: component(['chat']), focus: initialChatFocus },
       setFocus,
-      requestRender: vi.fn(),
+      requestRender: mock(),
     });
     const feature = host.pushFeature({
       screen: screen('sessions', () => ['sessions']),
@@ -562,11 +563,11 @@ describe('TuiSurfaceHost', () => {
     const interactionFocus = component([]);
     const modalFocus = component([]);
     const featureFocus = component([]);
-    const setFocus = vi.fn();
+    const setFocus = mock();
     const host = createSurfaceHost({
       chat: { component: component(['chat']), focus: composer },
       setFocus,
-      requestRender: vi.fn(),
+      requestRender: mock(),
     });
 
     const interaction = host.pushChatLayer({
@@ -597,14 +598,14 @@ describe('TuiSurfaceHost', () => {
     const composer = component([]);
     const featureFocus = component([]);
     const decisionFocus = component([]);
-    const setFocus = vi.fn();
-    const switchMode = vi.fn(() => true);
+    const setFocus = mock();
+    const switchMode = mock(() => true);
     const { presenter, presentations } = createRecordingPresenter();
     const host = createSurfaceHost({
       chat: { component: component(['chat decision']), focus: composer },
       regularFeaturePresenter: presenter,
       setFocus,
-      requestRender: vi.fn(),
+      requestRender: mock(),
       switchMode,
     });
     host.pushFeature({
@@ -636,28 +637,28 @@ describe('TuiSurfaceHost', () => {
 
   it('replaces an active interaction without changing the configured fullscreen renderer', () => {
     let mode: 'regular' | 'fullscreen' = 'fullscreen';
-    const switchMode = vi.fn((next: typeof mode) => {
+    const switchMode = mock((next: typeof mode) => {
       mode = next;
       return true;
     });
     const inline = new TuiInlinePanelHost();
     const first = component(['first decision']);
     const second = component(['second decision']);
-    const setFocus = vi.fn();
-    const followFullscreenBottom = vi.fn();
+    const setFocus = mock();
+    const followFullscreenBottom = mock();
     const host = createSurfaceHost({
       chat: { component: inline, focus: component([]) },
       chatMode: 'fullscreen',
       mode: () => mode,
       setFocus,
-      requestRender: vi.fn(),
+      requestRender: mock(),
       switchMode,
     });
     host.pushFeature({ screen: screen('transcript', () => ['transcript']) });
     const interaction = new TuiInteractionSurface(
       inline,
       host,
-      vi.fn(),
+      mock(),
       undefined,
       followFullscreenBottom,
     );
@@ -688,11 +689,11 @@ describe('TuiSurfaceHost', () => {
           return { focus, close: () => undefined };
         },
       },
-      setFocus: vi.fn(),
-      requestRender: vi.fn(),
+      setFocus: mock(),
+      requestRender: mock(),
     });
     host.pushFeature({ screen: screen('transcript', () => ['transcript']) });
-    const interaction = new TuiInteractionSurface(inline, host, vi.fn());
+    const interaction = new TuiInteractionSurface(inline, host, mock());
     const activePanel = component(['active decision']);
     interaction.show(activePanel);
     expect(host.getActiveSurface()).toEqual({ kind: 'chat', id: 'chat' });
@@ -707,13 +708,13 @@ describe('TuiSurfaceHost', () => {
   });
 
   it('keeps a blocking chat layer in the configured fullscreen chat mode', () => {
-    const switchMode = vi.fn(() => true);
+    const switchMode = mock(() => true);
     const host = createSurfaceHost({
       chat: { component: component(['chat']), focus: component([]) },
       chatMode: 'fullscreen',
       mode: () => 'fullscreen',
-      setFocus: vi.fn(),
-      requestRender: vi.fn(),
+      setFocus: mock(),
+      requestRender: mock(),
       switchMode,
     });
     host.pushFeature({ screen: screen('transcript', () => ['transcript']) });
@@ -737,8 +738,8 @@ describe('TuiSurfaceHost', () => {
       chat: { component: component(['chat']), focus: component([]) },
       chatMode: 'fullscreen',
       mode: () => 'fullscreen',
-      setFocus: vi.fn(),
-      requestRender: vi.fn(),
+      setFocus: mock(),
+      requestRender: mock(),
     });
     host.pushFeature({
       screen: screen('diff', () => ['one', 'two', 'three', 'four']),
@@ -749,8 +750,8 @@ describe('TuiSurfaceHost', () => {
   });
 
   it('disposes feature screens and distinct focus owners exactly once', () => {
-    const screenDispose = vi.fn();
-    const focusDispose = vi.fn();
+    const screenDispose = mock();
+    const focusDispose = mock();
     const feature = {
       ...screen('sessions', () => ['sessions']),
       dispose: screenDispose,
@@ -761,8 +762,8 @@ describe('TuiSurfaceHost', () => {
     };
     const host = createSurfaceHost({
       chat: { component: component(['chat']), focus: component([]) },
-      setFocus: vi.fn(),
-      requestRender: vi.fn(),
+      setFocus: mock(),
+      requestRender: mock(),
     });
 
     const handle = host.pushFeature({ screen: feature, focus });
@@ -774,11 +775,11 @@ describe('TuiSurfaceHost', () => {
   });
 
   it('disposes every feature when clearing a nested stack', () => {
-    const disposals = [vi.fn(), vi.fn()];
+    const disposals = [mock(), mock()];
     const host = createSurfaceHost({
       chat: { component: component(['chat']), focus: component([]) },
-      setFocus: vi.fn(),
-      requestRender: vi.fn(),
+      setFocus: mock(),
+      requestRender: mock(),
     });
     host.pushFeature({
       screen: { ...screen('first', () => ['first']), dispose: disposals[0] },

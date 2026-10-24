@@ -1,3 +1,5 @@
+import { waitFor } from '../../../../test/bun-test-setup.js';
+import { afterAll, afterEach, beforeAll, describe, expect, it, mock } from 'bun:test';
 import { build } from 'esbuild';
 import { createRequire } from 'node:module';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -8,7 +10,7 @@ import { packageExportEntries } from '../../../../scripts/lib/package-exports.mj
 import { readExtraction } from '../../../../scripts/lib/release-metadata.mjs';
 // eslint-disable-next-line import/no-relative-packages -- reuse the real bundle module-location contract
 import { createTuiBundleModuleLocationConfig } from '../../../../scripts/lib/tui-npm-bundle-profile.mjs';
-import { afterAll, beforeAll, afterEach, describe, expect, it, vi } from 'vitest';
+
 import { mkdtemp, writeFile, readFile, open, rm, copyFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, sep } from 'node:path';
@@ -27,7 +29,7 @@ const png =
 const capabilities = getCapabilities();
 afterEach(() => setCapabilities(capabilities));
 
-function fixture(load = vi.fn(async () => ({ png, dimensions: { widthPx: 1, heightPx: 1 } }))) {
+function fixture(load = mock(async () => ({ png, dimensions: { widthPx: 1, heightPx: 1 } }))) {
   let selection: { id: string; label: string } | undefined = {
     id: '/a.png',
     label: '[Image #1]',
@@ -40,7 +42,7 @@ function fixture(load = vi.fn(async () => ({ png, dimensions: { widthPx: 1, heig
     mimeType: 'image/png',
     sizeBytes: 1024,
   }));
-  const requestRender = vi.fn();
+  const requestRender = mock();
   const preview = new TuiComposerImagePreview({
     editor: { getAttachmentPreview: () => selection },
     terminalRows: () => rows,
@@ -76,7 +78,7 @@ describe('composer image preview', () => {
     ]);
     preview.render(100);
     expect(load).toHaveBeenCalledWith('/retained.png', 'image/png', expect.any(AbortSignal));
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(stripTerminalSequences(preview.render(100).join('\n'))).toContain('1 × 1'),
     );
     preview.dispose();
@@ -97,7 +99,7 @@ describe('composer image preview', () => {
     expect(rendered).toContain('[Image #1]');
     expect(rendered).toContain('retained.png');
     expect(rendered).not.toContain('NaN');
-    await vi.waitFor(() => expect(load).not.toHaveBeenCalled());
+    await waitFor(() => expect(load).not.toHaveBeenCalled());
     preview.dispose();
   });
 
@@ -105,7 +107,7 @@ describe('composer image preview', () => {
     setCapabilities({ ...capabilities, images: null });
     const { preview, load } = fixture();
     preview.render(100);
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(stripTerminalSequences(preview.render(100).join('\n'))).toContain('1 × 1'),
     );
     expect(preview.render(100).join('\n')).toContain('image/png');
@@ -120,7 +122,7 @@ describe('composer image preview', () => {
     setCapabilities({ ...capabilities, images: 'kitty' });
     const { preview, resize } = fixture();
     preview.render(80);
-    await vi.waitFor(() => expect(preview.render(80).join('\n')).toContain('\x1b_G'));
+    await waitFor(() => expect(preview.render(80).join('\n')).toContain('\x1b_G'));
     resize(18);
     expect(preview.render(80).length).toBeLessThanOrEqual(10);
     preview.dispose();
@@ -135,15 +137,14 @@ describe('composer image preview', () => {
         finishFirst = resolve;
       },
     );
-    const load = vi
-      .fn()
+    const load = mock()
       .mockReturnValueOnce(first)
       .mockResolvedValue({ png, dimensions: { widthPx: 22, heightPx: 33 } });
     const { preview, select, requestRender } = fixture(load);
     preview.render(80);
     select({ id: '/b.png', label: '[Image #2]' });
     preview.render(80);
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(stripTerminalSequences(preview.render(80).join('\n'))).toContain('22 × 33'),
     );
     finishFirst?.({ png, dimensions: { widthPx: 99, heightPx: 99 } });
@@ -158,9 +159,9 @@ describe('composer image preview', () => {
   });
 
   it('keeps a failed preview nonfatal and clips metadata at narrow widths', async () => {
-    const { preview } = fixture(vi.fn().mockRejectedValue(new Error('missing')));
+    const { preview } = fixture(mock().mockRejectedValue(new Error('missing')));
     preview.render(80);
-    await vi.waitFor(() => expect(preview.render(80).join('\n')).not.toMatch(/Loading|正在加载/));
+    await waitFor(() => expect(preview.render(80).join('\n')).not.toMatch(/Loading|正在加载/));
     expect(preview.render(80).join('\n')).toContain('a.png');
     expect(preview.render(16).every((line) => visibleWidth(line) <= 16)).toBe(true);
     expect(preview.render(5)).toEqual([]);

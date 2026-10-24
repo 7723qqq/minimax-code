@@ -1,491 +1,329 @@
-// Package MiniMax Code as one executable from the official npm artifact.
+// Package MiniMax Code as one standalone executable with `bun build --compile`.
 //
-//   pnpm build (MCODE_RELEASE_TAG)     dist (ESM, chunked)
-//   package-cli-release.mjs            minimax-code-<version>.tar.gz
-//   extracted package  ->  one CommonJS main  ->  SEA blob with every asset
-//   embedded  ->  postject injects the blob into a copy of node.exe
+//   bun scripts/build.mjs         dist/ (ESM, chunked)
+//   bun scripts/package-exe.mjs   dist-exe/mcode-<version>.exe
 //
-// Building from the npm archive keeps one source of truth: the executable
-// carries exactly the files `npm install minimax-code-<version>.tar.gz` would
-// place on disk. That flow requires a clean committed tree, so
-// `--from-dist` packages the current working-tree build instead for iteration.
+// The CLI is Bun-only since the SQLite migration (`packages/shared/src/sqlite-driver.ts`
+// imports `bun:sqlite`, which Node cannot resolve), and `bun build --compile`
+// bundles that builtin, so the executable runs on the Bun runtime in its image.
 //
-// The CLI derives its package root from `import.meta.url` and then reads by
-// path, so the bundle is rewritten to point at a synthetic root and the entry
-// banner answers those paths from `node:sea`. Only files the platform must see
-// on disk (native addons, spawned helpers) are written to a versioned cache
-// under %LOCALAPPDATA%\mcode\sea-<version>.
+// One executable, three roles. The MCP transports are separate *processes*, not
+// separate programs: they are spawned with `command: process.execPath` and an
+// internal marker as the first argument, and the entry below dispatches on it.
+// esbuild follows each branch into the same image, so the shared modules exist
+// once.
 //
-// Usage: node scripts/package-exe.mjs [--out <dir>] [--skip-build] [--from-dist]
+// Assets reach the image in two ways:
 //
-// `--out` defaults to `dist-exe`, which is already ignored by Git and sits
-// outside `dist/` so the npm archive never embeds a previous executable.
-// `--skip-build` reuses an existing `dist/` when only the packaging changed.
-// `--from-dist` skips the npm archive and packages `dist/` directly.
-import { build } from "esbuild";
-import { spawnSync } from "node:child_process";
-import { createRequire } from "node:module";
-import { x as extractTar } from "tar";
+//   * files read as data (agents, prompts, embedded CLI, vendor helpers) are
+//     embedded with `import … with { type: 'file' }`. Bun resolves those paths
+//     inside the executable, and `readFile`/`readFileSync` open them without any
+//     extraction to disk.
+//   * native addons are embedded too, but a `.node` cannot be loaded from an
+//     image: the platform loader takes a real filesystem path. They are written
+//     to a versioned cache under `%LOCALAPPDATA%\mcode\bundled-<version>` on first
+//     use, verified by sha256, and loaded from there.
+//
+// Usage: bun scripts/package-exe.mjs [--out <dir>] [--skip-build]
+import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import {
-  cpSync,
+  chmodSync,
+  copyFileSync,
   existsSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   readdirSync,
-  realpathSync,
   rmSync,
   statSync,
   writeFileSync,
-} from "node:fs";
-import { tmpdir } from "node:os";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+} from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const args = process.argv.slice(2);
+import { cliBuildVersion, cliExternalModules } from './lib/cli-release.mjs';
+
+const repo = fileURLToPath(new URL('..', import.meta.url));
+const argv = process.argv.slice(2);
 const valueOf = (name) => {
-  const index = args.indexOf(name);
-  return index === -1 ? undefined : args[index + 1];
+  const index = argv.indexOf(name);
+  return index === -1 ? undefined : argv[index + 1];
 };
-const skipBuild = args.includes("--skip-build");
-const fromDist = args.includes("--from-dist");
-const scriptRoot = fileURLToPath(new URL("../", import.meta.url));
-const repo = path.resolve(valueOf("--repo") ?? scriptRoot);
-const outDir = path.resolve(valueOf("--out") ?? path.join(repo, "dist-exe"));
+const hasFlag = (name) => argv.includes(name);
 
-if (process.platform !== "win32") {
-  // The synthetic root and the native-binding cache path below are Windows
-  // facts; a POSIX build would need its own root and cache directory.
-  throw new Error("scripts/package-exe.mjs currently packages Windows executables only");
+const outDir = path.resolve(valueOf('--out') ?? path.join(repo, 'dist-exe'));
+const distDir = path.join(repo, 'dist');
+const workDir = path.join(repo, '.cache', 'exe-stage');
+
+if (!hasFlag('--skip-build')) run('node', [path.join(repo, 'scripts/build.mjs')]);
+if (!existsSync(path.join(distDir, 'cli.js'))) {
+  throw new Error('dist/cli.js is missing; run the build first');
 }
+const version = cliBuildVersion(repo);
 
-const rootVersion = JSON.parse(readFileSync(path.join(repo, "package.json"), "utf8")).version;
-const tag = "v" + rootVersion;
-
-// Intermediate files live outside the repository: `--out` may sit inside
-// `dist/`, and copying `dist` into a directory beneath itself is invalid.
-const workDir = mkdtempSync(path.join(tmpdir(), "mcode-sea-"));
-
-if (!skipBuild) {
-  const buildResult = spawnSync(process.execPath, [path.join(repo, "scripts", "build.mjs")], {
-    stdio: "inherit",
-    cwd: repo,
-    // The npm flow stamps version and gitHead from the release tag; without it
-    // `package-cli-release.mjs` refuses the build it is handed.
-    env: fromDist ? process.env : { ...process.env, MCODE_RELEASE_TAG: tag },
-  });
-  if (buildResult.status !== 0) throw new Error("build exited " + String(buildResult.status));
+rmSync(workDir, { recursive: true, force: true });
+// `--out` is user-supplied and wiped wholesale below, so refuse any directory
+// this packager could not have produced: an empty directory, or one holding
+// only previous `mcode-<version>.exe` outputs, is safe to rebuild over —
+// anything else might be real data.
+if (existsSync(outDir)) {
+  for (const entry of readdirSync(outDir)) {
+    if (!/^mcode-[\w.-]+\.exe$/u.test(entry)) {
+      throw new Error(`refusing to delete --out directory ${outDir}: unexpected entry '${entry}'`);
+    }
+  }
 }
-
-let sourceRoot = repo;
-if (fromDist) {
-  if (!existsSync(path.join(repo, "dist", "cli.js"))) {
-    throw new Error("dist/cli.js is missing; run `pnpm build` or drop --skip-build");
-  }
-} else {
-  // Build from the official npm archive so the executable carries the same
-  // files a tar.gz installation would. That packaging requires a clean
-  // committed tree at the revision the build was stamped with.
-  //
-  // A previous `--out dist/exe` left an executable inside `dist/`, and the npm
-  // packaging would copy it into the archive, embedding a whole executable in
-  // the blob. Refuse rather than ship that.
-  if (existsSync(path.join(repo, "dist", "exe"))) {
-    throw new Error(
-      "dist/exe from an earlier run would be embedded in the npm archive; remove it or pass --out outside dist/",
-    );
-  }
-  const archiveDir = path.join(workDir, "npm");
-  mkdirSync(archiveDir, { recursive: true });
-  const packaged = spawnSync(
-    process.execPath,
-    [path.join(repo, "scripts", "package-cli-release.mjs"), tag, archiveDir],
-    { stdio: "inherit", cwd: repo },
-  );
-  if (packaged.status !== 0) {
-    throw new Error(
-      "npm packaging exited " +
-        String(packaged.status) +
-        "; it requires a clean committed tree and a build stamped with MCODE_RELEASE_TAG (use --from-dist to package the working tree instead)",
-    );
-  }
-  const archive = path.join(archiveDir, "minimax-code-" + rootVersion + ".tar.gz");
-  sourceRoot = path.join(workDir, "package");
-  mkdirSync(sourceRoot, { recursive: true });
-  await extractTar({ file: archive, cwd: sourceRoot, strip: 1 });
-}
-
-// The npm archive keeps the runtime files at the package root (`cli.js`,
-// `chunks/`, `assets/`), matching an installed package; `dist/` is the same
-// layout under the source build. Both are staged under the synthetic `dist/`
-// directory the bundle expects.
-const payloadRoot = fromDist ? path.join(repo, "dist") : sourceRoot;
-const version = JSON.parse(readFileSync(path.join(payloadRoot, "package.json"), "utf8")).version;
-const SYNTHETIC_ROOT = "C:\\__mcode_sea__";
-const SYNTHETIC_URL = "file:///C:/__mcode_sea__/dist/cli.js";
-const SENTINEL_FUSE = "NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2";
-const EXTERNALS = [
-  "better-sqlite3",
-  "@mariozechner/clipboard",
-  "@vscode/ripgrep",
-  "@larksuiteoapi/node-sdk",
-];
-
 rmSync(outDir, { recursive: true, force: true });
+mkdirSync(path.join(workDir, 'assets'), { recursive: true });
 mkdirSync(outDir, { recursive: true });
 
-// 1. Rewrite the ESM output so it compiles as CommonJS.
-const stageDist = path.join(workDir, "stage", "dist");
-cpSync(payloadRoot, stageDist, { recursive: true });
+// ── 1. Collect assets ──
 
-function listFiles(directory, predicate = () => true) {
+/** Trees the runtime reads as data. Keys are the paths callers ask for. */
+const DATA_ROOTS = ['assets', 'embedded', 'vendor', 'configs'];
+/** Single data files at the dist root. */
+const DATA_FILES = ['photon_rs_bg.wasm', 'mcode-tools.js', 'matrix-mcp-stdio.js'];
+
+const dataAssets = [];
+for (const root of DATA_ROOTS) collectTree(path.join(distDir, root), root, dataAssets);
+for (const name of DATA_FILES) {
+  const source = path.join(distDir, name);
+  if (existsSync(source)) dataAssets.push({ key: name, source });
+}
+
+/** Native addons, which have to be materialised before the loader can open them. */
+const nativeAssets = collectNativeAddons();
+
+// Stage under the flattened name Bun records, and refuse a collision: '/' -> '__'
+// is lossy, so two different keys could otherwise silently share one file.
+const flatten = (key) => key.replaceAll('/', '__').replaceAll('\\', '__');
+const stagedNames = new Map();
+const staged = [];
+for (const asset of [...dataAssets, ...nativeAssets]) {
+  const flat = flatten(asset.key);
+  const previous = stagedNames.get(flat);
+  if (previous !== undefined) {
+    throw new Error(`asset key collision: '${asset.key}' and '${previous}' both stage as ${flat}`);
+  }
+  stagedNames.set(flat, asset.key);
+  const destination = path.join(workDir, 'assets', flat);
+  copyFileSync(asset.source, destination);
+  staged.push({ ...asset, destination });
+}
+console.log(`staged ${dataAssets.length} data assets, ${nativeAssets.length} native addons`);
+
+// ── 2. Generate the embedded asset table ──
+
+const importLines = ['// Generated by scripts/package-exe.mjs. Do not edit.'];
+const pairs = [];
+staged.forEach((asset, index) => {
+  importLines.push(
+    `import a${index} from ${JSON.stringify(asset.destination)} with { type: 'file' };`,
+  );
+  const digest = asset.sha256 ? `, sha256: ${JSON.stringify(asset.sha256)}` : '';
+  pairs.push(`  ${JSON.stringify(asset.key)}: { path: a${index}${digest} },`);
+});
+importLines.push(
+  '',
+  'export interface BundledAsset {',
+  '  readonly path: string;',
+  '  /** Present for native addons, which are verified before being written out. */',
+  '  readonly sha256?: string;',
+  '}',
+  '',
+  'export const bundledAssets: Readonly<Record<string, BundledAsset>> = {',
+  ...pairs,
+  '};',
+  '',
+);
+writeFileSync(path.join(workDir, 'assets.gen.ts'), importLines.join('\n'));
+
+// ── 3. Publish the table before any consumer runs ──
+
+writeFileSync(
+  path.join(workDir, 'assets.setup.ts'),
+  [
+    "import { bundledAssets } from './assets.gen';",
+    '',
+    '// ESM evaluates imports depth-first in declaration order, and the entry imports',
+    '// this module before the CLI, so the table exists before any reader runs.',
+    '(globalThis as unknown as { __MCODE_BUNDLED_ASSETS__?: typeof bundledAssets })',
+    '  .__MCODE_BUNDLED_ASSETS__ = bundledAssets;',
+    '',
+  ].join('\n'),
+);
+
+// ── 4. Entry: one executable, three roles ──
+
+// The CLI bundle is compiled into the module graph rather than embedded as a
+// file, which removes a runtime extraction and a dynamic import from startup.
+// Its shebang is dropped because the image already is the entry, and the copy
+// stays in `dist/` so its relative `./chunks/…` imports still resolve.
+const cliEntry = path.join(distDir, 'cli.entry.mjs');
+writeFileSync(cliEntry, stripShebang(readFileSync(path.join(distDir, 'cli.js'), 'utf8')));
+
+const ROLES = [
+  ['mcode-tools', 'mcode-tools.js'],
+  ['matrix-mcp-stdio', 'matrix-mcp-stdio.js'],
+].filter(([, file]) => existsSync(path.join(distDir, file)));
+for (const [role] of ROLES) {
+  const target = path.join(distDir, `entry-${role}.mjs`);
+  writeFileSync(target, stripShebang(readFileSync(path.join(distDir, `${role}.js`), 'utf8')));
+}
+
+const roleArms = ROLES.map(
+  ([role]) =>
+    `  if (role.startsWith('--mcode-internal-${role}')) return import('./entry-${role}.mjs');`,
+).join('\n');
+
+writeFileSync(
+  path.join(distDir, 'entry.ts'),
+  [
+    `import ${JSON.stringify(path.join(workDir, 'assets.setup.ts').replaceAll('\\', '/'))};`,
+    '',
+    '/**',
+    ' * One executable, three roles.',
+    ' *',
+    ' * `mcode-tools` and `matrix-mcp-stdio` run as their own processes, spawned by',
+    ' * the CLI with an internal marker as the first argument. Everything else is the',
+    ' * CLI. The branches are dynamic imports so exactly one role runs: a static',
+    ' * import would start the CLI before the marker is read. `--compile` follows each',
+    ' * target into the image, so all three still share one executable.',
+    ' */',
+    'const role = (globalThis as unknown as { Bun?: { argv?: string[] } }).Bun?.argv?.[2] ?? "";',
+    'async function dispatch(): Promise<void> {',
+    roleArms,
+    "  return import('./cli.entry.mjs');",
+    '}',
+    'await dispatch();',
+    '',
+  ].join('\n'),
+);
+
+// ── 5. Compile ──
+
+const exePath = path.join(outDir, `mcode-${version}.exe`);
+run(localBun(), [
+  'build',
+  '--compile',
+  '--minify',
+  '--target=bun',
+  // A standalone CLI must not pick up a .env or bunfig.toml from the caller's
+  // working directory; it reads its own configuration explicitly.
+  '--no-compile-autoload-dotenv',
+  '--no-compile-autoload-bunfig',
+  // Native dependencies resolve through the cache that `resolveNativeAddon`
+  // materialises, not through `node_modules` beside the executable.
+  ...cliExternalModules.flatMap((name) => ['--external', name]),
+  '--outfile',
+  exePath,
+  path.join(distDir, 'entry.ts'),
+]);
+if (!existsSync(exePath)) throw new Error('bun build --compile produced no executable');
+chmodSync(exePath, 0o755);
+console.log(`Packaged ${path.basename(exePath)} (${sizeMb(exePath)}) from ${version}`);
+console.log(`  ${dataAssets.length} data assets + ${nativeAssets.length} native addons embedded`);
+
+/**
+ * Native addons that ship with the dependencies this CLI loads at runtime.
+ *
+ * Only NAPI/`.node` files are collected. They cannot be opened from an executable
+ * image, so `packages/shared/src/native-addons.ts` writes them to a cache and
+ * loads them from there; the key is the `node_modules`-relative path the loader
+ * asks for.
+ *
+ * A NAPI package splits its per-platform binaries into sibling packages
+ * (`@scope/name-win32-x64-msvc`), so the scope is scanned for those too.
+ */
+function collectNativeAddons() {
   const found = [];
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    const current = path.join(directory, entry.name);
-    if (entry.isDirectory()) found.push(...listFiles(current, predicate));
-    else if (predicate(current)) found.push(current);
+  for (const name of cliExternalModules) {
+    for (const packageName of relatedPackageNames(name)) {
+      const packageDir = resolveInstalledPackage(packageName);
+      if (packageDir === undefined) continue;
+      collectAddonsIn(packageDir, `node_modules/${packageName}`, found);
+    }
   }
   return found;
 }
 
-let rewritten = 0;
-for (const file of listFiles(stageDist, (file) => file.endsWith(".js"))) {
-  const original = readFileSync(file, "utf8");
-  const next = original
-    .replaceAll("import.meta.url", "globalThis.__MCODE_SEA_URL__")
-    .replace(
-      /\}await l\(\);\s*$/u,
-      "}l().catch((e)=>{process.stderr.write(String(e && e.stack ? e.stack : e) + String.fromCharCode(10));process.exitCode=1});" +
-        String.fromCharCode(10),
-    );
-  if (next !== original) rewritten += 1;
-  writeFileSync(file, next);
-}
-console.log("rewrote " + String(rewritten) + " bundle files for CommonJS");
-
-// 2. Runtime banner: runs before any bundled module.
-const banner = `"use strict";
-const __sea_ = (() => { try { return require("node:sea"); } catch { return null; } })();
-const __fs_ = require("node:fs");
-const __path_ = require("node:path");
-const __os_ = require("node:os");
-const __url_ = require("node:url");
-const __Module_ = require("node:module");
-const ROOT = ${JSON.stringify(SYNTHETIC_ROOT)};
-const CACHE = process.env.MCODE_SEA_CACHE || __path_.join(process.env.LOCALAPPDATA || __os_.tmpdir(), "mcode", "sea-${version}");
-globalThis.__MCODE_SEA_URL__ = ${JSON.stringify(SYNTHETIC_URL)};
-const embedded = new Map();
-if (__sea_ && __sea_.isSea && __sea_.isSea()) {
-  for (const key of __sea_.getAssetKeys()) embedded.set(key, __sea_.getRawAsset(key));
-}
-function toPath(value) {
-  if (typeof value === "string") return value;
-  try { return value instanceof URL ? __url_.fileURLToPath(value) : null; } catch { return null; }
-}
-const ROOT_PREFIX = __path_.resolve(ROOT).toLowerCase() + __path_.sep;
-function relativeKey(value) {
-  const target = toPath(value);
-  if (target === null) return null;
-  const normalized = __path_.resolve(target).toLowerCase();
-  if (!normalized.startsWith(ROOT_PREFIX)) return null;
-  return normalized.slice(ROOT_PREFIX.length).split(__path_.sep).join("/");
-}
-const loggedMissingAssets = new Set();
-// Windows resolves paths case-insensitively, so persona.md finds PERSONA.md on
-// disk. The asset map has to emulate that, and several loaders also derive a
-// root from dirname(cli.js)/.. and then look for assets/, configs/ and friends
-// there instead of under dist/.
-const embeddedLower = new Map();
-for (const key of embedded.keys()) embeddedLower.set(key.toLowerCase(), key);
-function assetBytes(key) {
-  const found =
-    embedded.get(key) ??
-    embedded.get(embeddedLower.get(key.toLowerCase())) ??
-    embedded.get(embeddedLower.get(("dist/" + key).toLowerCase()));
-  if (found === undefined) {
-    if (process.env.MCODE_SEA_DEBUG === "1" && !loggedMissingAssets.has(key)) {
-      loggedMissingAssets.add(key);
-      process.stderr.write("mcode-sea: miss " + key + String.fromCharCode(10));
-    }
-    return null;
-  }
-  return Buffer.from(found);
-};
-function wantsDirents(options) {
-  return Boolean(options && typeof options === "object" && options.withFileTypes);
-}
-function direntFor(name, isDirectory) {
-  return { name: name, parentPath: "", path: "", isFile: () => !isDirectory, isDirectory: () => isDirectory, isSymbolicLink: () => false, isBlockDevice: () => false, isCharacterDevice: () => false, isFIFO: () => false, isSocket: () => false };
-}
-function childNamesFor(key) {
-  const prefix = key === "" ? "" : key + "/";
-  const names = [];
-  const seenNames = new Set();
-  for (const assetKey of embedded.keys()) {
-    if (!assetKey.startsWith(prefix)) continue;
-    const remainder = assetKey.slice(prefix.length);
-    if (remainder.length === 0) continue;
-    const name = remainder.split("/")[0];
-    if (seenNames.has(name)) continue;
-    seenNames.add(name);
-    names.push(name);
+/** The package itself plus any `@scope/<base>-<platform>` siblings it depends on. */
+function relatedPackageNames(name) {
+  const names = [name];
+  const segments = name.split('/');
+  if (segments.length !== 2 || !name.startsWith('@')) return names;
+  const [scope, base] = segments;
+  const scopeDir = path.join(repo, 'node_modules', scope);
+  if (!existsSync(scopeDir)) return names;
+  for (const entry of readdirSync(scopeDir)) {
+    if (entry.startsWith(`${base}-`)) names.push(`${scope}/${entry}`);
   }
   return names;
 }
-function direntsFor(key, names, options) {
-  if (!wantsDirents(options)) return names;
-  const prefix = key === "" ? "" : key + "/";
-  return names.map((name) =>
-    direntFor(name, embeddedLower.has((prefix + name).toLowerCase()) ? false : true),
-  );
-}
-function decodeAsset(bytes, options) {
-  const encoding =
-    typeof options === "string"
-      ? options
-      : options && typeof options === "object"
-        ? options.encoding
-        : undefined;
-  return encoding ? bytes.toString(encoding) : bytes;
-}
-function materialize(key) {
-  const target = __path_.join(CACHE, key);
-  if (__fs_.existsSync(target)) return target;
-  const bytes = assetBytes(key);
-  if (bytes === null) return null;
-  __fs_.mkdirSync(__path_.dirname(target), { recursive: true });
-  __fs_.writeFileSync(target, bytes);
-  return target;
-}
-const MUST_BE_FILE = /\\.(node|exe|wasm)$/i;
-const ALWAYS_REAL = new Set(["dist/image-preview-worker.js", "dist/mcode-tools.js", "dist/matrix-mcp-stdio.js"]);
-function realPathFor(value) {
-  const key = relativeKey(value);
-  if (key === null) return null;
-  if (MUST_BE_FILE.test(key) || ALWAYS_REAL.has(key)) return materialize(key);
-  return null;
-}
-const originalReadFileSync = __fs_.readFileSync;
-__fs_.readFileSync = function (target, ...rest) {
-  const real = realPathFor(target);
-  if (real !== null) return originalReadFileSync(real, ...rest);
-  const key = relativeKey(target);
-  const bytes = key === null ? null : assetBytes(key);
-  if (bytes !== null) return decodeAsset(bytes, rest[0]);
-  return originalReadFileSync(target, ...rest);
-};
-const originalExistsSync = __fs_.existsSync;
-__fs_.existsSync = function (target) {
-  const key = relativeKey(target);
-  if (key !== null && (embedded.has(key) || originalExistsSync(__path_.join(CACHE, key)))) return true;
-  return originalExistsSync(target);
-};
-const originalStatSync = __fs_.statSync;
-__fs_.statSync = function (target, ...rest) {
-  const real = realPathFor(target);
-  if (real !== null) return originalStatSync(real, ...rest);
-  const key = relativeKey(target);
-  if (key !== null && embedded.has(key)) {
-    const size = assetBytes(key).length;
-    return { size: size, isFile: () => true, isDirectory: () => false, mtimeMs: 0 };
-  }
-  return originalStatSync(target, ...rest);
-};
-const originalReaddirSync = __fs_.readdirSync;
-__fs_.readdirSync = function (target, ...rest) {
-  const key = relativeKey(target);
-  if (key !== null) {
-    const names = childNamesFor(key);
-    if (names.length > 0) return direntsFor(key, names, rest[0]);
-  }
-  return originalReaddirSync(target, ...rest);
-};
-const __fsp_ = __fs_.promises;
-const __origFspReadFile = __fsp_.readFile;
-__fsp_.readFile = async function (target, ...rest) {
-  const real = realPathFor(target);
-  if (real !== null) return __origFspReadFile.call(__fsp_, real, ...rest);
-  const key = relativeKey(target);
-  const bytes = key === null ? null : assetBytes(key);
-  if (bytes !== null) return decodeAsset(bytes, rest[0]);
-  return __origFspReadFile.call(__fsp_, target, ...rest);
-};
-const __origFspAccess = __fsp_.access;
-__fsp_.access = async function (target, ...rest) {
-  const key = relativeKey(target);
-  if (key !== null && (embedded.has(key) || __fs_.existsSync(__path_.join(CACHE, key)))) return undefined;
-  return __origFspAccess.call(__fsp_, target, ...rest);
-};
-const __origFspStat = __fsp_.stat;
-__fsp_.stat = async function (target, ...rest) {
-  const real = realPathFor(target);
-  if (real !== null) return __origFspStat.call(__fsp_, real, ...rest);
-  const key = relativeKey(target);
-  if (key !== null && embedded.has(key)) {
-    const size = assetBytes(key).length;
-    return { size: size, isFile: () => true, isDirectory: () => false, mtimeMs: 0 };
-  }
-  return __origFspStat.call(__fsp_, target, ...rest);
-};
-const __origFspReaddir = __fsp_.readdir;
-__fsp_.readdir = async function (target, ...rest) {
-  const key = relativeKey(target);
-  if (key !== null) {
-    const names = childNamesFor(key);
-    if (names.length > 0) return direntsFor(key, names, rest[0]);
-  }
-  return __origFspReaddir.call(__fsp_, target, ...rest);
-};
-const materializedExternals = new Set();
-const EXTERNALS = ${JSON.stringify(EXTERNALS)};
-function ensureExternal(name) {
-  if (materializedExternals.has(name)) return;
-  const prefix = "node_modules/" + name + "/";
-  for (const key of embedded.keys()) {
-    if (key === "node_modules/" + name || key.startsWith(prefix)) materialize(key);
-  }
-  materializedExternals.add(name);
-}
-function loadExternal(name) {
-  ensureExternal(name);
-  return __Module_.createRequire(process.execPath)(__path_.join(CACHE, "node_modules", name));
-}
-globalThis.__MCODE_LOAD__ = loadExternal;
-const originalResolve = __Module_._resolveFilename;
-__Module_._resolveFilename = function (request, ...rest) {
-  if (process.env.MCODE_SEA_DEBUG === "1" && String(request).indexOf("better") >= 0) process.stderr.write("mcode-sea: resolve " + String(request) + String.fromCharCode(10));
-  const match = EXTERNALS.find((name) => request === name || request.startsWith(name + "/"));
-  if (match !== undefined) {
-    ensureExternal(match);
-    const target = __path_.join(CACHE, "node_modules", request);
-    if (__fs_.existsSync(target) || __fs_.existsSync(target + ".js")) {
-      return originalResolve.call(this, target, ...rest);
+
+function collectAddonsIn(directory, keyPrefix, into) {
+  for (const name of readdirSync(directory)) {
+    if (name === 'node_modules' || name === '.git' || name === 'src') continue;
+    const source = path.join(directory, name);
+    const key = `${keyPrefix}/${name}`;
+    if (statSync(source).isDirectory()) {
+      collectAddonsIn(source, key, into);
+      continue;
     }
-  }
-  return originalResolve.call(this, request, ...rest);
-};
-if (__sea_ && __sea_.isSea && __sea_.isSea()) {
-  // The CLI documents MAVIS_SQLITE3_MODULE_PATH as the native-binding override,
-  // so unpacking that closure is enough; no module-resolution trickery.
-  if (!process.env.MAVIS_SQLITE3_MODULE_PATH) {
-    for (const name of ["better-sqlite3", "bindings", "file-uri-to-path"]) ensureExternal(name);
-    const sqliteRoot = __path_.join(CACHE, "node_modules");
-  if (!process.env.MAVIS_BUILTIN_AGENTS_V2_DIR) {
-    process.env.MAVIS_BUILTIN_AGENTS_V2_DIR = __path_.join(ROOT, "dist", "assets", "agents");
-  }
-    if (__fs_.existsSync(__path_.join(sqliteRoot, "better-sqlite3"))) {
-      process.env.MAVIS_SQLITE3_MODULE_PATH = sqliteRoot;
-    }
-  }
-  if (process.env.MCODE_SEA_DEBUG === "1") {
-    process.stderr.write("mcode-sea: cache=" + CACHE + " assets=" + String(embedded.size) +
-      " sqlite=" + String(process.env.MAVIS_SQLITE3_MODULE_PATH) + String.fromCharCode(10));
-  }
-}
-`;
-
-const bundlePath = path.join(workDir, "app.cjs");
-await build({
-  entryPoints: [path.join(stageDist, "cli.js")],
-  bundle: true,
-  platform: "node",
-  format: "cjs",
-  target: "node24",
-  outfile: bundlePath,
-  banner: { js: banner },
-  external: EXTERNALS,
-  legalComments: "none",
-  logLevel: "warning",
-});
-console.log("bundled " + (statSync(bundlePath).size / 1024 / 1024).toFixed(1) + " MiB");
-let bundleText = readFileSync(bundlePath, "utf8");
-for (const name of EXTERNALS) {
-  bundleText = bundleText
-    .split('require("' + name + '")')
-    .join('globalThis.__MCODE_LOAD__("' + name + '")');
-}
-writeFileSync(bundlePath, bundleText);
-
-// 3. Asset map: rewritten dist tree plus the external module closure.
-function resolveFrom(fromDir, name) {
-  let current = fromDir;
-  for (;;) {
-    const candidate = path.join(current, "node_modules", name);
-    if (existsSync(path.join(candidate, "package.json"))) return realpathSync(candidate);
-    const parent = path.dirname(current);
-    if (parent === current) throw new Error("cannot resolve " + name + " from " + fromDir);
-    current = parent;
+    // A `.node` is the payload; its `package.json` is what lets the loader resolve
+    // the package by name from the cache, so it travels with it.
+    if (!name.endsWith('.node') && name !== 'package.json') continue;
+    into.push({ key, source, sha256: sha256Of(source) });
   }
 }
 
-const assets = {};
-// Only type declarations and source maps are dropped: prompt, persona and
-// roster files are `.md` and are read at runtime.
-const SKIP_ASSET = /\.(?:d\.ts|map)$/iu;
-function addTree(root, prefix) {
-  for (const entry of readdirSync(root, { withFileTypes: true })) {
-    const current = path.join(root, entry.name);
-    if (entry.isDirectory()) addTree(current, prefix + entry.name + "/");
-    else if (!SKIP_ASSET.test(entry.name)) assets[prefix + entry.name] = current;
+function resolveInstalledPackage(name) {
+  const segments = name.split('/');
+  const candidate = path.join(repo, 'node_modules', ...segments);
+  return existsSync(candidate) ? candidate : undefined;
+}
+
+function sha256Of(file) {
+  return createHash('sha256').update(readFileSync(file)).digest('hex');
+}
+
+function stripShebang(text) {
+  return text.replace(/^#![^\n]*\r?\n/u, '');
+}
+
+function collectTree(directory, keyPrefix, into) {
+  if (!existsSync(directory)) return;
+  for (const name of readdirSync(directory)) {
+    const source = path.join(directory, name);
+    const key = `${keyPrefix}/${name}`;
+    if (statSync(source).isDirectory()) collectTree(source, key, into);
+    else into.push({ key, source });
   }
 }
-addTree(stageDist, "dist/");
 
-const seen = new Map();
-function collectExternal(packageDir) {
-  const manifest = JSON.parse(readFileSync(path.join(packageDir, "package.json"), "utf8"));
-  if (manifest.name.startsWith("@types/")) return;
-  if (seen.has(manifest.name) && seen.get(manifest.name) === packageDir) return;
-  seen.set(manifest.name, packageDir);
-  addTree(packageDir, "node_modules/" + manifest.name + "/");
-  for (const dependency of Object.keys(manifest.dependencies ?? {})) {
-    collectExternal(resolveFrom(packageDir, dependency));
+function sizeMb(file) {
+  return `${(statSync(file).size / 1024 / 1024).toFixed(1)} MiB`;
+}
+
+/**
+ * The Bun executable that runs the compile step.
+ *
+ * `package.json` invokes this script through Node, so `process.execPath` is Node
+ * and cannot compile. `BUN_BIN` overrides the lookup for CI images that install
+ * Bun under another name.
+ */
+function localBun() {
+  const override = process.env.BUN_BIN?.trim();
+  if (override) return override;
+  const found = spawnSync('bun', ['--version'], { encoding: 'utf8' });
+  if (found.status !== 0) throw new Error('bun is required to compile; install it or set BUN_BIN');
+  return 'bun';
+}
+
+function run(command, commandArgs) {
+  const result = spawnSync(command, commandArgs, { stdio: 'inherit', cwd: repo });
+  if (result.error) throw result.error;
+  if (result.status !== 0) {
+    throw new Error(`${command} ${commandArgs.join(' ')} exited ${String(result.status)}`);
   }
 }
-for (const name of EXTERNALS) collectExternal(resolveFrom(repo, name));
-console.log("embedded " + String(Object.keys(assets).length) + " assets from " + String(seen.size) + " packages");
-
-const seaConfigPath = path.join(workDir, "sea-config.json");
-writeFileSync(
-  seaConfigPath,
-  JSON.stringify(
-    {
-      main: bundlePath,
-      output: path.join(workDir, "app.blob"),
-      assets: assets,
-      disableExperimentalSEAWarning: true,
-      useCodeCache: false,
-      useSnapshot: false,
-    },
-    null,
-    2,
-  ) + "\n",
-);
-
-function run(command, args) {
-  const result = spawnSync(command, args, { stdio: "inherit" });
-  if (result.status !== 0) throw new Error(command + " exited " + String(result.status));
-}
-run(process.execPath, ["--experimental-sea-config", seaConfigPath]);
-console.log("blob " + (statSync(path.join(workDir, "app.blob")).size / 1024 / 1024).toFixed(1) + " MiB");
-
-// 4. Inject the blob into a copy of the running node.exe.
-const requireFromHere = createRequire(import.meta.url);
-let postjectCli;
-try {
-  postjectCli = requireFromHere.resolve("postject/dist/cli.js");
-} catch {
-  throw new Error('postject is not installed; run "pnpm install" before packaging');
-}
-const exePath = path.join(outDir, "mcode-" + version + ".exe");
-cpSync(process.execPath, exePath);
-run(process.execPath, [
-  postjectCli,
-  exePath,
-  "NODE_SEA_BLOB",
-  path.join(workDir, "app.blob"),
-  "--sentinel-fuse",
-  SENTINEL_FUSE,
-]);
-console.log("built " + exePath + " (" + (statSync(exePath).size / 1024 / 1024).toFixed(1) + " MiB)");
-rmSync(workDir, { recursive: true, force: true });

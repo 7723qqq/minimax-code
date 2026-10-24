@@ -1,7 +1,8 @@
+import { afterEach, beforeEach, describe, expect, it, jest, spyOn } from 'bun:test';
 import fs from "node:fs";
 import os from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import { writePrivateConfigFileSync } from "../src/private-config-file.js";
 
 let root: string;
@@ -13,7 +14,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  vi.restoreAllMocks();
+  jest.restoreAllMocks();
   fs.rmSync(root, { recursive: true, force: true });
 });
 
@@ -57,11 +58,11 @@ describe("private config writes", () => {
       const failure = Object.assign(new Error("synthetic failure"), {
         code: "EPERM",
       });
-      vi.spyOn(fs, operation).mockImplementation(() => {
+      spyOn(fs, operation).mockImplementation(() => {
         throw failure;
       });
-      const write = vi.spyOn(fs, "writeFileSync");
-      const close = vi.spyOn(fs, "closeSync");
+      const write = spyOn(fs, "writeFileSync");
+      const close = spyOn(fs, "closeSync");
       expect(() => writePrivateConfigFileSync(file, "replacement")).toThrow(
         failure,
       );
@@ -73,10 +74,10 @@ describe("private config writes", () => {
 
   it("propagates a write failure and closes the descriptor", () => {
     const failure = new Error("synthetic write failure");
-    vi.spyOn(fs, "writeFileSync").mockImplementation(() => {
+    spyOn(fs, "writeFileSync").mockImplementation(() => {
       throw failure;
     });
-    const close = vi.spyOn(fs, "closeSync");
+    const close = spyOn(fs, "closeSync");
     expect(() => writePrivateConfigFileSync(file, "replacement")).toThrow(
       failure,
     );

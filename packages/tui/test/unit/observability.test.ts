@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { advanceTimersByTimeAsync } from '../../../../test/bun-test-setup.js';
+import { describe, expect, it, jest, mock } from 'bun:test';
+
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -16,11 +18,11 @@ describe('Minimax Code observability', () => {
       pid: 42,
       startedAtMs: 900,
       now: () => nowMs,
-      append: vi.fn(async (path: string, content: string) => {
+      append: mock(async (path: string, content: string) => {
         writes.push({ path, content });
       }),
-      ensureDirectory: vi.fn(async () => undefined),
-      prune: vi.fn(async () => undefined),
+      ensureDirectory: mock(async () => undefined),
+      prune: mock(async () => undefined),
     });
 
     observability.recordStartup({
@@ -148,11 +150,11 @@ describe('Minimax Code observability', () => {
       pid: 7,
       startedAtMs: 1,
       now: () => 2,
-      append: vi.fn(async (_path: string, content: string) => {
+      append: mock(async (_path: string, content: string) => {
         writes.push(content);
       }),
-      ensureDirectory: vi.fn(async () => undefined),
-      prune: vi.fn(async () => undefined),
+      ensureDirectory: mock(async () => undefined),
+      prune: mock(async () => undefined),
     });
 
     for (let frame = 1; frame <= 130; frame += 1) {
@@ -189,14 +191,14 @@ describe('Minimax Code observability', () => {
   });
 
   it('flushes startup observations without waiting for process shutdown', async () => {
-    vi.useFakeTimers();
+    jest.useFakeTimers();
     try {
-      const append = vi.fn(async () => undefined);
+      const append = mock(async () => undefined);
       const observability = createTuiObservability('/data', {
         surface: 'headless',
         append,
-        ensureDirectory: vi.fn(async () => undefined),
-        prune: vi.fn(async () => undefined),
+        ensureDirectory: mock(async () => undefined),
+        prune: mock(async () => undefined),
       });
 
       observability.recordStartup({
@@ -205,7 +207,7 @@ describe('Minimax Code observability', () => {
       });
       expect(append).not.toHaveBeenCalled();
 
-      await vi.advanceTimersByTimeAsync(1_000);
+      await advanceTimersByTimeAsync(1_000);
 
       expect(append).toHaveBeenCalledWith(
         expect.stringContaining('/v2/observability/mcode/'),
@@ -213,7 +215,7 @@ describe('Minimax Code observability', () => {
       );
       await observability.flush();
     } finally {
-      vi.useRealTimers();
+      jest.useRealTimers();
     }
   });
 

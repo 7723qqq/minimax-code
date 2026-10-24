@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { EN_REASON_COPY, ZH_HANS_REASON_COPY } from '../../../src/reason-format.js';
 

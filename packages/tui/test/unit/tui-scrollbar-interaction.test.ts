@@ -1,5 +1,5 @@
+import { afterEach, describe, expect, it, mock } from 'bun:test';
 import { stripVTControlCharacters } from "node:util";
-import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   ScrollView,
@@ -156,7 +156,7 @@ describe("Scrollbar interaction boundaries", () => {
   it.each([1, 3])(
     "routes the last content columns with a %i-column gutter to content",
     async (gutter) => {
-      const handleMouse = vi.fn((_event: TuiMouseEvent) => true);
+      const handleMouse = mock((_event: TuiMouseEvent) => true);
       const content = {
         render: (width: number) =>
           Array.from({ length: CONTENT_LINES }, () => "x".repeat(width)),
@@ -182,7 +182,7 @@ describe("Scrollbar interaction boundaries", () => {
   it.each([1, 3])(
     "keeps text selection next to a %i-column gutter",
     async (gutter) => {
-      const copySelection = vi.fn(async (_text: string) => true);
+      const copySelection = mock(async (_text: string) => true);
       const content = {
         render: (width: number) =>
           Array.from(
@@ -209,7 +209,7 @@ describe("Scrollbar interaction boundaries", () => {
     "preserves content and bounded mouse targets at width %i",
     async (columns) => {
       const widths: number[] = [];
-      const handleMouse = vi.fn(() => true);
+      const handleMouse = mock(() => true);
       const content = {
         render: (width: number) => {
           widths.push(width);
