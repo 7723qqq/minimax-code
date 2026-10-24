@@ -7,6 +7,7 @@ import {
   decodeQuestionnaireOptionToken,
 } from '../../questionnaire-bridge.js';
 import { DEFAULT_BOT_NAME, makeHeader } from './feishu-card-header.js';
+import { feishuText } from './feishu-copy.js';
 
 // Re-exports so call sites can keep importing from `./feishu-card.js` —
 // the reply / thinking card builders live in `./feishu-reply-card.ts` and
@@ -65,7 +66,7 @@ function escapeMarkdownCode(s: string): string {
 }
 
 function clampOptionLabel(label: string): string {
-  const text = normalizeText(label) || '(empty)';
+  const text = normalizeText(label) || feishuText('option.emptyLabel');
   return text.length > 100 ? `${text.slice(0, 97)}...` : text;
 }
 
@@ -106,7 +107,7 @@ export function buildQuestionnaireCard(
     formElements.push({ tag: 'markdown', content: questionLines.join('\n') });
 
     if (step.image?.src) {
-      const linkText = step.image.alt?.trim() || '配图';
+      const linkText = step.image.alt?.trim() || feishuText('image.alt');
       formElements.push({
         tag: 'markdown',
         content: `[${linkText}](${step.image.src})`,
@@ -125,7 +126,7 @@ export function buildQuestionnaireCard(
         name: step.id,
         placeholder: {
           tag: 'plain_text',
-          content: step.selectionMode === 'multiple' ? '可多选' : '请选择',
+          content: feishuText(step.selectionMode === 'multiple' ? 'questionnaire.multiple' : 'questionnaire.select'),
         },
         options,
       });
@@ -146,7 +147,7 @@ export function buildQuestionnaireCard(
   };
   formElements.push({
     tag: 'button',
-    text: { tag: 'plain_text', content: '提交' },
+    text: { tag: 'plain_text', content: feishuText('questionnaire.submit') },
     type: 'primary',
     form_action_type: 'submit',
     name: 'questionnaire_submit_btn',
@@ -159,10 +160,10 @@ export function buildQuestionnaireCard(
     config: { wide_screen_mode: true, update_multi: true },
     header: makeHeader({
       title: botName,
-      subtitle: 'ask',
+      subtitle: feishuText('card.subtitle.ask'),
       template: 'turquoise',
       icon: 'chat_outlined',
-      tagText: '问卷',
+      tagText: feishuText('tag.questionnaire'),
       tagColor: 'turquoise',
     }),
     body: {
@@ -195,17 +196,17 @@ export function buildQuestionnaireSubmittedCard(
     config: { wide_screen_mode: true, update_multi: true },
     header: makeHeader({
       title: botName,
-      subtitle: 'ask',
+      subtitle: feishuText('card.subtitle.ask'),
       template: 'green',
       icon: 'succeed_outlined',
-      tagText: '已提交',
+      tagText: feishuText('tag.submitted'),
       tagColor: 'green',
     }),
     body: {
       elements: [
         {
           tag: 'markdown',
-          content: '✅ **已提交**',
+          content: feishuText('body.submitted'),
         },
       ],
     },
@@ -227,16 +228,16 @@ export function buildQuestionnaireExpiredCard(
     config: { wide_screen_mode: true, update_multi: true },
     header: makeHeader({
       title: botName,
-      subtitle: 'ask',
+      subtitle: feishuText('card.subtitle.ask'),
       template: 'grey',
-      tagText: '已过期',
+      tagText: feishuText('tag.expired'),
       tagColor: 'grey',
     }),
     body: {
       elements: [
         {
           tag: 'markdown',
-          content: `⌛ **该问卷已过期**${questionnaire.title ? ` — ${escapeMarkdownCode(questionnaire.title)}` : ''}`,
+          content: `${feishuText('body.expired')}${questionnaire.title ? ` — ${escapeMarkdownCode(questionnaire.title)}` : ''}`,
         },
       ],
     },

@@ -1,11 +1,19 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pathToFileURL } from 'node:url';
 
-const desktopMocks = vi.hoisted(() => ({
-  createMatrixMcpRuntime: vi.fn(
+// `bun test` runs every file of a suite in one process, and `mock.module()`
+// replaces the module for that whole process. Snapshot the real module before
+// replacing it and put it back in `afterAll`, so the replacement never leaks
+// into the files that run after this one.
+const actualAgentToolsDesktop = { ...(await import('@mavis/agent-tools/desktop')) };
+
+// `mock.module()` replaces the desktop Matrix module for the whole graph. Bun
+// evaluates the factory lazily, so the plain `const` is picked up as-is.
+const desktopMocks = {
+  createMatrixMcpRuntime: mock(
     (options: { workspaceRoot: string }) =>
       ({
         tools: [],
@@ -17,18 +25,18 @@ const desktopMocks = vi.hoisted(() => ({
         }),
       }) as unknown,
   ),
-  buildMatrixMcpToolDescriptors: vi.fn(() => [
+  buildMatrixMcpToolDescriptors: mock(() => [
     {
       name: 'web_search',
       description: 'Matrix web search',
       inputSchema: { type: 'object' },
     },
   ]),
-  // Spread of importOriginal()'s `actual` does not cover this when the
-  // dist build is stale (dist/desktop/ missing matrix-env.js after the
-  // PI MCP src split) — declare an explicit mock so the test does not
-  // depend on dist freshness.
-  getDesktopMatrixEndpoint: vi.fn((env: NodeJS.ProcessEnv = {}) => {
+  // Declared explicitly instead of being inherited from the real module: the
+  // real Matrix endpoint resolution must not decide this test's expectations,
+  // and the dist build can also be stale (dist/desktop/ missing matrix-env.js
+  // after the PI MCP src split).
+  getDesktopMatrixEndpoint: mock((env: NodeJS.ProcessEnv = {}) => {
     const region = env.MAVIS_REGION === 'cn' ? 'cn' : 'en';
     const buildEnv = env.MAVIS_BUILD_ENV === 'prod' ? 'prod' : 'test';
     const managed: Record<'en' | 'cn', Record<'test' | 'prod', string>> = {
@@ -43,13 +51,32 @@ const desktopMocks = vi.hoisted(() => ({
     };
     return { baseUrl: managed[region][buildEnv], managed: true };
   }),
-}));
+};
 
-vi.mock('@mavis/agent-tools/desktop', () => ({
+mock.module('@mavis/agent-tools/desktop', () => ({
+  ...actualAgentToolsDesktop,
   createMatrixMcpRuntime: desktopMocks.createMatrixMcpRuntime,
   buildMatrixMcpToolDescriptors: desktopMocks.buildMatrixMcpToolDescriptors,
   getDesktopMatrixEndpoint: desktopMocks.getDesktopMatrixEndpoint,
 }));
+
+afterAll(() => {
+  mock.module('@mavis/agent-tools/desktop', () => actualAgentToolsDesktop);
+});
+
+/**
+ * Import a fresh copy of the module under test.
+ *
+ * Bun has no module-registry reset, so the copy is selected with a unique
+ * query string: Bun treats a different query as a different module and
+ * evaluates it again. That gives every test its own module-level descriptor
+ * cache.
+ */
+let moduleGeneration = 0;
+async function importBuiltinMatrix() {
+  moduleGeneration += 1;
+  return await import(`./builtin-matrix.js?generation=${moduleGeneration}`);
+}
 
 const ORIGINAL_ENV = {
   MAVIS_REGION: process.env.MAVIS_REGION,
@@ -65,7 +92,6 @@ function restoreEnv(key: keyof typeof ORIGINAL_ENV): void {
 
 describe('builtin Matrix MCP server config', () => {
   beforeEach(() => {
-    vi.resetModules();
     desktopMocks.createMatrixMcpRuntime.mockClear();
     desktopMocks.buildMatrixMcpToolDescriptors.mockClear();
     process.env.MAVIS_REGION = 'en';
@@ -80,7 +106,7 @@ describe('builtin Matrix MCP server config', () => {
   });
 
   it('marks the stdio child so packaged Electron runs it as Node', async () => {
-    const { buildBuiltinMatrixServerConfig } = await import('./builtin-matrix.js');
+    const { buildBuiltinMatrixServerConfig } = await importBuiltinMatrix();
 
     const config = buildBuiltinMatrixServerConfig({ workspaceRoot: '/workspace/current' });
 
@@ -98,7 +124,7 @@ describe('builtin Matrix MCP server config', () => {
       if (buildEnv === undefined) delete process.env.MAVIS_BUILD_ENV;
       else process.env.MAVIS_BUILD_ENV = buildEnv;
 
-      const { buildBuiltinMatrixServerConfig } = await import('./builtin-matrix.js');
+      const { buildBuiltinMatrixServerConfig } = await importBuiltinMatrix();
       const config = buildBuiltinMatrixServerConfig({
         workspaceRoot: '/workspace/current',
         routingContext: { bedrockLane: 'lane-a' },
@@ -110,7 +136,7 @@ describe('builtin Matrix MCP server config', () => {
   );
 
   it('uses the same Matrix runtime env for cached tool descriptors', async () => {
-    const { buildBuiltinMatrixServerConfig } = await import('./builtin-matrix.js');
+    const { buildBuiltinMatrixServerConfig } = await importBuiltinMatrix();
 
     buildBuiltinMatrixServerConfig({ workspaceRoot: '/workspace/current' });
 
@@ -123,7 +149,7 @@ describe('builtin Matrix MCP server config', () => {
   });
 
   it('keeps the Builtin Matrix web search name unprefixed for Local model tools', async () => {
-    const { buildBuiltinMatrixServerConfig } = await import('./builtin-matrix.js');
+    const { buildBuiltinMatrixServerConfig } = await importBuiltinMatrix();
     const { buildNativeToolName } = await import('./config.js');
     const config = buildBuiltinMatrixServerConfig({ workspaceRoot: '/workspace/current' });
 
@@ -143,7 +169,7 @@ describe('builtin Matrix MCP server config', () => {
         inputSchema: { type: 'object' },
       },
     ]);
-    const { buildBuiltinMatrixServerConfig } = await import('./builtin-matrix.js');
+    const { buildBuiltinMatrixServerConfig } = await importBuiltinMatrix();
 
     const full = buildBuiltinMatrixServerConfig({ workspaceRoot: '/workspace/current' });
     expect(full.tools?.map((tool) => tool.name)).toEqual(['web_search', 'image_synthesize']);
@@ -157,7 +183,7 @@ describe('builtin Matrix MCP server config', () => {
 
   it('injects the dataDir assets subtree — never the dataDir root — as extra input root (TS-10)', async () => {
     const { buildBuiltinMatrixServerConfig, buildBuiltinMatrixTokenOverrides } =
-      await import('./builtin-matrix.js');
+      await importBuiltinMatrix();
     const dataDir = join(tmpdir(), 'matrix-builtin-data');
     const expectedAssets = join(dataDir, 'v2', 'assets');
 
@@ -174,7 +200,7 @@ describe('builtin Matrix MCP server config', () => {
 
   it('omits the extra input root without dataDir and keeps connectionKey dataDir-free (TS-10)', async () => {
     const { buildBuiltinMatrixServerConfig, buildBuiltinMatrixTokenOverrides } =
-      await import('./builtin-matrix.js');
+      await importBuiltinMatrix();
 
     const config = buildBuiltinMatrixServerConfig({ workspaceRoot: '/workspace/current' });
     const without = buildBuiltinMatrixTokenOverrides({ workspaceRoot: '/workspace/current' });
@@ -189,7 +215,7 @@ describe('builtin Matrix MCP server config', () => {
   });
 
   it('scopes the built-in Matrix child key by the managed routing lane', async () => {
-    const { buildBuiltinMatrixTokenOverrides } = await import('./builtin-matrix.js');
+    const { buildBuiltinMatrixTokenOverrides } = await importBuiltinMatrix();
     const base = { workspaceRoot: '/workspace/current', authContext: { accessToken: 'token' } };
     const clear = buildBuiltinMatrixTokenOverrides(base).connectionKey;
     const laneA = buildBuiltinMatrixTokenOverrides({
@@ -211,7 +237,7 @@ describe('builtin Matrix MCP server config', () => {
       tmpdir(),
       `missing-matrix-mcp-stdio-${process.pid}.js`,
     );
-    const { resolveMatrixMcpStdioEntrypoint } = await import('./builtin-matrix.js');
+    const { resolveMatrixMcpStdioEntrypoint } = await importBuiltinMatrix();
 
     expect(resolveMatrixMcpStdioEntrypoint()).toBeUndefined();
     expect(resolveMatrixMcpStdioEntrypoint()).toBeUndefined();
@@ -223,7 +249,7 @@ describe('builtin Matrix MCP server config', () => {
       const entrypoint = join(tmp, 'matrix-mcp-stdio.js');
       await writeFile(entrypoint, '#!/usr/bin/env node\n', 'utf8');
       process.env.MAVIS_MATRIX_MCP_STDIO_ENTRYPOINT = entrypoint;
-      const { resolveMatrixMcpStdioEntrypoint } = await import('./builtin-matrix.js');
+      const { resolveMatrixMcpStdioEntrypoint } = await importBuiltinMatrix();
 
       expect(resolveMatrixMcpStdioEntrypoint()).toBe(entrypoint);
       expect(resolveMatrixMcpStdioEntrypoint()).toBeTruthy();
@@ -240,7 +266,7 @@ describe('builtin Matrix MCP server config', () => {
       const entrypoint = join(tmp, 'matrix-mcp-stdio.js');
       await writeFile(cliEntry, '#!/usr/bin/env node\n', 'utf8');
       await writeFile(entrypoint, '#!/usr/bin/env node\n', 'utf8');
-      const { resolveMatrixMcpStdioEntrypoint } = await import('./builtin-matrix.js');
+      const { resolveMatrixMcpStdioEntrypoint } = await importBuiltinMatrix();
 
       expect(resolveMatrixMcpStdioEntrypoint(pathToFileURL(cliEntry).href)).toBe(entrypoint);
     } finally {
@@ -262,7 +288,7 @@ describe('builtin Matrix MCP server config', () => {
       );
       await mkdir(dirname(entrypoint), { recursive: true });
       await writeFile(entrypoint, '#!/usr/bin/env node\n', 'utf8');
-      const { resolveMatrixMcpStdioEntrypoint } = await import('./builtin-matrix.js');
+      const { resolveMatrixMcpStdioEntrypoint } = await importBuiltinMatrix();
 
       expect(resolveMatrixMcpStdioEntrypoint(pathToFileURL(runtimeEntry).href)).toBe(entrypoint);
     } finally {

@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { waitFor } from '../../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock } from 'bun:test';
+
 import type { StreamFn } from "@earendil-works/pi-agent-core";
 import type {
   AssistantMessage,
@@ -151,7 +153,7 @@ function retryOptions(overrides: Record<string, unknown> = {}) {
     generateCallId: () => "call-1",
     random: () => 0,
     nowMs: () => 1_000,
-    sleep: vi.fn(async () => {}),
+    sleep: mock(async () => {}),
     ...overrides,
   };
 }
@@ -232,7 +234,7 @@ describe("withLLMRetry", () => {
         ? errorStream("[Error] 429 Too Many Requests")
         : successStream("ok");
     }) as StreamFn;
-    const sleep = vi.fn(async () => {});
+    const sleep = mock(async () => {});
     const wrapped = withLLMRetry(
       inner,
       retryOptions({
@@ -520,7 +522,7 @@ describe("withLLMRetry", () => {
     let attempts = 0;
     const observed: LLMRetryEvent[] = [];
     const settled: LLMCallSettledEvent[] = [];
-    const sleep = vi.fn(async () => {});
+    const sleep = mock(async () => {});
     const inner = (async () => {
       attempts += 1;
       return errorStream("[Error] 529 overloaded");
@@ -571,7 +573,7 @@ describe("withLLMRetry", () => {
     }) as StreamFn;
     const wrapped = withLLMRetry(
       inner,
-      retryOptions({ sleep: vi.fn(async () => {}) }),
+      retryOptions({ sleep: mock(async () => {}) }),
     );
 
     const result = await wrapped(fakeModel("minimax_api"), CONTEXT, {});
@@ -590,7 +592,7 @@ describe("withLLMRetry", () => {
     ["fake-provider", "400 Too many images in request: 31 > 30"],
   ])("does not retry a deterministic request rejection from %s: %s", async (provider, message) => {
     let attempts = 0;
-    const sleep = vi.fn(async () => {});
+    const sleep = mock(async () => {});
     const inner = (async () => {
       attempts += 1;
       return errorStream(message);
@@ -620,7 +622,7 @@ describe("withLLMRetry", () => {
     ["minimax", "Request body too large: 70000000 bytes exceeds client limit 67108864 bytes."],
   ])("sends an oversized request from %s only once: %s", async (provider, message) => {
     let attempts = 0;
-    const sleep = vi.fn(async () => {});
+    const sleep = mock(async () => {});
     const inner = (async () => {
       attempts += 1;
       return errorStream(message);
@@ -645,7 +647,7 @@ describe("withLLMRetry", () => {
       attempts += 1;
       return errorStream(message);
     }) as StreamFn;
-    const wrapped = withLLMRetry(inner, retryOptions({ sleep: vi.fn(async () => {}) }));
+    const wrapped = withLLMRetry(inner, retryOptions({ sleep: mock(async () => {}) }));
 
     await collectEvents(await wrapped(fakeModel("custom_provider:work"), CONTEXT, {}));
 
@@ -653,12 +655,12 @@ describe("withLLMRetry", () => {
   });
 
   it("keeps the exhausted attempt open when returning its terminal failure stream", async () => {
-    const attemptReturns: Array<ReturnType<typeof vi.fn>> = [];
+    const attemptReturns: Array<ReturnType<typeof mock>> = [];
     const inner = (async () => {
       const failed = errorStream("[Error] 529 overloaded");
       const iterator = failed[Symbol.asyncIterator]();
       let cancelled = false;
-      const closeAttempt = vi.fn(async () => {
+      const closeAttempt = mock(async () => {
         cancelled = true;
         return { value: undefined, done: true as const };
       });
@@ -675,7 +677,7 @@ describe("withLLMRetry", () => {
     }) as StreamFn;
     const wrapped = withLLMRetry(
       inner,
-      retryOptions({ policy: { maxRetries: 1 }, sleep: vi.fn(async () => {}) }),
+      retryOptions({ policy: { maxRetries: 1 }, sleep: mock(async () => {}) }),
     );
 
     const result = await wrapped(fakeModel(), CONTEXT, {});
@@ -717,7 +719,7 @@ describe("withLLMRetry", () => {
       inner,
       retryOptions({
         policy: { maxRetries: 1 },
-        sleep: vi.fn(async () => {}),
+        sleep: mock(async () => {}),
         onCallSettled: (event: LLMCallSettledEvent) => settled.push(event),
       }),
     );
@@ -744,7 +746,7 @@ describe("withLLMRetry", () => {
   it("stops before a backoff that would exceed the retry elapsed-time budget", async () => {
     let attempts = 0;
     const observed: LLMRetryEvent[] = [];
-    const sleep = vi.fn(async () => {});
+    const sleep = mock(async () => {});
     const inner = (async () => {
       attempts += 1;
       return errorStream("[Error] 429 Too Many Requests");
@@ -770,7 +772,7 @@ describe("withLLMRetry", () => {
 
   it("initiates cleanup for a discarded attempt before the next provider request", async () => {
     let attempts = 0;
-    const discardedReturn = vi.fn(async () => ({
+    const discardedReturn = mock(async () => ({
       value: undefined,
       done: true as const,
     }));
@@ -918,7 +920,7 @@ describe("withLLMRetry", () => {
       inner,
       retryOptions({
         observer: (event: LLMRetryEvent) => observed.push(event),
-        sleep: vi.fn(async () => {}),
+        sleep: mock(async () => {}),
       }),
     );
 
@@ -950,7 +952,7 @@ describe("withLLMRetry", () => {
       inner,
       retryOptions({
         observer: (event: LLMRetryEvent) => observed.push(event),
-        sleep: vi.fn(async () => {}),
+        sleep: mock(async () => {}),
       }),
     );
 
@@ -1035,7 +1037,7 @@ describe("withLLMRetry", () => {
     const order: string[] = [];
     const wrapped = withLLMRetry(
       inner,
-      retryOptions({ sleep: vi.fn(async () => {}) }),
+      retryOptions({ sleep: mock(async () => {}) }),
     );
     const committed = wrapped(
       fakeModel("custom_provider:work"),
@@ -1062,7 +1064,7 @@ describe("withLLMRetry", () => {
 
   it("honors a bounded Retry-After response header", async () => {
     let attempts = 0;
-    const sleep = vi.fn(async () => {});
+    const sleep = mock(async () => {});
     const inner = (async (model, _context, options) => {
       attempts += 1;
       if (attempts === 1) {
@@ -1087,7 +1089,7 @@ describe("withLLMRetry", () => {
     let attempts = 0;
     const observed: LLMRetryEvent[] = [];
     const settled: LLMCallSettledEvent[] = [];
-    const sleep = vi.fn(
+    const sleep = mock(
       async (_delayMs: number, signal?: AbortSignal) =>
         new Promise<void>((_resolve, reject) => {
           signal?.addEventListener(
@@ -1113,7 +1115,7 @@ describe("withLLMRetry", () => {
     const pending = wrapped(fakeModel(), CONTEXT, {
       signal: controller.signal,
     });
-    await vi.waitFor(() => expect(sleep).toHaveBeenCalledOnce());
+    await waitFor(() => expect(sleep).toHaveBeenCalledOnce());
     controller.abort("user_stop");
 
     await expect(pending).rejects.toThrow("sleep aborted");

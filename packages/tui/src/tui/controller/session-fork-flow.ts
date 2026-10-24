@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { isTurnResponseMessage } from '@mavis/shared/turn-message-class';
 
+import { controllerText } from './copy.js';
 import type {
   TuiMessage,
   TuiSession,
@@ -29,16 +30,16 @@ export class TuiSessionForkFlow {
   constructor(private readonly options: TuiSessionForkFlowOptions) {}
 
   async forkFromUserMessage(userMessageId: string): Promise<void> {
-    if (this.forking) throw new Error('A Session fork is already in progress.');
+    if (this.forking) throw new Error(controllerText('session.fork.alreadyInProgress'));
     const source = this.options.currentSession();
-    if (!source) throw new Error('Start or resume a Session before forking.');
+    if (!source) throw new Error(controllerText('session.fork.needsSession'));
     if (!this.options.isSessionIdle()) {
-      throw new Error('Wait for the active turn to finish before forking.');
+      throw new Error(controllerText('session.fork.waitForTurn'));
     }
     const getOptions = this.options.runtime.getSessionForkOptions;
     const forkSession = this.options.runtime.forkSession;
     if (!getOptions || !forkSession) {
-      throw new Error('Session fork is unavailable in this Runtime.');
+      throw new Error(controllerText('session.fork.unavailable'));
     }
 
     this.forking = true;
@@ -52,7 +53,11 @@ export class TuiSessionForkFlow {
       this.requireCurrentSource(source.sessionId);
       if (!forkOptions.canFork) {
         throw new Error(
-          `This prompt cannot be forked${forkOptions.unavailableReason ? `: ${forkOptions.unavailableReason}` : '.'}`,
+          forkOptions.unavailableReason
+            ? controllerText('session.fork.cannotForkWithReason', {
+                reason: forkOptions.unavailableReason,
+              })
+            : controllerText('session.fork.cannotFork'),
         );
       }
       const result = await forkSession.call(this.options.runtime, {
@@ -86,15 +91,15 @@ export class TuiSessionForkFlow {
       before = page.nextCursor;
     }
     if (!messages.some((message) => message.id === userMessageId)) {
-      throw new Error('The selected prompt is no longer present in Runtime history.');
+      throw new Error(controllerText('session.fork.promptGone'));
     }
-    throw new Error('The selected prompt has no completed Assistant boundary to fork from.');
+    throw new Error(controllerText('session.fork.noAssistantBoundary'));
   }
 
   private requireCurrentSource(sessionId: string): void {
-    if (this.options.isStopped?.()) throw new Error('The TUI closed before the fork completed.');
+    if (this.options.isStopped?.()) throw new Error(controllerText('session.fork.uiClosed'));
     if (this.options.currentSession()?.sessionId !== sessionId) {
-      throw new Error('The active Session changed before the fork completed.');
+      throw new Error(controllerText('session.fork.sessionChanged'));
     }
   }
 }

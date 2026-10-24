@@ -1,12 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 
 import {
-  MINIMAX_CODE_HEADLESS_LOGIN_REQUIRED_MESSAGE,
   TuiLoginRequiredError,
   requireTuiAccountLogin,
   requireTuiAgentAccess,
   tuiAccountNeedsLoginPrompt,
 } from '../../src/application/login-gate.js';
+import { applicationText } from '../../src/application/copy.js';
 
 describe('MiniMax login gate', () => {
   it.each([
@@ -19,7 +19,7 @@ describe('MiniMax login gate', () => {
     },
   ])('allows an unauthenticated BYOK Agent Run: %s', async (selection) => {
     const account = { status: 'ready' as const, ...selection, warnings: [] };
-    const getAccountStatus = vi.fn(async () => account);
+    const getAccountStatus = mock(async () => account);
 
     await expect(requireTuiAgentAccess({ getAccountStatus }, 'session-1')).resolves.toBe(
       account,
@@ -62,7 +62,7 @@ describe('MiniMax login gate', () => {
       category: 'config',
       code: 'auth.login_required',
       retryable: false,
-      message: MINIMAX_CODE_HEADLESS_LOGIN_REQUIRED_MESSAGE,
+      message: applicationText('application.login.requiredHeadless'),
       account,
     } satisfies Partial<TuiLoginRequiredError>);
   });

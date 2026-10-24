@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { waitFor } from '../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock } from 'bun:test';
 
 import { TuiMainScreen } from '../../src/tui/engine/tui-main-screen.js';
 import { TuiOverlayRegularFeaturePresenter } from '../../src/tui/shell/regular-feature-presenter.js';
@@ -19,8 +20,8 @@ const SUMMARY: TuiSessionInputSummary = {
 };
 
 function createHarness(realHost?: TuiSurfaceHost) {
-  const listSessionInputSummaries = vi.fn(async () => [SUMMARY]);
-  const getSessionRewindPreview = vi.fn(async () => ({
+  const listSessionInputSummaries = mock(async () => [SUMMARY]);
+  const getSessionRewindPreview = mock(async () => ({
     turns: [
       {
         turnId: 'turn-history-1',
@@ -28,8 +29,8 @@ function createHarness(realHost?: TuiSurfaceHost) {
       },
     ],
   }));
-  const rewindSession = vi.fn(async () => ({ rewound: true }));
-  const listMessagePage = vi.fn(async () => ({
+  const rewindSession = mock(async () => ({ rewound: true }));
+  const listMessagePage = mock(async () => ({
     messages: [
       {
         id: SUMMARY.userMessageId,
@@ -40,15 +41,15 @@ function createHarness(realHost?: TuiSurfaceHost) {
     ],
     hasMore: false,
   }));
-  const editSessionMessage = vi.fn();
+  const editSessionMessage = mock();
   const pushedScreens: Array<TuiFeatureScreen & {
     id: string;
     handleInput(data: string): void;
     render(width: number): string[];
   }> = [];
-  const closeHandles: Array<ReturnType<typeof vi.fn>> = [];
+  const closeHandles: Array<ReturnType<typeof mock>> = [];
   const surfaceHost = {
-    pushFeature: vi.fn(
+    pushFeature: mock(
       ({
         screen,
       }: {
@@ -56,17 +57,17 @@ function createHarness(realHost?: TuiSurfaceHost) {
       }) => {
         pushedScreens.push(screen);
         const realHandle = realHost?.pushFeature({ screen });
-        const close = vi.fn(() => realHandle?.close() ?? true);
+        const close = mock(() => realHandle?.close() ?? true);
         closeHandles.push(close);
         return { id: screen.id, close, isActive: () => true };
       },
     ),
-    setChatFocus: vi.fn(),
+    setChatFocus: mock(),
   };
-  const editor = { setText: vi.fn() };
-  const refreshProjection = vi.fn(async () => undefined);
-  const reloadSessionProjection = vi.fn(async () => undefined);
-  const setEditTranscriptBoundary = vi.fn();
+  const editor = { setText: mock() };
+  const refreshProjection = mock(async () => undefined);
+  const reloadSessionProjection = mock(async () => undefined);
+  const setEditTranscriptBoundary = mock();
   const flow = new TuiSessionMutationFlow({
     runtime: {
       listSessionInputSummaries,
@@ -81,15 +82,15 @@ function createHarness(realHost?: TuiSurfaceHost) {
         sessions: [],
       }),
     } as never,
-    sessionFlow: { activateSessionById: vi.fn() } as never,
+    sessionFlow: { activateSessionById: mock() } as never,
     refreshProjection,
     reloadSessionProjection,
     surfaceHost: surfaceHost as never,
     editor: editor as never,
-    setHint: vi.fn(),
-    append: vi.fn(),
+    setHint: mock(),
+    append: mock(),
     setEditTranscriptBoundary,
-    onChanged: vi.fn(),
+    onChanged: mock(),
     hasLiveRun: () => false,
   });
   return {
@@ -137,10 +138,10 @@ describe('TuiSessionMutationFlow history explorer', () => {
       try {
         await terminal.waitForRender();
         harness.flow.startHistory();
-        await vi.waitFor(() => expect(harness.pushedScreens).toHaveLength(1));
+        await waitFor(() => expect(harness.pushedScreens).toHaveLength(1));
         // Choose conversation-only rewind through the actual history action menu.
         for (const key of ['\r', '\x1b[B', '\x1b[B', '\r']) terminal.sendInput(key);
-        await vi.waitFor(() => expect(harness.pushedScreens).toHaveLength(2));
+        await waitFor(() => expect(harness.pushedScreens).toHaveLength(2));
         tui.renderNow();
         await terminal.flush();
         expect(harness.pushedScreens[1]?.id).toBe('session-mutation:rewind-confirm');
@@ -169,7 +170,7 @@ describe('TuiSessionMutationFlow history explorer', () => {
     const harness = createHarness();
 
     harness.flow.startHistory();
-    await vi.waitFor(() => expect(harness.pushedScreens).toHaveLength(1));
+    await waitFor(() => expect(harness.pushedScreens).toHaveLength(1));
     expect(harness.pushedScreens[0]?.id).toBe('session-history:explorer');
 
     harness.pushedScreens[0]?.handleInput('\r');
@@ -177,20 +178,20 @@ describe('TuiSessionMutationFlow history explorer', () => {
     harness.pushedScreens[0]?.handleInput('\u001b[B');
     harness.pushedScreens[0]?.handleInput('\r');
 
-    await vi.waitFor(() => expect(harness.pushedScreens).toHaveLength(2));
+    await waitFor(() => expect(harness.pushedScreens).toHaveLength(2));
     expect(harness.pushedScreens[1]?.id).toBe('session-mutation:rewind-confirm');
     expect(harness.getSessionRewindPreview).not.toHaveBeenCalled();
     expect(harness.rewindSession).not.toHaveBeenCalled();
 
     harness.pushedScreens[1]?.handleInput('\r');
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.rewindSession).toHaveBeenCalledWith({
         sessionId: SESSION_ID,
         userMessageId: SUMMARY.userMessageId,
         clientRequestId: expect.stringMatching(/^tui-rewind_/u),
       }),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.reloadSessionProjection).toHaveBeenCalledWith(SESSION_ID),
     );
     expect(harness.refreshProjection).not.toHaveBeenCalled();
@@ -201,14 +202,14 @@ describe('TuiSessionMutationFlow history explorer', () => {
     const harness = createHarness();
 
     harness.flow.startHistory();
-    await vi.waitFor(() => expect(harness.pushedScreens).toHaveLength(1));
+    await waitFor(() => expect(harness.pushedScreens).toHaveLength(1));
     const explorer = harness.pushedScreens[0];
     explorer?.handleInput('\r');
     explorer?.handleInput('\u001b[B');
     explorer?.handleInput('\u001b[B');
     explorer?.handleInput('\r');
 
-    await vi.waitFor(() => expect(harness.pushedScreens).toHaveLength(2));
+    await waitFor(() => expect(harness.pushedScreens).toHaveLength(2));
     harness.pushedScreens[1]?.handleInput('\u001b');
 
     expect(harness.flow.getInvocationCountForTesting()).toBe(0);
@@ -221,23 +222,23 @@ describe('TuiSessionMutationFlow history explorer', () => {
     const harness = createHarness();
 
     harness.flow.startHistory();
-    await vi.waitFor(() => expect(harness.pushedScreens).toHaveLength(1));
+    await waitFor(() => expect(harness.pushedScreens).toHaveLength(1));
     harness.pushedScreens[0]?.handleInput('\r');
     harness.pushedScreens[0]?.handleInput('\u001b[B');
     harness.pushedScreens[0]?.handleInput('\r');
 
-    await vi.waitFor(() => expect(harness.pushedScreens).toHaveLength(2));
+    await waitFor(() => expect(harness.pushedScreens).toHaveLength(2));
     expect(harness.pushedScreens[1]?.id).toBe('session-mutation:rewind-preview');
     expect(harness.listMessagePage).not.toHaveBeenCalled();
     expect(harness.editor.setText).not.toHaveBeenCalled();
 
     harness.pushedScreens[1]?.handleInput('\r');
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.listMessagePage).toHaveBeenCalledWith(SESSION_ID, {
         limit: 100,
       }),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.editor.setText).toHaveBeenCalledWith('Full historical input'),
     );
     expect(harness.setEditTranscriptBoundary).toHaveBeenCalledWith(SUMMARY.userMessageId);
@@ -249,19 +250,19 @@ describe('TuiSessionMutationFlow history explorer', () => {
     const harness = createHarness();
 
     harness.flow.startHistory();
-    await vi.waitFor(() => expect(harness.pushedScreens).toHaveLength(1));
+    await waitFor(() => expect(harness.pushedScreens).toHaveLength(1));
     harness.pushedScreens[0]?.handleInput('\r');
     harness.pushedScreens[0]?.handleInput('\u001b[B');
     harness.pushedScreens[0]?.handleInput('\u001b[B');
     harness.pushedScreens[0]?.handleInput('\u001b[B');
     harness.pushedScreens[0]?.handleInput('\r');
 
-    await vi.waitFor(() => expect(harness.pushedScreens).toHaveLength(2));
+    await waitFor(() => expect(harness.pushedScreens).toHaveLength(2));
     expect(harness.pushedScreens[1]?.id).toBe('session-mutation:rewind-preview');
     expect(harness.rewindSession).not.toHaveBeenCalled();
 
     harness.pushedScreens[1]?.handleInput('\r');
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.rewindSession).toHaveBeenCalledWith({
         sessionId: SESSION_ID,
         userMessageId: SUMMARY.userMessageId,

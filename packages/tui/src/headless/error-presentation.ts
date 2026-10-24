@@ -1,4 +1,5 @@
 import { tuiErrorDiagnostic } from '../user-facing-failure.js';
+import { headlessText } from './copy.js';
 import type { ExecResult } from './contract.js';
 import { TuiExecError } from './exit-policy.js';
 
@@ -12,27 +13,27 @@ export function formatTuiExecFailure(error: TuiExecError): string {
     return tuiErrorDiagnostic(error);
   }
   if (error.kind === 'runtime') {
-    return `The run failed: ${tuiErrorDiagnostic(error)}. Retry after the connection recovers.`;
+    return headlessText('headless.error.runFailed', { reason: tuiErrorDiagnostic(error) });
   }
-  return `MCode encountered an internal error: ${tuiErrorDiagnostic(error)}. Retry; if it keeps happening, report it through an available support channel.`;
+  return headlessText('headless.error.internalError', { reason: tuiErrorDiagnostic(error) });
 }
 
 export function formatTuiExecResultFailure(result: ExecResult): string {
   if (result.status === 'timeout') {
-    return 'The run timed out. Increase --timeout or retry.';
+    return headlessText('headless.error.timedOut');
   }
   if (result.status === 'limit_exceeded') {
-    return 'The run reached its step limit. Increase --max-steps or narrow the task.';
+    return headlessText('headless.error.stepLimit');
   }
-  if (result.status === 'cancelled') return 'The run was cancelled.';
+  if (result.status === 'cancelled') return headlessText('headless.error.cancelled');
   if (result.error?.category === 'config') {
     const reason = result.error.message ? `: ${tuiErrorDiagnostic(result.error.message)}` : '';
-    return `The run could not start with the current configuration${reason}. Open MCode and run /doctor.`;
+    return headlessText('headless.error.configuration', { reason });
   }
   if (result.error?.category === 'internal') {
     const reason = result.error.message ? `: ${tuiErrorDiagnostic(result.error.message)}` : '';
-    return `MCode encountered an internal error${reason}. Retry; if it keeps happening, report it through an available support channel.`;
+    return headlessText('headless.error.internalErrorWithReason', { reason });
   }
   const reason = result.error?.message ? `: ${tuiErrorDiagnostic(result.error.message)}` : '';
-  return `The run failed${reason}. Retry after the connection recovers.`;
+  return headlessText('headless.error.runFailedWithReason', { reason });
 }

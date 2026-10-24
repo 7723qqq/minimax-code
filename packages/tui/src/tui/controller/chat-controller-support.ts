@@ -78,6 +78,31 @@ export function cloneAccountStatus(
   };
 }
 
+/**
+ * `snapshot()` clones the account on every `notify()`, which fires per stream
+ * delta. The clone is a real defensive copy across the
+ * controller-to-projection boundary and has to stay, but it only needs to be
+ * recomputed when the account object itself changes — token deltas never touch
+ * it. Keying on the source object keeps the copy guarantee: every consumer
+ * still receives an object it cannot use to mutate controller state, and a new
+ * account object yields a new clone.
+ *
+ * A `WeakMap` is correct here because the source object is never retained by
+ * this cache; it disappears with the state that owns it.
+ */
+const accountClones = new WeakMap<TuiAccountStatus, TuiAccountStatus>();
+
+export function cloneAccountStatusForSnapshot(
+  account: TuiAccountStatus | undefined,
+): TuiAccountStatus | undefined {
+  if (!account) return undefined;
+  const cached = accountClones.get(account);
+  if (cached) return cached;
+  const cloned = cloneAccountStatus(account);
+  if (cloned) accountClones.set(account, cloned);
+  return cloned;
+}
+
 export function latestHistoryMessageId(messages: readonly TuiMessage[]): string | undefined {
   return [...messages]
     .reverse()

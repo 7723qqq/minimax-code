@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { TuiTurnSubmissionRetainer } from '../../../../../src/tui/controller/run/turn-submission-retainer.js';
 import type { TuiSubmissionSnapshot } from '../../../../../src/tui/features/composer/submission.js';
 

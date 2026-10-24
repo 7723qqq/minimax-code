@@ -1,10 +1,12 @@
-import { describe, expect, it, vi } from "vitest";
+import { waitFor } from '../../../../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock } from 'bun:test';
+
 import { TuiHotkeysPicker } from "../../../../../src/tui/features/settings/hotkeys-picker.js";
 import { createTuiHostKeybindings } from "../../../../../src/tui/shell/keybindings.js";
 
 function createPicker(
   initial: Record<string, string | string[]> = {},
-  saveUserOverrides = vi.fn(async () => undefined),
+  saveUserOverrides = mock(async () => undefined),
 ) {
   let current = { ...initial };
   const keybindings = createTuiHostKeybindings({
@@ -23,7 +25,7 @@ function createPicker(
         ...current,
       });
     },
-    onClose: vi.fn(),
+    onClose: mock(),
   });
   return { picker, saveUserOverrides, keybindings };
 }
@@ -36,7 +38,7 @@ describe("TuiHotkeysPicker", () => {
     picker.handleInput("\x0b");
     picker.handleInput("\r");
 
-    await vi.waitFor(() => expect(saveUserOverrides).toHaveBeenCalledOnce());
+    await waitFor(() => expect(saveUserOverrides).toHaveBeenCalledOnce());
     expect(saveUserOverrides).toHaveBeenCalledWith({
       "composer.toggle-plan": "ctrl+k",
     });
@@ -62,15 +64,15 @@ describe("TuiHotkeysPicker", () => {
   });
 
   it("supports clearing and restoring the selected action", async () => {
-    const saveUserOverrides = vi.fn(async () => undefined);
+    const saveUserOverrides = mock(async () => undefined);
     const { picker } = createPicker(
       { "composer.toggle-plan": "ctrl+k" },
       saveUserOverrides,
     );
 
     picker.handleInput("r");
-    await vi.waitFor(() => expect(saveUserOverrides).toHaveBeenCalledWith({}));
-    await vi.waitFor(() =>
+    await waitFor(() => expect(saveUserOverrides).toHaveBeenCalledWith({}));
+    await waitFor(() =>
       expect(picker.render(120).join("\n")).toContain(
         "Reset composer.toggle-plan to default.",
       ),
@@ -80,7 +82,7 @@ describe("TuiHotkeysPicker", () => {
     picker.handleInput("\r");
     picker.handleInput("\x7f");
     picker.handleInput("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(saveUserOverrides).toHaveBeenCalledWith({
         "composer.toggle-plan": [],
       }),

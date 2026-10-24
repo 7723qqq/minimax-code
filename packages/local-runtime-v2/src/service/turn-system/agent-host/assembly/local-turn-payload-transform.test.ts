@@ -1,5 +1,5 @@
 import { streamSimple } from '@earendil-works/pi-ai';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { LocalModelResolver } from '../../../model-system/resolution/local-model-resolver.js';
 import { modelRefForModel } from '../../../model-system/resolution/model-ref.js';

@@ -2,7 +2,6 @@ import { spawn } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
-import { performance } from 'node:perf_hooks';
 import { ProcessTerminal, setKeybindings, type Terminal, type TuiMode } from './engine/public.js';
 import { detectProcessTerminalCapabilities } from './platform/terminal-capabilities.js';
 import {
@@ -59,11 +58,15 @@ import { tuiErrorDiagnostic } from '../user-facing-failure.js';
 import { getConfig, resetConfig, writeTuiStatusLineSetting, type MavisRegion } from '@mavis/config';
 import { markLoginRestartHandoff } from './login-restart-handoff.js';
 import {
+  readTuiLocaleSetting,
   readTuiModeSetting,
   readTuiThemeSetting,
+  writeTuiLocaleSetting,
   writeTuiModeSetting,
   writeTuiThemeSetting,
 } from '../host/tui-settings.js';
+import { LOCALE_OVERRIDE_ENV, setProcessLocale } from '@mavis/shared/i18n';
+import { launcherText } from './launcher-copy.js';
 import { schedulePendingMcodePrefixUpdate } from '../update/prefix-update.js';
 import {
   systemPromptRestartArguments,
@@ -73,7 +76,6 @@ import { MCODE_TUI_RESULT_PATH_ENV } from './automation/result-writer.js';
 import { startTuiStartupStatus, type TuiStartupStatus } from './startup-status.js';
 import type { McodeContextMode } from '@mavis/protocol/local';
 
-const MINIMAX_CODE_EXIT_SLOGAN = 'Intelligence with everyone, bye~';
 export interface LaunchTuiOptions {
   version: string;
   initialPrompt?: string;
@@ -148,6 +150,8 @@ export interface LaunchTuiDependencies {
   writeTuiMode?: typeof writeTuiModeSetting;
   readTuiTheme?: typeof readTuiThemeSetting;
   writeTuiTheme?: typeof writeTuiThemeSetting;
+  readTuiLocale?: typeof readTuiLocaleSetting;
+  writeTuiLocale?: typeof writeTuiLocaleSetting;
   createSharedAuthSession?: typeof createMcodeSharedAuthSession;
   createAuthApplication?: typeof createDefaultMcodeAuthApplication;
 }
@@ -177,7 +181,7 @@ export async function launchTui(
     );
   }
   if (!options.terminal && (!process.stdin.isTTY || !process.stdout.isTTY)) {
-    throw new Error('Minimax Code interactive mode requires a TTY.');
+    throw new Error(launcherText('launcher.ttyRequired'));
   }
 
   const homeDirectory = options.homeDir ?? homedir();
@@ -186,6 +190,15 @@ export async function launchTui(
   const baseTerminal = options.terminal ?? new ProcessTerminal();
   const tuiMode = options.tuiMode ?? (dependencies.readTuiMode ?? readTuiModeSetting)(dataDir);
   const theme = options.theme ?? (dependencies.readTuiTheme ?? readTuiThemeSetting)(dataDir);
+  // Apply the saved interface language before anything renders. The setting is
+  // the user's explicit choice, so it outranks every environment source — the
+  // process override covers in-process callers, and mirroring it into
+  // MCODE_LOCALE keeps spawned helpers (MCP plugins, local-runtime workers) on
+  // the same language. An unset or malformed value changes nothing.
+  const savedLocale = (dependencies.readTuiLocale ?? readTuiLocaleSetting)(dataDir);
+  if (savedLocale && setProcessLocale(savedLocale)) {
+    process.env[LOCALE_OVERRIDE_ENV] = savedLocale;
+  }
   const terminalCapabilities = detectProcessTerminalCapabilities();
   const authEnvironment = resolveMcodeAuthEnvironment({
     runtimeRegion: process.env.MAVIS_REGION === 'en' ? 'en' : 'cn',
@@ -428,6 +441,12 @@ export async function launchTui(
         tuiMode,
         clearScrollbackOnStart: Boolean(options.sessionId?.trim() || options.continueLatestSession),
         persistTuiMode: (mode) => (dependencies.writeTuiMode ?? writeTuiModeSetting)(dataDir, mode),
+        persistLocale: (value) => {
+          (dependencies.writeTuiLocale ?? writeTuiLocaleSetting)(dataDir, value);
+          // Switch the running process as soon as the file is written, so the
+          // next render already uses the new language.
+          if (setProcessLocale(value)) process.env[LOCALE_OVERRIDE_ENV] = value;
+        },
         ...(theme ? { theme } : {}),
         persistTheme: (value) =>
           (dependencies.writeTuiTheme ?? writeTuiThemeSetting)(dataDir, value),
@@ -916,7 +935,7 @@ function isExistingFile(file: string): boolean {
 
 export function formatTuiExitMessage(sessionId?: string): string {
   const sessionHint = sessionId ? formatTuiSessionHint(sessionId) : undefined;
-  return `${sessionHint ?? '\n'}${sessionHint ? '\n' : ''}${MINIMAX_CODE_EXIT_SLOGAN}\n`;
+  return `${sessionHint ?? '\n'}${sessionHint ? '\n' : ''}${launcherText('launcher.exitSlogan')}\n`;
 }
 
 export function formatTuiSessionHint(sessionId: string): string | undefined {

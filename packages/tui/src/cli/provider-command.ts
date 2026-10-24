@@ -3,6 +3,7 @@ import type { McodeProviderApiFormat, McodeProviderSnapshot } from '../provider/
 import { prepareTuiDataDir } from '../runtime/data-dir.js';
 import { createTuiRuntime, shutdownTuiRuntime } from '../runtime/lifecycle.js';
 import { formatTuiActionFailure } from '../user-facing-failure.js';
+import { cliText } from './copy.js';
 
 export type McodeProviderCliRequest =
   | { readonly action: 'list'; readonly json?: boolean }
@@ -58,7 +59,7 @@ export async function runMcodeProviderCommand(
       const apiKey = (options.environment ?? process.env)[envName]?.trim();
       if (!apiKey) {
         throw new Error(
-          `Provider API key is missing. Set ${envName} or pass --api-key-env <name>.`,
+          cliText('cli.provider.apiKeyMissing', { envName }),
         );
       }
       const input = {
@@ -81,7 +82,7 @@ export async function runMcodeProviderCommand(
       };
       if (request.saveAndUse) {
         const modelId = request.models[0];
-        if (!modelId) throw new Error('At least one --model <id> is required.');
+        if (!modelId) throw new Error(cliText('cli.provider.modelRequired'));
         const result = await context.application.saveCandidate({
           ...input,
           modelId,
@@ -90,30 +91,31 @@ export async function runMcodeProviderCommand(
         if (!result.success) {
           throw new Error(
             formatTuiActionFailure(
-              result.status?.lastErrorMessage ?? result.status?.state ?? 'Connection unavailable',
+              result.status?.lastErrorMessage ??
+                result.status?.state ??
+                cliText('cli.provider.connectionUnavailable'),
               {
-                summary: 'Provider connection test failed. Nothing was saved or selected.',
-                nextStep:
-                  'Check the URL, API key, and first model ID, then retry; omit --use to save without testing.',
+                summary: cliText('cli.provider.connectionTestFailed'),
+                nextStep: cliText('cli.provider.connectionTestNextStep'),
               },
             ),
           );
         }
-        return `Provider added and selected: ${request.name}`;
+        return cliText('cli.provider.addedAndSelected', { name: request.name });
       }
       await context.application.create(input);
-      return `Provider added: ${request.name}`;
+      return cliText('cli.provider.added', { name: request.name });
     }
     if (request.action === 'remove') {
       if (!request.confirmed) {
-        throw new Error('Refusing to remove a provider without --yes.');
+        throw new Error(cliText('cli.provider.removeNeedsYes'));
       }
       await context.application.remove(request.providerId);
-      return `Provider removed: ${request.providerId}`;
+      return cliText('cli.provider.removed', { id: request.providerId });
     }
     if (request.action === 'test') {
       if (request.providerId === 'minimax_oauth') {
-        const message = 'MiniMax OAuth sign-in and connectivity are managed by /login.';
+        const message = cliText('cli.provider.oauthManagedByLogin');
         if (request.json) {
           return JSON.stringify(
             {
@@ -125,30 +127,34 @@ export async function runMcodeProviderCommand(
           );
         }
         return formatTuiActionFailure(message, {
-          summary: 'MiniMax OAuth provider test skipped.',
-          nextStep: 'Run /login to manage Token Plan sign-in.',
+          summary: cliText('cli.provider.oauthTestSkipped'),
+          nextStep: cliText('cli.provider.oauthTestNextStep'),
         });
       }
       const result = await context.application.test(request.providerId, request.modelId);
       if (request.json) return JSON.stringify(result, null, 2);
       return result.success
-        ? `Provider available: ${request.providerId}${request.modelId ? `/${request.modelId}` : ''}`
+        ? cliText('cli.provider.available', {
+            provider: `${request.providerId}${request.modelId ? `/${request.modelId}` : ''}`,
+          })
         : formatTuiActionFailure(result.status.lastErrorMessage ?? result.status.state, {
-            summary: 'Provider test failed.',
-            nextStep: 'Check the URL, API key, and model ID, then retry.',
+            summary: cliText('cli.provider.testFailed'),
+            nextStep: cliText('cli.provider.testNextStep'),
           });
     }
     if (request.action === 'set-minimax-key') {
       const envName = request.apiKeyEnv?.trim() || 'MCODE_PROVIDER_API_KEY';
       const apiKey = (options.environment ?? process.env)[envName]?.trim();
       if (!apiKey) {
-        throw new Error(`MiniMax API key is missing. Set ${envName} or pass --api-key-env <name>.`);
+        throw new Error(cliText('cli.provider.minimaxApiKeyMissing', { envName }));
       }
       await context.application.setMiniMaxApiKey(apiKey);
-      return 'MiniMax API Key saved and selected.';
+      return cliText('cli.provider.apiKeySaved');
     }
     await context.application.setMiniMaxSource(request.source);
-    return request.source === 'token_plan' ? 'Using MiniMax Token Plan.' : 'Using MiniMax API Key.';
+    return request.source === 'token_plan'
+      ? cliText('cli.provider.usingTokenPlan')
+      : cliText('cli.provider.usingApiKey');
   } finally {
     await context.shutdown();
   }

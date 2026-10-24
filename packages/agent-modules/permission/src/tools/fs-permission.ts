@@ -17,6 +17,7 @@ import type {
   PermissionRule,
   PermissionRuleAction,
 } from '../types.js';
+import { safetyCheckReason } from '../reason-format.js';
 import { isSameResolvedPath } from './path-identity.js';
 
 // ---------------------------------------------------------------------------
@@ -894,12 +895,10 @@ export function isPathAllowed(
   ) {
     return {
       allowed: false,
-      reason: {
-        type: 'safetyCheck',
-        description: `Private runtime data access requires approval. Path: ${resolved}`,
-        category: 'credentialFile',
-        classifierApprovable: false,
-      },
+      reason: safetyCheckReason(
+        { key: 'body.fs.privateRuntimeData', values: { path: resolved } },
+        { category: 'credentialFile', classifierApprovable: false },
+      ),
     };
   }
 
@@ -937,12 +936,10 @@ export function isPathAllowed(
   if (isSystemSensitivePath(resolved)) {
     return {
       allowed: false,
-      reason: {
-        type: 'safetyCheck',
-        description: `System secret access requires LLM review and explicit approval if the LLM cannot allow it. Path: ${resolved}`,
-        category: 'systemSensitivePath',
-        classifierApprovable: true,
-      },
+      reason: safetyCheckReason(
+        { key: 'body.fs.systemSecret', values: { path: resolved } },
+        { category: 'systemSensitivePath', classifierApprovable: true },
+      ),
     };
   }
 
@@ -950,12 +947,10 @@ export function isPathAllowed(
   if (isCredentialFile(resolved)) {
     return {
       allowed: false,
-      reason: {
-        type: 'safetyCheck',
-        description: `Credential or private-key access requires LLM review and explicit approval if the LLM cannot allow it. Path: ${resolved}`,
-        category: 'credentialFile',
-        classifierApprovable: true,
-      },
+      reason: safetyCheckReason(
+        { key: 'body.fs.credentialAccess', values: { path: resolved } },
+        { category: 'credentialFile', classifierApprovable: true },
+      ),
     };
   }
 
@@ -963,12 +958,10 @@ export function isPathAllowed(
   if (isEnvFile(resolved)) {
     return {
       allowed: false,
-      reason: {
-        type: 'safetyCheck',
-        description: `Environment file may contain secrets. Path: ${resolved}`,
-        category: 'envFile',
-        classifierApprovable: true,
-      },
+      reason: safetyCheckReason(
+        { key: 'body.fs.envFile', values: { path: resolved } },
+        { category: 'envFile', classifierApprovable: true },
+      ),
     };
   }
 
@@ -981,27 +974,26 @@ export function isPathAllowed(
   if (isInDangerousDirectory(resolved) && isSensitiveGitFile(resolved)) {
     return {
       allowed: false,
-      reason: {
-        type: 'safetyCheck',
-        description: `Sensitive git metadata may contain credentials or remotes with tokens. Path: ${resolved}`,
-        category:
-          path.basename(resolved).toLowerCase() === 'credentials'
-            ? 'credentialFile'
-            : 'gitSensitiveFile',
-        classifierApprovable: true,
-      },
+      reason: safetyCheckReason(
+        { key: 'body.fs.sensitiveGitMetadata', values: { path: resolved } },
+        {
+          category:
+            path.basename(resolved).toLowerCase() === 'credentials'
+              ? 'credentialFile'
+              : 'gitSensitiveFile',
+          classifierApprovable: true,
+        },
+      ),
     };
   }
 
   if (!skipDangerousCheck && isDangerousFile(resolved)) {
     return {
       allowed: false,
-      reason: {
-        type: 'safetyCheck',
-        description: `Protected user or tool configuration file. Path: ${resolved}`,
-        category: 'protectedFile',
-        classifierApprovable: true,
-      },
+      reason: safetyCheckReason(
+        { key: 'body.fs.protectedFile', values: { path: resolved } },
+        { category: 'protectedFile', classifierApprovable: true },
+      ),
     };
   }
 
@@ -1012,12 +1004,13 @@ export function isPathAllowed(
     const category = protectedDirectory === '.git' ? 'gitDirectory' : 'protectedDirectory';
     return {
       allowed: false,
-      reason: {
-        type: 'safetyCheck',
-        description: `Protected configuration or credential directory (${protectedDirectory ?? 'unknown'}). Path: ${resolved}`,
-        category,
-        classifierApprovable: true,
-      },
+      reason: safetyCheckReason(
+        {
+          key: 'body.fs.protectedDirectory',
+          values: { directory: protectedDirectory ?? 'unknown', path: resolved },
+        },
+        { category, classifierApprovable: true },
+      ),
     };
   }
 

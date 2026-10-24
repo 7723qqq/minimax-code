@@ -1,9 +1,8 @@
+import { describe, expect, it, mock, spyOn } from 'bun:test';
 import { EventEmitter } from 'node:events';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
-import { describe, expect, it, vi } from 'vitest';
 
 import { runTuiExec, type TuiHeadlessRuntime } from '../../src/headless/runner.js';
 import { ExecDiagnostics } from '../../src/headless/diagnostics.js';
@@ -13,13 +12,13 @@ describe('headless preparation cancellation', () => {
     const directory = await mkdtemp(join(tmpdir(), 'mcode-cancel-diagnostics-'));
     const controller = new AbortController();
     const createDiagnostics = ExecDiagnostics.create;
-    const create = vi.spyOn(ExecDiagnostics, 'create').mockImplementationOnce(async (...args) => {
+    const create = spyOn(ExecDiagnostics, 'create').mockImplementationOnce(async (...args) => {
       const diagnostics = await createDiagnostics(...args);
       controller.abort();
       return diagnostics;
     });
-    const getAccountStatus = vi.fn();
-    const shutdown = vi.fn(async () => false);
+    const getAccountStatus = mock();
+    const shutdown = mock(async () => false);
     try {
       await expect(runTuiExec(
         {
@@ -30,8 +29,8 @@ describe('headless preparation cancellation', () => {
           runtime: { getAccountStatus } as unknown as TuiHeadlessRuntime,
           signal: controller.signal,
           shutdown,
-          stdout: vi.fn(),
-          stderr: vi.fn(),
+          stdout: mock(),
+          stderr: mock(),
         },
       )).resolves.toBe(130);
       expect(getAccountStatus).not.toHaveBeenCalled();
@@ -59,7 +58,7 @@ describe('headless preparation cancellation', () => {
         enteredPreparation();
         await preparing;
       };
-      const sendMessage = vi.fn(async function* () {
+      const sendMessage = mock(async function* () {
         yield { type: 'message' as const, message: { role: 'assistant' as const, content: 'done' } };
         yield { type: 'session-status' as const, status: 'finished' as const };
       });
@@ -82,12 +81,12 @@ describe('headless preparation cancellation', () => {
           return [{ providerId: 'provider', modelId: 'model', selected: true, effortOptions: ['high'] }];
         },
         sendMessage,
-        abortSession: vi.fn(async () => true),
+        abortSession: mock(async () => true),
       } as unknown as TuiHeadlessRuntime;
-      const shutdown = vi.fn(async () => false);
+      const shutdown = mock(async () => false);
       const execution = runTuiExec(
         { prompt: 'Fix it', workspaceDir: '/workspace', version: '0.1.0', effort: 'high' },
-        { runtime, processRef, shutdown, stdout: vi.fn(), stderr: vi.fn() },
+        { runtime, processRef, shutdown, stdout: mock(), stderr: mock() },
       );
 
       await entered;
@@ -108,7 +107,7 @@ describe('headless preparation cancellation', () => {
     const entered = new Promise<void>((resolve) => {
       enteredRun = resolve;
     });
-    const abortSession = vi.fn(async () => true);
+    const abortSession = mock(async () => true);
     const runtime = {
       getAccountStatus: async () => ({ status: 'ready', managedTokenPresent: true, warnings: [] }),
       createSession: async () => ({ sessionId: 'session-1', workspaceDir: '/workspace' }),
@@ -123,10 +122,10 @@ describe('headless preparation cancellation', () => {
       },
       abortSession,
     } as unknown as TuiHeadlessRuntime;
-    const shutdown = vi.fn(async () => false);
+    const shutdown = mock(async () => false);
     const execution = runTuiExec(
       { prompt: 'Fix it', workspaceDir: '/workspace', version: '0.1.0' },
-      { runtime, processRef, signal: controller.signal, shutdown, stdout: vi.fn(), stderr: vi.fn() },
+      { runtime, processRef, signal: controller.signal, shutdown, stdout: mock(), stderr: mock() },
     );
 
     await entered;
@@ -141,7 +140,7 @@ describe('headless preparation cancellation', () => {
 
   it('stops Session pagination at the next preparation boundary after cancellation', async () => {
     const processRef = new EventEmitter();
-    const listSessionPage = vi.fn(async () => ({ sessions: [], hasMore: false, nextCursor: '' }));
+    const listSessionPage = mock(async () => ({ sessions: [], hasMore: false, nextCursor: '' }));
     listSessionPage.mockImplementationOnce(async () => {
       processRef.emit('SIGTERM');
       return { sessions: [], hasMore: true, nextCursor: 'page-2' };
@@ -149,13 +148,13 @@ describe('headless preparation cancellation', () => {
     const runtime = {
       getAccountStatus: async () => ({ status: 'ready', managedTokenPresent: true, warnings: [] }),
       listSessionPage,
-      sendMessage: vi.fn(),
+      sendMessage: mock(),
     } as unknown as TuiHeadlessRuntime;
-    const shutdown = vi.fn(async () => false);
+    const shutdown = mock(async () => false);
 
     await expect(runTuiExec(
       { prompt: 'Fix it', workspaceDir: '/workspace', version: '0.1.0', continueSession: true },
-      { runtime, processRef, shutdown, stdout: vi.fn(), stderr: vi.fn() },
+      { runtime, processRef, shutdown, stdout: mock(), stderr: mock() },
     )).resolves.toBe(130);
 
     expect(listSessionPage).toHaveBeenCalledOnce();
@@ -166,9 +165,9 @@ describe('headless preparation cancellation', () => {
   it('keeps a cleanup failure visible when the invocation was already cancelled', async () => {
     const controller = new AbortController();
     controller.abort();
-    const getAccountStatus = vi.fn();
-    const stderr = vi.fn();
-    const shutdown = vi.fn(async () => true);
+    const getAccountStatus = mock();
+    const stderr = mock();
+    const shutdown = mock(async () => true);
 
     await expect(runTuiExec(
       { prompt: 'Fix it', workspaceDir: '/workspace', version: '0.1.0' },
@@ -176,7 +175,7 @@ describe('headless preparation cancellation', () => {
         runtime: { getAccountStatus } as unknown as TuiHeadlessRuntime,
         signal: controller.signal,
         shutdown,
-        stdout: vi.fn(),
+        stdout: mock(),
         stderr,
       },
     )).resolves.toBe(70);

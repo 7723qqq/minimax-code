@@ -2,7 +2,8 @@ import { watch as watchFs, writeFileSync } from 'node:fs';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createRequire } from 'node:module';
+import { afterAll, afterEach, describe, expect, it, jest, mock } from 'bun:test';
 import {
   customThemesDirectory,
   loadCustomThemes,
@@ -15,16 +16,37 @@ import {
   MINIMAX_CODE_DARK_THEME,
   MINIMAX_CODE_LIGHT_THEME,
 } from '../../../../src/tui/theme/palettes.js';
+import {
+  advanceTimersByTimeAsync,
+  mocked,
+} from '../../../../../../test/bun-test-setup.js';
 
-vi.mock('node:fs', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:fs')>();
-  return { ...actual, watch: vi.fn(actual.watch) };
+// `bun test` runs every file of a suite in one process, and `mock.module()`
+// replaces the module for that whole process. Snapshot the real module before
+// replacing it and put it back in `afterAll`, so the replacement never leaks
+// into the files that run after this one.
+// `require` inside the factory reads the real module: a static namespace
+// import would already be replaced by the mock and would resolve to itself.
+const require = createRequire(import.meta.url);
+
+const realFs = require('node:fs') as typeof import('node:fs');
+
+const watch = mock(realFs.watch);
+
+mock.module('node:fs', () => ({
+  ...realFs,
+  watch,
+  default: { ...realFs, watch },
+}));
+
+afterAll(() => {
+  mock.module('node:fs', () => ({ ...realFs, default: realFs }));
 });
 
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
-  vi.useRealTimers();
+  jest.useRealTimers();
   await Promise.all(
     temporaryDirectories.splice(0).map((directory) => rm(directory, { recursive: true })),
   );
@@ -56,10 +78,10 @@ describe('custom TUI theme files', () => {
     });
     const file = join(customThemesDirectory(dataDir), 'mine.json');
     expect(onlyTheme(loadCustomThemes(dataDir).themes).dark.colors.brand).toBe('#112233');
-    const close = vi.fn();
-    vi.mocked(watchFs).mockReturnValueOnce({ on: vi.fn(), close } as never);
-    vi.useFakeTimers();
-    const onChange = vi.fn();
+    const close = mock();
+    mocked(watchFs).mockReturnValueOnce({ on: mock(), close } as never);
+    jest.useFakeTimers();
+    const onChange = mock();
     const stop = watchCustomThemes(dataDir, onChange);
     try {
       // Model macOS dropping the first edit before native watching is ready.
@@ -67,7 +89,7 @@ describe('custom TUI theme files', () => {
         file,
         JSON.stringify({ name: 'mine', appearance: 'dark', colors: { brand: '#AABBCC' } }),
       );
-      await vi.advanceTimersByTimeAsync(150);
+      await advanceTimersByTimeAsync(150);
       expect(onChange).toHaveBeenCalledTimes(1);
       expect(onlyTheme(onChange.mock.calls[0]![0].themes).dark.colors.brand).toBe('#AABBCC');
 
@@ -75,9 +97,9 @@ describe('custom TUI theme files', () => {
         file,
         JSON.stringify({ name: 'mine', appearance: 'dark', colors: { brand: '#DDEEFF' } }),
       );
-      const fire = vi.mocked(watchFs).mock.calls.at(-1)![2]!;
+      const fire = mocked(watchFs).mock.calls.at(-1)![2]!;
       fire('change', 'mine.json');
-      await vi.advanceTimersByTimeAsync(150);
+      await advanceTimersByTimeAsync(150);
       expect(onChange).toHaveBeenCalledTimes(2);
       expect(onlyTheme(onChange.mock.calls[1]![0].themes).dark.colors.brand).toBe('#DDEEFF');
     } finally {
@@ -88,13 +110,13 @@ describe('custom TUI theme files', () => {
 
   it('cancels the startup reconciliation when disposed', async () => {
     const dataDir = await themesDataDir({});
-    const close = vi.fn();
-    vi.mocked(watchFs).mockReturnValueOnce({ on: vi.fn(), close } as never);
-    vi.useFakeTimers();
-    const onChange = vi.fn();
+    const close = mock();
+    mocked(watchFs).mockReturnValueOnce({ on: mock(), close } as never);
+    jest.useFakeTimers();
+    const onChange = mock();
     const stop = watchCustomThemes(dataDir, onChange);
     stop();
-    await vi.advanceTimersByTimeAsync(1000);
+    await advanceTimersByTimeAsync(1000);
     expect(onChange).not.toHaveBeenCalled();
     expect(close).toHaveBeenCalledOnce();
   });

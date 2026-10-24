@@ -1,10 +1,11 @@
+import { describe, expect, it, mock } from 'bun:test';
 import type {
   AgentMessage,
   CompactionSummaryMessage,
 } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage } from "@earendil-works/pi-ai";
 import type { PiBeforeLlmCallHookInput } from "@mavis/agent-core/pi-turn-runner";
-import { describe, expect, it, vi } from "vitest";
+
 import { ContextManager } from "../src/manager.js";
 import { BpeTokenEstimator } from "../src/token-estimator.js";
 
@@ -164,8 +165,8 @@ describe("compaction usage provenance", () => {
   );
 
   it("recounts replacements, skips the next checkpoint, and retains historical usage across restore", async () => {
-    const generateSummary = vi.fn(async () => "Small summary.");
-    const committed = vi.fn();
+    const generateSummary = mock(async () => "Small summary.");
+    const committed = mock();
     const options = {
       settings: { keepRecentTokens: 1 },
       summaryGenerator: { generateSummary },
@@ -240,11 +241,10 @@ describe("compaction usage provenance", () => {
   });
 
   it("preserves the remote counter decision and payload after compaction", async () => {
-    const countContextTokens = vi
-      .fn()
+    const countContextTokens = mock()
       .mockResolvedValueOnce({ tokens: 190_000, source: "remote_count_tokens" })
       .mockResolvedValueOnce({ tokens: 40, source: "remote_count_tokens" });
-    const onTriggerEvaluated = vi.fn();
+    const onTriggerEvaluated = mock();
     const manager = new ContextManager({
       settings: { keepRecentTokens: 1 },
       tokenCounter: { countContextTokens },

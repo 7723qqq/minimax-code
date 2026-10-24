@@ -1,5 +1,5 @@
 import type { TuiCustomStatusLineConfig } from '@mavis/config';
-import { getRuntimeLocaleLanguage } from '@mavis/shared/runtime-i18n';
+import { resolveLocale } from '@mavis/shared/i18n';
 import { formatContextWindow } from '../../application/context-window.js';
 import type { Component } from '../rendering/component.js';
 import { stripAnsi, truncateToWidth, visibleWidth } from '../rendering/text.js';
@@ -17,6 +17,7 @@ import { fitFirstStatusCandidate, fitLine, normalizeWidth } from './frame.js';
 import { formatTuiAgentStatusLine, type TuiAgentStatus } from './status-protocol.js';
 import { TUI_STATUS_LINE_DEFAULT_ITEMS, type TuiStatusLineItem } from './status-line-items.js';
 import { renderCustomStatusLines } from './custom-status-text.js';
+import { shellText } from './copy.js';
 
 export { type TuiRuntimeStatus, type TuiShellState } from './contracts.js';
 export { TuiWelcome } from './welcome/component.js';
@@ -38,26 +39,34 @@ export class TuiUpdateNotice implements Component {
 
     const headline = fitFirstStatusCandidate(
       [
-        ` ${chalk.bold.hex(colors.signal)('✦ A new version of MCode is available')} ${chalk.hex(
+        ` ${chalk.bold.hex(colors.signal)(shellText('update.headline.available'))} ${chalk.hex(
           colors.text,
-        )('— update for the latest improvements')}`,
-        ` ${chalk.bold.hex(colors.signal)(`✦ MCode ${this.availableVersion} is available`)}`,
-        ` ${chalk.bold.hex(colors.signal)('✦ MCode update available')}`,
+        )(shellText('update.detail.improvements'))}`,
+        ` ${chalk.bold.hex(colors.signal)(
+          shellText('update.headline.version', { version: this.availableVersion }),
+        )}`,
+        ` ${chalk.bold.hex(colors.signal)(shellText('update.headline.generic'))}`,
       ],
       safeWidth,
     );
     const action = fitFirstStatusCandidate(
       [
-        ` ${chalk.hex(colors.muted)("Run '")}${chalk.bold.hex(colors.signal)(
-          '/update',
-        )}${chalk.hex(colors.muted)(`' to install MCode ${this.availableVersion}`)}`,
-        ` ${chalk.hex(colors.muted)('Run ')}${chalk.bold.hex(colors.signal)(
-          '/update',
-        )}${chalk.hex(colors.muted)(` to install ${this.availableVersion}`)}`,
-        ` ${chalk.bold.hex(colors.signal)('/update')}${chalk.hex(colors.muted)(
-          ' · review and install',
+        ` ${chalk.hex(colors.muted)(shellText('update.action.runPrefix'))}${chalk.bold.hex(
+          colors.signal,
+        )('/update')}${chalk.hex(colors.muted)(
+          shellText('update.action.runSuffix', { version: this.availableVersion }),
         )}`,
-        ` ${chalk.bold.hex(colors.signal)('/update')}${chalk.hex(colors.muted)(' · install')}`,
+        ` ${chalk.hex(colors.muted)(shellText('update.action.runPrefixShort'))}${chalk.bold.hex(
+          colors.signal,
+        )('/update')}${chalk.hex(colors.muted)(
+          shellText('update.action.runSuffixShort', { version: this.availableVersion }),
+        )}`,
+        ` ${chalk.bold.hex(colors.signal)('/update')}${chalk.hex(colors.muted)(
+          shellText('update.action.reviewSuffix'),
+        )}`,
+        ` ${chalk.bold.hex(colors.signal)('/update')}${chalk.hex(colors.muted)(
+          shellText('update.action.installSuffix'),
+        )}`,
       ],
       safeWidth,
     );
@@ -307,9 +316,9 @@ function renderCacheReadRatio(
   const percent = Math.round(Math.min(1, Math.max(0, ratio)) * 100);
   const label =
     density === 'full'
-      ? `Cache ${percent}%`
+      ? shellText('status.cache.full', { percent })
       : density === 'compact'
-        ? `C ${percent}%`
+        ? shellText('status.cache.compact', { percent })
         : `${percent}%`;
   return chalk.hex(colors.muted)(label);
 }
@@ -391,10 +400,19 @@ function fitStatusSegments(segments: readonly StatusSegment[], width: number): s
   return fitLine(render(), width);
 }
 
-function lightweightModeLabels(locale = Intl.DateTimeFormat().resolvedOptions().locale): string[] {
-  return getRuntimeLocaleLanguage(locale) === 'zh'
-    ? ['轻量模式', '轻量', '轻']
-    : ['Lightweight', 'Light', 'Lite'];
+/**
+ * Shell copy that is not part of the status-line picker.
+ *
+ * The lightweight badge is rendered at three widths, so the catalog holds one
+ * key per width instead of an inline array that had to be kept in sync with the
+ * English one by hand. The rest of the shell copy lives in `./copy.ts`.
+ */
+function lightweightModeLabels(locale = resolveLocale()): string[] {
+  return [
+    shellText('lightweight.full', locale),
+    shellText('lightweight.short', locale),
+    shellText('lightweight.tiny', locale),
+  ];
 }
 
 function renderSessionTitle(state: TuiShellState, maxWidth?: number): string {
@@ -409,19 +427,19 @@ function renderStatusIdentity(
   state: TuiShellState,
   density: 'full' | 'compact' | 'minimal',
 ): string {
-  const model = formatStatusContextLabel(state.model ?? 'no model');
+  const model = formatStatusContextLabel(state.model ?? shellText('status.model.fallback'));
   const thinking =
     density === 'minimal' || !state.thinking || state.effort
       ? undefined
       : density === 'compact'
-        ? `Think ${state.thinking === 'on' ? 'On' : 'Off'}`
-        : `Thinking ${state.thinking === 'on' ? 'On' : 'Off'}`;
+        ? shellText(state.thinking === 'on' ? 'status.think.on' : 'status.think.off')
+        : shellText(state.thinking === 'on' ? 'status.thinking.on' : 'status.thinking.off');
   const effort =
     density === 'minimal' || !state.effort
       ? undefined
       : density === 'compact'
-        ? `Eff ${state.effort}`
-        : `Effort ${state.effort}`;
+        ? shellText('status.effort.compact', { effort: state.effort })
+        : shellText('status.effort.full', { effort: state.effort });
   const detail = [thinking, effort]
     .filter((part): part is string => Boolean(part))
     .map((part) => `${statusDot()}${chalk.hex(colors.muted)(part)}`)
@@ -444,7 +462,11 @@ function contextWindowTokens(state: TuiShellState): number | undefined {
 function renderContextWindow(state: TuiShellState, compact = false): string {
   const window = contextWindowTokens(state);
   if (window === undefined) return '';
-  return chalk.hex(colors.muted)(`${compact ? 'Ctx' : 'Context'} ${formatContextWindow(window)}`);
+  return chalk.hex(colors.muted)(
+    shellText(compact ? 'status.context.compact' : 'status.context.full', {
+      window: formatContextWindow(window),
+    }),
+  );
 }
 
 /**
@@ -481,15 +503,15 @@ function renderContextRemaining(
   }
   const label =
     density === 'full'
-      ? `Context ${gauge}${remaining}% left`
-      : `Ctx ${gauge}${remaining}%`;
+      ? shellText('status.remaining.full', { gauge, remaining })
+      : shellText('status.remaining.compact', { gauge, remaining });
   return chalk.hex(color)(label);
 }
 
 function renderSubagentIdentity(state: TuiShellState, compact = false): string {
   if (state.sessionRole !== 'subagent') return '';
   const agent = formatStatusContextLabel(state.sessionAgentName?.trim() || 'sub-agent');
-  const label = compact ? `Sub:${agent}` : `Sub: ${agent}`;
+  const label = shellText(compact ? 'status.subagent.compact' : 'status.subagent.full', { agent });
   return chalk.hex(colors.muted)(label);
 }
 
@@ -498,10 +520,16 @@ function renderGitContext(
   density: 'full' | 'compact' | 'minimal' = 'full',
 ): string {
   if (!metadata?.isGitRepo) return '';
-  const ref = metadata.detached ? 'detached' : metadata.branch || 'unborn';
+  const ref = metadata.detached
+    ? shellText('status.git.detached')
+    : metadata.branch || shellText('status.git.unborn');
   const label =
     density === 'full' ? ref : stripAnsi(truncateToWidth(ref, density === 'minimal' ? 7 : 12));
-  const worktree = metadata.isWorktree ? (density === 'full' ? 'worktree' : 'wt') : undefined;
+  const worktree = metadata.isWorktree
+    ? density === 'full'
+      ? shellText('status.git.worktree')
+      : shellText('status.git.worktreeShort')
+    : undefined;
   return `${chalk.hex(colors.accent)('⎇')} ${chalk.hex(colors.muted)(label)}${
     worktree ? `${statusDot()}${chalk.hex(colors.muted)(worktree)}` : ''
   }`;
@@ -544,8 +572,16 @@ function renderTokenPlanAlert(
 ): string {
   if (quotaState !== 'available' || !quota) return '';
   const constrained = [
-    quotaAlertWindow('5h', '5h', quota.fiveHour),
-    quotaAlertWindow('Week', 'W', quota.weekly),
+    quotaAlertWindow(
+      shellText('status.quota.fiveHour'),
+      shellText('status.quota.fiveHour'),
+      quota.fiveHour,
+    ),
+    quotaAlertWindow(
+      shellText('status.quota.week'),
+      shellText('status.quota.weekShort'),
+      quota.weekly,
+    ),
   ].filter((window): window is TokenPlanAlertWindow => window !== undefined);
   if (constrained.length === 0) return '';
 
@@ -596,16 +632,18 @@ function statusDot(): string {
 
 function renderPlanMode(state: TuiShellState, compact = false): string {
   if (state.planMode !== 'plan' && !state.planModeTransition) return '';
-  const label = state.planMode === 'plan' ? 'PLAN' : 'DEFAULT';
+  const label = shellText(
+    state.planMode === 'plan' ? 'status.planMode.plan' : 'status.planMode.default',
+  );
   const suffix =
     state.planModeTransition === 'next-message'
       ? compact
         ? '…'
-        : ' next'
+        : shellText('status.planMode.next')
       : state.planModeTransition === 'submitting'
         ? compact
           ? '…'
-          : ' submitting'
+          : shellText('status.planMode.submitting')
         : '';
   return chalk.bold.hex(colors.accent)(`${label}${suffix}`);
 }
@@ -615,7 +653,7 @@ function renderPermissionMode(state: TuiShellState, compact = false): string {
     ? compact
       ? formatTuiPermissionModeCompact(state.permissionMode)
       : formatTuiPermissionMode(state.permissionMode)
-    : 'Permissions';
+    : shellText('status.permissionMode.fallback');
   const suffix = state.permissionModeUpdating ? '…' : '';
   const renderedMode = chalk.bold.hex(
     state.permissionMode && isDangerousTuiPermissionMode(state.permissionMode)

@@ -10,8 +10,21 @@ import { sanitizeTerminalText } from '../../rendering/terminal-text.js';
 import { truncateToWidth } from '../../rendering/text.js';
 import { sanitizeTuiUrl } from '../../rendering/url.js';
 import { tuiChalk as chalk, tuiColors as colors } from '../../theme/runtime.js';
+import { providerText } from './copy.js';
 
-const FIELDS = ['API Key', 'Base URL', 'Models', 'Alias', 'Test and save'] as const;
+const FIELD_LABELS = ['API Key', 'Base URL', 'Models', 'Alias'] as const;
+/** Index of the action row that tests the connection and saves it. */
+const TEST_AND_SAVE_INDEX = FIELD_LABELS.length;
+/** Number of editor rows, including the action row. */
+const FIELD_COUNT = TEST_AND_SAVE_INDEX + 1;
+
+/**
+ * Editor rows; the last one is the action that tests the connection and saves
+ * it, so its label comes from the catalog with the others.
+ */
+function fieldLabels(): readonly string[] {
+  return [...FIELD_LABELS, providerText('editorFieldTestAndSave')];
+}
 
 export class TuiProviderEditor implements Component, Focusable {
   private selected = 0;
@@ -64,9 +77,9 @@ export class TuiProviderEditor implements Component, Focusable {
     } else if (matchesKey(data, Key.up)) {
       this.selected = Math.max(0, this.selected - 1);
     } else if (matchesKey(data, Key.down) || matchesKey(data, 'tab')) {
-      this.selected = (this.selected + 1) % FIELDS.length;
+      this.selected = (this.selected + 1) % FIELD_COUNT;
     } else if (matchesKey(data, Key.enter)) {
-      if (this.selected === 4) void this.save();
+      if (this.selected === TEST_AND_SAVE_INDEX) void this.save();
       else this.editField();
     }
     this.options.requestRender();
@@ -76,24 +89,22 @@ export class TuiProviderEditor implements Component, Focusable {
     if (width <= 0) return [];
     const values = [
       this.apiKey
-        ? 'Replacement entered'
+        ? providerText('valueReplacementEntered')
         : this.options.provider.hasApiKey
-          ? 'Saved key (unchanged)'
-          : 'Not configured',
+          ? providerText('valueSavedKeyUnchanged')
+          : providerText('valueNotConfigured'),
       sanitizeTuiUrl(this.baseUrl),
-      this.modelIds.join(', ') || 'No models',
+      this.modelIds.join(', ') || providerText('valueNoModels'),
       this.name,
       '',
     ];
-    const rows = FIELDS.map((field, index) => {
+    const rows = fieldLabels().map((field, index) => {
       const label = `${this.selected === index ? '→' : ' '} ${field}: ${sanitizeTerminalText(values[index] ?? '')}`;
       return this.selected === index ? chalk.hex(colors.signal)(label) : label;
     });
     return [
       chalk.bold.hex(colors.signal)(`Edit ${sanitizeTerminalText(this.options.provider.name)}`),
-      chalk.hex(colors.muted)(
-        'Changes apply to all models in this connection after a successful test.',
-      ),
+      chalk.hex(colors.muted)(providerText('editorChangesApplyHint')),
       '',
       ...rows,
       ...(this.editing
@@ -101,19 +112,17 @@ export class TuiProviderEditor implements Component, Focusable {
         : []),
       ...(this.selected === 2
         ? [
-            chalk.hex(colors.dim)(
-              'Model IDs separated by commas; remove an ID to remove that model.',
-            ),
+            chalk.hex(colors.dim)(providerText('editorModelsHint')),
           ]
         : []),
       ...(this.status ? ['', chalk.hex(colors.error)(sanitizeTerminalText(this.status))] : []),
       '',
       chalk.hex(colors.dim)(
         this.busy
-          ? 'Testing and saving…'
+          ? providerText('testingAndSaving')
           : this.editing
-            ? 'Enter keep change · Esc cancel edit'
-            : '↑↓ move · Enter edit / save · Esc cancel',
+            ? providerText('editorEditingHint')
+            : providerText('editorNavigateHint'),
       ),
     ].map((line) => truncateToWidth(line, Math.max(0, width), '…'));
   }
@@ -142,7 +151,7 @@ export class TuiProviderEditor implements Component, Focusable {
   private commitField(value: string): void {
     const trimmed = value.trim();
     if (!trimmed) {
-      this.status = 'A value is required. Press Esc to keep the saved value.';
+      this.status = providerText('editorValueRequired');
       return;
     }
     if (this.selected === 0) this.apiKey = trimmed;
@@ -151,7 +160,7 @@ export class TuiProviderEditor implements Component, Focusable {
         const url = new URL(trimmed);
         if (url.protocol !== 'http:' && url.protocol !== 'https:') throw new Error();
       } catch {
-        this.status = 'Base URL must use http or https.';
+        this.status = providerText('baseUrlMustBeHttp');
         return;
       }
       this.baseUrl = trimmed;
@@ -166,7 +175,7 @@ export class TuiProviderEditor implements Component, Focusable {
         ),
       ];
       if (!ids.length) {
-        this.status = 'At least one model is required for the connection test.';
+        this.status = providerText('editorModelRequired');
         return;
       }
       this.modelIds = ids;
@@ -190,12 +199,12 @@ export class TuiProviderEditor implements Component, Focusable {
         ?.modelId ?? this.modelIds[0];
     if (!provider.configRevision || !modelId) {
       this.status = !modelId
-        ? 'Add a model before testing and saving.'
-        : 'Connection details are stale. Reopen /provider.';
+        ? providerText('editorAddModelFirst')
+        : providerText('staleConnectionDetails');
       return;
     }
     if (!provider.hasApiKey && !this.apiKey) {
-      this.status = 'API Key is required.';
+      this.status = providerText('apiKeyRequired');
       return;
     }
     this.busy = true;
@@ -215,13 +224,13 @@ export class TuiProviderEditor implements Component, Focusable {
       });
       if (this.disposed) return;
       if (!result.success)
-        throw new Error(result.status?.lastErrorMessage ?? 'Connection test failed.');
+        throw new Error(result.status?.lastErrorMessage ?? providerText('connectionTestFailed'));
       this.options.onSaved(Boolean(this.apiKey));
     } catch (error) {
       if (this.disposed) return;
       const message = formatTuiActionFailure(error, {
-        summary: 'Changes were not saved. The previous connection remains in use.',
-        nextStep: 'Check the connection and retry. If it changed elsewhere, reopen /provider.',
+        summary: providerText('editorChangesNotSaved'),
+        nextStep: providerText('editorCheckAndRetry'),
       });
       this.status = this.apiKey ? message.split(this.apiKey).join('[redacted]') : message;
     } finally {

@@ -5,6 +5,7 @@ import {
   type TaskStore,
 } from './domain.js';
 import { logger } from '../common/logger.js';
+import { backgroundTaskText } from './copy.js';
 
 export interface BackgroundTaskRuntimeOwner {
   readonly ownerId: string;
@@ -86,7 +87,7 @@ export class StartupTaskRecovery {
     pending: readonly BackgroundTask[],
     options: { reason?: string; createdBeforeMs?: number } = {},
   ): Promise<BackgroundTask[]> {
-    const reason = options.reason ?? 'Local runtime restarted before task completed';
+    const reason = options.reason ?? backgroundTaskText('task.restartedBeforeCompleted');
     const lost: BackgroundTask[] = [];
     for (const task of pending) {
       const now = this.settlement.nowMs();

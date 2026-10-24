@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, w
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { lockSync } from 'proper-lockfile';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'bun:test';
 import { McpNameRegistry, configuredMcpNameKey, pluginMcpNameKey } from '../src/index.js';
 
 const roots: string[] = [];

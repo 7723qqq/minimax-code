@@ -1,4 +1,5 @@
 import { DEFAULT_BOT_NAME, makeHeader } from './feishu-card-header.js';
+import { feishuText } from './feishu-copy.js';
 
 /**
  * Reply + transient thinking cards for Feishu / Lark, matching the historical
@@ -80,12 +81,12 @@ export function buildThinkingCard(botName: string = DEFAULT_BOT_NAME): Record<st
     header: makeHeader({
       title: botName,
       template: 'grey',
-      tagText: '处理中',
+      tagText: feishuText('reply.processing'),
       tagColor: 'grey',
     }),
     body: {
       direction: 'vertical',
-      elements: [{ tag: 'markdown', content: '🤔 思考中…' }],
+      elements: [{ tag: 'markdown', content: feishuText('reply.thinking') }],
     },
   };
 }
@@ -116,7 +117,7 @@ export function buildReplyCard(
       title: options.title ?? botName,
       template: options.template ?? 'green',
       icon: 'chat_outlined',
-      tagText: options.tagText ?? '回复',
+      tagText: options.tagText ?? feishuText('reply.tag'),
       tagColor: options.tagColor ?? 'green',
     }),
     body: {

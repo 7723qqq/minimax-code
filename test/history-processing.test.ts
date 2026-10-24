@@ -1,3 +1,4 @@
+import { describe, expect, it, mock, spyOn } from 'bun:test';
 import { SemanticReplayRegistry } from '../packages/local-runtime-v2/src/service/turn-system/agent-host/events/semantic-replay-registry.js';
 import { createHash } from 'node:crypto';
 import { createCanonicalHistoryScanner, scanCanonicalHistoryArtifacts } from '../packages/local-runtime-v2/src/service/session-system/messages/history/mutation/canonical-history-scanner.js';
@@ -13,7 +14,7 @@ import { canonicalJson } from '../packages/local-runtime-v2/src/infra/file/canon
 import { mkdtemp, rm, writeFile, mkdir, readFile, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
+
 import { eq } from 'drizzle-orm';
 import { DatabaseClient } from '../packages/local-runtime-v2/src/infra/db/client.js';
 import { initializeDatabase } from '../packages/local-runtime-v2/src/infra/db/initialize.js';
@@ -390,7 +391,7 @@ describe('semantic snapshots', () => {
     expect(() => captureSemanticSnapshot(cyclic, captureSemanticSnapshot({ child: {} }).value)).toThrow('Cyclic');
   });
   it('detaches and freezes eagerly but hashes only when identity is requested', () => {
-    const hash = vi.spyOn(IncrementalSha256.prototype, 'update');
+    const hash = spyOn(IncrementalSha256.prototype, 'update');
     try {
       const original = { messages: [{ text: 'before' }] };
       const snapshot = captureSemanticSnapshot(original);
@@ -455,10 +456,10 @@ describe('semantic snapshots', () => {
     expect(0 in nextArray).toBe(true);
     expect(Object.is(nextArray[2], -0)).toBe(false);
     expect(0 in oldArray).toBe(false);
-    const getter = vi.fn(() => 1);
+    const getter = mock(() => 1);
     expect(captureSemanticSnapshot({ get a() { return getter(); }, b: 2 }, prior).value).toEqual(prior);
     expect(getter).toHaveBeenCalledTimes(1);
-    const trap = vi.fn();
+    const trap = mock();
     expect(() => captureSemanticSnapshot(new Proxy({}, { ownKeys: trap }), prior)).toThrow();
     expect(trap).not.toHaveBeenCalled();
     const unsafe = Object.freeze({ nested: { text: 'old' } });
@@ -508,7 +509,7 @@ describe('semantic snapshots', () => {
   it('uses native getter ordering and proxy rejection even beside owned values', () => {
     const owned = captureSemanticSnapshot({ text: 'owned' }).value;
     const shared = { value: 1 };
-    const getter = vi.fn(() => {
+    const getter = mock(() => {
       shared.value = 2;
       return shared;
     });
@@ -522,7 +523,7 @@ describe('semantic snapshots', () => {
     expect(snapshot.value.shared).toBe(snapshot.value.later);
     expect(snapshot.value.shared.value).toBe(1);
     expect(getter).toHaveBeenCalledTimes(1);
-    const trap = vi.fn();
+    const trap = mock();
     expect(() =>
       captureSemanticSnapshot({
         owned,
@@ -538,7 +539,7 @@ describe('semantic snapshots', () => {
     expect(snapshot.value.nested.text).toBe('before');
   });
   it('preserves native rejection of proxies without invoking their traps', () => {
-    const trap = vi.fn();
+    const trap = mock();
     const value = new Proxy({}, { ownKeys: trap });
     expect(() => captureSemanticSnapshot(value)).toThrow();
     expect(trap).not.toHaveBeenCalled();
@@ -558,7 +559,7 @@ describe('semantic snapshots', () => {
     (getterFirst) => {
       const makeInput = () => {
         const shared = { value: 1 };
-        const getter = vi.fn(() => {
+        const getter = mock(() => {
           shared.value = 2;
           return shared;
         });
@@ -685,7 +686,7 @@ describe('ordered replay eviction', () => {
     c.resolve(1); await pc;
     b.resolve(1); await pb;
     a.resolve(1); await pa;
-    const execute = vi.fn(async () => 1);
+    const execute = mock(async () => 1);
     await expect(registry.run(request('a', execute))).rejects.toThrow('no longer retained');
     await expect(registry.run(request('a', execute, 'different'))).rejects.toThrow('conflict');
     expect(execute).not.toHaveBeenCalled();
@@ -708,7 +709,7 @@ describe('ordered replay eviction', () => {
     }));
     outer.resolve(1); await outerExecution;
     inner.resolve(10); await innerExecution;
-    const execute = vi.fn(async () => 1);
+    const execute = mock(async () => 1);
     await expect(registry.run(request('a', execute))).resolves.toBe(1);
     expect(execute).not.toHaveBeenCalled();
   });
@@ -719,7 +720,7 @@ describe('ordered replay eviction', () => {
     const pa = registry.run(request('a', () => a.promise));
     const pb = registry.run(request('b', () => b.promise));
     b.resolve(2); await pb;
-    const execute = vi.fn(async () => 3);
+    const execute = mock(async () => 3);
     expect(registry.run(request('a', execute))).toBe(pa);
     await expect(registry.run(request('b', execute))).resolves.toBe(3);
     a.reject(new Error('retryable'));
@@ -731,7 +732,7 @@ describe('ordered replay eviction', () => {
 
 describe('bounded token count reuse', () => {
   it('reuses text across detached histories and observes content edits and compaction', () => {
-    const encode = vi.fn((text: string) => [...text]);
+    const encode = mock((text: string) => [...text]);
     const estimator = new BpeTokenEstimator(encode);
     const messages = [
       {
@@ -754,7 +755,7 @@ describe('bounded token count reuse', () => {
   it.each([256, 257, 300])(
     'reuses detached histories above the former text budget (%i messages)',
     (count) => {
-      const encode = vi.fn(() => [1]);
+      const encode = mock(() => [1]);
       const estimator = new BpeTokenEstimator(encode);
       const messages = Array.from({ length: count }, (_, i) => ({
         role: 'user' as const,
@@ -777,7 +778,7 @@ describe('bounded token count reuse', () => {
     expect(estimator.estimateTextTokens(prefix + '\ud801')).toBe(2);
   });
   it('isolates different estimators and evicts least-recently-used text', () => {
-    const encode = vi.fn((text: string) => [...text]);
+    const encode = mock((text: string) => [...text]);
     const estimator = new BpeTokenEstimator(encode);
     estimator.estimateTextTokens('old');
     for (let i = 0; i < 2048; i++) estimator.estimateTextTokens(`text ${i}`);
@@ -787,7 +788,7 @@ describe('bounded token count reuse', () => {
     expect(new BpeTokenEstimator(() => [0]).estimateTextTokens('old')).toBe(1);
   });
   it('reuses large texts without retaining their bodies', () => {
-    const encode = vi.fn(() => [1]);
+    const encode = mock(() => [1]);
     const estimator = new BpeTokenEstimator(encode);
     const first = 'a '.repeat(300_000);
     const second = 'b '.repeat(300_000);
@@ -797,8 +798,7 @@ describe('bounded token count reuse', () => {
     expect(encode).toHaveBeenCalledTimes(2);
   });
   it('does not cache tokenizer failures', () => {
-    const encode = vi
-      .fn()
+    const encode = mock()
       .mockImplementationOnce(() => {
         throw new Error('transient');
       })
@@ -812,7 +812,7 @@ describe('bounded token count reuse', () => {
 describe('committed history read reuse', () => {
   it('reuses verified records for indexing while observing external changes and corruption', async () => {
     const dataDir = await mkdtemp(join(tmpdir(), 'mcode-history-reuse-'));
-    const redundantRead = vi.spyOn(CanonicalHistoryJsonlDataSource.prototype, 'readActive');
+    const redundantRead = spyOn(CanonicalHistoryJsonlDataSource.prototype, 'readActive');
     try {
       const session: SessionRecord = {
         sessionId: 'synthetic-session',
@@ -828,7 +828,7 @@ describe('committed history read reuse', () => {
         historyRelativeDir: utcSessionHistoryRelativeDir('synthetic-session', 0),
       };
       const files = createCanonicalHistoryFileAdapter();
-      const strictRead = vi.spyOn(files, 'readActiveStrict');
+      const strictRead = spyOn(files, 'readActiveStrict');
       const provider = createSessionSystemCanonicalHistoryProvider({
         dataDir,
         sessions: { get: async () => session },
@@ -886,14 +886,14 @@ describe('committed history read reuse', () => {
         createdAtMs: 0,
       });
       const files = createCanonicalHistoryFileAdapter();
-      const read = vi.spyOn(files, 'readTarget');
+      const read = spyOn(files, 'readTarget');
       const options = { sessionId, paths, files, nowMs: () => 0 };
       await ensureCanonicalHistoryMaterialized(options);
       const legacyHistory = {
         sources: {
-          readLedgerSnapshot: vi.fn(async () => undefined),
-          readSqliteRows: vi.fn(async () => []),
-          readSqliteBlob: vi.fn(async () => []),
+          readLedgerSnapshot: mock(async () => undefined),
+          readSqliteRows: mock(async () => []),
+          readSqliteBlob: mock(async () => []),
         },
         checkpoints: {
           getCheckpoint: async () => ({
@@ -903,7 +903,7 @@ describe('committed history read reuse', () => {
             messageCount: 0,
             targetRevision: 'recorded',
           }),
-          upsertCheckpoint: vi.fn(async () => {}),
+          upsertCheckpoint: mock(async () => {}),
         },
       };
       await ensureCanonicalHistoryMaterialized({ ...options, legacyHistory });
@@ -937,7 +937,7 @@ describe('committed history read reuse', () => {
         turn_id: 'turn-second',
         message: { role: 'user', content: 'second', timestamp: 2 },
       };
-      const read = vi.spyOn(source, 'readActive');
+      const read = spyOn(source, 'readActive');
       await source.append([first]);
       expect(read).toHaveBeenCalledTimes(1);
       const verified = await source.readActiveStrict();
@@ -962,12 +962,12 @@ describe('committed history read reuse', () => {
   };
   it('uses the provider commit without a second read and still reads fresh on demand', async () => {
     const committed = { revision: 'r1', messages: [], identityVector: [] };
-    const read = vi.fn(async () => ({
+    const read = mock(async () => ({
       revision: 'r2',
       messages: [],
       identityVector: [],
     }));
-    const readActive = vi.fn(async () => committed);
+    const readActive = mock(async () => committed);
     const store = new DurableCanonicalHistoryStore({
       read,
       readActive,
@@ -1002,7 +1002,7 @@ describe('committed history read reuse', () => {
     expect(Object.isFrozen(committed.messages[0])).toBe(true);
     expect(Object.isFrozen(committed.messages)).toBe(true);
     expect(Object.isFrozen(committed.identityVector)).toBe(true);
-    const clone = vi.spyOn(globalThis, 'structuredClone');
+    const clone = spyOn(globalThis, 'structuredClone');
     try {
       expect(captureSemanticSnapshot(committed).value).toBe(committed);
       expect(
@@ -1046,12 +1046,12 @@ describe('committed history read reuse', () => {
     expect(first.messages).toHaveLength(1);
   });
   it('retains legacy rereads and rejects invalid commits or write failures', async () => {
-    const readActive = vi.fn(async () => ({
+    const readActive = mock(async () => ({
       revision: 'r1',
       messages: [],
       identityVector: [],
     }));
-    const append = vi.fn<
+    const append = mock<
       () => Promise<ReturnType<typeof readActive> extends Promise<infer T> ? T | void : never>
     >(async () => undefined);
     const store = new DurableCanonicalHistoryStore({
@@ -1336,7 +1336,6 @@ describe('owned decoded history rows', () => {
     }
   });
 });
-
 
 describe('internal history snapshot handoff', () => {
   async function fixture(run: (input: {

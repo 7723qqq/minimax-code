@@ -1,5 +1,5 @@
+import { describe, expect, it, mock } from 'bun:test';
 import { AgentToolMode } from '@mavis/protocol';
-import { describe, expect, it, vi } from 'vitest';
 
 import type { ConnectedConnectorToolsResult, ConnectorCloudClient } from './cloud-client.js';
 import { DesktopConnectorRuntime } from './runtime.js';
@@ -8,7 +8,7 @@ describe('DesktopConnectorRuntime', () => {
   it('preserves provider provenance beside each resolved runtime tool', async () => {
     const runtime = new DesktopConnectorRuntime({
       client: {
-        listConnectedTools: vi.fn(async () => ({
+        listConnectedTools: mock(async () => ({
           tools: [
             {
               provider: 'notion',
@@ -21,7 +21,7 @@ describe('DesktopConnectorRuntime', () => {
           providerFailures: [],
           partial: false,
         })),
-        callTool: vi.fn(),
+        callTool: mock(),
       } as unknown as ConnectorCloudClient,
     });
 
@@ -39,7 +39,7 @@ describe('DesktopConnectorRuntime', () => {
   it('normalizes INLINE, missing, null, zero, and unknown agent modes to inline', async () => {
     const runtime = new DesktopConnectorRuntime({
       client: {
-        listConnectedTools: vi.fn(async () => ({
+        listConnectedTools: mock(async () => ({
           tools: [
             {
               provider: 'drive',
@@ -79,7 +79,7 @@ describe('DesktopConnectorRuntime', () => {
           providerFailures: [],
           partial: false,
         })),
-        callTool: vi.fn(),
+        callTool: mock(),
       } as unknown as ConnectorCloudClient,
     });
 
@@ -97,7 +97,7 @@ describe('DesktopConnectorRuntime', () => {
 
 describe('DesktopConnectorRuntime tool behavior', () => {
   it('resolves independently for every turn and keeps successful tools from partial results', async () => {
-    const listConnectedTools = vi.fn(async () => ({
+    const listConnectedTools = mock(async () => ({
       tools: [
         {
           provider: 'drive',
@@ -120,13 +120,13 @@ describe('DesktopConnectorRuntime tool behavior', () => {
       ],
       partial: true,
     }));
-    const callTool = vi.fn(async () => ({
+    const callTool = mock(async () => ({
       resultJson: '{"items":[]}',
       isError: false,
       latencyMs: 8,
     }));
-    const logger = { warn: vi.fn() };
-    const metrics = { incr: vi.fn(), latency: vi.fn() };
+    const logger = { warn: mock() };
+    const metrics = { incr: mock(), latency: mock() };
     const runtime = new DesktopConnectorRuntime({
       client: { listConnectedTools, callTool } as unknown as ConnectorCloudClient,
       logger,
@@ -187,10 +187,10 @@ describe('DesktopConnectorRuntime tool behavior', () => {
   });
 
   it('fails open to an empty per-turn inventory when the list request fails', async () => {
-    const logger = { warn: vi.fn() };
+    const logger = { warn: mock() };
     const runtime = new DesktopConnectorRuntime({
       client: {
-        listConnectedTools: vi.fn(async () => {
+        listConnectedTools: mock(async () => {
           throw new Error('private network detail');
         }),
       } as unknown as ConnectorCloudClient,
@@ -204,11 +204,11 @@ describe('DesktopConnectorRuntime tool behavior', () => {
   });
 
   it('treats a logged-out Desktop as an expected empty inventory without warning', async () => {
-    const logger = { warn: vi.fn() };
-    const metrics = { incr: vi.fn(), latency: vi.fn() };
+    const logger = { warn: mock() };
+    const metrics = { incr: mock(), latency: mock() };
     const runtime = new DesktopConnectorRuntime({
       client: {
-        listConnectedTools: vi.fn(async () => {
+        listConnectedTools: mock(async () => {
           throw Object.assign(new Error('login required'), { code: 'AUTH_REQUIRED' });
         }),
       } as unknown as ConnectorCloudClient,
@@ -226,7 +226,7 @@ describe('DesktopConnectorRuntime tool behavior', () => {
   it('maps provider errors without converting them into transport failures', async () => {
     const runtime = new DesktopConnectorRuntime({
       client: {
-        listConnectedTools: vi.fn(async () => ({
+        listConnectedTools: mock(async () => ({
           tools: [
             {
               provider: 'mail',
@@ -238,7 +238,7 @@ describe('DesktopConnectorRuntime tool behavior', () => {
           providerFailures: [],
           partial: false,
         })),
-        callTool: vi.fn(async () => ({
+        callTool: mock(async () => ({
           isError: true,
           errorCode: 'DENIED',
           errorMessage: 'Permission denied',
@@ -259,10 +259,10 @@ describe('DesktopConnectorRuntime tool behavior', () => {
   });
 
   it('propagates a tool-call transport failure and records it separately', async () => {
-    const metrics = { incr: vi.fn(), latency: vi.fn() };
+    const metrics = { incr: mock(), latency: mock() };
     const runtime = new DesktopConnectorRuntime({
       client: {
-        listConnectedTools: vi.fn(async () => ({
+        listConnectedTools: mock(async () => ({
           tools: [
             {
               provider: 'drive',
@@ -274,7 +274,7 @@ describe('DesktopConnectorRuntime tool behavior', () => {
           providerFailures: [],
           partial: false,
         })),
-        callTool: vi.fn(async () => {
+        callTool: mock(async () => {
           throw new Error('network unavailable');
         }),
       } as unknown as ConnectorCloudClient,
@@ -294,8 +294,7 @@ describe('DesktopConnectorRuntime tool behavior', () => {
 describe('DesktopConnectorRuntime resolve circuit breaker', () => {
   it('backs off retryable Cloud failures without caching a successful inventory', async () => {
     let nowMs = 1_000;
-    const listConnectedTools = vi
-      .fn<ConnectorCloudClient['listConnectedTools']>()
+    const listConnectedTools = mock<ConnectorCloudClient['listConnectedTools']>()
       .mockRejectedValueOnce(Object.assign(new Error('timeout'), { code: 'REQUEST_TIMEOUT' }))
       .mockRejectedValueOnce(
         Object.assign(new Error('unavailable'), { code: 'HTTP_ERROR', status: 503 }),
@@ -313,7 +312,7 @@ describe('DesktopConnectorRuntime resolve circuit breaker', () => {
         partial: false,
       })
       .mockResolvedValueOnce({ tools: [], providerFailures: [], partial: false });
-    const metrics = { incr: vi.fn(), latency: vi.fn() };
+    const metrics = { incr: mock(), latency: mock() };
     const runtime = new DesktopConnectorRuntime({
       client: { listConnectedTools } as unknown as ConnectorCloudClient,
       metrics,
@@ -343,7 +342,7 @@ describe('DesktopConnectorRuntime resolve circuit breaker', () => {
 
   it('caps repeated retryable Connector failures at a thirty-second cooldown', async () => {
     let nowMs = 1_000;
-    const listConnectedTools = vi.fn(async () => {
+    const listConnectedTools = mock(async () => {
       throw Object.assign(new Error('offline'), { code: 'NETWORK_ERROR' });
     });
     const runtime = new DesktopConnectorRuntime({
@@ -365,7 +364,7 @@ describe('DesktopConnectorRuntime resolve circuit breaker', () => {
 
   it('retries immediately after scope or auth context changes', async () => {
     let scopeKey = 'alice\0cn-test';
-    const listConnectedTools = vi.fn(async () => {
+    const listConnectedTools = mock(async () => {
       throw Object.assign(new Error('offline'), { code: 'NETWORK_ERROR' });
     });
     const runtime = new DesktopConnectorRuntime({
@@ -393,8 +392,7 @@ describe('DesktopConnectorRuntime resolve circuit breaker', () => {
     const oldRequest = new Promise<never>((_resolve, reject) => {
       rejectOld = reject;
     });
-    const listConnectedTools = vi
-      .fn<ConnectorCloudClient['listConnectedTools']>()
+    const listConnectedTools = mock<ConnectorCloudClient['listConnectedTools']>()
       .mockReturnValueOnce(oldRequest)
       .mockResolvedValueOnce({ tools: [], providerFailures: [], partial: false });
     const runtime = new DesktopConnectorRuntime({
@@ -423,8 +421,7 @@ describe('DesktopConnectorRuntime resolve circuit breaker', () => {
     });
     const empty = { tools: [], providerFailures: [], partial: false };
 
-    const successWins = vi
-      .fn<ConnectorCloudClient['listConnectedTools']>()
+    const successWins = mock<ConnectorCloudClient['listConnectedTools']>()
       .mockReturnValueOnce(oldFailure)
       .mockResolvedValueOnce(empty)
       .mockResolvedValueOnce(empty);
@@ -440,8 +437,7 @@ describe('DesktopConnectorRuntime resolve circuit breaker', () => {
     await firstRuntime.resolveBindingsForTurn();
     expect(successWins).toHaveBeenCalledTimes(3);
 
-    const failureWins = vi
-      .fn<ConnectorCloudClient['listConnectedTools']>()
+    const failureWins = mock<ConnectorCloudClient['listConnectedTools']>()
       .mockReturnValueOnce(oldSuccess)
       .mockRejectedValueOnce(Object.assign(new Error('offline'), { code: 'NETWORK_ERROR' }));
     const secondRuntime = new DesktopConnectorRuntime({
@@ -463,7 +459,7 @@ describe('DesktopConnectorRuntime resolve circuit breaker', () => {
     ['HTTP_ERROR', 400],
     ['BUSINESS_ERROR', undefined],
   ])('does not open the circuit for %s failures', async (code, status) => {
-    const listConnectedTools = vi.fn(async () => {
+    const listConnectedTools = mock(async () => {
       throw Object.assign(new Error('non-retryable'), { code, ...(status ? { status } : {}) });
     });
     const runtime = new DesktopConnectorRuntime({
@@ -483,7 +479,7 @@ describe('DesktopConnectorRuntime resolve circuit breaker', () => {
     ['HTTP_ERROR', 500],
     ['HTTP_ERROR', 503],
   ])('opens the circuit for %s status %s', async (code, status) => {
-    const listConnectedTools = vi.fn(async () => {
+    const listConnectedTools = mock(async () => {
       throw Object.assign(new Error('retryable'), { code, status });
     });
     const runtime = new DesktopConnectorRuntime({

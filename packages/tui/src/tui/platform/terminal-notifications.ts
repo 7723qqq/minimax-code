@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import type { Terminal } from '../engine/public.js';
 import { detectTerminalCapabilities, type TerminalCapabilities } from './terminal-capabilities.js';
 import { sanitizeTerminalLabel } from '../rendering/terminal-text.js';
+import { shellText, type ShellCopyKey } from '../shell/copy.js';
 
 const ESC = '\u001B';
 const BEL = '\u0007';
@@ -21,13 +22,18 @@ export type TuiTerminalNotificationKind =
   | 'question-required'
   | 'turn-failed';
 
-const NOTIFICATIONS: Readonly<
-  Record<TuiTerminalNotificationKind, { title: string; body: string }>
-> = {
-  'turn-complete': { title: 'MCode', body: 'Response complete' },
-  'permission-required': { title: 'MCode', body: 'Permission needs your input' },
-  'question-required': { title: 'MCode', body: 'Question needs your input' },
-  'turn-failed': { title: 'MCode', body: 'Response stopped with an error' },
+/**
+ * Notification body wording for each kind.
+ *
+ * The bodies are read from the operating system, outside the TUI frame, so
+ * they are catalogued and resolved when the notification is raised rather than
+ * at import time. The title is the product name and stays as it is.
+ */
+const NOTIFICATION_BODY_KEYS: Readonly<Record<TuiTerminalNotificationKind, ShellCopyKey>> = {
+  'turn-complete': 'platform.notification.turnComplete',
+  'permission-required': 'platform.notification.permissionRequired',
+  'question-required': 'platform.notification.questionRequired',
+  'turn-failed': 'platform.notification.turnFailed',
 };
 
 type ExecuteNotificationFile = (
@@ -103,9 +109,10 @@ export class TuiTerminalNotifications {
     if (this.settings.when !== 'always' && !hostOwnsFocus && this.terminal.focused === true)
       return false;
     const label = sanitizeTerminalLabel(sessionLabel ?? '', 120);
+    const body = shellText(NOTIFICATION_BODY_KEYS[kind]);
     const notification = {
-      ...NOTIFICATIONS[kind],
-      body: label ? `${label}: ${NOTIFICATIONS[kind].body}` : NOTIFICATIONS[kind].body,
+      title: 'MCode',
+      body: label ? `${label}: ${body}` : body,
     };
     const method = this.settings.method ?? 'auto';
     try {

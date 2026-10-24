@@ -1,3 +1,4 @@
+import { afterEach, beforeEach, describe, expect, it, jest, mock, spyOn } from 'bun:test';
 import { LocalAgentTurnRunner } from '../../../local-runtime-v2/src/service/turn-system/agent-host/runner/local-agent-turn-runner.js';
 import { logger } from '../../src/common/logger.js';
 // Concurrency isolation for the output-safety host loop.
@@ -6,7 +7,6 @@ import { logger } from '../../src/common/logger.js';
 // (locals inside runTurn), never on the shared host. This test runs two turns
 // concurrently through ONE host — one whose output is rejected, one clean — and
 // asserts the rejection cannot leak into the clean turn.
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { LocalRuntimeHost, type LocalTurnRunner } from '../../src/runtime/host.js';
 import { RespDataType } from '@mavis/agent-core/protocol/agent-message';
@@ -35,7 +35,7 @@ function installContentAwareFetch() {
   const firstReviews = new Promise<void>((resolve) => {
     releaseFirstReviews = resolve;
   });
-  return vi.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+  return spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
     const body = JSON.parse(String(init?.body ?? '{}')) as { content_text: string };
     const blocked = body.content_text.includes('BLOCK');
     // Hold both initial reviews until both turns have reached the shared gateway.
@@ -55,14 +55,13 @@ describe('LocalRuntimeHost output safety — concurrency isolation', () => {
     delete process.env.IDC;
   });
   afterEach(() => {
-    vi.restoreAllMocks();
+    jest.restoreAllMocks();
     delete process.env.IDC;
   });
 
   it('records a review stop while retaining completed terminal semantics', async () => {
-    const log = vi.spyOn(logger, 'warn').mockImplementation(() => {});
-    const fetchMock = vi
-      .spyOn(globalThis, 'fetch')
+    const log = spyOn(logger, 'warn').mockImplementation(() => {});
+    const fetchMock = spyOn(globalThis, 'fetch')
       .mockRejectedValue(new DOMException('timeout', 'TimeoutError'));
     const host = new LocalRuntimeHost({
       safetyApiVersion: 'v2',
@@ -106,14 +105,14 @@ describe('LocalRuntimeHost output safety — concurrency isolation', () => {
   });
 
   it.each([false, true])('diagnoses the V2 review stop without overriding runner failure: %s', async (runnerFailed) => {
-    const log = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    const log = spyOn(logger, 'warn').mockImplementation(() => {});
     const events: IRuntimeEvent[] = [];
     const eventWriter = {
       events,
       async pushRuntime(event: IRuntimeEvent) { events.push(event); },
       async appendEvents(next: IRuntimeEvent[]) { events.push(...next); },
     };
-    const reviewContent = vi.fn(async () => ({ pass: false, errorKind: 'local_error' as const }));
+    const reviewContent = mock(async () => ({ pass: false, errorKind: 'local_error' as const }));
     const runner = new LocalAgentTurnRunner({
       reviewContent,
       outputSafetyRetryDelay: async () => {},
@@ -157,8 +156,8 @@ describe('LocalRuntimeHost output safety — concurrency isolation', () => {
     };
     const host = new LocalRuntimeHost({ safetyApiVersion: 'v2', piRunner: runner });
 
-    const blockRecall = vi.fn();
-    const okRecall = vi.fn();
+    const blockRecall = mock();
+    const okRecall = mock();
     const base = {
       workspaceDir: '/tmp/ws',
       systemPrompt: '',

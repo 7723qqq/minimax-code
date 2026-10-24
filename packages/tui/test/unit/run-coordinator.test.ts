@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { advanceTimersByTimeAsync } from '../../../../test/bun-test-setup.js';
+import { describe, expect, it, jest, mock } from 'bun:test';
 
 import { TuiRunCoordinator, type TuiRunRuntime } from '../../src/application/run-coordinator.js';
 import { TuiFailure } from '../../src/failure.js';
@@ -13,8 +14,8 @@ describe('TuiRunCoordinator', () => {
       if (!options?.pausedQueueAction) throw new TuiFailure('runtime', 'Queue paused', { code: 'local_session_queue_paused' });
       yield { type: 'done' } as const;
     });
-    const onQueuePaused = vi.fn(async () => action === 'clear' ? 'paused-queue-clear' as const : 'paused-queue-keep' as const);
-    const onAccepted = vi.fn();
+    const onQueuePaused = mock(async () => action === 'clear' ? 'paused-queue-clear' as const : 'paused-queue-keep' as const);
+    const onAccepted = mock();
     const result = await new TuiRunCoordinator(runtime).execute({
       turnId: 'turn-1', session: Promise.resolve({ sessionId: 'session-1' }),
       content: 'Continue with this instruction', workspace: '/repo', version: 'test', onQueuePaused,
@@ -35,7 +36,7 @@ describe('TuiRunCoordinator', () => {
         code: 'local_session_queue_paused',
       }));
     });
-    const onQueuePaused = vi.fn(async () => 'paused-queue-keep' as const);
+    const onQueuePaused = mock(async () => 'paused-queue-keep' as const);
     const result = await new TuiRunCoordinator(runtime, { nowMs: () => 1_000 }).execute({
       ...request('turn-budget'),
       policy: { timeoutMs: 60_000 },
@@ -51,7 +52,7 @@ describe('TuiRunCoordinator', () => {
     const runtime = createRuntime(async function* () {
       yield await Promise.reject<never>(new TuiFailure('runtime', 'Queue paused', { code: 'local_session_queue_paused' }));
     });
-    const onAccepted = vi.fn();
+    const onAccepted = mock();
     const result = await new TuiRunCoordinator(runtime).execute({
       turnId: 'turn-1', session: Promise.resolve({ sessionId: 'session-1' }),
       content: 'Keep this draft', workspace: '/repo', version: 'test', onQueuePaused: async () => 'cancel',
@@ -66,7 +67,7 @@ describe('TuiRunCoordinator', () => {
       yield { type: 'heartbeat' } as const;
       throw new TuiFailure('runtime', 'Queue paused', { code: 'local_session_queue_paused' });
     });
-    const onQueuePaused = vi.fn(async () => 'paused-queue-keep' as const);
+    const onQueuePaused = mock(async () => 'paused-queue-keep' as const);
     await new TuiRunCoordinator(runtime).execute({
       turnId: 'turn-1', session: Promise.resolve({ sessionId: 'session-1' }), content: 'Send once',
       workspace: '/repo', version: 'test', onQueuePaused,
@@ -90,7 +91,7 @@ describe('TuiRunCoordinator', () => {
       yield { type: 'done' } as const;
     });
     const observed: string[] = [];
-    const accepted = vi.fn();
+    const accepted = mock();
     const coordinator = new TuiRunCoordinator(runtime, { nowMs: () => 1_200 });
 
     await expect(
@@ -195,7 +196,7 @@ describe('TuiRunCoordinator', () => {
   });
 
   it('keeps timeout and maxSteps in the process-local coordinator', async () => {
-    vi.useFakeTimers();
+    jest.useFakeTimers();
     try {
       const timeoutRuntime = createRuntime(async function* pendingTimeout(_req, signal) {
         yield* [];
@@ -207,19 +208,19 @@ describe('TuiRunCoordinator', () => {
         ...request('turn-timeout'),
         policy: { timeoutMs: 20 },
       });
-      await vi.advanceTimersByTimeAsync(19);
+      await advanceTimersByTimeAsync(19);
       expect(timeoutRuntime.sendMessage).toHaveBeenCalledWith(
         expect.objectContaining({ executionDeadlineAtMs: 1_020 }),
         expect.any(AbortSignal),
       );
       expect(timeoutRuntime.abortSession).not.toHaveBeenCalled();
-      await vi.advanceTimersByTimeAsync(1);
+      await advanceTimersByTimeAsync(1);
       await expect(timed).resolves.toMatchObject({ status: 'timeout' });
       expect(timeoutRuntime.abortSession).toHaveBeenCalledWith(
         expect.objectContaining({ reason: 'timeout' }),
       );
     } finally {
-      vi.useRealTimers();
+      jest.useRealTimers();
     }
 
     const limitRuntime = createRuntime(async function* () {
@@ -238,7 +239,7 @@ describe('TuiRunCoordinator', () => {
   });
 
   it('fires timeouts above the Node timer limit only at the requested deadline', async () => {
-    vi.useFakeTimers();
+    jest.useFakeTimers();
     try {
       const timeoutRuntime = createRuntime(async function* pendingTimeout(_req, signal) {
         yield* [];
@@ -253,15 +254,15 @@ describe('TuiRunCoordinator', () => {
         policy: { timeoutMs: 2_147_483_847 },
       });
       expect(timeoutRuntime.abortSession).not.toHaveBeenCalled();
-      await vi.advanceTimersByTimeAsync(2_147_483_647);
+      await advanceTimersByTimeAsync(2_147_483_647);
       expect(timeoutRuntime.abortSession).not.toHaveBeenCalled();
-      await vi.advanceTimersByTimeAsync(200);
+      await advanceTimersByTimeAsync(200);
       await expect(timed).resolves.toMatchObject({ status: 'timeout' });
       expect(timeoutRuntime.abortSession).toHaveBeenCalledWith(
         expect.objectContaining({ reason: 'timeout' }),
       );
     } finally {
-      vi.useRealTimers();
+      jest.useRealTimers();
     }
   });
 
@@ -352,7 +353,7 @@ describe('TuiRunCoordinator', () => {
             : { type, turnId: 'turn-fast', toolCalls };
           yield { type: 'done' };
         }),
-        getPendingQuestionnaire: vi.fn(async () => undefined),
+        getPendingQuestionnaire: mock(async () => undefined),
       };
       await expect(new TuiRunCoordinator(runtime).execute({
         ...request('turn-fast'), policy: { requireAnswer: true },
@@ -406,7 +407,7 @@ describe('TuiRunCoordinator', () => {
       yield { type: 'message', message: { id: 'final-1', role: 'assistant', content: 'private completed' } } as const;
       yield { type: 'delta', role: 'assistant', content: 'private trailing draft' } as const;
     });
-    const selected = vi.fn();
+    const selected = mock();
     const result = await new TuiRunCoordinator(runtime, { onAnswerSelection: selected }).execute(request('selection'));
     expect(result.outcome.answer).toBe('private trailing draft');
     expect(selected.mock.calls.map(([event]) => event)).toEqual([
@@ -454,7 +455,7 @@ describe('TuiRunCoordinator', () => {
         message: { role: 'assistant', kind: 'final', content: 'The final answer.' },
       } as const;
     });
-    const onOutcome = vi.fn();
+    const onOutcome = mock();
 
     await expect(
       new TuiRunCoordinator(runtime).execute(
@@ -549,7 +550,7 @@ describe('TuiRunCoordinator', () => {
       } as const;
       yield { type: 'done' } as const;
     });
-    const onOutcome = vi.fn();
+    const onOutcome = mock();
 
     await expect(
       new TuiRunCoordinator(runtime).execute(
@@ -617,11 +618,11 @@ function request(turnId: string) {
 }
 
 function createRuntime(send: TuiRunRuntime['sendMessage']): TuiRunRuntime & {
-  sendMessage: ReturnType<typeof vi.fn<TuiRunRuntime['sendMessage']>>;
-  abortSession: ReturnType<typeof vi.fn<TuiRunRuntime['abortSession']>>;
+  sendMessage: ReturnType<typeof mock<TuiRunRuntime['sendMessage']>>;
+  abortSession: ReturnType<typeof mock<TuiRunRuntime['abortSession']>>;
 } {
   return {
-    sendMessage: vi.fn(send),
-    abortSession: vi.fn(async () => true),
+    sendMessage: mock(send),
+    abortSession: mock(async () => true),
   };
 }

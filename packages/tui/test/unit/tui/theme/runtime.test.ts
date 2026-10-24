@@ -1,5 +1,7 @@
+import { waitFor } from '../../../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock, spyOn } from 'bun:test';
 import { stripVTControlCharacters } from 'node:util';
-import { describe, expect, it, vi } from 'vitest';
+
 import {
   MINIMAX_CODE_DARK_THEME,
   MINIMAX_CODE_LIGHT_THEME,
@@ -185,8 +187,8 @@ describe('TuiThemeController', () => {
       colorLevel: 3,
       env: { COLORFGBG: '15;0' },
     });
-    const invalidate = vi.fn();
-    const requestRender = vi.fn();
+    const invalidate = mock();
+    const requestRender = mock();
     const rendering = bindThemeRendering(
       controller,
       { invalidate, requestRender } as unknown as TUI,
@@ -194,7 +196,7 @@ describe('TuiThemeController', () => {
     );
 
     rendering.start();
-    await vi.waitFor(() => expect(requestRender).toHaveBeenCalledOnce());
+    await waitFor(() => expect(requestRender).toHaveBeenCalledOnce());
 
     expect(invalidate).toHaveBeenCalledOnce();
     expect(requestRender).toHaveBeenCalledWith();
@@ -219,7 +221,7 @@ describe('TuiThemeController', () => {
   it('uses passive evidence immediately and upgrades to terminal evidence asynchronously', async () => {
     const ui = new ThemeUi();
     ui.nextBackground = { r: 255, g: 255, b: 255 };
-    const onChange = vi.fn();
+    const onChange = mock();
     const controller = new TuiThemeController({
       ui,
       colorLevel: 3,
@@ -237,7 +239,7 @@ describe('TuiThemeController', () => {
   it('uses the actual OSC 11 background when a terminal reports a conflicting appearance', async () => {
     const ui = new ThemeUi();
     ui.nextBackground = { r: 40, g: 44, b: 52 };
-    const queryBackground = vi.spyOn(ui, 'queryTerminalBackgroundColor');
+    const queryBackground = spyOn(ui, 'queryTerminalBackgroundColor');
     const controller = new TuiThemeController({
       ui,
       colorLevel: 3,
@@ -246,7 +248,7 @@ describe('TuiThemeController', () => {
 
     await controller.start();
     ui.emit('light');
-    await vi.waitFor(() => expect(queryBackground).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(queryBackground).toHaveBeenCalledTimes(2));
 
     expect(controller.snapshot()).toMatchObject({ appearance: 'dark', source: 'osc11' });
     controller.dispose();
@@ -255,8 +257,8 @@ describe('TuiThemeController', () => {
   it('does not request a redraw when only the detection source changes', async () => {
     const ui = new ThemeUi();
     ui.nextBackground = { r: 0, g: 0, b: 0 };
-    const onChange = vi.fn();
-    const onDetection = vi.fn();
+    const onChange = mock();
+    const onDetection = mock();
     const controller = new TuiThemeController({
       ui,
       colorLevel: 3,
@@ -301,14 +303,14 @@ describe('TuiThemeController', () => {
 
     ui.nextBackground = { r: 255, g: 255, b: 255 };
     ui.emit('light');
-    await vi.waitFor(() => expect(controller.snapshot().appearance).toBe('light'));
+    await waitFor(() => expect(controller.snapshot().appearance).toBe('light'));
     controller.dispose();
   });
 
   it('follows a reported appearance change when the background query stops answering', async () => {
     const ui = new ThemeUi();
     ui.nextBackground = { r: 255, g: 255, b: 255 };
-    const onChange = vi.fn();
+    const onChange = mock();
     const controller = new TuiThemeController({
       ui,
       colorLevel: 3,
@@ -322,7 +324,7 @@ describe('TuiThemeController', () => {
     ui.nextBackground = undefined;
     ui.emit('dark');
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(controller.snapshot()).toMatchObject({
         appearance: 'dark',
         source: 'terminal-report',
@@ -342,11 +344,11 @@ describe('TuiThemeController', () => {
 
     await controller.start();
     ui.emit('dark');
-    await vi.waitFor(() => expect(controller.snapshot().appearance).toBe('dark'));
+    await waitFor(() => expect(controller.snapshot().appearance).toBe('dark'));
 
     // A renderer rebind re-queries without a fresh report; the stale light COLORFGBG must not win.
     controller.rebindUi();
-    await vi.waitFor(() => expect(controller.snapshot().source).toBe('terminal-report'));
+    await waitFor(() => expect(controller.snapshot().source).toBe('terminal-report'));
     expect(controller.snapshot().appearance).toBe('dark');
     controller.dispose();
   });
@@ -357,8 +359,7 @@ describe('TuiThemeController', () => {
     const oldQuery = new Promise<{ r: number; g: number; b: number }>((resolve) => {
       resolveOldQuery = resolve;
     });
-    const queryBackground = vi
-      .spyOn(ui, 'queryTerminalBackgroundColor')
+    const queryBackground = spyOn(ui, 'queryTerminalBackgroundColor')
       .mockImplementationOnce(() => oldQuery)
       .mockResolvedValue({ r: 0, g: 0, b: 0 });
     const controller = new TuiThemeController({
@@ -368,10 +369,10 @@ describe('TuiThemeController', () => {
     });
 
     const starting = controller.start();
-    await vi.waitFor(() => expect(queryBackground).toHaveBeenCalledOnce());
+    await waitFor(() => expect(queryBackground).toHaveBeenCalledOnce());
     controller.rebindUi();
-    await vi.waitFor(() => expect(queryBackground).toHaveBeenCalledTimes(2));
-    await vi.waitFor(() =>
+    await waitFor(() => expect(queryBackground).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
       expect(controller.snapshot()).toMatchObject({ appearance: 'dark', source: 'osc11' }),
     );
 
@@ -450,7 +451,7 @@ describe('TuiThemeController theme selection', () => {
   it('switches the live palette and notifies listeners on setTheme', () => {
     const ui = new ThemeUi();
     const controller = new TuiThemeController({ ui, colorLevel: 3, env: { COLORFGBG: '15;0' } });
-    const onChange = vi.fn();
+    const onChange = mock();
     controller.onChange(onChange);
     const before = tuiColors.brand;
 
@@ -516,7 +517,7 @@ describe('TuiThemeController theme selection', () => {
     controller.setAppearanceOverride('light');
     await controller.start();
     ui.emit('dark');
-    await vi.waitFor(() => expect(controller.snapshot().source).toBe('osc11'));
+    await waitFor(() => expect(controller.snapshot().source).toBe('osc11'));
 
     expect(controller.snapshot().appearance).toBe('light');
     expect(getTuiThemeSnapshot().appearance).toBe('light');
@@ -586,12 +587,12 @@ describe('TuiThemeController theme selection', () => {
       });
       expect(controller.setTheme('mine')).toBeDefined();
       expect(tuiColors.brand).toBe('#112233');
-      const onChange = vi.fn();
+      const onChange = mock();
       controller.onChange(onChange);
 
       // Same id, same appearance — only the color values move.
       await write('#AABBCC');
-      await vi.waitFor(() => expect(tuiColors.brand).toBe('#AABBCC'), { timeout: 4000 });
+      await waitFor(() => expect(tuiColors.brand).toBe('#AABBCC'), { timeout: 4000 });
 
       expect(controller.selectedThemeId()).toBe('mine');
       expect(onChange).toHaveBeenCalled();
@@ -620,7 +621,7 @@ describe('TuiThemeController theme selection', () => {
       await writeFile(file, body);
 
       const ui = new ThemeUi();
-      const onThemesChanged = vi.fn();
+      const onThemesChanged = mock();
       controller = new TuiThemeController({
         ui,
         colorLevel: 3,
@@ -629,11 +630,11 @@ describe('TuiThemeController theme selection', () => {
         onThemesChanged,
       });
       controller.setTheme('mine');
-      const onChange = vi.fn();
+      const onChange = mock();
       controller.onChange(onChange);
       // Let the constructor load and startup reconciliation finish before the
       // no-op edit, so this assertion still requires a native watcher event.
-      await vi.waitFor(() => expect(onThemesChanged.mock.calls.length).toBeGreaterThanOrEqual(2), {
+      await waitFor(() => expect(onThemesChanged.mock.calls.length).toBeGreaterThanOrEqual(2), {
         timeout: 4000,
       });
       onThemesChanged.mockClear();
@@ -641,7 +642,7 @@ describe('TuiThemeController theme selection', () => {
       await writeFile(file, body);
       // Wait for the reload to actually land. A bare sleep would also pass when
       // the watcher never fired, which is exactly what this test must rule out.
-      await vi.waitFor(() => expect(onThemesChanged).toHaveBeenCalled(), { timeout: 4000 });
+      await waitFor(() => expect(onThemesChanged).toHaveBeenCalled(), { timeout: 4000 });
 
       expect(tuiColors.brand).toBe('#112233');
       expect(onChange).not.toHaveBeenCalled();

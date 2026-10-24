@@ -2,6 +2,8 @@ import { sanitizeTerminalText } from '../rendering/terminal-text.js';
 import { BorderedTable, type BorderedTableSection } from '../foundation/bordered-table.js';
 import { truncateToWidth } from '../rendering/text.js';
 import { tuiChalk as chalk, tuiColors as colors } from '../theme/runtime.js';
+import { inspectionReportLabel } from '../features/inspection/copy.js';
+import { transcriptText } from '../features/transcript/copy.js';
 import { ContextVisualization } from './context-visualization.js';
 import { StatusVisualization } from './status-visualization.js';
 import { UsageVisualization } from './usage-visualization.js';
@@ -46,12 +48,12 @@ export function renderTranscriptInspection(
   }
   const warnings = sanitizeWarnings(report.warnings);
   const sections: BorderedTableSection[] = report.sections.map((section) => ({
-    title: chalk.bold.hex(colors.signal)(flatten(section.title)),
+    title: chalk.bold.hex(colors.signal)(flatten(inspectionReportLabel(section.title))),
     rows: section.rows.map(styleRow),
   }));
   if (warnings.length > 0) {
     sections.push({
-      title: chalk.bold.hex(colors.warning)('Warnings'),
+      title: chalk.bold.hex(colors.warning)(transcriptText('inspection.warnings')),
       rows: warnings.map((warning) => ({
         label: paintTone('!', 'warning'),
         value: paintTone(warning, 'warning'),
@@ -95,14 +97,16 @@ function applyHorizontalInset(
 
 function styleRow(row: TranscriptInspectionRow): { label: string; value: string } {
   return {
-    label: chalk.hex(colors.muted)(flatten(row.label)),
+    label: chalk.hex(colors.muted)(flatten(inspectionReportLabel(row.label))),
     value: paintTone(flatten(row.value), row.tone ?? 'neutral'),
   };
 }
 
 function sanitizeWarnings(warnings: readonly string[] | undefined): string[] {
   const values = (warnings ?? []).map(flatten).filter(Boolean);
-  return values.length > 3 ? [...values.slice(0, 3), `${values.length - 3} more warnings`] : values;
+  return values.length > 3
+    ? [...values.slice(0, 3), transcriptText('inspection.moreWarnings', { count: values.length - 3 })]
+    : values;
 }
 
 function flatten(value: string): string {

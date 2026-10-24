@@ -94,6 +94,6 @@ export function releaseCli({ root, version, dryRun = false, openPullRequest = cr
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const { values } = parseArgs({ options: { version: { type: 'string' }, 'dry-run': { type: 'boolean', default: false } } });
-  if (!values.version) throw new Error('Usage: pnpm release:cli --version X.Y.Z [--dry-run]');
+  if (!values.version) throw new Error('Usage: bun run release:cli --version X.Y.Z [--dry-run]');
   releaseCli({ root: fileURLToPath(new URL('../', import.meta.url)), version: values.version, dryRun: values['dry-run'] });
 }

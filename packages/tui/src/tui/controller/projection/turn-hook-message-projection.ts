@@ -1,5 +1,6 @@
 import { sanitizeTerminalText } from '../../rendering/terminal-text.js';
 import type { TranscriptCell } from '../../transcript/model.js';
+import { tuiText } from '../../copy.js';
 
 /** Shared live/history projection. These product messages never become model turns. */
 export function projectHookSystemMessage(input: {
@@ -27,7 +28,9 @@ export function projectHookSystemMessage(input: {
     id: `hook-message:${messageId}`,
     kind: 'warning',
     status: 'succeeded',
-    title: hookEvent ? `Hook · ${hookEvent}` : 'Hook',
+    title: hookEvent
+      ? tuiText('projection.hook.titleWithEvent', { event: hookEvent })
+      : tuiText('projection.hook.title'),
     content,
     sourceMessageId: messageId,
     turnId: input.turnId,

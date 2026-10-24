@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import type { TuiAttachment } from '../application/invocation.js';
 import { MINIMAX_CODE_MAX_TOTAL_ATTACHMENT_BYTES } from '../application/attachment-policy.js';
 import { inferTuiNativeVideoMimeType } from '../application/video-mime.js';
+import { hostText } from './copy.js';
 
 export const MINIMAX_CODE_CLIPBOARD_IMAGE_MAX_BYTES = MINIMAX_CODE_MAX_TOTAL_ATTACHMENT_BYTES;
 
@@ -648,7 +649,7 @@ function classifyClipboardImageError(
   ) {
     return new TuiClipboardImageError(
       'permission-denied',
-      'Minimax Code cannot read the system clipboard. Allow clipboard access, then try again.',
+      hostText('host.clipboard.readDenied'),
       { cause: error },
     );
   }
@@ -663,7 +664,7 @@ function throwIfAborted(signal: AbortSignal | undefined): void {
   if (!signal?.aborted) return;
   throw new TuiClipboardImageError(
     'cancelled',
-    'Clipboard image paste was cancelled. The current draft was not changed.',
+    hostText('host.clipboard.pasteCancelled'),
   );
 }
 

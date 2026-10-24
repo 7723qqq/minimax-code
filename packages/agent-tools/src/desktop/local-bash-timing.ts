@@ -6,6 +6,20 @@ export const MAX_MANAGED_BASH_TIMEOUT_SECONDS = 3_600;
 export const MAX_BASH_TIMEOUT_SECONDS = 2_147_483;
 export const DEFAULT_FOREGROUND_BASH_SOFT_YIELD_MS = 60_000;
 
+/**
+ * The soft-yield budget is read per call so `MCODE_FOREGROUND_BASH_SOFT_YIELD_MS`
+ * can shorten it without changing the shipped default. Tests use this to keep
+ * the promotion boundary's wall-clock cost proportional to the behaviour under
+ * test; operators may tune it for constrained terminals.
+ */
+export function resolveForegroundBashSoftYieldMs(): number {
+  const raw = process.env.MCODE_FOREGROUND_BASH_SOFT_YIELD_MS;
+  if (raw === undefined || raw.trim() === '') return DEFAULT_FOREGROUND_BASH_SOFT_YIELD_MS;
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_FOREGROUND_BASH_SOFT_YIELD_MS;
+  return parsed;
+}
+
 export interface LocalBashTiming {
   commandTimeoutSeconds?: number;
   requestedTimeoutSeconds?: number;

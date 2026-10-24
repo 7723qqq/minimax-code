@@ -4,7 +4,7 @@ import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, it } from "vitest";
+import { afterEach, describe, it } from 'bun:test';
 import { checkWindowsSourceLocation } from "../scripts/check-windows-source-location.mjs";
 import { resolveWslPath } from "../packages/tui/src/host/wsl-path.js";
 import { McodeUpdateService } from "../packages/tui/src/update/service.js";

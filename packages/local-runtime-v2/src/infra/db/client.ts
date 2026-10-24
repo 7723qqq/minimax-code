@@ -1,61 +1,26 @@
 import { mkdirSync } from 'node:fs';
-import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
-import { drizzle } from 'drizzle-orm/better-sqlite3';
-import type { BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 
-export type AppDb = BetterSQLite3Database;
+import { FinalizingSqliteDatabase } from '@mavis/shared';
+import { Database, type Changes } from 'bun:sqlite';
+import { drizzle } from 'drizzle-orm/bun-sqlite';
+import type { BaseSQLiteDatabase } from 'drizzle-orm/sqlite-core';
 
-interface BetterSqlite3Statement {
-  all(...params: unknown[]): unknown[];
-  get(...params: unknown[]): unknown;
-  run(...params: unknown[]): BetterSqlite3RunResult;
-}
-
-interface BetterSqlite3RunResult {
-  readonly changes: number;
-}
-
-interface BetterSqlite3BackupProgress {
-  readonly totalPages: number;
-  readonly remainingPages: number;
-}
-
-interface BetterSqlite3OpenOptions {
-  readonly readonly?: boolean;
-  readonly fileMustExist?: boolean;
-  readonly timeout?: number;
-}
-
-export interface BetterSqlite3Instance {
-  exec(sql: string): void;
-  prepare(sql: string): BetterSqlite3Statement;
-  backup(filename: string): Promise<BetterSqlite3BackupProgress>;
-  transaction<T>(fn: () => T): BetterSqlite3Transaction<T>;
-  close(): void;
-}
-
-interface BetterSqlite3Transaction<T> {
-  (): T;
-  immediate(): T;
-}
-
-export type BetterSqlite3Constructor = new (
-  filename: string,
-  options?: BetterSqlite3OpenOptions,
-) => BetterSqlite3Instance;
+// bun:sqlite returns `Changes` from `run()`, but drizzle's bun driver types the
+// result as `void`. Typing the runtime truth here keeps `run().changes` usable
+// without a cast at every call site.
+export type AppDb = BaseSQLiteDatabase<'sync', Changes>;
+export type SqliteDatabase = Database;
 
 const DB_FILE = 'runtime-state.sqlite';
 const DB_RELATIVE_PATH = join('v2', 'sqlite', DB_FILE);
 
 export interface DatabaseClientOptions {
   readonly dataDir: string;
-  /** Override the better-sqlite3 load path for Electron native rebuilds. */
-  readonly sqlite3ModulePath?: string;
 }
 
 export class DatabaseClient {
-  private rawDb_: BetterSqlite3Instance | null = null;
+  private rawDb_: Database | null = null;
   private drizzleDb: AppDb | null = null;
   private readonly dbPath: string;
   private readonly options: DatabaseClientOptions;
@@ -71,25 +36,24 @@ export class DatabaseClient {
     return this.drizzleDb;
   }
 
-  /** Get the underlying better-sqlite3 handle for raw SQL / migrations. */
-  get rawDb(): BetterSqlite3Instance {
+  /** Get the underlying bun:sqlite handle for raw SQL / migrations. */
+  get rawDb(): Database {
     if (!this.rawDb_) this.open();
     const rawDb = this.rawDb_;
     if (!rawDb) throw new Error('Database connection was not initialized');
     return rawDb;
   }
 
-  /** Save the current connection to the specified file using SQLite's online backup API. */
+  /** Copy the current connection into a new file through SQLite's VACUUM INTO. */
   async backup(destinationPath: string): Promise<void> {
-    await this.rawDb.backup(destinationPath);
+    this.rawDb.prepare('VACUUM INTO ?').run(destinationPath);
   }
 
   /** Validate the backup through an independent read-only connection; only a single `ok` row passes. */
   hasValidIntegrity(databasePath: string): boolean {
-    const Database = loadSqlite3Constructor(this.options.sqlite3ModulePath);
-    const verificationDb = new Database(databasePath, {
+    const verificationDb = new FinalizingSqliteDatabase(databasePath, {
       readonly: true,
-      fileMustExist: true,
+      create: false,
     });
     try {
       const rows = verificationDb.prepare('PRAGMA integrity_check').all();
@@ -108,10 +72,9 @@ export class DatabaseClient {
     }
   }
 
-  private open(): BetterSqlite3Instance {
+  private open(): Database {
     mkdirSync(dirname(this.dbPath), { recursive: true });
-    const Database = loadSqlite3Constructor(this.options.sqlite3ModulePath);
-    const sqlite = new Database(this.dbPath);
+    const sqlite = new FinalizingSqliteDatabase(this.dbPath);
     try {
       // v1 and v2 temporarily access the same database through separate connections; keep PRAGMAs aligned.
       sqlite.exec(`
@@ -119,7 +82,7 @@ export class DatabaseClient {
         PRAGMA busy_timeout = 5000;
         PRAGMA foreign_keys = ON;
       `);
-      const drizzleDb = drizzle({ client: sqlite as never });
+      const drizzleDb = drizzle({ client: sqlite as never }) as unknown as AppDb;
       this.rawDb_ = sqlite;
       this.drizzleDb = drizzleDb;
       return sqlite;
@@ -132,26 +95,6 @@ export class DatabaseClient {
       throw error;
     }
   }
-}
-
-/** Resolve the native SQLite constructor for target and read-only source connections. */
-export function loadSqlite3Constructor(overrideModulePath?: string): BetterSqlite3Constructor {
-  const overridePath = overrideModulePath?.trim() || process.env.MAVIS_SQLITE3_MODULE_PATH?.trim();
-  const require = createRequire(import.meta.url);
-  if (overridePath) {
-    const loaded: unknown = createRequire(join(overridePath, 'package.json'))('better-sqlite3');
-    return resolveSqliteConstructor(loaded);
-  }
-  const loaded: unknown = require('better-sqlite3');
-  return resolveSqliteConstructor(loaded);
-}
-
-function resolveSqliteConstructor(loaded: unknown): BetterSqlite3Constructor {
-  if (typeof loaded === 'function') return loaded as BetterSqlite3Constructor;
-  if (isObject(loaded) && typeof loaded.default === 'function') {
-    return loaded.default as BetterSqlite3Constructor;
-  }
-  throw new TypeError('better-sqlite3 module does not export a database constructor');
 }
 
 function isIntegrityOkRow(row: unknown): boolean {

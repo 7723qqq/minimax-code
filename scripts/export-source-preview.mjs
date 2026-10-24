@@ -19,7 +19,7 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const args = process.argv.slice(2);
 if (args.length !== 2 || args[0] !== "--out" || !args[1].endsWith(".tar.gz")) {
   throw new Error(
-    "Usage: node scripts/export-source-preview.mjs --out /outside/repository/source.tar.gz",
+    "Usage: bun scripts/export-source-preview.mjs --out /outside/repository/source.tar.gz",
   );
 }
 const destination = path.resolve(args[1]);

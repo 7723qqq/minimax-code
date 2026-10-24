@@ -1,14 +1,14 @@
-export class KeyedOperationQueue {
-  private readonly operations = new Map<string, Promise<unknown>>();
-
-  async run<T>(key: string, operation: () => Promise<T>): Promise<T> {
-    const previous = this.operations.get(key) ?? Promise.resolve();
-    const current = previous.catch(() => undefined).then(operation);
-    this.operations.set(key, current);
-    try {
-      return await current;
-    } finally {
-      if (this.operations.get(key) === current) this.operations.delete(key);
-    }
-  }
-}
+/**
+ * Serializes background-task operations per key.
+ *
+ * This is `KeyedOperationLane` under the name the background-task module already
+ * imports. The two implementations were identical: chain the operation after the
+ * previous holder for the same key, and drop the entry when this operation is the
+ * tail. Keeping a local name avoids touching every call site while removing the
+ * duplicate logic.
+ *
+ * `KeyedOperationLane` also ignores a failed predecessor, which this queue did
+ * through its `catch(() => undefined)` link, so calls behind a rejected operation
+ * still run.
+ */
+export { KeyedOperationLane as KeyedOperationQueue } from '@mavis/shared/keyed-operation-lane';

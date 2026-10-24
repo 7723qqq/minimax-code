@@ -1,46 +1,45 @@
+// Run one declared suite group from test/vitest-suites.json under `bun test`.
+//
+// The declared suites are the single source of truth for both the gate names
+// and their files. The suites import `bun:sqlite` and spawn the CLI with the
+// running runtime, so Node can no longer load them; scripts/run-bun-tests.mjs
+// drives `bun test` over the same files with the repository's preload and
+// tsconfig overrides. This entry point keeps the historical
+// `run-vitest-suite.mjs <group>` contract used by package.json and
+// scripts/verify.mjs.
 import { spawnSync } from "node:child_process";
-import { createRequire } from "node:module";
-import { realpathSync } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { suiteFiles, repositoryRoot } from "./lib/vitest-suites.mjs";
 
-const require = createRequire(import.meta.url);
 const name = process.argv[2];
-if (!name) throw new Error("Usage: node scripts/run-vitest-suite.mjs <suite>");
+if (!name) throw new Error("Usage: bun scripts/run-vitest-suite.mjs <suite>");
 const files = suiteFiles(repositoryRoot, name);
-const manifestPath = require.resolve("vitest/package.json");
-const cli = path.resolve(path.dirname(manifestPath), require(manifestPath).bin.vitest);
-// Windows runners expose TEMP through an 8.3 alias (RUNNER~1). Native
-// fs.watch can abort inside libuv when events use the corresponding long path:
-// https://github.com/libuv/libuv/issues/5010. Keep real filesystem watching in
-// the tests, but create their temporary fixtures beneath the canonical path.
-const environment = { ...process.env };
-// Product copy follows the host locale, but tests assert a deliberate default
-// language and cover localized rendering through explicit locale inputs. Pin
-// every locale source before Vitest starts so both workers and subprocesses are
-// deterministic on developer machines and in CI.
-environment.LANG = "C";
-environment.LANGUAGE = "C";
-environment.LC_ALL = "C";
-environment.LC_MESSAGES = "C";
-if (process.platform === "win32") {
-  environment.TEMP = environment.TMP = realpathSync.native(tmpdir());
-}
+if (files.length === 0) throw new Error(`Unknown suite: ${name}`);
+
+const inActions = process.env.GITHUB_ACTIONS === "true";
 const result = spawnSync(
   process.execPath,
-  [
-    cli,
-    "run",
-    "--config",
-    "vitest.oss.config.mjs",
-    // These suites create many SQLite databases and watched directories. On
-    // Windows, concurrent files can exhaust the 5s test budget through I/O
-    // contention. Serialize files without relaxing individual test deadlines.
-    ...(process.platform === "win32" ? ["--maxWorkers", "1"] : []),
-    ...files,
-  ],
-  { stdio: "inherit", cwd: repositoryRoot, env: environment },
+  [path.join(repositoryRoot, "scripts", "run-bun-tests.mjs"), ...files.map((file) => `./${file.replaceAll("\\", "/")}`)],
+  {
+    // Actions logs are not readable from every environment, so a failing suite
+    // is captured and its tail re-emitted as an annotation. Local runs keep
+    // streaming output unchanged.
+    stdio: inActions ? ["inherit", "pipe", "pipe"] : "inherit",
+    cwd: repositoryRoot,
+    ...(inActions ? { maxBuffer: 64 * 1024 * 1024 } : {}),
+  },
 );
+if (inActions) {
+  const stdout = result.stdout?.toString() ?? "";
+  const stderr = result.stderr?.toString() ?? "";
+  if (stdout) process.stdout.write(stdout);
+  if (stderr) process.stderr.write(stderr);
+  if ((result.status ?? 1) !== 0) {
+    const tail = (stderr || stdout).slice(-3000);
+    const escaped = tail.replace(/%/gu, "%25").replace(/\r/gu, "").replace(/\n/gu, "%0A");
+    console.error(`::error title=Suite ${name} failed under bun test::${escaped}`);
+  }
+}
 if (result.error) throw result.error;
 process.exitCode = result.status ?? 1;

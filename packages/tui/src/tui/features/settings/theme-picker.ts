@@ -8,6 +8,7 @@ import type {
   TuiThemeColors,
   TuiThemeDefinition,
 } from '../../theme/contracts.js';
+import { settingsItemText } from './copy.js';
 
 export type TuiThemeAppearanceChoice = 'auto' | TuiResolvedAppearance;
 
@@ -96,7 +97,11 @@ export class TuiThemePicker implements Component {
     const layout = panelLayout(width, rows, footerText(width, this.busy));
     if (themes.length === 0) {
       return renderPanelFrame(
-        { title: 'Theme', body: ['No themes available.'], footer: footerText(width, false) },
+        {
+          title: settingsItemText('theme.title'),
+          body: [settingsItemText('theme.empty')],
+          footer: footerText(width, false),
+        },
         width,
         rows,
       );
@@ -106,22 +111,24 @@ export class TuiThemePicker implements Component {
     const active = focused.id === this.originalThemeId;
     const nameWidth = Math.max(
       ...themes.map((theme) => visibleWidth(theme.label)),
-      visibleWidth('Appearance'),
+      visibleWidth(settingsItemText('theme.appearance.label')),
     );
     const swatch = renderSwatch(focused, this.resolvedAppearance());
     const detail = [
-      `${chalk.hex(colors.muted)('Appearance')}  ${appearanceLabel(this.appearance, this.options.currentAppearance)}`,
-      `${chalk.hex(colors.muted)('Source')}     ${focused.source === 'custom' ? 'custom file' : 'built-in'}`,
+      `${chalk.hex(colors.muted)(settingsItemText('theme.appearance.label'))}  ${appearanceLabel(this.appearance, this.options.currentAppearance)}`,
+      `${chalk.hex(colors.muted)(settingsItemText('theme.source.label'))}     ${focused.source === 'custom' ? settingsItemText('theme.source.custom') : settingsItemText('theme.source.builtIn')}`,
       ...(focused.description
-        ? [`${chalk.hex(colors.muted)('About')}      ${focused.description}`]
+        ? [`${chalk.hex(colors.muted)(settingsItemText('theme.about.label'))}      ${focused.description}`]
         : []),
-      `${chalk.hex(colors.muted)('Palette')}   ${swatch}`,
+      `${chalk.hex(colors.muted)(settingsItemText('theme.palette.label'))}   ${swatch}`,
     ];
-    if (this.error) detail.push(chalk.hex(colors.error)('Could not save the theme selection.'));
+    if (this.error) {
+      detail.push(chalk.hex(colors.error)(settingsItemText('theme.error.save')));
+    }
 
     if (rows < 10) {
       return layout.render({
-        title: 'Theme',
+        title: settingsItemText('theme.title'),
         body: [
           renderRow(
             focused.label,
@@ -142,8 +149,8 @@ export class TuiThemePicker implements Component {
       Math.min(this.selectedIndex - listRows + 1, themes.length - listRows),
     );
     return layout.render({
-      title: 'Theme',
-      meta: `${themes.length} available`,
+      title: settingsItemText('theme.title'),
+      meta: settingsItemText('theme.meta.available', { count: String(themes.length) }),
       body: [
         ...themes
           .slice(start, start + listRows)
@@ -209,8 +216,16 @@ function appearanceLabel(
   choice: TuiThemeAppearanceChoice,
   detected: TuiResolvedAppearance,
 ): string {
-  if (choice === 'auto') return `auto (${detected})`;
-  return choice === 'light' ? 'light (pinned)' : 'dark (pinned)';
+  if (choice === 'auto') {
+    return settingsItemText('theme.appearance.auto', {
+      appearance: settingsItemText(
+        detected === 'light' ? 'theme.appearanceValue.light' : 'theme.appearanceValue.dark',
+      ),
+    });
+  }
+  return settingsItemText(
+    choice === 'light' ? 'theme.appearance.lightPinned' : 'theme.appearance.darkPinned',
+  );
 }
 
 function renderSwatch(theme: TuiThemeDefinition, appearance: TuiResolvedAppearance): string {
@@ -239,16 +254,15 @@ function renderRow(
   const name = focused ? chalk.bold.hex(colors.signal)(label) : chalk.hex(colors.text)(label);
   // Pad both columns so the swatches line up regardless of which row is current.
   const pad = ' '.repeat(Math.max(0, nameWidth - visibleWidth(label)));
-  const badge = saved ? chalk.hex(colors.success)(CURRENT_BADGE.trim()) : '';
-  const badgePad = ' '.repeat(Math.max(0, visibleWidth(CURRENT_BADGE) - visibleWidth(badge)));
+  const currentBadge = settingsItemText('theme.currentBadge');
+  const badge = saved ? chalk.hex(colors.success)(currentBadge.trim()) : '';
+  const badgePad = ' '.repeat(Math.max(0, visibleWidth(currentBadge) - visibleWidth(badge)));
   return `${marker} ${name}${pad} ${badge}${badgePad} ${renderSwatch(theme, appearance)}`;
 }
 
-const CURRENT_BADGE = ' current ';
-
 function footerText(width: number, busy: boolean): string {
-  if (busy) return 'Saving…';
+  if (busy) return settingsItemText('theme.footer.saving');
   return width >= 64
-    ? '↑↓ theme · ←→ appearance · Enter save · Esc cancel'
-    : '↑↓ ←→ · Enter · Esc';
+    ? settingsItemText('theme.footer.full')
+    : settingsItemText('theme.footer.compact');
 }

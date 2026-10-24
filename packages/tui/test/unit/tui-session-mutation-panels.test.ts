@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
+
 import { TuiMainScreen } from '../../src/tui/engine/tui-main-screen.js';
 import { TuiOverlayRegularFeaturePresenter } from '../../src/tui/shell/regular-feature-presenter.js';
 import { VirtualTerminal } from '../pi-084-upstream/virtual-terminal.js';
@@ -108,12 +109,12 @@ describe('TuiSessionMutationHistoryPicker', () => {
       timestamp: NOW_MS - 1 * 60_000,
       fileChangeCount: 3,
     });
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const picker = new TuiSessionMutationHistoryPicker({
       summaries: [older, middle, latest],
       mode: 'rewind',
       onSelect,
-      onCancel: vi.fn(),
+      onCancel: mock(),
       nowMs: NOW_MS,
     });
 
@@ -148,12 +149,12 @@ describe('TuiSessionMutationHistoryPicker', () => {
       assistantMessageId: undefined,
       contentHead: 'Still running',
     });
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const picker = new TuiSessionMutationHistoryPicker({
       summaries: [complete, incomplete],
       mode: 'fork',
       onSelect,
-      onCancel: vi.fn(),
+      onCancel: mock(),
       nowMs: NOW_MS,
     });
 
@@ -173,12 +174,12 @@ describe('TuiSessionMutationHistoryPicker', () => {
       contentHead: longHead,
       fileChangeCount: 0,
     });
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const picker = new TuiSessionMutationHistoryPicker({
       summaries: [summary],
       mode: 'fork',
       onSelect,
-      onCancel: vi.fn(),
+      onCancel: mock(),
     });
 
     const rendered = stripAnsi(picker.render(60).join('\n'));
@@ -199,12 +200,12 @@ describe('TuiSessionMutationHistoryPicker', () => {
   });
 
   it('renders a safe empty state when there are no summaries', () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const picker = new TuiSessionMutationHistoryPicker({
       summaries: [],
       mode: 'rewind',
       onSelect,
-      onCancel: vi.fn(),
+      onCancel: mock(),
     });
 
     const rendered = stripAnsi(picker.render(80).join('\n'));
@@ -218,8 +219,8 @@ describe('TuiSessionMutationHistoryPicker', () => {
 
   it('routes Escape to onCancel exactly once and never invokes the mutation callback', () => {
     const summary = makeSummary();
-    const onSelect = vi.fn();
-    const onCancel = vi.fn();
+    const onSelect = mock();
+    const onCancel = mock();
     const picker = new TuiSessionMutationHistoryPicker({
       summaries: [summary],
       mode: 'rewind',
@@ -239,8 +240,8 @@ describe('TuiSessionMutationHistoryPicker', () => {
     const picker = new TuiSessionMutationHistoryPicker({
       summaries: [summary],
       mode: 'fork',
-      onSelect: vi.fn(),
-      onCancel: vi.fn(),
+      onSelect: mock(),
+      onCancel: mock(),
     });
 
     expect(picker.id).toBe('session-mutation:history');
@@ -258,8 +259,8 @@ describe('TuiSessionMutationHistoryPicker', () => {
     const picker = new TuiSessionMutationHistoryPicker({
       summaries: [makeSummary()],
       mode: 'fork',
-      onSelect: vi.fn(),
-      onCancel: vi.fn(),
+      onSelect: mock(),
+      onCancel: mock(),
     });
 
     expect(picker.renderViewport(0, 10)).toEqual([]);
@@ -281,7 +282,7 @@ describe('TuiSessionMutationRewindPreviewPanel', () => {
         target: 'Target /example-skill',
         impact: '1 turn affected · 0 files',
         onCancel: () => close(),
-        onContinue: vi.fn(),
+        onContinue: mock(),
         requestRender: () => tui.requestRender(),
       });
       tui.start();
@@ -328,7 +329,7 @@ describe('TuiSessionMutationRewindPreviewPanel', () => {
         },
       ],
     };
-    const onCancel = vi.fn();
+    const onCancel = mock();
     const panel = new TuiSessionMutationRewindPreviewPanel({
       preview,
       onCancel,
@@ -358,7 +359,7 @@ describe('TuiSessionMutationRewindPreviewPanel', () => {
         },
       ],
     };
-    const onCancel = vi.fn();
+    const onCancel = mock();
     const panel = new TuiSessionMutationRewindPreviewPanel({ preview, onCancel });
 
     const rendered = stripAnsi(panel.render(80).join('\n'));
@@ -368,7 +369,7 @@ describe('TuiSessionMutationRewindPreviewPanel', () => {
   it('treats repeated Escape presses as a single idempotent close', () => {
     const panel = new TuiSessionMutationRewindPreviewPanel({
       preview: { turns: [] },
-      onCancel: vi.fn(),
+      onCancel: mock(),
     });
 
     panel.handleInput('\u001b');
@@ -390,13 +391,13 @@ describe('TuiSessionMutationRewindPreviewPanel', () => {
         },
       ],
     };
-    const onContinue = vi.fn();
+    const onContinue = mock();
     const panel = new TuiSessionMutationRewindPreviewPanel({
       preview,
-      onCancel: vi.fn(),
+      onCancel: mock(),
       onContinue,
       continueHint: 'Enter rewind · Esc back',
-      requestRender: vi.fn(),
+      requestRender: mock(),
     });
 
     const first = stripAnsi(panel.renderViewport(70, 10).join('\n'));
@@ -415,8 +416,8 @@ describe('TuiSessionMutationRewindPreviewPanel', () => {
 
 describe('TuiSessionMutationScopePicker', () => {
   it('only exposes the two Desktop-compatible rewind scopes', () => {
-    const onSelect = vi.fn<(scope: TuiRewindScope) => void>();
-    const picker = new TuiSessionMutationScopePicker({ onSelect, onCancel: vi.fn() });
+    const onSelect = mock<(scope: TuiRewindScope) => void>();
+    const picker = new TuiSessionMutationScopePicker({ onSelect, onCancel: mock() });
 
     const rendered = stripAnsi(picker.render(80).join('\n'));
 
@@ -435,8 +436,8 @@ describe('TuiSessionMutationScopePicker', () => {
   });
 
   it('returns the selected scope when navigating down then confirming', () => {
-    const onSelect = vi.fn<(scope: TuiRewindScope) => void>();
-    const picker = new TuiSessionMutationScopePicker({ onSelect, onCancel: vi.fn() });
+    const onSelect = mock<(scope: TuiRewindScope) => void>();
+    const picker = new TuiSessionMutationScopePicker({ onSelect, onCancel: mock() });
 
     picker.handleInput('\u001b[B');
     picker.handleInput('\r');
@@ -445,8 +446,8 @@ describe('TuiSessionMutationScopePicker', () => {
   });
 
   it('cancels idempotently and never fires onSelect', () => {
-    const onSelect = vi.fn();
-    const onCancel = vi.fn();
+    const onSelect = mock();
+    const onCancel = mock();
     const picker = new TuiSessionMutationScopePicker({ onSelect, onCancel });
 
     picker.handleInput('\u001b');

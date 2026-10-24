@@ -11,7 +11,14 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const skipped = new Set([
   ".git",
   "node_modules",
+  // Both are build outputs and both are Git-ignored: `dist` holds the npm
+  // bundle, `dist-exe` holds the single-file executable packaged from it. The
+  // executable embeds `dist/embedded/mcode-tools`, whose pinned public archive
+  // contains resolved service hostnames, so scanning it here would report a
+  // binary this repository neither authors nor publishes as source. Keep the
+  // two names together: the executable is only ever built from `dist`.
   "dist",
+  "dist-exe",
   ".cache",
   ".pnpm-store",
   ".turbo",

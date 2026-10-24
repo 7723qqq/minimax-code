@@ -1,7 +1,5 @@
-import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { promisify } from 'node:util';
 
 import JSZip from 'jszip';
 
@@ -19,8 +17,49 @@ const DOWNLOAD_TIMEOUT_MS = 60_000;
 const MAX_GITHUB_ARCHIVE_BYTES = 128 * 1024 * 1024;
 const MAX_GITHUB_ARCHIVE_ENTRIES = 100_000;
 
-const execFileAsync = promisify(execFile);
 const GIT_CLONE_TIMEOUT_MS = 120_000;
+
+/**
+ * Runs Git for the clone/fetch/checkout sequence.
+ *
+ * `Bun.spawn` replaces `promisify(execFile)`. A cancelled import is reported the
+ * way `execFile` reported it — a rejected promise — so `signal` stays a throwing
+ * condition rather than a silent non-zero exit. A signalled or timed-out child
+ * surfaces as a non-zero exit code here, which becomes that rejection.
+ *
+ * Expect the first spawn in a process to be slow on Windows: launching a native
+ * executable without a shell costs one multi-second wait before the runtime
+ * settles. That is an upstream runtime characteristic, recorded here rather than
+ * worked around.
+ */
+async function runGit(
+  args: string[],
+  options: { signal?: AbortSignal } = {},
+): Promise<void> {
+  const child = Bun.spawn({
+    cmd: ['git', ...args],
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
+    timeout: GIT_CLONE_TIMEOUT_MS,
+    windowsHide: true,
+    ...(options.signal ? { signal: options.signal } : {}),
+  });
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  if (code === 0) return;
+  if (options.signal?.aborted) throw options.signal.reason;
+  // Trace output is small and bounded by the clone timeout; keeping the tail
+  // gives a caller something actionable without unbounded buffering.
+  const detail = (stderr.trim() || stdout.trim()).slice(0, 4_096);
+  throw new PluginSystemError(
+    'plugin_import_failed',
+    `git ${args[0] ?? ''} failed with exit ${String(code)}${detail ? `: ${detail}` : ''}`,
+  );
+}
 
 export interface ExtractedGithubPlugin {
   readonly rootPath: string;
@@ -39,8 +78,7 @@ export async function cloneGitRepositoryPlugin(
   const cloneRoot = path.join(temporaryRoot, 'repo');
   const rootPath = source.subPath ? path.join(cloneRoot, ...source.subPath.split('/')) : cloneRoot;
   try {
-    await execFileAsync(
-      'git',
+    await runGit(
       [
         'clone',
         '--no-checkout',
@@ -49,29 +87,12 @@ export async function cloneGitRepositoryPlugin(
         source.repositoryUrl,
         cloneRoot,
       ],
-      {
-        timeout: GIT_CLONE_TIMEOUT_MS,
-        signal,
-        windowsHide: true,
-        maxBuffer: 256 * 1024,
-      },
+      { signal },
     );
-    await execFileAsync(
-      'git',
-      ['-C', cloneRoot, 'fetch', '--depth', '1', 'origin', source.commitSha],
-      {
-        timeout: GIT_CLONE_TIMEOUT_MS,
-        signal,
-        windowsHide: true,
-        maxBuffer: 256 * 1024,
-      },
-    );
-    await execFileAsync('git', ['-C', cloneRoot, 'checkout', '--detach', source.commitSha], {
-      timeout: GIT_CLONE_TIMEOUT_MS,
+    await runGit(['-C', cloneRoot, 'fetch', '--depth', '1', 'origin', source.commitSha], {
       signal,
-      windowsHide: true,
-      maxBuffer: 256 * 1024,
     });
+    await runGit(['-C', cloneRoot, 'checkout', '--detach', source.commitSha], { signal });
     await rm(path.join(cloneRoot, '.git'), { recursive: true, force: true });
     const { computePluginDirectoryDigest } = await import('../package/package-contract.js');
     const digest = await computePluginDirectoryDigest(rootPath, { pathPolicy: 'unrestricted' });

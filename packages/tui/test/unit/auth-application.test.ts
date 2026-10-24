@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
+
 import type { LogoutResult } from '@mavis/oauth-core';
 
 import { createLocalAuthFixture } from '../../../oauth-core/test/helpers/local-auth.js';
@@ -8,14 +9,14 @@ import { McodeAuthApplication } from '../../src/auth/application.js';
 
 function sharedCore(status: 'anonymous' | 'authenticated' | 'logout_pending' = 'anonymous') {
   return {
-    getStatus: vi.fn(async () => ({
+    getStatus: mock(async () => ({
       status,
       generation: status === 'authenticated' ? 1 : 0,
       scopes: status === 'authenticated' ? ['agent.default'] : [],
     })),
     // Mirrors the real core: an authenticated session only refreshes, while
     // any other state starts a Device Flow and fires the prompt callback.
-    login: vi.fn(async ({ onDeviceAuthorization } = {}) => {
+    login: mock(async ({ onDeviceAuthorization } = {}) => {
       if (status !== 'authenticated') {
         onDeviceAuthorization?.({
           userCode: 'ABCD-EFGH',
@@ -25,14 +26,14 @@ function sharedCore(status: 'anonymous' | 'authenticated' | 'logout_pending' = '
       }
       return { status: 'authenticated' as const, generation: 1 };
     }),
-    logout: vi.fn(async (): Promise<LogoutResult> => ({ status: 'anonymous', generation: 2 })),
+    logout: mock(async (): Promise<LogoutResult> => ({ status: 'anonymous', generation: 2 })),
   };
 }
 
 describe('McodeAuthApplication', () => {
   it('uses Shared OAuth Device Flow as its only login path', async () => {
     const core = sharedCore();
-    const onProgress = vi.fn();
+    const onProgress = mock();
     const application = new McodeAuthApplication({
       dataDir: '/data',
       region: 'cn',
@@ -90,7 +91,7 @@ describe('McodeAuthApplication', () => {
   it('logs in to another region without replacing the authenticated current region', async () => {
     const chinaCore = sharedCore('authenticated');
     const globalCore = sharedCore();
-    const resolveSharedAuthCore = vi.fn(() => globalCore);
+    const resolveSharedAuthCore = mock(() => globalCore);
     const application = new McodeAuthApplication({
       dataDir: '/data',
       region: 'cn',
@@ -111,7 +112,7 @@ describe('McodeAuthApplication', () => {
 
   it('persists only the non-sensitive selected region after login succeeds', async () => {
     const core = sharedCore();
-    const writeRegionPreference = vi.fn();
+    const writeRegionPreference = mock();
     const application = new McodeAuthApplication({
       dataDir: '/data',
       region: 'cn',
@@ -131,7 +132,7 @@ describe('McodeAuthApplication', () => {
   it('reuses an authenticated selected region without starting Device Flow', async () => {
     const chinaCore = sharedCore();
     const globalCore = sharedCore('authenticated');
-    const resolveSharedAuthCore = vi.fn(() => globalCore);
+    const resolveSharedAuthCore = mock(() => globalCore);
     const application = new McodeAuthApplication({
       dataDir: '/data',
       region: 'cn',

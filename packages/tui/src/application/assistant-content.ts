@@ -5,6 +5,7 @@ import {
   type DeliverAssetsSegment,
 } from '@mavis/shared/asset-markup';
 import { sanitizeTerminalText } from '../tui/rendering/terminal-text.js';
+import { applicationText } from './copy.js';
 
 const RICH_CONTENT_RE =
   /<(?:deliver[-_]assets|media|publish[_-]artifact|preview_card|genui-|mavis-widget|mavis-thinking|mavis-progress|think|final|permission-(?:ask|response)|questionnaire-(?:ask|response))\b|^\s*preview_cards?:\s*$/imu;
@@ -126,15 +127,20 @@ function simplifyWidgets(content: string): string {
   output = output.replace(/<mavis-widget\b([^>]*)>[\s\S]*$/iu, (_match, rawAttributes: string) =>
     formatWidgetFallback(parseAttributes(rawAttributes)),
   );
-  return output.replace(/<mavis-widget\b[^>]*$/iu, 'Interactive content is loading…');
+  return output.replace(
+    /<mavis-widget\b[^>]*$/iu,
+    applicationText('application.content.interactiveLoading'),
+  );
 }
 
 function formatWidgetFallback(attributes: Readonly<Record<string, string>>): string {
   const kind = attributes['kind']?.trim();
   const title = attributes['title']?.trim();
-  if (kind && title) return `Interactive ${kind}: ${title} (open in Desktop).`;
-  if (title) return `Interactive content: ${title} (open in Desktop).`;
-  return 'Interactive content available in Desktop.';
+  if (kind && title) {
+    return applicationText('application.content.interactiveKindTitle', { kind, title });
+  }
+  if (title) return applicationText('application.content.interactiveTitle', { title });
+  return applicationText('application.content.interactiveAvailable');
 }
 
 function simplifyGenui(content: string): string {
@@ -146,23 +152,26 @@ function simplifyGenui(content: string): string {
   output = output.replace(selfClosingRe, (_match, name: string, rawAttributes: string) =>
     formatGenuiFallback(name, parseAttributes(rawAttributes)),
   );
-  return output.replace(/<genui-[\w-]*\b[^>]*$/iu, 'Interactive content is loading…');
+  return output.replace(
+    /<genui-[\w-]*\b[^>]*$/iu,
+    applicationText('application.content.interactiveLoading'),
+  );
 }
 
 function formatGenuiFallback(name: string, attributes: Readonly<Record<string, string>>): string {
   if (name.toLocaleLowerCase() === 'mcp-auth') {
     const label = attributes['label']?.trim() || attributes['server-id']?.trim();
     return label
-      ? `MCP authorization required: ${label} (open in Desktop).`
-      : 'MCP authorization required (open in Desktop).';
+      ? applicationText('application.content.mcpAuthorizationRequired', { reason: label })
+      : applicationText('application.content.mcpAuthorizationRequiredWithoutReason');
   }
   if (name.toLocaleLowerCase() === 'agent-team-recommendation') {
     const status = attributes['status']?.trim().toLocaleLowerCase();
-    if (status === 'accepted') return 'Team recommendation accepted.';
-    if (status === 'skipped') return 'Team recommendation skipped.';
-    return 'Team recommendation available in Desktop.';
+    if (status === 'accepted') return applicationText('application.content.teamRecommendationAccepted');
+    if (status === 'skipped') return applicationText('application.content.teamRecommendationSkipped');
+    return applicationText('application.content.teamRecommendationAvailable');
   }
-  return 'Interactive content available in Desktop.';
+  return applicationText('application.content.interactiveAvailable');
 }
 
 function parseAttributes(raw: string): Record<string, string> {

@@ -1,5 +1,5 @@
+import { describe, expect, it, mock } from 'bun:test';
 import { stripVTControlCharacters } from "node:util";
-import { describe, expect, it, vi } from "vitest";
 
 import {
   createTuiMcpInspectionPanel,
@@ -8,7 +8,7 @@ import {
 
 describe("MCode capability inspection", () => {
   it("renders Skills as a grouped read-only catalog instead of transcript prose", () => {
-    const onCancel = vi.fn();
+    const onCancel = mock();
     const panel = createTuiSkillsInspectionPanel(
       {
         skills: [
@@ -93,7 +93,7 @@ describe("MCode capability inspection", () => {
         },
       ],
       "",
-      vi.fn(),
+      mock(),
       () => 40,
     );
 

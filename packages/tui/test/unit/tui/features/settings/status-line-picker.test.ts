@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { waitFor } from '../../../../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock } from 'bun:test';
+
 import { TuiStatusLinePicker, type TuiStatusLinePickerOptions } from '../../../../../src/tui/features/settings/status-line-picker.js';
 import { TuiStatusLine } from '../../../../../src/tui/shell/chrome.js';
 import { visibleWidth } from '../../../../../src/tui/rendering/text.js';
@@ -11,8 +13,8 @@ function fixture(overrides: Partial<TuiStatusLinePickerOptions> = {}) {
       lines: new TuiStatusLine({ version: '0.1', workspace: '/repo', runtimeStatus: 'ready', model: 'MiniMax', statusLineItems: items }).renderViewport(width, height),
       unavailable: [],
     }),
-    save: vi.fn(async () => undefined),
-    onClose: vi.fn(), requestRender: vi.fn(), locale: 'en',
+    save: mock(async () => undefined),
+    onClose: mock(), requestRender: mock(), locale: 'en',
     ...overrides,
   } satisfies TuiStatusLinePickerOptions;
   return { picker: new TuiStatusLinePicker(options), options };
@@ -25,7 +27,7 @@ describe('status line picker', () => {
     expect(picker.render(100).join('\n')).toContain('Context window capacity');
     picker.handleInput(' ');
     picker.handleInput('\r');
-    await vi.waitFor(() => expect(options.onClose).toHaveBeenCalledOnce());
+    await waitFor(() => expect(options.onClose).toHaveBeenCalledOnce());
     expect(options.save).toHaveBeenCalledWith(['model', 'current-dir', 'context-window']);
   });
 
@@ -46,7 +48,7 @@ describe('status line picker', () => {
     expect(picker.render(100).join('\n')).toMatch(/\/repo.*MiniMax/);
     expect(options.save).not.toHaveBeenCalled();
     picker.handleInput('\r');
-    await vi.waitFor(() => expect(options.onClose).toHaveBeenCalledOnce());
+    await waitFor(() => expect(options.onClose).toHaveBeenCalledOnce());
     expect(options.save).toHaveBeenCalledWith(['current-dir', 'model']);
   });
 
@@ -67,12 +69,12 @@ describe('status line picker', () => {
     first.picker.handleInput(' ');
     expect(first.picker.render(80).join('\n')).toContain('Status line hidden');
     first.picker.handleInput('\r');
-    await vi.waitFor(() => expect(first.options.onClose).toHaveBeenCalledOnce());
+    await waitFor(() => expect(first.options.onClose).toHaveBeenCalledOnce());
     expect(first.options.save).toHaveBeenCalledWith([]);
     const second = fixture({ items: [] });
     second.picker.handleInput('\x12');
     second.picker.handleInput('\r');
-    await vi.waitFor(() => expect(second.options.onClose).toHaveBeenCalledOnce());
+    await waitFor(() => expect(second.options.onClose).toHaveBeenCalledOnce());
     expect(second.options.save).toHaveBeenCalledWith(undefined);
   });
 
@@ -82,26 +84,26 @@ describe('status line picker', () => {
     picker.handleInput('\x1b[D');
     picker.handleInput(' ');
     picker.handleInput('\r');
-    await vi.waitFor(() => expect(options.onClose).toHaveBeenCalledOnce());
+    await waitFor(() => expect(options.onClose).toHaveBeenCalledOnce());
     expect(options.save).toHaveBeenCalledWith(['model']);
   });
 
   it('keeps the draft open after a save failure and allows retry', async () => {
-    const save = vi.fn().mockRejectedValueOnce(new Error('private detail')).mockResolvedValue(undefined);
+    const save = mock().mockRejectedValueOnce(new Error('private detail')).mockResolvedValue(undefined);
     const { picker, options } = fixture({ save });
     picker.handleInput(' ');
     picker.handleInput('\r');
-    await vi.waitFor(() => expect(picker.render(120).join('\n')).toContain('Could not save'));
+    await waitFor(() => expect(picker.render(120).join('\n')).toContain('Could not save'));
     expect(options.onClose).not.toHaveBeenCalled();
     expect(picker.render(120).join('\n')).not.toContain('private detail');
     picker.handleInput('\r');
-    await vi.waitFor(() => expect(options.onClose).toHaveBeenCalledOnce());
+    await waitFor(() => expect(options.onClose).toHaveBeenCalledOnce());
     expect(save).toHaveBeenCalledTimes(2);
   });
 
   it('does not duplicate a pending save or close a replaced panel when it finishes', async () => {
     let finish!: () => void;
-    const save = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));
+    const save = mock(() => new Promise<void>((resolve) => { finish = resolve; }));
     const { picker, options } = fixture({ save });
     picker.handleInput(' ');
     picker.handleInput('\r');
@@ -146,7 +148,6 @@ describe('status line picker', () => {
   });
 });
 
-
 describe('context meter settings', () => {
   it.each([
     ['en', 'Remaining context gauge'],
@@ -158,7 +159,7 @@ describe('context meter settings', () => {
     expect(picker.render(100).join('\n')).toContain('[ ] context-meter');
     picker.handleInput(' ');
     picker.handleInput('\r');
-    await vi.waitFor(() => expect(options.onClose).toHaveBeenCalledOnce());
+    await waitFor(() => expect(options.onClose).toHaveBeenCalledOnce());
     expect(options.save).toHaveBeenCalledWith(['model', 'current-dir', 'context-meter']);
   });
 });

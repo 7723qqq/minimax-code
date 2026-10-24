@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 /**
  * Thread Goal tool-impl tests against an in-memory ThreadGoalStore.
  *
@@ -13,8 +14,6 @@
  *     mirrors codex tool.rs emitting ThreadGoalUpdated on tool calls),
  * (e) get_goal returns null when missing, the serialized record when set.
  */
-
-import { describe, expect, it, beforeEach, vi } from "vitest";
 
 import {
   CreateGoalTool,
@@ -135,7 +134,7 @@ const ctx = { sessionId: "sess_a", turnId: "turn_a" } as const;
 function signalCollector(
   result: ReturnType<ThreadGoalSignalCollector["collect"]> = "accepted",
 ) {
-  return { collect: vi.fn(() => result) } satisfies ThreadGoalSignalCollector;
+  return { collect: mock(() => result) } satisfies ThreadGoalSignalCollector;
 }
 
 function budgetMutation(
@@ -144,7 +143,7 @@ function budgetMutation(
   >,
 ) {
   return {
-    updateTokenBudget: vi.fn(async () => result),
+    updateTokenBudget: mock(async () => result),
   } satisfies ThreadGoalTokenBudgetMutationPort;
 }
 
@@ -188,7 +187,7 @@ describe("thread-goal tool impls", () => {
     it("refuses before create when an active goal already exists", async () => {
       const tool = new CreateGoalTool(store);
       await store.create({ sessionId: ctx.sessionId, objective: "First" });
-      const createSpy = vi.spyOn(store, "create");
+      const createSpy = spyOn(store, "create");
       const second = await tool.execute(ctx, { objective: "Second" });
       const payload = JSON.parse(second.text) as {
         error: string;
@@ -207,7 +206,7 @@ describe("thread-goal tool impls", () => {
       await store.create({ sessionId: ctx.sessionId, objective: "First" });
       const first = await store.getBySession(ctx.sessionId);
       await store.patch(first!.goalId, { status: "paused" });
-      const createSpy = vi.spyOn(store, "create");
+      const createSpy = spyOn(store, "create");
       const second = await new CreateGoalTool(store).execute(ctx, {
         objective: "Second",
       });
@@ -358,8 +357,7 @@ describe("thread-goal tool impls", () => {
         objective: "x",
       });
       const mutation = {
-        updateTokenBudget: vi
-          .fn<ThreadGoalTokenBudgetMutationPort["updateTokenBudget"]>()
+        updateTokenBudget: mock<ThreadGoalTokenBudgetMutationPort["updateTokenBudget"]>()
           .mockResolvedValueOnce({
             updated: false,
             error:
@@ -562,7 +560,7 @@ describe("thread-goal tool impls", () => {
     it("marks every rejection path as a tool error and leaves the Goal untouched", async () => {
       await new CreateGoalTool(store).execute(ctx, { objective: "Keep me" });
       const before = await store.getBySession(ctx.sessionId);
-      const patch = vi.spyOn(store, "patch");
+      const patch = spyOn(store, "patch");
 
       const stale = await new UpdateGoalTool(
         store,
@@ -629,7 +627,7 @@ describe("thread-goal tool impls", () => {
       async (status, type) => {
         await new CreateGoalTool(store).execute(ctx, { objective: "x" });
         const collector = signalCollector();
-        const patch = vi.spyOn(store, "patch");
+        const patch = spyOn(store, "patch");
         const result = await new UpdateGoalTool(store, collector).execute(ctx, {
           status,
         });
@@ -745,7 +743,7 @@ describe("thread-goal tool impls", () => {
         objective: "Updated objective",
       });
       const collector = signalCollector("stale");
-      const patch = vi.spyOn(store, "patch");
+      const patch = spyOn(store, "patch");
       const result = await new UpdateGoalTool(store, collector).execute(ctx, {
         status: "complete",
       });

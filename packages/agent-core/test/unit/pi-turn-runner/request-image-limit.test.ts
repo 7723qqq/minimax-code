@@ -3,7 +3,7 @@ import type { AddressInfo } from "node:net";
 
 import type { AgentMessage } from "@earendil-works/pi-agent-core";
 import type { AssistantMessage, Message, Model, ToolResultMessage, UserMessage } from "@earendil-works/pi-ai";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import { projectAgentMessagesForModel } from "../../../src/pi-turn-runner/outbound-message-normalizer.js";
 import { PiTurnRunner } from "../../../src/pi-turn-runner/pi-turn-runner.js";

@@ -1,3 +1,5 @@
+import { configText } from './copy.js';
+
 export type ProviderAuthMode = 'managed-login' | 'api-key' | 'oauth';
 
 export type ProviderAuthModeSource = 'explicit' | 'inferred-managed-base-url' | 'default-api-key';
@@ -60,9 +62,8 @@ export function resolveProviderAuthMode(
   const warnings: string[] = [];
 
   if (typeof input?.authMode === 'string' && !explicitAuthMode) {
-    warnings.push(
-      `Unknown provider authMode "${input.authMode}"; falling back to compatibility resolution.`,
-    );
+    const unknownAuthMode = String(input.authMode);
+    warnings.push(configText('provider.authMode.unknown', { value: unknownAuthMode }));
   }
 
   if (explicitAuthMode) {

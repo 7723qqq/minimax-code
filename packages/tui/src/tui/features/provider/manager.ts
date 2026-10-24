@@ -18,6 +18,7 @@ import type {
 } from '../../../provider/contract.js';
 import { TuiProviderEditor } from './editor.js';
 import { formatTuiActionFailure } from '../../../user-facing-failure.js';
+import { providerText } from './copy.js';
 
 /**
  * `/provider` owns the independent Codex connect action and MiniMax credential
@@ -135,13 +136,13 @@ export class TuiProviderManager implements Component, Focusable {
       frameRow(
         composeLine(
           chalk.bold.hex(colors.signal)('Providers'),
-          chalk.hex(colors.muted)('Model sources and credentials'),
+          chalk.hex(colors.muted)(providerText('managerModelSources')),
           Math.max(1, width - 4),
         ),
         width,
       ),
       frameRow(
-        chalk.hex(colors.dim)('Choose a source or edit a connection; keys stay masked.'),
+        chalk.hex(colors.dim)(providerText('managerChooseSource')),
         width,
       ),
       frameDivider(width),
@@ -187,12 +188,12 @@ export class TuiProviderManager implements Component, Focusable {
         renderTuiActionHint(
           this.busy
             ? 'Working…'
-            : '↑↓ move · Space use · r refresh models · e edit · t test · Esc close',
+            : providerText('managerNavigateHint'),
         ),
         width,
       ),
       frameRow(
-        chalk.hex(colors.dim)('Select a custom connection and press r to fetch its latest models.'),
+        chalk.hex(colors.dim)(providerText('managerRefreshModelsHint')),
         width,
       ),
       frameBottom(width),
@@ -213,8 +214,8 @@ export class TuiProviderManager implements Component, Focusable {
       frameRow(
         chalk.hex(colors.muted)(
           replacing
-            ? 'The saved key is overwritten once you submit.'
-            : 'Saved locally and used instead of Token Plan.',
+            ? providerText('managerKeyOverwritten')
+            : providerText('managerKeySavedLocally'),
         ),
         width,
       ),
@@ -222,7 +223,7 @@ export class TuiProviderManager implements Component, Focusable {
       frameRow(this.secretInput.render(Math.max(1, width - 8))[0] ?? '', width),
       ...(this.status ? [frameRow(chalk.hex(colors.error)(`! ${this.status.text}`), width)] : []),
       frameDivider(width),
-      frameRow(renderTuiActionHint('Enter save and use · Esc cancel'), width),
+      frameRow(renderTuiActionHint(providerText('managerSaveAndUseHint')), width),
       frameBottom(width),
     ];
   }
@@ -248,7 +249,7 @@ export class TuiProviderManager implements Component, Focusable {
     const provider = this.selectedProvider();
     const refreshModels = this.options.onRefreshModels;
     if (!provider || provider.kind !== 'custom' || provider.readOnly || !refreshModels) {
-      this.status = { tone: 'info', text: 'Select a custom connection to refresh its models.' };
+      this.status = { tone: 'info', text: providerText('managerSelectCustomToRefresh') };
       this.requestRender();
       return;
     }
@@ -257,12 +258,12 @@ export class TuiProviderManager implements Component, Focusable {
       try {
         await this.refresh(
           count
-            ? `Added ${count} new model(s). Choose one with /model.`
-            : 'Models are already up to date.',
+            ? providerText('managerModelsAdded', { count })
+            : providerText('managerModelsUpToDate'),
         );
       } catch {
         this.setStatus(
-          'Models were refreshed, but the list could not be reloaded. Reopen /provider.',
+          providerText('managerModelsRefreshedButListFailed'),
           'error',
         );
       }
@@ -306,22 +307,22 @@ export class TuiProviderManager implements Component, Focusable {
     }
     if (provider.kind === 'minimax-oauth') {
       if (!this.options.onReLogin) {
-        this.setStatus('MiniMax sign-in is unavailable in this host.', 'error');
+        this.setStatus(providerText('managerMiniMaxSignInUnavailable'), 'error');
         return;
       }
       this.options.onReLogin();
       return;
     }
     if (provider.kind === 'codex-oauth') {
-      this.setStatus('Use Enter or Space on the Codex row to start sign-in.', 'info');
+      this.setStatus(providerText('managerUseCodexRowToSignIn'), 'info');
       return;
     }
     if (provider.readOnly || !this.options.onSaveCustom) {
-      this.setStatus('This connection cannot be edited in this host.', 'info');
+      this.setStatus(providerText('managerConnectionNotEditable'), 'info');
       return;
     }
     if (!provider.configRevision || !provider.baseUrl) {
-      this.setStatus('Connection details are stale. Reopen /provider.', 'error');
+      this.setStatus(providerText('staleConnectionDetails'), 'error');
       return;
     }
     this.editor = new TuiProviderEditor({
@@ -333,12 +334,12 @@ export class TuiProviderManager implements Component, Focusable {
           () =>
             this.refresh(
               keyChanged
-                ? 'Connection saved. All its models now use the new API Key.'
-                : 'Connection changes saved.',
+                ? providerText('managerConnectionSavedWithKey')
+                : providerText('managerConnectionChangesSaved'),
             ),
           {
-            summary: 'Connection saved, but the list could not refresh.',
-            nextStep: 'Reopen /provider.',
+            summary: providerText('managerConnectionSavedListFailed'),
+            nextStep: providerText('managerReopenProvider'),
           },
         );
       },
@@ -359,11 +360,11 @@ export class TuiProviderManager implements Component, Focusable {
   private async connectCodex(provider: McodeProviderView): Promise<void> {
     const state = provider.status?.state;
     if (state === 'connected') {
-      this.setStatus('OpenAI Codex is already connected.', 'info');
+      this.setStatus(providerText('managerCodexAlreadyConnected'), 'info');
       return;
     }
     if (!this.options.onConnectCodex) {
-      this.setStatus('Codex sign-in is unavailable in this host.', 'error');
+      this.setStatus(providerText('managerCodexSignInUnavailable'), 'error');
       return;
     }
     this.options.onConnectCodex();
@@ -390,8 +391,8 @@ export class TuiProviderManager implements Component, Focusable {
       if (this.disposed) return;
       await this.refresh(
         replacing
-          ? 'MiniMax API Key replaced and selected.'
-          : 'MiniMax API Key saved and selected.',
+          ? providerText('managerMiniMaxKeyReplaced')
+          : providerText('managerMiniMaxKeySaved'),
       );
       if (this.disposed) return;
       this.mode = { kind: 'list' };
@@ -402,11 +403,11 @@ export class TuiProviderManager implements Component, Focusable {
     const provider = this.selectedProvider();
     if (!provider) return;
     if (provider.kind === 'codex-oauth') {
-      this.setStatus('Codex OAuth connectivity is managed by its sign-in flow.', 'info');
+      this.setStatus(providerText('managerCodexConnectivityBySignIn'), 'info');
       return;
     }
     if (provider.kind === 'minimax-oauth') {
-      this.setStatus('MiniMax OAuth sign-in and connectivity are managed by /login.', 'info');
+      this.setStatus(providerText('managerMiniMaxOAuthByLogin'), 'info');
       return;
     }
     await this.perform(async () => {
@@ -414,10 +415,10 @@ export class TuiProviderManager implements Component, Focusable {
       if (this.disposed) return;
       await this.refresh(
         result.success
-          ? `${provider.name} connection is available.`
+          ? providerText('managerConnectionAvailable', { name: provider.name })
           : formatTuiActionFailure(result.status.lastErrorMessage ?? result.status.state, {
-              summary: `${provider.name} connection test failed.`,
-              nextStep: 'Check the URL, credentials, and model ID, then retry.',
+              summary: providerText('managerConnectionTestFailed', { name: provider.name }),
+              nextStep: providerText('managerCheckUrlCredentialsModel'),
             }),
         result.success ? 'info' : 'error',
       );
@@ -429,7 +430,9 @@ export class TuiProviderManager implements Component, Focusable {
       await this.options.onSetMiniMaxSource(source);
       if (this.disposed) return;
       await this.refresh(
-        source === 'token_plan' ? 'Using MiniMax Token Plan.' : 'Using MiniMax API Key.',
+        source === 'token_plan'
+          ? providerText('managerUsingMiniMaxTokenPlan')
+          : providerText('managerUsingMiniMaxApiKey'),
       );
     });
   }
@@ -445,8 +448,8 @@ export class TuiProviderManager implements Component, Focusable {
   private async perform(
     operation: () => Promise<void>,
     failure: { readonly summary: string; readonly nextStep: string } = {
-      summary: 'The provider source was not changed.',
-      nextStep: 'Retry, or manage providers in Settings.',
+      summary: providerText('managerSourceUnchanged'),
+      nextStep: providerText('managerRetryOrManageInSettings'),
     },
   ): Promise<void> {
     this.busy = true;
@@ -523,22 +526,26 @@ function providerModelList(provider: McodeProviderView): string | undefined {
 
 function providerDetail(provider: McodeProviderView): string {
   if (provider.kind === 'codex-oauth') {
-    if (provider.status?.state === 'connected') return 'Connected with OpenAI OAuth';
+    if (provider.status?.state === 'connected') return providerText('managerConnectedWithOpenAiOauth');
     if (provider.status?.state === 'pending') {
-      return 'Sign-in pending · Enter or Space to continue';
+      return providerText('managerSignInPending');
     }
     if (provider.status?.state === 'failed') {
-      return `${provider.status.lastErrorMessage ?? 'Sign-in failed'} · Enter or Space to retry`;
+      return providerText('managerSignInFailedRetry', {
+        error: provider.status.lastErrorMessage ?? providerText('managerSignInFailed'),
+      });
     }
-    return 'Not connected · Enter or Space to connect';
+    return providerText('managerNotConnected');
   }
   if (provider.kind === 'minimax-oauth') {
-    return 'Sign-in managed by /login · Space to use · e to sign in again';
+    return providerText('managerSignInManagedByLogin');
   }
   if (provider.kind === 'minimax-api-key') {
     return provider.hasApiKey
-      ? `${provider.maskedApiKey ?? 'key saved'} · Space to use · e to replace`
-      : 'No API key saved · Space or e to add one';
+      ? providerText('managerKeySavedDetail', {
+          key: provider.maskedApiKey ?? providerText('managerMaskedKeyFallback'),
+        })
+      : providerText('managerNoApiKeySaved');
   }
   return [
     provider.enabled ? 'Enabled' : 'Disabled',
@@ -551,19 +558,19 @@ function providerDetail(provider: McodeProviderView): string {
 function providerSummary(provider: McodeProviderView): string {
   if (provider.kind === 'codex-oauth') {
     if (provider.status?.state === 'connected') return 'Connected';
-    if (provider.status?.state === 'pending') return 'Waiting for sign-in';
-    if (provider.status?.state === 'failed') return 'Sign-in failed';
-    return 'Not connected';
+    if (provider.status?.state === 'pending') return providerText('managerWaitingForSignIn');
+    if (provider.status?.state === 'failed') return providerText('managerSignInFailed');
+    return providerText('managerNotConnectedShort');
   }
   if (provider.kind === 'minimax-oauth') {
-    return provider.active ? 'Active · Token Plan' : 'Token Plan';
+    return provider.active ? providerText('managerActiveTokenPlan') : 'Token Plan';
   }
   if (provider.kind === 'minimax-api-key') {
     return provider.hasApiKey
       ? provider.active
-        ? 'Active · Key saved'
-        : 'Key saved'
-      : 'Not configured';
+        ? providerText('managerActiveKeySaved')
+        : providerText('managerKeySaved')
+      : providerText('valueNotConfigured');
   }
   return `${provider.enabled ? 'Enabled' : 'Disabled'} · ${provider.models.length} model${provider.models.length === 1 ? '' : 's'}`;
 }

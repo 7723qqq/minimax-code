@@ -8,11 +8,13 @@ import {
 import { TuiFeedbackPanel } from '../../features/feedback/panel.js';
 import type { TuiChatController } from '../chat-controller.js';
 import { formatTuiActionFailure } from '../../../user-facing-failure.js';
+import { controllerProductText } from './copy.js';
 
 type AppendFeedbackNotice = (content: string, kind?: 'warning' | 'error') => void;
 
-export const MINIMAX_CODE_TUI_FEEDBACK_LOGIN_REQUIRED_MESSAGE =
-  'Sign in to MiniMax to submit feedback. Run /login, then retry.';
+export const MINIMAX_CODE_TUI_FEEDBACK_LOGIN_REQUIRED_MESSAGE = controllerProductText(
+  'feedback.loginRequired',
+);
 
 export class FeedbackFlow {
   private activeDraftId: string | undefined;
@@ -34,7 +36,7 @@ export class FeedbackFlow {
   async show(description: string): Promise<void> {
     if (this.stopped) return;
     if (!description) {
-      this.appendNotice('Usage: /feedback <message>');
+      this.appendNotice(controllerProductText('feedback.usage'));
       return;
     }
     const requestSequence = ++this.requestSequence;
@@ -68,8 +70,8 @@ export class FeedbackFlow {
         loginRequired
           ? MINIMAX_CODE_TUI_FEEDBACK_LOGIN_REQUIRED_MESSAGE
           : formatTuiActionFailure(error, {
-              summary: "Couldn't prepare feedback.",
-              nextStep: 'Retry /feedback.',
+              summary: controllerProductText('feedback.prepareFailed'),
+              nextStep: controllerProductText('feedback.retryCommand'),
             }),
         loginRequired ? 'warning' : 'error',
       );

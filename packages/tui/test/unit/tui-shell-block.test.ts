@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { waitFor } from '../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock } from 'bun:test';
+
 import { TuiBashFlow } from '../../src/tui/controller/product/bash-flow.js';
 import { TuiTurnProjection } from '../../src/tui/controller/projection/turn-projection.js';
 import type { TuiMessage } from '../../src/runtime/port.js';
@@ -27,7 +29,7 @@ describe('Shell transcript block', () => {
     (status) => {
       const transcript = new TranscriptStore();
       const view = new TranscriptView(transcript);
-      const onChange = vi.fn();
+      const onChange = mock();
       const projection = new TuiTurnProjection({ transcript, now: () => 10, onChange });
       projection.recordTerminalDuration('previous-turn', status, 12_000);
       const label = status === 'cancelled' ? 'Interrupted after 12s' : 'Completed in 12s';
@@ -56,11 +58,11 @@ describe('Shell transcript block', () => {
     async ({ exitCode, cancelled, status }) => {
       const transcript = new TranscriptStore();
       const view = new TranscriptView(transcript);
-      const onChange = vi.fn();
+      const onChange = mock();
       const projection = new TuiTurnProjection({ transcript, now: () => 10, onChange });
       const flow = new TuiBashFlow({
         transcript,
-        onChanged: vi.fn(),
+        onChanged: mock(),
         execute: async ({ onOutput }) => {
           onOutput('shell output');
           return { exitCode, cancelled };
@@ -105,7 +107,7 @@ describe('Shell transcript block', () => {
     // native scrollback (#426); each such note stays after its own turn, once.
     const transcript = new TranscriptStore();
     const view = new TranscriptView(transcript);
-    const projection = new TuiTurnProjection({ transcript, now: () => 10, onChange: vi.fn() });
+    const projection = new TuiTurnProjection({ transcript, now: () => 10, onChange: mock() });
     const messages: TuiMessage[] = [];
     const runTurn = (turnId: string, seconds: number) => {
       const prompt: TuiMessage = { id: `prompt:${turnId}`, role: 'user', content: `Prompt ${turnId}`, turnId };
@@ -143,7 +145,7 @@ describe('Shell transcript block', () => {
   it('drops kept one-time feedback of turns that an edit removed from history', () => {
     const transcript = new TranscriptStore();
     const view = new TranscriptView(transcript);
-    const projection = new TuiTurnProjection({ transcript, now: () => 10, onChange: vi.fn() });
+    const projection = new TuiTurnProjection({ transcript, now: () => 10, onChange: mock() });
     const messagesFor = (turnId: string): TuiMessage[] => [
       { id: `prompt:${turnId}`, role: 'user', content: `Prompt ${turnId}`, turnId },
       { id: `answer:${turnId}`, role: 'assistant', content: `Answer ${turnId}`, turnId },
@@ -217,7 +219,7 @@ describe('Shell transcript block', () => {
       createTranscriptCell({ id: 'answer', kind: 'assistant', status: 'succeeded', content: 'Answer', createdAtMs: 2 }),
       { ...shellCell(), id: 'shell:tail', ephemeral: true },
     ]);
-    const projection = new TuiTurnProjection({ transcript, now: () => 10, onChange: vi.fn() });
+    const projection = new TuiTurnProjection({ transcript, now: () => 10, onChange: mock() });
     projection.beginTurn('next-turn', 10);
     expect(transcript.snapshot().map((cell) => cell.id)).toEqual(['shell:done', 'answer']);
   });
@@ -230,7 +232,7 @@ describe('Shell transcript block', () => {
       { ...shellCell(), id: 'notice', kind: 'final-summary' as const, ephemeral: true },
     ];
     const transcript = new TranscriptStore(retained);
-    const projection = new TuiTurnProjection({ transcript, now: () => 10, onChange: vi.fn() });
+    const projection = new TuiTurnProjection({ transcript, now: () => 10, onChange: mock() });
     projection.beginTurn('next-turn', 10);
     expect(transcript.snapshot()).toEqual(retained);
   });
@@ -307,7 +309,7 @@ describe('Shell transcript block', () => {
     let finish!: () => void;
     const flow = new TuiBashFlow({
       transcript,
-      onChanged: vi.fn(),
+      onChanged: mock(),
       execute: async ({ onOutput }) => {
         onOutput('streamed output\n');
         await new Promise<void>((resolve) => {
@@ -320,7 +322,7 @@ describe('Shell transcript block', () => {
       { command: 'echo streamed output', excludeFromContext: false },
       '/workspace',
     );
-    await vi.waitFor(() => expect(transcript.snapshot()[0]?.content).toContain('streamed output'));
+    await waitFor(() => expect(transcript.snapshot()[0]?.content).toContain('streamed output'));
     expect(transcript.snapshot()[0]).toMatchObject({
       kind: 'shell',
       title: '! echo streamed output',
@@ -343,7 +345,7 @@ describe('Shell transcript block', () => {
     const transcript = new TranscriptStore();
     const flow = new TuiBashFlow({
       transcript,
-      onChanged: vi.fn(),
+      onChanged: mock(),
       execute: async () => ({ exitCode, cancelled }),
     });
     await flow.run({ command: 'test', excludeFromContext: false }, '/workspace');
@@ -375,7 +377,7 @@ describe('Shell transcript block', () => {
     const transcript = new TranscriptStore();
     const flow = new TuiBashFlow({
       transcript,
-      onChanged: vi.fn(),
+      onChanged: mock(),
       execute: async () => {
         throw new Error('launch failed');
       },

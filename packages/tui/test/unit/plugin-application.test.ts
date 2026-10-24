@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 
 import { McodePluginApplication } from '../../src/plugin/application.js';
 
@@ -15,9 +15,8 @@ const plugin = (name: string, marketplace: 'official' | 'local', installed: bool
 describe('McodePluginApplication', () => {
   it('partitions installed and available Plugins across the real Runtime sources', async () => {
     const port = {
-      listInstalledPlugins: vi.fn(async () => [plugin('legacy', 'official', true)]),
-      listMarketplacePlugins: vi
-        .fn()
+      listInstalledPlugins: mock(async () => [plugin('legacy', 'official', true)]),
+      listMarketplacePlugins: mock()
         .mockResolvedValueOnce([plugin('docs', 'official', false)])
         .mockResolvedValueOnce([plugin('notes', 'local', false)]),
     };
@@ -39,12 +38,11 @@ describe('McodePluginApplication', () => {
   it('applies mutations through the Runtime owner and returns the committed state', async () => {
     const selected = plugin('docs', 'official', false);
     const port = {
-      mutatePlugin: vi
-        .fn()
+      mutatePlugin: mock()
         .mockResolvedValueOnce({ installed: true, enabled: true })
         .mockResolvedValueOnce({ installed: true, enabled: false })
         .mockResolvedValueOnce({ installed: false, enabled: false }),
-      refreshPlugins: vi.fn(async () => undefined),
+      refreshPlugins: mock(async () => undefined),
     };
     const application = new McodePluginApplication(port as never);
 

@@ -1,11 +1,9 @@
-import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { promisify } from 'node:util';
 
+import { execGitStdout } from './git-exec.js';
 import type { AnnotationTargetResolution, ReviewDiffSide } from './types.js';
 import { ReviewTargetError, validateWorkspaceRelativePath } from './target-files.js';
 
-const execFileAsync = promisify(execFile);
 const CHANGE_ANCHOR_VERSION = 'review-change-anchor-v1';
 
 export interface ReviewChangeAnchorInput {
@@ -91,15 +89,15 @@ async function readCurrentDiffHunks(
 ): Promise<ReviewDiffHunk[]> {
   await validateWorkspaceRelativePath(workspace, sourcePath);
   try {
-    const { stdout } = await execFileAsync(
-      'git',
-      ['diff', '--unified=0', '--no-color', '--no-ext-diff', 'HEAD', '--', sourcePath],
-      {
-        cwd: workspace,
-        encoding: 'utf8',
-        maxBuffer: 16 * 1024 * 1024,
-      },
-    );
+    const stdout = await execGitStdout(workspace, [
+      'diff',
+      '--unified=0',
+      '--no-color',
+      '--no-ext-diff',
+      'HEAD',
+      '--',
+      sourcePath,
+    ]);
     return parseDiffHunks(stdout);
   } catch {
     throw new ReviewTargetError('invalid', 'Unable to read the current Git diff');

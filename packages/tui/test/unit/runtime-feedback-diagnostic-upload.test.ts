@@ -1,9 +1,10 @@
+import { afterEach, describe, expect, it, mock } from 'bun:test';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import JSZip from 'jszip';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+
 import { SessionReportService } from '@mavis/session-report';
 
 import { uploadTuiFeedbackDiagnostics } from '../../src/runtime/feedback/diagnostic-upload.js';
@@ -22,7 +23,7 @@ async function directory() {
 }
 function transport() {
   let uploaded: Uint8Array | undefined;
-  const fetchImpl = vi.fn<typeof fetch>(async (url, init) => {
+  const fetchImpl = mock<typeof fetch>(async (url, init) => {
     if (String(url).endsWith('/matrix/api/v1/log/upload')) {
       return Response.json({
         upload_id: 'synthetic-upload',
@@ -142,7 +143,7 @@ describe('feedback diagnostic upload privacy', () => {
           fetchImpl: capture.fetchImpl,
           collectSessionReport: (id) => reports.collect(id),
         }),
-      fetchImpl: vi.fn<typeof fetch>(async (_url, init) => {
+      fetchImpl: mock<typeof fetch>(async (_url, init) => {
         expect(JSON.parse(String(init?.body))).toMatchObject({
           description: 'Synthetic feedback',
           diagnostic_log: { upload_id: 'synthetic-upload' },
@@ -336,7 +337,7 @@ describe('feedback diagnostic upload privacy', () => {
       await mkdir(path.slice(0, path.lastIndexOf('/')), { recursive: true });
       await writeFile(path, content!);
     }
-    const flushLogs = vi.fn(async () => undefined);
+    const flushLogs = mock(async () => undefined);
     await uploadTuiFeedbackDiagnostics(
       { description: 'Synthetic', signal: new AbortController().signal },
       { dataDir, appVersion: '0.4.12', fetchImpl: capture.fetchImpl, flushLogs },
@@ -397,7 +398,7 @@ describe('feedback diagnostic upload privacy', () => {
 
   it('rejects invalid upload receipts and aborts before network transfer', async () => {
     const dataDir = await directory();
-    const fetchImpl = vi.fn<typeof fetch>(async () =>
+    const fetchImpl = mock<typeof fetch>(async () =>
       Response.json({ upload_url: 'https://upload.example.test' }),
     );
     await expect(

@@ -9,13 +9,14 @@ import type { Component } from '../../rendering/component.js';
 import { truncateToWidth, visibleWidth } from '../../rendering/text.js';
 import { tuiChalk as chalk, tuiColors as colors } from '../../theme/runtime.js';
 import { questionnaireFrameContentWidth, renderQuestionnaireFrame } from './decision-frame.js';
+import { interactionText, type InteractionCopyKey } from './copy.js';
 
 type VisiblePermissionMode = (typeof MINIMAX_CODE_PERMISSION_MODES)[number];
 
-const PERMISSION_MODE_DESCRIPTIONS: Record<VisiblePermissionMode, string> = {
-  default: 'Confirm sensitive actions',
-  auto: 'Ask only when risk is high',
-  bypassPermissions: 'Run without confirmation',
+const PERMISSION_MODE_DESCRIPTION_KEYS: Record<VisiblePermissionMode, InteractionCopyKey> = {
+  default: 'permissionMode.description.default',
+  auto: 'permissionMode.description.auto',
+  bypassPermissions: 'permissionMode.description.bypassPermissions',
 };
 
 export class TuiPermissionModePicker implements Component {
@@ -70,11 +71,17 @@ export class TuiPermissionModePicker implements Component {
     const currentMode = formatTuiPermissionMode(this.currentMode);
     return renderQuestionnaireFrame(
       {
-        title: safeWidth < 42 ? `Permission · ${currentMode}` : 'Permission',
-        ...(safeWidth >= 42 ? { meta: `Current · ${currentMode}` } : {}),
+        title: safeWidth < 42
+          ? interactionText('permissionMode.titleWithMode', { mode: currentMode })
+          : interactionText('permissionMode.title'),
+        ...(safeWidth >= 42
+          ? { meta: interactionText('permissionMode.meta', { mode: currentMode }) }
+          : {}),
         body: [
           chalk.hex(colors.muted)(
-            compact ? 'Choose a tool access policy.' : 'Choose how MCode handles tool access.',
+            compact
+              ? interactionText('permissionMode.body.compact')
+              : interactionText('permissionMode.body.wide'),
           ),
           '',
           ...MINIMAX_CODE_PERMISSION_MODES.flatMap((mode, index) =>
@@ -87,7 +94,9 @@ export class TuiPermissionModePicker implements Component {
           ),
         ],
         footer:
-          safeWidth < 42 ? '↑/↓ move · Enter · Esc back' : '↑/↓ select · Enter apply · Esc cancel',
+          safeWidth < 42
+            ? interactionText('permissionMode.footer.compact')
+            : interactionText('permissionMode.footer.wide'),
       },
       safeWidth,
       'signal',
@@ -115,11 +124,11 @@ function renderMode(
   );
   const status = [
     mode === 'bypassPermissions' ? chalk.hex(colors.error)('⚠') : '',
-    options.active ? chalk.hex(colors.signal)('● active') : '',
+    options.active ? chalk.hex(colors.signal)(interactionText('permissionMode.active')) : '',
   ]
     .filter(Boolean)
     .join(' ');
-  const description = chalk.hex(colors.muted)(PERMISSION_MODE_DESCRIPTIONS[mode]);
+  const description = chalk.hex(colors.muted)(interactionText(PERMISSION_MODE_DESCRIPTION_KEYS[mode]));
   const heading = `${prefix} ${label}`;
 
   if (options.compact) {

@@ -1,8 +1,10 @@
+import { stubEnv, unstubAllEnvs } from '../../../test/bun-test-setup.js';
+import { afterEach, beforeEach, describe, expect, it, jest, spyOn } from 'bun:test';
 import fs from "node:fs";
 import os from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import {
   getConfig,
   getConfigPath,
@@ -34,9 +36,9 @@ describe.skipIf(process.platform === "win32")(
       root = fs.mkdtempSync(join(os.tmpdir(), "mcode-config-permissions-"));
       dataDir = join(root, "profile");
       fs.mkdirSync(dataDir);
-      vi.spyOn(os, "homedir").mockReturnValue(root);
-      vi.stubEnv("MINIMAX_DATA_DIR", dataDir);
-      vi.stubEnv("__MAVIS_RUNTIME_MANAGED", "0");
+      spyOn(os, "homedir").mockReturnValue(root);
+      stubEnv("MINIMAX_DATA_DIR", dataDir);
+      stubEnv("__MAVIS_RUNTIME_MANAGED", "0");
       resetConfig();
       setLegacyByokProviderMigrationEnabled(false);
       setManagedPresetBaseUrlSyncEnabled(false);
@@ -45,8 +47,8 @@ describe.skipIf(process.platform === "win32")(
     });
 
     afterEach(() => {
-      vi.restoreAllMocks();
-      vi.unstubAllEnvs();
+      jest.restoreAllMocks();
+      unstubAllEnvs();
       resetConfig();
       setLegacyByokProviderMigrationEnabled(true);
       setManagedPresetBaseUrlSyncEnabled(true);
@@ -98,7 +100,7 @@ describe.skipIf(process.platform === "win32")(
         fs.writeFileSync(configPath, document);
         fs.chmodSync(configPath, 0o644);
         let temporaryMode: number | undefined;
-        vi.spyOn(fs.promises, "rename").mockImplementation(async (source) => {
+        spyOn(fs.promises, "rename").mockImplementation(async (source) => {
           temporaryMode = fs.statSync(source).mode & 0o777;
           throw new Error("synthetic rename failure");
         });
@@ -114,7 +116,7 @@ describe.skipIf(process.platform === "win32")(
       "%s aborts before mutation if permissions cannot be restricted",
       async (_name, write) => {
         fs.writeFileSync(configPath, document);
-        vi.spyOn(fs.promises, "chmod").mockRejectedValue(
+        spyOn(fs.promises, "chmod").mockRejectedValue(
           new Error("synthetic chmod failure"),
         );
         await expect(write()).rejects.toThrow();
@@ -133,7 +135,7 @@ describe.skipIf(process.platform === "win32")(
 
     it.each([0o400, 0o600])("loads an already-private %i config without chmod", (mode) => {
       fs.writeFileSync(configPath, document, { mode });
-      const chmod = vi.spyOn(fs, "chmodSync").mockImplementation(() => {
+      const chmod = spyOn(fs, "chmodSync").mockImplementation(() => {
         throw new Error("synthetic read-only filesystem");
       });
       expect(() => getConfig()).not.toThrow();
@@ -151,7 +153,7 @@ describe.skipIf(process.platform === "win32")(
     it("still rejects loading an unsafe main config when chmod fails", () => {
       fs.writeFileSync(configPath, document);
       fs.chmodSync(configPath, 0o644);
-      vi.spyOn(fs, "chmodSync").mockImplementation(() => {
+      spyOn(fs, "chmodSync").mockImplementation(() => {
         throw new Error("synthetic chmod failure");
       });
       expect(() => getConfig()).toThrow("synthetic chmod failure");
@@ -167,7 +169,7 @@ describe.skipIf(process.platform === "win32")(
           const result = spawnSync("chflags", ["uchg", file], { encoding: "utf8" });
           expect(result.status, result.stderr).toBe(0);
         }
-        const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        const warn = spyOn(console, "warn").mockImplementation(() => {});
         expect(() => getConfig()).not.toThrow();
         expect(warn).not.toHaveBeenCalled();
         for (const file of files) expect(fs.statSync(file).mode & 0o777).toBe(0o400);
@@ -177,7 +179,7 @@ describe.skipIf(process.platform === "win32")(
     });
 
     it("creates managed defaults privately", () => {
-      vi.stubEnv("__MAVIS_RUNTIME_MANAGED", "1");
+      stubEnv("__MAVIS_RUNTIME_MANAGED", "1");
       getConfig();
       expect(fs.statSync(configPath).mode & 0o777).toBe(0o600);
     });
@@ -212,11 +214,11 @@ describe.skipIf(process.platform === "win32")(
         fs.chmodSync(backup, 0o644);
       }
       const chmod = fs.chmodSync;
-      vi.spyOn(fs, "chmodSync").mockImplementation((file, mode) => {
+      spyOn(fs, "chmodSync").mockImplementation((file, mode) => {
         if (file === failed) throw new Error(secret);
         chmod(file, mode);
       });
-      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const warn = spyOn(console, "warn").mockImplementation(() => {});
       expect(() => getConfig()).not.toThrow();
       expect(fs.statSync(failed).mode & 0o777).toBe(0o644);
       expect(fs.statSync(repaired).mode & 0o777).toBe(0o600);
@@ -228,10 +230,10 @@ describe.skipIf(process.platform === "win32")(
 
     it("warns when backup inspection fails without blocking the main config", () => {
       fs.writeFileSync(configPath, document, { mode: 0o600 });
-      vi.spyOn(fs, "readdirSync").mockImplementation(() => {
+      spyOn(fs, "readdirSync").mockImplementation(() => {
         throw new Error(secret);
       });
-      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const warn = spyOn(console, "warn").mockImplementation(() => {});
       expect(() => getConfig()).not.toThrow();
       expect(warn).toHaveBeenCalledWith(expect.stringContaining(JSON.stringify(dataDir)));
       expect(warn).toHaveBeenCalledWith(expect.stringContaining("Backup permissions were not verified"));
@@ -252,7 +254,7 @@ describe.skipIf(process.platform === "win32")(
     it("restricts synchronous copies before writing their first credential byte", () => {
       const write = fs.writeFileSync;
       const modes: number[] = [];
-      vi.spyOn(fs, "writeFileSync").mockImplementation((file, ...args) => {
+      spyOn(fs, "writeFileSync").mockImplementation((file, ...args) => {
         if (typeof file === "number")
           modes.push(fs.fstatSync(file).mode & 0o777);
         return write(file, ...args);
@@ -263,7 +265,7 @@ describe.skipIf(process.platform === "win32")(
 
     it("does not truncate or write credentials when restriction fails", () => {
       fs.writeFileSync(configPath, "original");
-      vi.spyOn(fs, "fchmodSync").mockImplementation(() => {
+      spyOn(fs, "fchmodSync").mockImplementation(() => {
         throw new Error("synthetic permission failure");
       });
       expect(() => writePrivateConfigFileSync(configPath, document)).toThrow(

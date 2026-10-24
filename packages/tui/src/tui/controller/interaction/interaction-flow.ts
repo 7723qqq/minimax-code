@@ -35,6 +35,8 @@ import {
 import { QuestionnaireContinuation } from './questionnaire-continuation.js';
 import { classifyQuestionnaireReplyError } from './questionnaire-reply-outcome.js';
 import type { TuiChatController } from '../chat-controller.js';
+import { controllerText } from '../copy.js';
+import { controllerInteractionText } from './copy.js';
 import type { TuiTerminalNotificationKind } from '../../platform/terminal-notifications.js';
 import { formatTuiActionFailure } from '../../../user-facing-failure.js';
 import {
@@ -261,7 +263,10 @@ export class TuiInteractionFlow {
       id: `question:${state.request.id}`,
       kind: 'question',
       status: existing?.status ?? 'blocked',
-      title: existing?.title ?? state.request.title ?? 'Agent needs input',
+      title:
+        existing?.title ??
+        state.request.title ??
+        controllerInteractionText('question.agentNeedsInput'),
       content: existing?.content ?? '',
       detail: existing?.detail,
       turnId: existing?.turnId ?? state.request.requester?.runId,
@@ -292,14 +297,15 @@ export class TuiInteractionFlow {
     // an explicit fallback instead of silently reviewing nothing.
     if (!state.request.modePayload?.planReview) return;
     const markdown =
-      state.request.modePayload.planReview.markdown.trim() || '_Plan preview unavailable._';
+      state.request.modePayload.planReview.markdown.trim() ||
+      controllerInteractionText('question.planPreviewUnavailable');
     const id = this.planReviewBodyId(state.request.id);
     const existing = this.options.transcript.get(id);
     this.options.transcript.upsert({
       id,
       kind: 'question',
       status: 'blocked',
-      title: 'Plan Review',
+      title: controllerInteractionText('question.planReviewTitle'),
       content: markdown,
       contentFormat: 'markdown',
       ephemeral: true,
@@ -332,7 +338,9 @@ export class TuiInteractionFlow {
       id: `permission:${request.requestId}`,
       kind: 'permission',
       status: 'blocked',
-      title: sanitizeTerminalText(request.toolName ?? 'Tool action'),
+      title: sanitizeTerminalText(
+        request.toolName ?? controllerInteractionText('permission.toolActionTitle'),
+      ),
       content: formatPermissionRequest(request),
       createdAtMs: createdAt,
       updatedAtMs: now,
@@ -403,7 +411,7 @@ export class TuiInteractionFlow {
         this.clearPlanReviewBody(previousQuestionnaire.request.id);
         this.updateQuestionTranscript(previousQuestionnaire.request.id, {
           status: 'resolved',
-          detail: 'Question is no longer pending.',
+          detail: controllerInteractionText('question.noLongerPending'),
           updatedAtMs: Date.now(),
         });
       }
@@ -417,7 +425,7 @@ export class TuiInteractionFlow {
         !hasPermissionRequestId(recoveredPermission)
       ) {
         this.options.append(
-          'The Runtime returned a pending permission without a request id. Restart the Session or retry the task.',
+          controllerInteractionText('permission.missingRequestId'),
           'error',
         );
       }
@@ -452,7 +460,7 @@ export class TuiInteractionFlow {
     }
     const session = this.options.controller.snapshot().session;
     if (!session?.sessionId) {
-      this.options.append('Start or resume a Session before viewing its Plan.', 'warning');
+      this.options.append(controllerInteractionText('plan.needsSession'), 'warning');
       return;
     }
     const revision = ++this.planViewRevision;
@@ -468,8 +476,8 @@ export class TuiInteractionFlow {
       ) {
         this.options.append(
           formatTuiActionFailure(error, {
-            summary: "Couldn't load the latest Plan.",
-            nextStep: 'Retry /plan view.',
+            summary: controllerInteractionText('plan.loadFailed'),
+            nextStep: controllerInteractionText('plan.retryView'),
           }),
           'error',
         );
@@ -488,12 +496,12 @@ export class TuiInteractionFlow {
       return;
     }
     if (!request) {
-      this.options.append('No Plan has been produced for this Session yet.', 'warning');
+      this.options.append(controllerInteractionText('plan.noneProduced'), 'warning');
       return;
     }
     const state = createActiveQuestionnaire(request, session.sessionId, agentName);
     if (!isTuiPlanReview(state)) {
-      this.options.append('The latest Plan snapshot is unavailable.', 'warning');
+      this.options.append(controllerInteractionText('plan.snapshotUnavailable'), 'warning');
       return;
     }
     this.hidePanel();
@@ -530,13 +538,16 @@ export class TuiInteractionFlow {
       parsed !== undefined || command === '/ask-send' || command === '/ask-cancel';
 
     if (this.permission() && questionnaireCommand) {
-      this.options.append('Resolve the pending permission in the decision panel first.', 'warning');
+      this.options.append(
+        controllerInteractionText('question.resolvePermissionFirst'),
+        'warning',
+      );
       this.showPermissionPicker();
       return true;
     }
     if (this.questionnaire() && !this.permission() && permissionDecision) {
       this.options.append(
-        'Answer the pending Agent question in the decision panel first.',
+        controllerInteractionText('question.answerInPanelFirst'),
         'warning',
       );
       this.showQuestionnairePicker();
@@ -544,25 +555,25 @@ export class TuiInteractionFlow {
     }
     const activeQuestionnaire = this.questionnaire();
     if (activeQuestionnaire?.request.mode === 'plan' && questionnaireCommand) {
-      this.options.append('Use the pending Plan decision panel first.', 'warning');
+      this.options.append(controllerInteractionText('question.usePlanPanelFirst'), 'warning');
       this.showQuestionnairePicker();
       return true;
     }
     if (parsed) {
       const state = activeQuestionnaire;
-      if (!state) this.options.append('No pending questionnaire.');
+      if (!state) this.options.append(controllerInteractionText('question.noPending'));
       else await this.handleQuestionnaireAnswer(state, parsed.index, parsed.text);
       return true;
     }
     if (command === '/ask-send') {
       const state = this.questionnaire();
-      if (!state) this.options.append('No pending questionnaire.');
+      if (!state) this.options.append(controllerInteractionText('question.noPending'));
       else await this.submitQuestionnaire(state, true);
       return true;
     }
     if (command === '/ask-cancel') {
       const state = this.questionnaire();
-      if (!state) this.options.append('No pending questionnaire.');
+      if (!state) this.options.append(controllerInteractionText('question.noPending'));
       else await this.requestQuestionnaireDismissal(state);
       return true;
     }
@@ -606,7 +617,10 @@ export class TuiInteractionFlow {
       if (event.requestId && active?.request.id === event.requestId) {
         this.updateQuestionTranscript(event.requestId, {
           status: 'resolved',
-          detail: event.type === 'questionnaire.dismiss' ? 'Dismissed.' : 'Superseded.',
+          detail:
+            event.type === 'questionnaire.dismiss'
+              ? controllerInteractionText('question.dismissed')
+              : controllerInteractionText('question.superseded'),
           updatedAtMs: Date.now(),
         });
         this.resolveQuestionnaire(active);
@@ -632,7 +646,7 @@ export class TuiInteractionFlow {
             ? formatPermissionResolution(request, event.decision)
             : existing.status === 'resolved' && existing.detail
               ? existing.detail
-              : 'Permission request closed.',
+              : controllerInteractionText('permission.requestClosed'),
           updatedAtMs: Date.now(),
         });
       }
@@ -671,9 +685,9 @@ export class TuiInteractionFlow {
           if (!this.isStopped()) {
             this.options.append(
               formatTuiActionFailure(error, {
-                summary: "Couldn't send your permission choice.",
-                nextStep: 'Retry.',
-                preservation: 'The request remains open.',
+                summary: controllerInteractionText('permission.sendFailed'),
+                  nextStep: controllerText('common.retry'),
+                  preservation: controllerInteractionText('permission.requestRemainsOpen'),
               }),
               'error',
             );
@@ -707,9 +721,9 @@ export class TuiInteractionFlow {
             if (!this.isStopped()) {
               this.options.append(
                 formatTuiActionFailure(error, {
-                  summary: "Couldn't save that answer.",
-                  nextStep: 'Retry.',
-                  preservation: 'The question remains open.',
+                  summary: controllerInteractionText('question.saveAnswerFailed'),
+                  nextStep: controllerText('common.retry'),
+                  preservation: controllerInteractionText('question.questionRemainsOpen'),
                 }),
                 'error',
               );
@@ -722,9 +736,9 @@ export class TuiInteractionFlow {
           if (!this.isStopped()) {
             this.options.append(
               formatTuiActionFailure(error, {
-                summary: "Couldn't dismiss this question.",
-                nextStep: 'Retry.',
-                preservation: 'It remains open.',
+                summary: controllerInteractionText('question.dismissFailed'),
+                  nextStep: controllerText('common.retry'),
+                  preservation: controllerInteractionText('question.itRemainsOpen'),
               }),
               'error',
             );
@@ -739,9 +753,9 @@ export class TuiInteractionFlow {
             if (!this.isStopped()) {
               this.options.append(
                 formatTuiActionFailure(error, {
-                  summary: "Couldn't send your answers.",
-                  nextStep: 'Retry.',
-                  preservation: 'The question remains open.',
+                  summary: controllerInteractionText('question.sendAnswersFailed'),
+                  nextStep: controllerText('common.retry'),
+                  preservation: controllerInteractionText('question.questionRemainsOpen'),
                 }),
                 'error',
               );
@@ -753,9 +767,9 @@ export class TuiInteractionFlow {
             if (!this.isStopped()) {
               this.options.append(
                 formatTuiActionFailure(error, {
-                  summary: "Couldn't dismiss this question.",
-                  nextStep: 'Retry.',
-                  preservation: 'It remains open.',
+                  summary: controllerInteractionText('question.dismissFailed'),
+                  nextStep: controllerText('common.retry'),
+                  preservation: controllerInteractionText('question.itRemainsOpen'),
                 }),
                 'error',
               );
@@ -787,9 +801,9 @@ export class TuiInteractionFlow {
               if (this.questionnaire()?.request.id === state.request.id) panel.restore();
               this.options.append(
                 formatTuiActionFailure(error, {
-                  summary: "Couldn't apply that Plan Mode decision.",
-                  nextStep: 'Retry from the Plan Mode confirmation.',
-                  preservation: 'The confirmation remains open.',
+                  summary: controllerInteractionText('plan.applyDecisionFailed'),
+                  nextStep: controllerInteractionText('plan.retryFromConfirmation'),
+                  preservation: controllerInteractionText('plan.confirmationRemainsOpen'),
                 }),
                 'error',
               );
@@ -824,7 +838,9 @@ export class TuiInteractionFlow {
     });
     const ok = await this.submitPlanQuestionnaire(
       state,
-      action === 'confirm' ? 'Plan Mode decision sent.' : 'Default Mode decision sent.',
+      action === 'confirm'
+        ? controllerInteractionText('plan.modeDecisionSent')
+        : controllerInteractionText('plan.defaultDecisionSent'),
     );
     if (!ok) throw new Error('Runtime did not accept the Plan Mode decision.');
   }
@@ -872,8 +888,8 @@ export class TuiInteractionFlow {
     });
     const detail =
       action.kind === 'approve'
-        ? 'Approved · implementation queued'
-        : 'Plan skipped · remaining in Plan Mode';
+        ? controllerInteractionText('plan.approvedQueued')
+        : controllerInteractionText('plan.skippedPlanMode');
     let ok: boolean;
     try {
       ok = await this.submitPlanQuestionnaire(state, detail, '');
@@ -907,7 +923,7 @@ export class TuiInteractionFlow {
       },
     });
     this.updateQuestionTranscript(state.request.id, {
-      title: 'Plan Review',
+      title: controllerInteractionText('question.planReviewTitle'),
       content: text,
       ephemeral: true,
       updatedAtMs: Date.now(),
@@ -917,7 +933,7 @@ export class TuiInteractionFlow {
     try {
       ok = await this.submitPlanQuestionnaire(
         state,
-        'Feedback sent · continuing in Plan Mode',
+        controllerInteractionText('plan.feedbackSent'),
         text,
       );
     } catch (error) {
@@ -939,9 +955,11 @@ export class TuiInteractionFlow {
     const ownerSessionId = state.sessionId ?? this.options.controller.snapshot().session?.sessionId;
     this.updateQuestionTranscript(state.request.id, {
       status: 'pending',
-      title: state.request.modePayload?.planReview ? 'Plan Review' : 'Plan Mode',
+      title: state.request.modePayload?.planReview
+        ? controllerInteractionText('question.planReviewTitle')
+        : controllerInteractionText('question.planModeTitle'),
       content,
-      detail: 'Sending your decision…',
+      detail: controllerInteractionText('question.sendingDecision'),
       ephemeral: true,
       updatedAtMs: Date.now(),
     });
@@ -973,7 +991,9 @@ export class TuiInteractionFlow {
     if (!this.isActiveSession(ownerSessionId)) return true;
     this.updateQuestionTranscript(state.request.id, {
       status: 'resolved',
-      title: state.request.modePayload?.planReview ? 'Plan Review' : 'Plan Mode',
+      title: state.request.modePayload?.planReview
+        ? controllerInteractionText('question.planReviewTitle')
+        : controllerInteractionText('question.planModeTitle'),
       content,
       detail,
       ephemeral: true,
@@ -1014,8 +1034,8 @@ export class TuiInteractionFlow {
       kind: 'question',
       status: 'resolved',
       title: state.request.modePayload?.planReview
-        ? 'Plan Review closed'
-        : 'Plan Mode decision closed',
+        ? controllerInteractionText('question.planReviewClosedTitle')
+        : controllerInteractionText('question.planModeDecisionClosedTitle'),
       content: existing?.content ?? '',
       detail,
       createdAtMs: existing?.createdAtMs ?? now,
@@ -1027,9 +1047,9 @@ export class TuiInteractionFlow {
   private appendPlanReviewFailure(error: unknown): void {
     this.options.append(
       formatTuiActionFailure(error, {
-        summary: "Couldn't apply that Plan decision.",
-        nextStep: 'Retry from the Plan Review panel.',
-        preservation: 'The frozen Plan remains pending.',
+        summary: controllerInteractionText('plan.applyPlanDecisionFailed'),
+        nextStep: controllerInteractionText('plan.retryFromReviewPanel'),
+        preservation: controllerInteractionText('plan.frozenPlanPending'),
       }),
       'error',
     );
@@ -1051,7 +1071,10 @@ export class TuiInteractionFlow {
     }
     this.updateQuestionTranscript(state.request.id, {
       content: formatQuestionnaireAnswerSummary(state),
-      detail: `${state.answers.size} of ${state.request.steps.length} answered`,
+      detail: controllerInteractionText('question.answeredCount', {
+        answered: state.answers.size,
+        total: state.request.steps.length,
+      }),
       updatedAtMs: Date.now(),
     });
     if (isQuestionnaireComplete(state)) {
@@ -1114,7 +1137,7 @@ export class TuiInteractionFlow {
         id: `question:${state.request.id}`,
         kind: 'question',
         status: 'resolved',
-        title: 'Question closed',
+        title: controllerInteractionText('question.closedTitle'),
         content: existing?.content ?? '',
         detail: outcome.detail,
         createdAtMs: existing?.createdAtMs ?? now,
@@ -1125,7 +1148,7 @@ export class TuiInteractionFlow {
     }
     if (!this.isActiveSession(ownerSessionId)) return;
     if (!dismissed) {
-      this.options.append("Couldn't dismiss this question. It remains open; retry.", 'error');
+      this.options.append(controllerInteractionText('question.dismissFailedRetry'), 'error');
       if (this.questionnaire()?.request.id === state.request.id) {
         this.showQuestionnairePicker();
       }
@@ -1137,7 +1160,7 @@ export class TuiInteractionFlow {
     }
     this.updateQuestionTranscript(state.request.id, {
       status: 'resolved',
-      title: 'Question dismissed',
+      title: controllerInteractionText('question.dismissedTitle'),
       content: '',
       detail: undefined,
       updatedAtMs: Date.now(),
@@ -1161,7 +1184,7 @@ export class TuiInteractionFlow {
   ): Promise<void> {
     const ownerSessionId = state.sessionId ?? this.options.controller.snapshot().session?.sessionId;
     this.updateQuestionTranscript(state.request.id, {
-      title: 'Answers sent',
+      title: controllerInteractionText('question.answersSentTitle'),
       content: formatQuestionnaireAnswerSummary(state),
       ephemeral: true,
       updatedAtMs: Date.now(),
@@ -1177,7 +1200,7 @@ export class TuiInteractionFlow {
     }
     if (!this.isActiveSession(ownerSessionId)) return;
     if (!continuation.ok) {
-      this.options.append("Couldn't send your answers. The question remains open; retry.", 'error');
+      this.options.append(controllerInteractionText('question.sendAnswersFailedRetry'), 'error');
       if (this.questionnaire()?.request.id === state.request.id) {
         this.showQuestionnairePicker();
       }
@@ -1195,13 +1218,13 @@ export class TuiInteractionFlow {
   private replyPermission(decision: TuiPermissionDecision, feedback?: string): Promise<void> {
     const request = this.permission();
     if (!request?.requestId) {
-      this.options.append('No pending permission request.');
+      this.options.append(controllerInteractionText('permission.noPendingRequest'));
       return Promise.resolve();
     }
     const requestId = request.requestId;
     if (decision === 'allowAlways' && request.allowAlwaysSupported === false) {
       this.options.append(
-        'This action cannot be remembered; choose Allow for this conversation or Deny.',
+        controllerInteractionText('permission.cannotBeRemembered'),
         'warning',
       );
       this.showPermissionPicker();
@@ -1248,7 +1271,7 @@ export class TuiInteractionFlow {
         this.options.transcript.upsert({
           id: `permission:${requestId}`,
           status: 'resolved',
-          detail: 'Resolved on another surface.',
+          detail: controllerInteractionText('permission.resolvedElsewhere'),
           updatedAtMs: Date.now(),
         });
         this.resolvePermission(request, presentationSessionId);
@@ -1258,7 +1281,7 @@ export class TuiInteractionFlow {
         return;
       }
       this.options.append(
-        "Couldn't send your permission choice. The request remains open; retry.",
+        controllerInteractionText('permission.sendFailedRetry'),
         'error',
       );
       if (this.permission()?.requestId === requestId) this.showPermissionPicker();
@@ -1269,7 +1292,10 @@ export class TuiInteractionFlow {
       id: `permission:${requestId}`,
       status: 'resolved',
       detail: feedback
-        ? `${formatPermissionResolution(request, decision)} · Guidance: ${sanitizeTerminalText(feedback)}`
+        ? controllerInteractionText('permission.guidanceDetail', {
+            resolution: formatPermissionResolution(request, decision),
+            feedback: sanitizeTerminalText(feedback),
+          })
         : formatPermissionResolution(request, decision),
       updatedAtMs: Date.now(),
     });
@@ -1283,8 +1309,8 @@ export class TuiInteractionFlow {
       } catch (error) {
         this.options.append(
           formatTuiActionFailure(error, {
-            summary: "The action was denied, but your guidance wasn't sent.",
-            nextStep: 'Send it as a new message if needed.',
+            summary: controllerInteractionText('permission.deniedGuidanceFailed'),
+            nextStep: controllerInteractionText('permission.sendAsNewMessage'),
           }),
           'warning',
         );
@@ -1364,8 +1390,8 @@ export class TuiInteractionFlow {
       .catch((error: unknown) => {
         this.options.append(
           formatTuiActionFailure(error, {
-            summary: "Couldn't check for the next permission request.",
-            nextStep: 'Wait for the next prompt or retry the action.',
+            summary: controllerInteractionText('permission.nextRequestCheckFailed'),
+            nextStep: controllerInteractionText('permission.waitOrRetryAction'),
           }),
           'warning',
         );

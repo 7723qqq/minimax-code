@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, rmSync, readFileSync, existsSync, writeFileSync
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import Database from "better-sqlite3";
+import { Database } from "bun:sqlite";
 import { parse as parseYaml } from "yaml";
 import { withoutProxyEnvironment } from "./offline-environment.mjs";
 import { cliBuildVersion } from '../scripts/lib/cli-release.mjs';

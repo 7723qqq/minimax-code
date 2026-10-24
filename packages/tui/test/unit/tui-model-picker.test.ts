@@ -1,17 +1,19 @@
+import { waitFor } from '../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock } from 'bun:test';
 import { stripAnsi, visibleWidth } from "../../src/tui/rendering/text.js";
-import { describe, expect, it, vi } from "vitest";
+
 import { TuiModelPicker } from "../../src/tui/features/model/picker.js";
 
 describe("TuiModelPicker", () => {
   it("selects each declared Kimi K3 effort without inventing a medium level", () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const model = {
       providerId: "custom_provider:moonshotai",
       modelId: "kimi-k3",
       selected: true,
       effortOptions: ["low", "high", "max"],
     };
-    const picker = new TuiModelPicker([model], onSelect, vi.fn());
+    const picker = new TuiModelPicker([model], onSelect, mock());
     expect(stripAnsi(picker.render(80).join("\n"))).toContain("[ high ]");
     for (const [key, effort] of [
       ["\u001b[D", "low"],
@@ -35,8 +37,8 @@ describe("TuiModelPicker", () => {
       contextWindowOptionHints: { "1000000": "higher_usage" as const },
       thinkingConfig: { mode: "switchable", defaultValue: "true" },
     };
-    const onSelect = vi.fn();
-    const picker = new TuiModelPicker([model], onSelect, vi.fn());
+    const onSelect = mock();
+    const picker = new TuiModelPicker([model], onSelect, mock());
     expect(stripAnsi(picker.render(100).join("\n"))).toContain("[ 512K ]");
     picker.handleInput("\t");
     picker.handleInput("\x1b[C");
@@ -53,7 +55,7 @@ describe("TuiModelPicker", () => {
     const reopened = new TuiModelPicker(
       [{ ...model, contextLimit: 1_000_000 }],
       onSelect,
-      vi.fn(),
+      mock(),
     );
     expect(stripAnsi(reopened.render(100).join("\n"))).toContain("[ 1M ]");
     reopened.handleInput("\x1b[Z");
@@ -68,8 +70,8 @@ describe("TuiModelPicker", () => {
       contextWindowOptions: [512_000, 1_000_000],
       effortOptions: ["low", "high"],
     };
-    const onSelect = vi.fn();
-    const onCancel = vi.fn();
+    const onSelect = mock();
+    const onCancel = mock();
     const picker = new TuiModelPicker([model], onSelect, onCancel);
     picker.handleInput("M3");
     picker.handleInput("\t");
@@ -91,13 +93,13 @@ describe("TuiModelPicker", () => {
   });
 
   it("does not invent context choices and keeps the control usable in short viewports", () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const fixed = {
       providerId: "work",
       modelId: "fixed",
       contextLimit: 200_000,
     };
-    const picker = new TuiModelPicker([fixed], onSelect, vi.fn());
+    const picker = new TuiModelPicker([fixed], onSelect, mock());
     picker.handleInput("\t");
     picker.handleInput("\r");
     expect(onSelect).toHaveBeenCalledWith(fixed);
@@ -106,8 +108,8 @@ describe("TuiModelPicker", () => {
     );
     const switchable = new TuiModelPicker(
       [{ ...fixed, contextWindowOptions: [200_000, 1_000_000] }],
-      vi.fn(),
-      vi.fn(),
+      mock(),
+      mock(),
     );
     switchable.handleInput("\t");
     for (const height of [6, 8, 12]) {
@@ -129,8 +131,8 @@ describe("TuiModelPicker", () => {
           displayName: "MiniMax-M3",
         },
       ],
-      vi.fn(),
-      vi.fn(),
+      mock(),
+      mock(),
       { unavailableHint: "Sign in to use this model" },
     );
     for (const height of [6, 8]) {
@@ -142,8 +144,8 @@ describe("TuiModelPicker", () => {
   });
 
   it("keeps third-party provider onboarding available when the model roster is empty", () => {
-    const onAddProvider = vi.fn();
-    const picker = new TuiModelPicker([], vi.fn(), vi.fn(), { onAddProvider });
+    const onAddProvider = mock();
+    const picker = new TuiModelPicker([], mock(), mock(), { onAddProvider });
 
     expect(stripAnsi(picker.render(90).join("\n"))).toContain(
       "Add 3rd-party provider",
@@ -157,7 +159,7 @@ describe("TuiModelPicker", () => {
   });
 
   it("groups models by provider and filters the grouped list while typing", () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const picker = new TuiModelPicker(
       [
         {
@@ -180,7 +182,7 @@ describe("TuiModelPicker", () => {
         },
       ],
       onSelect,
-      vi.fn(),
+      mock(),
     );
 
     const initial = stripAnsi(picker.render(90).join("\n"));
@@ -204,8 +206,8 @@ describe("TuiModelPicker", () => {
   });
 
   it("confirms before deleting the focused custom provider and keeps plain d for search", async () => {
-    const onDeleteProvider = vi.fn(async () => undefined);
-    const onSelect = vi.fn();
+    const onDeleteProvider = mock(async () => undefined);
+    const onSelect = mock();
     const picker = new TuiModelPicker(
       [
         {
@@ -226,8 +228,8 @@ describe("TuiModelPicker", () => {
         },
       ],
       onSelect,
-      vi.fn(),
-      { onDeleteProvider, requestRender: vi.fn() },
+      mock(),
+      { onDeleteProvider, requestRender: mock() },
     );
 
     expect(stripAnsi(picker.render(90).join("\n"))).toContain(
@@ -250,14 +252,14 @@ describe("TuiModelPicker", () => {
     picker.handleInput("\x04");
     picker.handleInput("\r");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(onDeleteProvider).toHaveBeenCalledWith("custom_provider:openai"),
     );
     expect(onSelect).not.toHaveBeenCalled();
   });
 
   it("does not offer provider deletion for built-in models", () => {
-    const onDeleteProvider = vi.fn(async () => undefined);
+    const onDeleteProvider = mock(async () => undefined);
     const picker = new TuiModelPicker(
       [
         {
@@ -269,9 +271,9 @@ describe("TuiModelPicker", () => {
           displayName: "MiniMax-M3",
         },
       ],
-      vi.fn(),
-      vi.fn(),
-      { onDeleteProvider, requestRender: vi.fn() },
+      mock(),
+      mock(),
+      { onDeleteProvider, requestRender: mock() },
     );
 
     expect(stripAnsi(picker.render(90).join("\n"))).not.toContain(
@@ -297,20 +299,20 @@ describe("TuiModelPicker", () => {
           displayName: "GPT-4o",
         },
       ],
-      vi.fn(),
-      vi.fn(),
+      mock(),
+      mock(),
       {
-        onDeleteProvider: vi.fn(async () => {
+        onDeleteProvider: mock(async () => {
           throw new Error("storage unavailable");
         }),
-        requestRender: vi.fn(),
+        requestRender: mock(),
       },
     );
 
     picker.handleInput("\x04");
     picker.handleInput("\r");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(stripAnsi(picker.render(180).join("\n"))).toContain(
         "Couldn't delete provider",
       ),
@@ -338,8 +340,8 @@ describe("TuiModelPicker", () => {
           displayName: "Model B",
         },
       ],
-      vi.fn(),
-      vi.fn(),
+      mock(),
+      mock(),
     );
 
     picker.handleInput("team");
@@ -360,7 +362,7 @@ describe("TuiModelPicker", () => {
   });
 
   it("restores the Runtime-selected model after clearing a filter that hid it", () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const picker = new TuiModelPicker(
       [
         {
@@ -376,7 +378,7 @@ describe("TuiModelPicker", () => {
         },
       ],
       onSelect,
-      vi.fn(),
+      mock(),
     );
 
     picker.handleInput("deepseek");
@@ -390,7 +392,7 @@ describe("TuiModelPicker", () => {
   });
 
   it("keeps Think effort unchanged while left and right move the search cursor", () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const picker = new TuiModelPicker(
       [
         {
@@ -402,7 +404,7 @@ describe("TuiModelPicker", () => {
         },
       ],
       onSelect,
-      vi.fn(),
+      mock(),
       {},
       "low",
     );
@@ -420,7 +422,7 @@ describe("TuiModelPicker", () => {
   });
 
   it("renders Desktop-owned models and returns the selected model", () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const picker = new TuiModelPicker(
       [
         {
@@ -437,7 +439,7 @@ describe("TuiModelPicker", () => {
         },
       ],
       onSelect,
-      vi.fn(),
+      mock(),
     );
 
     expect(picker.render(90).join("\n")).toContain("Models");
@@ -454,7 +456,7 @@ describe("TuiModelPicker", () => {
   });
 
   it("focuses the Runtime-selected model when reopening the picker", () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const picker = new TuiModelPicker(
       [
         {
@@ -471,7 +473,7 @@ describe("TuiModelPicker", () => {
         },
       ],
       onSelect,
-      vi.fn(),
+      mock(),
     );
 
     picker.handleInput("\r");
@@ -487,8 +489,8 @@ describe("TuiModelPicker", () => {
   it.each(["\u001B", "\x03"])(
     "supports a prefiltered model list and Pi cancel input %j without inventing fallback models",
     (input) => {
-      const onCancel = vi.fn();
-      const picker = new TuiModelPicker([], vi.fn(), onCancel);
+      const onCancel = mock();
+      const picker = new TuiModelPicker([], mock(), onCancel);
 
       expect(picker.render(70).join("\n")).toContain("No matching models");
       picker.handleInput(input);
@@ -497,8 +499,8 @@ describe("TuiModelPicker", () => {
   );
 
   it("keeps managed models visible but rejects them when login is required", () => {
-    const onSelect = vi.fn();
-    const onUnavailable = vi.fn();
+    const onSelect = mock();
+    const onUnavailable = mock();
     const picker = new TuiModelPicker(
       [
         {
@@ -509,7 +511,7 @@ describe("TuiModelPicker", () => {
         },
       ],
       onSelect,
-      vi.fn(),
+      mock(),
       {
         isUnavailable: () => true,
         onUnavailable,
@@ -525,7 +527,7 @@ describe("TuiModelPicker", () => {
 
   it("keeps switchable Thinking as a draft until Enter applies the model selection", () => {
     // Regression caught: treating Thinking as a model-name suffix or persisting arrow keys immediately.
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const picker = new TuiModelPicker(
       [
         {
@@ -538,7 +540,7 @@ describe("TuiModelPicker", () => {
         },
       ],
       onSelect,
-      vi.fn(),
+      mock(),
     );
 
     expect(stripAnsi(picker.render(80).join("\n"))).toContain("Thinking");
@@ -562,7 +564,7 @@ describe("TuiModelPicker", () => {
 
   it("uses each highlighted model Thinking state without leaking the previous draft", () => {
     // Regression caught: carrying one model's unsaved Thinking choice into the next highlighted model.
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const picker = new TuiModelPicker(
       [
         {
@@ -581,7 +583,7 @@ describe("TuiModelPicker", () => {
         },
       ],
       onSelect,
-      vi.fn(),
+      mock(),
     );
 
     picker.handleInput("\u001b[D");
@@ -611,8 +613,8 @@ describe("TuiModelPicker", () => {
           thinkingConfig: { mode: "hidden" },
         },
       ],
-      vi.fn(),
-      vi.fn(),
+      mock(),
+      mock(),
     );
 
     const thinkingRows = picker.render(90);
@@ -627,7 +629,7 @@ describe("TuiModelPicker", () => {
 
   it("renders forced Thinking as read only and hides undisclosed Thinking configuration", () => {
     // Regression caught: exposing a switch for forced or hidden provider policy.
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const forced = new TuiModelPicker(
       [
         {
@@ -639,7 +641,7 @@ describe("TuiModelPicker", () => {
         },
       ],
       onSelect,
-      vi.fn(),
+      mock(),
     );
     const hidden = new TuiModelPicker(
       [
@@ -650,8 +652,8 @@ describe("TuiModelPicker", () => {
           thinkingConfig: { mode: "hidden" },
         },
       ],
-      vi.fn(),
-      vi.fn(),
+      mock(),
+      mock(),
     );
 
     expect(stripAnsi(forced.render(80).join("\n"))).toContain("Thinking On");
@@ -673,10 +675,10 @@ describe("TuiModelPicker", () => {
           displayName: "A deliberately long Desktop model display name",
         },
       ],
-      vi.fn(),
-      vi.fn(),
+      mock(),
+      mock(),
     );
-    const empty = new TuiModelPicker([], vi.fn(), vi.fn());
+    const empty = new TuiModelPicker([], mock(), mock());
 
     expect(picker.render(24).every((line) => visibleWidth(line) <= 24)).toBe(
       true,
@@ -698,11 +700,11 @@ describe("TuiModelPicker", () => {
           displayName: "Model A",
         },
       ],
-      vi.fn(),
-      vi.fn(),
+      mock(),
+      mock(),
       {
-        onDeleteProvider: vi.fn(async () => undefined),
-        requestRender: vi.fn(),
+        onDeleteProvider: mock(async () => undefined),
+        requestRender: mock(),
       },
     );
 
@@ -714,7 +716,7 @@ describe("TuiModelPicker", () => {
   });
 
   it("keeps think effort as a draft until Enter applies it", () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const picker = new TuiModelPicker(
       [
         {
@@ -726,7 +728,7 @@ describe("TuiModelPicker", () => {
         },
       ],
       onSelect,
-      vi.fn(),
+      mock(),
     );
 
     // Middle level mirrors what Runtime applies without an explicit choice.
@@ -747,7 +749,7 @@ describe("TuiModelPicker", () => {
   });
 
   it("starts the selected row from the Session effort and clamps at the ends", () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const picker = new TuiModelPicker(
       [
         {
@@ -759,7 +761,7 @@ describe("TuiModelPicker", () => {
         },
       ],
       onSelect,
-      vi.fn(),
+      mock(),
       {},
       "low",
     );
@@ -777,7 +779,7 @@ describe("TuiModelPicker", () => {
   });
 
   it("uses effort as the only control when legacy metadata also exposes Thinking", () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const picker = new TuiModelPicker(
       [
         {
@@ -791,7 +793,7 @@ describe("TuiModelPicker", () => {
         },
       ],
       onSelect,
-      vi.fn(),
+      mock(),
     );
 
     const rendered = stripAnsi(picker.render(90).join("\n"));
@@ -812,7 +814,7 @@ describe("TuiModelPicker", () => {
   });
 
   it("applies the configured effort when a thinking-on model is confirmed without touching effort", () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const picker = new TuiModelPicker(
       [
         {
@@ -825,7 +827,7 @@ describe("TuiModelPicker", () => {
         },
       ],
       onSelect,
-      vi.fn(),
+      mock(),
     );
 
     picker.handleInput("\r");
@@ -839,7 +841,7 @@ describe("TuiModelPicker", () => {
   });
 
   it("applies the configured effort when a forced-on model is confirmed", () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const picker = new TuiModelPicker(
       [
         {
@@ -852,7 +854,7 @@ describe("TuiModelPicker", () => {
         },
       ],
       onSelect,
-      vi.fn(),
+      mock(),
     );
 
     picker.handleInput("\r");
@@ -864,7 +866,7 @@ describe("TuiModelPicker", () => {
   });
 
   it("keeps an explicit legacy variant when Enter is pressed without choosing effort", () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const picker = new TuiModelPicker(
       [
         {
@@ -878,7 +880,7 @@ describe("TuiModelPicker", () => {
         },
       ],
       onSelect,
-      vi.fn(),
+      mock(),
     );
 
     const rendered = stripAnsi(picker.render(90).join("\n"));
@@ -892,14 +894,14 @@ describe("TuiModelPicker", () => {
   });
 
   it("shows a fixed catalog effort without offering editable levels", () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const model = {
       providerId: "minimax",
       modelId: "fixed",
       defaultEffort: "max",
       thinkingConfig: { mode: "forced_on" },
     };
-    const picker = new TuiModelPicker([model], onSelect, vi.fn());
+    const picker = new TuiModelPicker([model], onSelect, mock());
     const rendered = stripAnsi(picker.render(100).join("\n"));
     expect(rendered).toContain("Effort max (fixed)");
     expect(rendered).not.toContain("Thinking On");
@@ -909,14 +911,14 @@ describe("TuiModelPicker", () => {
   });
 
   it("keeps the thinking switch usable alongside a fixed default effort", () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const model = {
       providerId: "minimax",
       modelId: "fixed-switchable",
       defaultEffort: "max",
       thinkingConfig: { mode: "switchable", defaultValue: "true" },
     };
-    const picker = new TuiModelPicker([model], onSelect, vi.fn());
+    const picker = new TuiModelPicker([model], onSelect, mock());
     expect(stripAnsi(picker.render(100).join("\n"))).toContain(
       "Effort max (fixed)",
     );
@@ -928,7 +930,7 @@ describe("TuiModelPicker", () => {
     expect(onSelect).toHaveBeenCalledWith({ ...model, variant: "" });
 
     const offModel = { ...model, variant: "" };
-    const enable = new TuiModelPicker([offModel], onSelect, vi.fn());
+    const enable = new TuiModelPicker([offModel], onSelect, mock());
     enable.handleInput("\x1b[C");
     expect(stripAnsi(enable.render(100).join("\n"))).toContain(
       "Effort max (fixed)",
@@ -941,7 +943,7 @@ describe("TuiModelPicker", () => {
   });
 
   it("leaves models without effort levels untouched", () => {
-    const onSelect = vi.fn();
+    const onSelect = mock();
     const picker = new TuiModelPicker(
       [
         {
@@ -954,7 +956,7 @@ describe("TuiModelPicker", () => {
         },
       ],
       onSelect,
-      vi.fn(),
+      mock(),
       {},
       "high",
     );
@@ -1000,9 +1002,9 @@ describe("TuiModelPicker favorites", () => {
     rendered.findIndex((line) => line.includes(text));
 
   it("lists favorites first in added order and keeps a star on their provider rows", () => {
-    const onSelect = vi.fn();
-    const picker = new TuiModelPicker(catalog(), onSelect, vi.fn(), {
-      onToggleFavorite: vi.fn(async () => true),
+    const onSelect = mock();
+    const picker = new TuiModelPicker(catalog(), onSelect, mock(), {
+      onToggleFavorite: mock(async () => true),
     });
     const rendered = lines(picker);
     const favorites = indexOf(rendered, "★ Favorites · 2");
@@ -1027,9 +1029,9 @@ describe("TuiModelPicker favorites", () => {
   });
 
   it("appends a new favorite last and unstars from the group without losing focus", async () => {
-    const onToggleFavorite = vi.fn(async () => true);
-    const onSelect = vi.fn();
-    const picker = new TuiModelPicker(catalog(), onSelect, vi.fn(), { onToggleFavorite });
+    const onToggleFavorite = mock(async () => true);
+    const onSelect = mock();
+    const picker = new TuiModelPicker(catalog(), onSelect, mock(), { onToggleFavorite });
 
     picker.handleInput("M2.7");
     expect(lines(picker).join("\n")).toContain("ctrl+s favorite");
@@ -1066,8 +1068,8 @@ describe("TuiModelPicker favorites", () => {
   });
 
   it("filters the Favorites group with the search query", () => {
-    const picker = new TuiModelPicker(catalog(), vi.fn(), vi.fn(), {
-      onToggleFavorite: vi.fn(),
+    const picker = new TuiModelPicker(catalog(), mock(), mock(), {
+      onToggleFavorite: mock(),
     });
     picker.handleInput("deepseek");
     const rendered = lines(picker).join("\n");
@@ -1076,15 +1078,15 @@ describe("TuiModelPicker favorites", () => {
   });
 
   it("rolls back and explains a failed save without throwing", async () => {
-    const requestRender = vi.fn();
+    const requestRender = mock();
     const outcomes: Array<() => Promise<boolean>> = [
       async () => false,
       async () => {
         throw new Error("disk full");
       },
     ];
-    const onToggleFavorite = vi.fn(() => outcomes.shift()!());
-    const picker = new TuiModelPicker(catalog(), vi.fn(), vi.fn(), {
+    const onToggleFavorite = mock(() => outcomes.shift()!());
+    const picker = new TuiModelPicker(catalog(), mock(), mock(), {
       onToggleFavorite,
       requestRender,
     });
@@ -1108,7 +1110,7 @@ describe("TuiModelPicker favorites", () => {
   });
 
   it("hides the toggle when favorites are unavailable and keeps ctrl+s out of search", () => {
-    const picker = new TuiModelPicker(catalog(), vi.fn(), vi.fn());
+    const picker = new TuiModelPicker(catalog(), mock(), mock());
     picker.handleInput(CTRL_S);
     const rendered = lines(picker).join("\n");
     expect(rendered).not.toContain("ctrl+s");

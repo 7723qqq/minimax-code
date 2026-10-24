@@ -551,6 +551,9 @@ class DrizzleMessageRepository implements MessageRepository {
         .run();
       tx.delete(messageRows).where(eq(messageRows.sessionId, sessionId)).run();
       tx.delete(messageRowMigrations).where(eq(messageRowMigrations.sessionId, sessionId)).run();
+      // The marker row is gone, so the next read for this Session id has to
+      // re-establish it instead of trusting the cached "already migrated".
+      this.readySessions.delete(sessionId);
       const legacy = tx
         .select({ piHistoryJson: legacyMessages.piHistoryJson })
         .from(legacyMessages)
@@ -567,14 +570,32 @@ class DrizzleMessageRepository implements MessageRepository {
     });
   }
 
+  /**
+   * Session ids whose message rows are already migrated in this process.
+   *
+   * The marker row is written once per Session and never removed while the
+   * Session exists, so a positive answer is monotonic and safe to remember.
+   * Without this, every read path (`get`, `list`, `listTurn`, …) issued the
+   * same unprepared point lookup first — seven call sites on the hottest path in
+   * the turn pipeline. A negative answer is never cached: it triggers the
+   * backfill transaction immediately afterwards. `deleteSessionData` drops the
+   * marker row, so it also forgets the id here.
+   */
+  private readonly readySessions = new Set<string>();
+
   private ensureReady(sessionId: string): void {
+    if (this.readySessions.has(sessionId)) return;
     const marker = this.options.db
       .select({ sessionId: messageRowMigrations.sessionId })
       .from(messageRowMigrations)
       .where(eq(messageRowMigrations.sessionId, sessionId))
       .get();
-    if (marker) return;
+    if (marker) {
+      this.readySessions.add(sessionId);
+      return;
+    }
     this.mutationTransaction(sessionId, () => undefined);
+    this.readySessions.add(sessionId);
   }
   private mutationTransaction<T>(sessionId: string, mutation: (db: AppDb) => T): T {
     return this.options.db.transaction(

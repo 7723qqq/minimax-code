@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { waitFor } from '../../../../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock } from 'bun:test';
 
 import type { TuiModel } from '../../../../../src/runtime/port.js';
 import { TuiModelState } from '../../../../../src/tui/controller/product/model-state.js';
@@ -15,16 +16,16 @@ function model(modelId: string, selected = false): TuiModel {
 describe('TuiModelState', () => {
   it('restores the saved global effort on a fresh welcome screen', async () => {
     const runtime = {
-      listModels: vi.fn(async () => [
+      listModels: mock(async () => [
         { ...model('byok-large-5', true), thinking: { effort: 'max' } },
       ]),
-      selectModel: vi.fn(async () => true),
-      getSession: vi.fn(),
+      selectModel: mock(async () => true),
+      getSession: mock(),
     };
     const state = new TuiModelState({
       runtime,
       currentSessionId: () => undefined,
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
     await state.refresh();
     expect(state.selectedEffort()).toBe('max');
@@ -34,9 +35,9 @@ describe('TuiModelState', () => {
 
   it('shows a recovered official model without inheriting legacy Session effort or saving the selection', async () => {
     const runtime = {
-      listModels: vi.fn(async () => [model('MiniMax-M3', true)]),
-      selectModel: vi.fn(async () => true),
-      getSession: vi.fn(async () => ({
+      listModels: mock(async () => [model('MiniMax-M3', true)]),
+      selectModel: mock(async () => true),
+      getSession: mock(async () => ({
         sessionId: 'session-a',
         model: {
           providerId: 'custom_provider:minimax-legacy',
@@ -48,7 +49,7 @@ describe('TuiModelState', () => {
     const state = new TuiModelState({
       runtime,
       currentSessionId: () => 'session-a',
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
     await state.refresh('session-a');
     expect(state.selected()).toMatchObject({ providerId: 'minimax', modelId: 'MiniMax-M3' });
@@ -58,22 +59,22 @@ describe('TuiModelState', () => {
   it('does not let stale Session hydration overwrite a later user selection', async () => {
     let resolveHydration: ((models: TuiModel[]) => void) | undefined;
     const runtime = {
-      listModels: vi.fn(
+      listModels: mock(
         async () =>
           await new Promise<TuiModel[]>((resolve) => {
             resolveHydration = resolve;
           }),
       ),
-      selectModel: vi.fn(async () => true),
+      selectModel: mock(async () => true),
     };
     const state = new TuiModelState({
       runtime,
       currentSessionId: () => 'session-a',
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     const hydration = state.refresh('session-a');
-    await vi.waitFor(() => expect(resolveHydration).toBeTypeOf('function'));
+    await waitFor(() => expect(resolveHydration).toBeTypeOf('function'));
     await expect(state.select(model('MiniMax-M3'), 'session-a')).resolves.toMatchObject({
       status: 'selected',
     });
@@ -87,8 +88,8 @@ describe('TuiModelState', () => {
     const releases: Array<() => void> = [];
     const applied: string[] = [];
     const runtime = {
-      listModels: vi.fn(async () => []),
-      selectModel: vi.fn(
+      listModels: mock(async () => []),
+      selectModel: mock(
         async (selection: Pick<TuiModel, 'modelId'>) =>
           await new Promise<boolean>((resolve) => {
             releases.push(() => {
@@ -101,14 +102,14 @@ describe('TuiModelState', () => {
     const state = new TuiModelState({
       runtime: runtime as never,
       currentSessionId: () => 'session-a',
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     const first = state.select(model('MiniMax-M2.7'), 'session-a');
     const second = state.select(model('MiniMax-M3'), 'session-a');
-    await vi.waitFor(() => expect(releases).toHaveLength(1));
+    await waitFor(() => expect(releases).toHaveLength(1));
     releases[0]?.();
-    await vi.waitFor(() => expect(releases).toHaveLength(2));
+    await waitFor(() => expect(releases).toHaveLength(2));
     releases[1]?.();
     await Promise.all([first, second]);
 
@@ -118,13 +119,13 @@ describe('TuiModelState', () => {
 
   it('sends the chosen think effort and keeps it as the optimistic value', async () => {
     const runtime = {
-      listModels: vi.fn(async () => []),
-      selectModel: vi.fn(async () => true),
+      listModels: mock(async () => []),
+      selectModel: mock(async () => true),
     };
     const state = new TuiModelState({
       runtime,
       currentSessionId: () => 'session-a',
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     await state.select(
@@ -147,9 +148,9 @@ describe('TuiModelState', () => {
 
   it('restores the think effort from the Session echo on refresh', async () => {
     const runtime = {
-      listModels: vi.fn(async () => [model('byok-large-5', true)]),
-      selectModel: vi.fn(async () => true),
-      getSession: vi.fn(async () => ({
+      listModels: mock(async () => [model('byok-large-5', true)]),
+      selectModel: mock(async () => true),
+      getSession: mock(async () => ({
         sessionId: 'session-a',
         model: { thinking: { effort: 'xhigh' } },
       })),
@@ -157,7 +158,7 @@ describe('TuiModelState', () => {
     const state = new TuiModelState({
       runtime: runtime as never,
       currentSessionId: () => 'session-a',
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     await state.refresh('session-a');
@@ -168,16 +169,16 @@ describe('TuiModelState', () => {
 
   it('keeps the last known effort when the Session echo fails', async () => {
     const runtime = {
-      listModels: vi.fn(async () => [model('byok-large-5', true)]),
-      selectModel: vi.fn(async () => true),
-      getSession: vi.fn(async () => {
+      listModels: mock(async () => [model('byok-large-5', true)]),
+      selectModel: mock(async () => true),
+      getSession: mock(async () => {
         throw new Error('session read failed');
       }),
     };
     const state = new TuiModelState({
       runtime: runtime as never,
       currentSessionId: () => 'session-a',
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     await state.select(
@@ -192,13 +193,13 @@ describe('TuiModelState', () => {
 
   it('drops the effort once the Session is reset', async () => {
     const runtime = {
-      listModels: vi.fn(async () => []),
-      selectModel: vi.fn(async () => true),
+      listModels: mock(async () => []),
+      selectModel: mock(async () => true),
     };
     const state = new TuiModelState({
       runtime,
       currentSessionId: () => 'session-a',
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     await state.select(

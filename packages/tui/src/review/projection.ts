@@ -1,6 +1,7 @@
 import { reviewLifecycleState } from '@mavis/shared/turn-message-class';
 
 import type { TuiMessage } from '../runtime/stream-events.js';
+import { tuiReviewText } from './copy.js';
 import {
   createPassingReviewResult,
   parseTuiReviewResult,
@@ -21,28 +22,28 @@ export function projectTuiReviewMessage(
 ): TuiReviewMessageProjection | undefined {
   const state = reviewLifecycleState(message.kind);
   if (state === 'running') {
-    return { status: 'running', title: 'Reviewing local changes…', content: '' };
+    return { status: 'running', title: tuiReviewText('review.running'), content: '' };
   }
   if (state === 'cancelled') {
     return {
       status: 'cancelled',
-      title: 'Code review interrupted',
-      content: message.content?.trim() || 'The code review was interrupted.',
+      title: tuiReviewText('review.interruptedTitle'),
+      content: message.content?.trim() || tuiReviewText('review.interruptedContent'),
     };
   }
   const outcome = reviewOutcomeFromOrigin(message.origin);
   if (state === 'failed' && !outcome) {
     return {
       status: 'failed',
-      title: 'Code review failed',
-      content: message.content?.trim() || 'The code review could not be completed.',
+      title: tuiReviewText('review.failedTitle'),
+      content: message.content?.trim() || tuiReviewText('review.failedContent'),
     };
   }
   if (outcome === 'failed') {
     return {
       status: 'failed',
-      title: 'Code review failed',
-      content: message.content?.trim() || 'The Runtime rejected an invalid review result.',
+      title: tuiReviewText('review.failedTitle'),
+      content: message.content?.trim() || tuiReviewText('review.invalidResult'),
     };
   }
   const parsed = parseTuiReviewResult(message.content ?? '');
@@ -50,13 +51,17 @@ export function projectTuiReviewMessage(
     if (!parsed) {
       return {
         status: 'failed',
-        title: 'Code review failed',
-        content: 'The Runtime returned an invalid structured review result.',
+        title: tuiReviewText('review.failedTitle'),
+        content: tuiReviewText('review.invalidStructuredResult'),
       };
     }
+    const count = parsed.findings.length;
     return {
       status: 'succeeded',
-      title: `Code review · ${String(parsed.findings.length)} finding${parsed.findings.length === 1 ? '' : 's'}`,
+      title: tuiReviewText(
+        count === 1 ? 'review.findings.one' : 'review.findings.many',
+        { count },
+      ),
       content: renderReviewResultText(parsed),
       result: parsed,
     };
@@ -66,13 +71,13 @@ export function projectTuiReviewMessage(
     if (!result) {
       return {
         status: 'failed',
-        title: 'Code review failed',
-        content: 'The Runtime returned an empty review result.',
+        title: tuiReviewText('review.failedTitle'),
+        content: tuiReviewText('review.emptyResult'),
       };
     }
     return {
       status: 'succeeded',
-      title: 'Code review passed',
+      title: tuiReviewText('review.passed'),
       content: renderReviewResultText(result),
       result,
     };

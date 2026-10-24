@@ -3,6 +3,7 @@ import type { Component } from '../../rendering/component.js';
 import { truncateToWidth } from '../../rendering/text.js';
 import { tuiMarkdownTheme } from '../../theme/runtime.js';
 import { panelLayout, panelContentWidth, renderPanelFrame } from '../../widgets/panel-frame.js';
+import { changelogText } from './copy.js';
 
 export { extractTuiChangelogMarkdown } from './content.js';
 
@@ -48,18 +49,18 @@ export class TuiChangelogPanel implements Component {
     const height = Math.max(1, Math.floor(rawHeight));
     if (safeWidth === 0) return [];
     const lines = this.renderMarkdown(safeWidth);
-    const closeLayout = panelLayout(safeWidth, height, 'Esc close');
+    const closeLayout = panelLayout(safeWidth, height, changelogText('escClose'));
     if (lines.length <= closeLayout.bodyHeight) {
       this.viewportOffset = 0;
       this.viewportRows = lines.length;
       this.viewportLineCount = lines.length;
-      return this.renderFrame(safeWidth, lines, 'Esc close', height);
+      return this.renderFrame(safeWidth, lines, changelogText('escClose'), height);
     }
     const count = lines.length;
     const layout = panelLayout(
       safeWidth,
       height,
-      `Lines ${count}-${count} of ${count} · PgUp/PgDn scroll · Esc close`,
+      changelogText('linesOf', { a: count, b: count, n: count }),
     );
     this.viewportRows = layout.bodyHeight;
     this.viewportLineCount = count;
@@ -68,7 +69,11 @@ export class TuiChangelogPanel implements Component {
     return this.renderFrame(
       safeWidth,
       lines.slice(this.viewportOffset, end),
-      `Lines ${this.viewportOffset + 1}-${end} of ${count} · PgUp/PgDn scroll · Esc close`,
+      changelogText('linesOf', {
+        a: this.viewportOffset + 1,
+        b: end,
+        n: count,
+      }),
       height,
     );
   }
@@ -97,13 +102,13 @@ export class TuiChangelogPanel implements Component {
   private renderFrame(
     width: number,
     body: readonly string[],
-    footer = 'Esc close',
+    footer = changelogText('escClose'),
     height?: number,
   ): string[] {
     return renderPanelFrame(
       {
         title: "What's New",
-        meta: `MCode ${this.options.version}`,
+        meta: changelogText('mcodeVersion', { version: this.options.version }),
         body,
         footer,
       },

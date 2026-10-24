@@ -4,6 +4,7 @@ import {
   type MavisBuildEnv,
   type MavisRegion,
 } from '@mavis/config';
+import { isChineseLocale, localeLanguage } from '@mavis/shared/i18n';
 
 const MANAGED_MATRIX_BASE_URLS: Record<MavisRegion, Record<MavisBuildEnv, string>> = {
   cn: {
@@ -33,8 +34,8 @@ const EXPLICIT_MATRIX_TOKEN_ENV_KEYS = ['MATRIX_TOKEN'] as const;
 function normalizeRegion(value: string | undefined, env: NodeJS.ProcessEnv): MavisRegion {
   if (value === 'cn' || value === 'en') return value;
   const locale = env.NEXT_PUBLIC_LOCALE;
-  if (locale === 'zh') return 'cn';
-  if (locale === 'en') return 'en';
+  if (locale && isChineseLocale(locale)) return 'cn';
+  if (locale && localeLanguage(locale) === 'en') return 'en';
   return getRuntimeRegion();
 }
 

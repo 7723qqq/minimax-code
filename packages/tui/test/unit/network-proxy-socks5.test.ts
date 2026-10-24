@@ -8,7 +8,7 @@ import {
   type Socket,
 } from 'node:net';
 import { fetch, type Dispatcher } from 'undici';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import {
   configureTuiNetworkProxy,
   createTuiNetworkDispatcher,

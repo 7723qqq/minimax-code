@@ -21,11 +21,14 @@ export function cliBuildVersion(root, tag = process.env.MCODE_RELEASE_TAG) {
 
 // These modules stay outside the JS bundle and must travel with an installation.
 export const cliExternalModules = [
-  'better-sqlite3',
   '@mariozechner/clipboard',
   '@vscode/ripgrep',
   '@larksuiteoapi/node-sdk',
 ];
 
+// The CLI runs on the Bun runtime (`bun:sqlite` is a Bun builtin and the only
+// SQLite driver in the bundle), so the install matrix pins the packaged Bun
+// version from `packageManager` instead of Node lines. Node itself remains a
+// build-toolchain requirement only.
 export const cliReleaseTargets = ['ubuntu-latest', 'macos-latest'].flatMap(os =>
-  ['22.19.0', '24.2.0', '25', '26'].map(node => ({ os, node })));
+  ['1.4.4'].map(bun => ({ os, bun })));

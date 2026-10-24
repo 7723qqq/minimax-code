@@ -57,9 +57,66 @@ export type ShellPermissionRule =
 // Decision Reason
 // ---------------------------------------------------------------------------
 
+/**
+ * One template of a structured, localizable decision-reason body.
+ *
+ * Producers state a catalog key plus placeholder values instead of a finished
+ * English sentence, so the formatter can render the body in the reader's
+ * locale. `action` names the label that prefixes the body ("Allowed" /
+ * "Needs confirmation" / "Blocked"); when it is set, the legacy English
+ * `description` carries the same label.
+ */
+export type PermissionReasonBodyPart = {
+  /** Catalog key of the template. */
+  key: string;
+  /** Placeholder values for the template. */
+  values?: Readonly<Record<string, string>>;
+  /** Action label that prefixes this body. */
+  action?: PermissionBehavior;
+};
+
+/**
+ * The `{description}` half of the "Blocked: {description}" wrapper, expressed
+ * as catalog keys instead of a finished sentence.
+ */
+export type PermissionReasonBody = PermissionReasonBodyPart & {
+  /**
+   * Optional trailing sentence appended after the body.
+   *
+   * The suffix template carries its own leading separator — the English entry
+   * starts with a space, the Chinese entry does not — so the two languages
+   * join without a locale-specific rule.
+   */
+  suffix?: PermissionReasonBodyPart;
+};
+
+/**
+ * Reason of a safety check.
+ *
+ * `description` stays the English text: the model reads it (classifier input)
+ * and telemetry records it. `body` carries the localizable form; the formatter
+ * renders it in the reader's locale and derives the wrapper from the decision
+ * behavior.
+ */
+export type SafetyCheckReason = {
+  type: 'safetyCheck';
+  description: string;
+  classifierApprovable?: boolean;
+  category?: string;
+  /** Localizable body; when present it replaces `description` in user-facing output. */
+  body?: PermissionReasonBody;
+  /**
+   * Whether this check is a hard (irrecoverable) safety boundary.
+   *
+   * Consumers read this flag instead of matching the rendered text, so the
+   * "hard blocked" signal survives localization in every language.
+   */
+  hardBlocked?: boolean;
+};
+
 export type DecisionReason =
   | { type: 'rule'; rule: PermissionRule }
-  | { type: 'safetyCheck'; description: string; classifierApprovable?: boolean; category?: string }
+  | SafetyCheckReason
   | { type: 'workingDirectory'; path: string }
   | { type: 'internalWhitelist'; path: string }
   | { type: 'trustedExactWrite'; path: string }

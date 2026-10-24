@@ -1,8 +1,8 @@
-import { execFile } from 'node:child_process';
 import { readdir, lstat } from 'node:fs/promises';
 import { arch, platform, release } from 'node:os';
 import { basename, delimiter, extname, isAbsolute, join, relative, sep } from 'node:path';
-import { promisify } from 'node:util';
+
+import { resolveHostDateOptions } from './i18n/locale.js';
 
 export const EVAL_META_INFO_SCHEMA = 'mavis.eval_meta_info.v1' as const;
 
@@ -123,7 +123,6 @@ interface PathCommandInventory {
   truncated: boolean;
 }
 
-const execFileAsync = promisify(execFile);
 
 const DEFAULT_MAX_FILES = 50_000;
 const DEFAULT_MAX_DIRECTORIES = 5_000;
@@ -284,15 +283,13 @@ async function collectEnvironmentInfo(): Promise<EvalMetaInfoEnvironmentInput> {
 }
 
 function readDateTimeOptions(): { timeZone: string; locale: string } {
-  try {
-    const options = Intl.DateTimeFormat().resolvedOptions();
-    return {
-      timeZone: normalizeEnvironmentLabel(options.timeZone, 'UTC'),
-      locale: normalizeEnvironmentLabel(options.locale),
-    };
-  } catch {
-    return { timeZone: 'UTC', locale: 'unknown' };
-  }
+  // Host date options come from the shared resolver so this module does not
+  // read `Intl` itself; `undefined` still distinguishes "platform refused".
+  const options = resolveHostDateOptions();
+  return {
+    timeZone: normalizeEnvironmentLabel(options?.timeZone, 'UTC'),
+    locale: normalizeEnvironmentLabel(options?.locale, 'unknown'),
+  };
 }
 
 async function scanPathCommands(): Promise<PathCommandInventory> {
@@ -507,6 +504,20 @@ async function safelyRunGit(
   }
 }
 
+/**
+ * Runs Git from a fixed, administrator-owned path under a minimal environment.
+ *
+ * `Bun.spawn` replaces `promisify(execFile)`. The security posture is unchanged:
+ * only the trusted installation paths above are tried, `PATH` stays empty in the
+ * child, and `GIT_MAX_OUTPUT_BYTES` still caps what is read. A spawned process
+ * reports `ENOENT` by throwing synchronously, so a missing installation moves on
+ * to the next candidate exactly as a rejected `execFile` did.
+ *
+ * Expect the first spawn in a process to be slow on Windows: launching a native
+ * executable without a shell costs one multi-second wait before the runtime
+ * settles. That is an upstream runtime characteristic, recorded here rather than
+ * worked around.
+ */
 async function runGitCommand(
   workspaceDir: string,
   args: readonly string[],
@@ -514,13 +525,23 @@ async function runGitCommand(
   const executables = TRUSTED_GIT_EXECUTABLES_BY_PLATFORM[platform()] ?? [];
   for (const executable of executables) {
     try {
-      const { stdout } = await execFileAsync(executable, ['-C', workspaceDir, ...args], {
-        encoding: 'utf8',
-        timeout: GIT_TIMEOUT_MS,
-        maxBuffer: GIT_MAX_OUTPUT_BYTES,
-        windowsHide: true,
+      const child = Bun.spawn({
+        cmd: [executable, '-C', workspaceDir, ...args],
         env: TRUSTED_GIT_ENVIRONMENT,
+        stdin: 'ignore',
+        stdout: 'pipe',
+        stderr: 'pipe',
+        timeout: GIT_TIMEOUT_MS,
+        windowsHide: true,
       });
+      const [stdout, , code] = await Promise.all([
+        readCapped(child.stdout, GIT_MAX_OUTPUT_BYTES),
+        // Drained so a full stderr pipe cannot stall the child; the text is not
+        // part of the result this helper exposes.
+        new Response(child.stderr).text(),
+        child.exited,
+      ]);
+      if (code !== 0) continue;
       const value = stdout.trim();
       return value || undefined;
     } catch {
@@ -528,4 +549,21 @@ async function runGitCommand(
     }
   }
   return undefined;
+}
+
+/**
+ * Reads at most `limit` bytes of decoded text.
+ *
+ * The previous implementation relied on `execFile`'s `maxBuffer`, which killed
+ * the child once the ceiling was crossed. Reading a bounded prefix and stopping
+ * keeps the returned value within the same ceiling without tearing a character.
+ */
+async function readCapped(stream: ReadableStream<Uint8Array>, limit: number): Promise<string> {
+  const decoder = new TextDecoder();
+  let text = '';
+  for await (const chunk of stream) {
+    text += decoder.decode(chunk, { stream: true });
+    if (text.length >= limit) return text.slice(0, limit);
+  }
+  return text + decoder.decode();
 }

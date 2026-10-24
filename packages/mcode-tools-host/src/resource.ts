@@ -1,10 +1,10 @@
 import {
   chmodSync,
-  existsSync,
   mkdirSync,
   readFileSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
@@ -55,7 +55,7 @@ export function validateMcodeToolsResource(options: {
   expectedBuildEnv: McodeToolsBuildEnv;
 }): ValidatedMcodeToolsResource {
   const manifestPath = path.join(options.resourceDir, 'manifest.json');
-  if (!existsSync(manifestPath)) throw new Error('mcode-tools manifest is missing');
+  if (!pathExists(manifestPath)) throw new Error('mcode-tools manifest is missing');
 
   let value: unknown;
   try {
@@ -77,7 +77,7 @@ export function validateMcodeToolsResource(options: {
   }
 
   const cliPath = path.join(options.resourceDir, manifest.entry);
-  if (!existsSync(cliPath)) throw new Error('mcode-tools embedded cli is missing');
+  if (!pathExists(cliPath)) throw new Error('mcode-tools embedded cli is missing');
   validateEmbeddedResourceFiles(options.resourceDir, manifest);
 
   return { rootDir: options.resourceDir, cliPath, manifest };
@@ -157,8 +157,8 @@ export function removeMcodeToolsLaunchers(dataDir: string, region?: McodeToolsRe
   }
   const hasRegionalLauncher = ['cn', 'global'].some(
     (label) =>
-      existsSync(path.join(binDir, `mcode-tools-${label}`)) ||
-      existsSync(path.join(binDir, `mcode-tools-${label}.cmd`)),
+      pathExists(path.join(binDir, `mcode-tools-${label}`)) ||
+      pathExists(path.join(binDir, `mcode-tools-${label}.cmd`)),
   );
   if (!hasRegionalLauncher) {
     rmSync(path.join(binDir, 'mcode-tools'), { force: true });
@@ -377,8 +377,27 @@ function escapeWindowsBatchValue(value: string): string {
   return value.replace(/%/gu, '%%');
 }
 
+/**
+ * Whether `target` exists.
+ *
+ * `statSync` inside a `try` has the same answer as `existsSync` for a file, a
+ * directory, a missing entry and an unreadable path, and costs far less per call
+ * in this runtime: `existsSync` is the Node compatibility surface, which is
+ * roughly an order of magnitude slower. This module is synchronous by design —
+ * it runs during launcher installation — so the async `Bun.file()` surface is
+ * not an option here.
+ */
+function pathExists(target: string): boolean {
+  try {
+    statSync(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function writeFileIfChanged(file: string, contents: string, mode: number): void {
-  if (existsSync(file) && readFileSync(file, 'utf8') === contents) {
+  if (pathExists(file) && readFileSync(file, 'utf8') === contents) {
     chmodSync(file, mode);
     return;
   }

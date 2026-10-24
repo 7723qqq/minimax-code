@@ -12,7 +12,7 @@ import {
 } from '../../theme/runtime.js';
 import { SelectList } from '../../widgets/select-list.js';
 import type { TuiSessionInputSummary } from '../../../runtime/port.js';
-import { sessionMutationTemplate, sessionMutationText } from './copy.js';
+import { sessionHistoryText, sessionMutationTemplate, sessionMutationText } from './copy.js';
 import { formatSessionInputSummaryLabel, PROMPT_HEAD_DISPLAY_LIMIT } from './format.js';
 
 export type TuiSessionMutationMode = 'fork' | 'rewind' | 'edit';
@@ -166,13 +166,13 @@ export class TuiSessionMutationHistoryPicker implements TuiFeatureScreen, Compon
     if (this.busy) {
       const label =
         this.options.mode === 'fork'
-          ? 'Checking fork details…'
+          ? sessionHistoryText('preparingFork')
           : this.options.mode === 'edit'
-            ? 'Loading the selected message…'
-            : 'Loading rewind impact…';
+            ? sessionHistoryText('preparingTarget')
+            : sessionHistoryText('preparingRewind');
       return [
         fit(
-          `${chalk.hex(colors.signal)(`⠋ ${label}`)}${chalk.hex(colors.dim)(' · ')}${renderTuiActionHint('Esc cancel')}`,
+          `${chalk.hex(colors.signal)(`⠋ ${label}`)}${chalk.hex(colors.dim)(' · ')}${renderTuiActionHint(sessionHistoryText('loadingHint'))}`,
           width,
         ),
       ];

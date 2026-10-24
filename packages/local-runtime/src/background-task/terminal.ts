@@ -3,6 +3,7 @@ import type { LocalTaskRunResult } from '@mavis/agent-tools/desktop';
 import type { LocalTaskRunnerHostWithSessionLookup } from '../api/local-task-host.js';
 import { logger } from '../common/logger.js';
 import { scheduleLocalBackgroundTaskDelivery } from './delivery.js';
+import { backgroundTaskText } from './copy.js';
 import {
   isTerminalTaskStatus,
   normalizeTaskError,
@@ -148,7 +149,9 @@ function toTerminalProjection(result: LocalSubagentTaskOutcome): TerminalProject
   if (isFailure(result)) {
     return {
       status: 'failed',
-      outputText: `Background task failed: ${failureMessage(result.failure)}`,
+      outputText: backgroundTaskText('task.failed', {
+        message: failureMessage(result.failure),
+      }),
       lastError: normalizeTaskError(result.failure, 'TASK_FAILED'),
     };
   }
@@ -156,7 +159,10 @@ function toTerminalProjection(result: LocalSubagentTaskOutcome): TerminalProject
   const failureText =
     result.status === 'succeeded'
       ? ''
-      : `\n\n[${result.status}] ${result.errorMessage ?? 'Local background task did not complete.'}`;
+      : backgroundTaskText('task.statusLine', {
+          status: result.status,
+          message: result.errorMessage ?? backgroundTaskText('task.incomplete'),
+        });
   return {
     status,
     outputText: `${result.finalText ?? ''}${failureText}`,

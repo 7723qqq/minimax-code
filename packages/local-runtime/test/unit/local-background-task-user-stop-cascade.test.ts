@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { waitFor } from '../../../../test/bun-test-setup.js';
+import { describe, expect, it, jest, mock, spyOn } from 'bun:test';
 
 import type { LocalTaskRunnerHostWithSessionLookup } from '../../src/api/local-task-host.js';
 import { logger } from '../../src/common/logger.js';
@@ -271,7 +272,7 @@ describe('user stop cascade: target collection', () => {
   });
 
   it('does not re-enter a session already on the cascade path (a metadata cycle)', async () => {
-    const info = vi.spyOn(logger, 'info');
+    const info = spyOn(logger, 'info');
     try {
       const fixture = harness([
         {
@@ -314,7 +315,7 @@ describe('user stop cascade: stale snapshot', () => {
   it('sweeps the child session of a subagent that settled after the snapshot', async () => {
     // Skipping it as "not owned" would leave the bash its child Turn spawned running
     // after the stop succeeded.
-    const info = vi.spyOn(logger, 'info');
+    const info = spyOn(logger, 'info');
     try {
       const fixture = harness([
         {
@@ -362,7 +363,7 @@ describe('user stop cascade: stale snapshot', () => {
   it('still skips a target whose re-read row is active, without sweeping its child session', async () => {
     // Another client process holds it and moved it on (queued → running) meanwhile:
     // it is neither stopped nor swept, and the log carries the re-read status.
-    const info = vi.spyOn(logger, 'info');
+    const info = spyOn(logger, 'info');
     try {
       const fixture = harness([
         {
@@ -398,7 +399,7 @@ describe('user stop cascade: stale snapshot', () => {
   });
 
   it('skips a target whose row is gone by the re-read, logging it as missing', async () => {
-    const info = vi.spyOn(logger, 'info');
+    const info = spyOn(logger, 'info');
     try {
       const fixture = harness([runningTask('gone')]);
       afterSnapshot(fixture, () => {
@@ -428,7 +429,7 @@ describe('user stop cascade: stale snapshot', () => {
   it('falls back to the snapshot and still skips when the re-read fails', async () => {
     // A thrown re-read must not turn the skip into a reported stop
     // (`termination_requested`) for a task nobody asked to stop.
-    const info = vi.spyOn(logger, 'info');
+    const info = spyOn(logger, 'info');
     try {
       const fixture = harness([runningTask('unreadable')]);
       const service = fixture.host.backgroundTaskService as unknown as {
@@ -479,7 +480,7 @@ describe('user stop cascade: read subagents', () => {
     ]);
     fixture.tasks.set('orphan', childTask('orphan', 'child-r', 'sub-turn-read'));
     fixture.admit('orphan');
-    const onTargets = vi.fn();
+    const onTargets = mock();
 
     const { targets } = await stopSessionBackgroundWork({
       host: fixture.host,
@@ -561,7 +562,7 @@ describe('user stop cascade: child session ownership', () => {
     // `read-sub` ran child Turn sub-turn-0 in child-c. After the stop boundary the
     // user's next message appended to it: `append-new` runs sub-turn-2 in the SAME
     // child-c. Only sub-turn-0's work belongs to the stopped tree.
-    const info = vi.spyOn(logger, 'info');
+    const info = spyOn(logger, 'info');
     try {
       const fixture = harness([
         {
@@ -588,7 +589,7 @@ describe('user stop cascade: child session ownership', () => {
         createdAt: 20_000,
       });
       for (const id of ['append-new', 'bash-old', 'bash-new']) fixture.admit(id);
-      const onTargets = vi.fn();
+      const onTargets = mock();
 
       await stopSessionBackgroundWork({
         host: fixture.host,
@@ -626,7 +627,7 @@ describe('user stop cascade: child session ownership', () => {
   });
 
   it("stops a running subagent first, then only its own child Turn's work, however late", async () => {
-    const info = vi.spyOn(logger, 'info');
+    const info = spyOn(logger, 'info');
     try {
       const fixture = harness([
         {
@@ -653,7 +654,7 @@ describe('user stop cascade: child session ownership', () => {
         fixture.patch(taskId, 'canceled');
         return fixture.tasks.get(taskId);
       });
-      const onTargets = vi.fn();
+      const onTargets = mock();
 
       const { targets } = await stopSessionBackgroundWork({
         host: fixture.host,
@@ -688,7 +689,7 @@ describe('user stop cascade: child session ownership', () => {
   it('does not sweep the child session of a row without subTurnId, and logs why', async () => {
     // Without the child Turn's id this row's work cannot be told apart from a
     // continuation's, so its child Session is left exactly as it is today.
-    const info = vi.spyOn(logger, 'info');
+    const info = spyOn(logger, 'info');
     try {
       const fixture = harness([
         { ...runningTask('legacy'), kind: 'subagent', metadata: { childSessionId: 'child-l' } },
@@ -752,7 +753,7 @@ describe('user stop cascade: orchestration', () => {
   it('does not cascade, open a window or pause the Goal for a child worker session', async () => {
     const fixture = harness([runningTask('child-task')]);
     fixture.session = childWorkerSession();
-    const pauseActiveGoal = vi.fn(async () => undefined);
+    const pauseActiveGoal = mock(async () => undefined);
 
     const handle = await createUserStopCascade({ host: fixture.host, pauseActiveGoal }).begin(
       OWNER,
@@ -768,7 +769,7 @@ describe('user stop cascade: orchestration', () => {
     // `begin` runs before the controller's identity check; a stop it then rejects
     // (turn-mismatch) must leave the Goal exactly as it was.
     const fixture = harness([]);
-    const pauseActiveGoal = vi.fn(async () => undefined);
+    const pauseActiveGoal = mock(async () => undefined);
     const handle = await createUserStopCascade({ host: fixture.host, pauseActiveGoal }).begin(
       OWNER,
     );
@@ -785,7 +786,7 @@ describe('user stop cascade: orchestration', () => {
 
   it('never pauses the Goal for a stop that was cancelled', async () => {
     const fixture = harness([]);
-    const pauseActiveGoal = vi.fn(async () => undefined);
+    const pauseActiveGoal = mock(async () => undefined);
     const handle = await createUserStopCascade({ host: fixture.host, pauseActiveGoal }).begin(
       OWNER,
     );
@@ -797,10 +798,10 @@ describe('user stop cascade: orchestration', () => {
   });
 
   it('resolves accept and logs when pausing the Goal fails', async () => {
-    const info = vi.spyOn(logger, 'info');
+    const info = spyOn(logger, 'info');
     try {
       const fixture = harness([]);
-      const pauseActiveGoal = vi.fn(async () => {
+      const pauseActiveGoal = mock(async () => {
         throw new Error('goal store unavailable');
       });
       const handle = await createUserStopCascade({ host: fixture.host, pauseActiveGoal }).begin(
@@ -835,7 +836,7 @@ describe('user stop cascade: orchestration', () => {
     const fixture = harness([runningTask('bg')]);
     fixture.admit('bg');
     const order: string[] = [];
-    const pauseActiveGoal = vi.fn(async () => {
+    const pauseActiveGoal = mock(async () => {
       order.push('goal-paused');
     });
     fixture.stop.mockImplementation(async (taskId: string) => {
@@ -850,7 +851,7 @@ describe('user stop cascade: orchestration', () => {
     // TurnService's order: accept (onAccepted / not-running), then complete.
     await handle!.accept('controller_accepted');
     handle!.complete({ status: 'aborted', turnId: 'turn-1' });
-    await vi.waitFor(() => expect(order).toContain('task-stopped'));
+    await waitFor(() => expect(order).toContain('task-stopped'));
 
     expect(order).toEqual(['goal-paused', 'task-stopped']);
   });
@@ -865,7 +866,7 @@ describe('user stop cascade: orchestration', () => {
 
     const handle = await createUserStopCascade({ host: fixture.host }).begin(OWNER);
     handle!.complete({ status: 'abort-timeout', turnId: 'turn-1' });
-    await vi.waitFor(() => expect(fixture.stop).toHaveBeenCalled());
+    await waitFor(() => expect(fixture.stop).toHaveBeenCalled());
 
     await expect(startLocalBackgroundTaskDeliveryTurn(fixture.host, 'bg')).resolves.toBe('skipped');
   });
@@ -874,7 +875,7 @@ describe('user stop cascade: orchestration', () => {
     // Known limit: on `abort-timeout` the stopped Turn has not released when the
     // boundary is taken, so its later wind-down work is neither stopped nor
     // suppressed (exactly today's behaviour). The warning makes that visible.
-    const warn = vi.spyOn(logger, 'warn');
+    const warn = spyOn(logger, 'warn');
     try {
       const fixture = harness([]);
       fixture.now = 1_234;
@@ -884,7 +885,7 @@ describe('user stop cascade: orchestration', () => {
       clean!.complete({ status: 'aborted', turnId: 'turn-1' });
       const timedOut = await port.begin(OWNER);
       timedOut!.complete({ status: 'abort-timeout', turnId: 'turn-2' });
-      await vi.waitFor(() => expect(isUserStopWindowOpen(fixture.host, OWNER)).toBe(false));
+      await waitFor(() => expect(isUserStopWindowOpen(fixture.host, OWNER)).toBe(false));
 
       const boundaryWarnings = warn.mock.calls.filter(
         ([fields]) =>
@@ -920,7 +921,7 @@ describe('user stop cascade: orchestration', () => {
     const second = await cascadePort.begin(OWNER);
     first!.complete({ status: 'aborted', turnId: 'turn-1' });
     second!.complete({ status: 'aborted', turnId: 'turn-1' });
-    await vi.waitFor(() => expect(isUserStopWindowOpen(fixture.host, OWNER)).toBe(false));
+    await waitFor(() => expect(isUserStopWindowOpen(fixture.host, OWNER)).toBe(false));
 
     // The second cascade still runs, but the task is already terminal by then:
     // it is re-reported, never stopped twice.
@@ -931,7 +932,7 @@ describe('user stop cascade: orchestration', () => {
     // Stop 1 is still cascading when the user sends a new message, the new Turn
     // starts background work, and the user stops again. Joining stop 1 would drop
     // stop 2's later boundary and leave that new work running.
-    const info = vi.spyOn(logger, 'info');
+    const info = spyOn(logger, 'info');
     try {
       const fixture = harness([runningTask('first')]);
       fixture.admit('first');
@@ -953,7 +954,7 @@ describe('user stop cascade: orchestration', () => {
       fixture.now = 1_000;
       const firstStop = await port.begin(OWNER);
       firstStop!.complete({ status: 'aborted', turnId: 'turn-1' });
-      await vi.waitFor(() => expect(fixture.stop).toHaveBeenCalledWith('first', expect.anything()));
+      await waitFor(() => expect(fixture.stop).toHaveBeenCalledWith('first', expect.anything()));
 
       // Created after stop 1's boundary (1000) but before stop 2's (1200).
       fixture.now = 1_050;
@@ -976,8 +977,8 @@ describe('user stop cascade: orchestration', () => {
 
       releaseFirst();
 
-      await vi.waitFor(() => expect(fixture.tasks.get('second')!.status).toBe('canceled'));
-      await vi.waitFor(() => expect(isUserStopWindowOpen(fixture.host, OWNER)).toBe(false));
+      await waitFor(() => expect(fixture.tasks.get('second')!.status).toBe('canceled'));
+      await waitFor(() => expect(isUserStopWindowOpen(fixture.host, OWNER)).toBe(false));
       await expect(startLocalBackgroundTaskDeliveryTurn(fixture.host, 'second')).resolves.toBe(
         'skipped',
       );
@@ -1007,7 +1008,7 @@ describe('user stop cascade: orchestration', () => {
 
     fixture.now = 1_010;
     handle!.complete({ status: 'aborted', turnId: 'turn-1' });
-    await vi.waitFor(() => expect(fixture.stop).toHaveBeenCalled());
+    await waitFor(() => expect(fixture.stop).toHaveBeenCalled());
 
     expect(fixture.tasks.get('late')!.status).toBe('canceled');
     await expect(startLocalBackgroundTaskDeliveryTurn(fixture.host, 'late')).resolves.toBe(
@@ -1028,7 +1029,7 @@ describe('user stop cascade: orchestration', () => {
 
     const handle = await createUserStopCascade({ host: fixture.host }).begin(OWNER);
     handle!.complete({ status: 'aborted', turnId: 'turn-1' });
-    await vi.waitFor(() => expect(fixture.stop).toHaveBeenCalled());
+    await waitFor(() => expect(fixture.stop).toHaveBeenCalled());
 
     expect(fixture.markDelivered).not.toHaveBeenCalled();
     expect(fixture.tasks.get('bg')!.deliveredAt).toBeUndefined();
@@ -1045,7 +1046,7 @@ describe('user stop cascade: orchestration', () => {
     // The window must reopen, otherwise unrelated tasks would never be announced.
     fixture.list.mockResolvedValue({ items: [] });
     fixture.tasks.set('fresh', terminalTask('fresh'));
-    await vi.waitFor(async () => {
+    await waitFor(async () => {
       await expect(startLocalBackgroundTaskDeliveryTurn(fixture.host, 'fresh')).resolves.toBe(
         'delivered',
       );
@@ -1063,7 +1064,7 @@ describe('user stop cascade: orchestration', () => {
 
     // `complete` is fire-and-forget: the stop request never waits for teardown.
     expect(Date.now() - startedAt).toBeLessThan(200);
-    await vi.waitFor(() => expect(fixture.stop).toHaveBeenCalled());
+    await waitFor(() => expect(fixture.stop).toHaveBeenCalled());
     // The hung task is suppressed immediately, before its stop settles.
     await expect(startLocalBackgroundTaskDeliveryTurn(fixture.host, 'hung')).resolves.toBe(
       'skipped',
@@ -1107,7 +1108,7 @@ describe('user stop cascade: window lifecycle', () => {
 
     const first = await port.begin(OWNER);
     first!.complete({ status: 'aborted', turnId: 'turn-1' });
-    await vi.waitFor(() => expect(fixture.stop).toHaveBeenCalled());
+    await waitFor(() => expect(fixture.stop).toHaveBeenCalled());
     // A second stop arrives while the first cascade is still running: it is
     // queued, and its window must stay held until its own cascade has run.
     const second = await port.begin(OWNER);
@@ -1116,7 +1117,7 @@ describe('user stop cascade: window lifecycle', () => {
 
     finishStop();
 
-    await vi.waitFor(() => expect(isUserStopWindowOpen(fixture.host, OWNER)).toBe(false));
+    await waitFor(() => expect(isUserStopWindowOpen(fixture.host, OWNER)).toBe(false));
   });
 
   it('keeps the window open until every hold is released', () => {
@@ -1135,8 +1136,8 @@ describe('user stop cascade: window lifecycle', () => {
   });
 
   it('force-closes a window nobody released after the watchdog period, and warns', async () => {
-    vi.useFakeTimers();
-    const warn = vi.spyOn(logger, 'warn');
+    jest.useFakeTimers();
+    const warn = spyOn(logger, 'warn');
     try {
       const fixture = harness([]);
       // Held but never completed nor cancelled: the unforeseen-path case.
@@ -1144,9 +1145,9 @@ describe('user stop cascade: window lifecycle', () => {
       expect(handle).toBeDefined();
       expect(isUserStopWindowOpen(fixture.host, OWNER)).toBe(true);
 
-      vi.advanceTimersByTime(59_999);
+      jest.advanceTimersByTime(59_999);
       expect(isUserStopWindowOpen(fixture.host, OWNER)).toBe(true);
-      vi.advanceTimersByTime(1);
+      jest.advanceTimersByTime(1);
 
       expect(isUserStopWindowOpen(fixture.host, OWNER)).toBe(false);
       expect(warn).toHaveBeenCalledWith(
@@ -1159,7 +1160,7 @@ describe('user stop cascade: window lifecycle', () => {
       );
     } finally {
       warn.mockRestore();
-      vi.useRealTimers();
+      jest.useRealTimers();
     }
   });
 });
@@ -1204,26 +1205,26 @@ function afterSnapshot(fixture: ReturnType<typeof harness>, change: () => void):
 
 function harness(initial: readonly BackgroundTask[]) {
   const tasks = new Map<string, BackgroundTask>(initial.map((task) => [task.taskId, task]));
-  const steer = vi.fn(async (_input: SteerInput) => ({ turnId: 'turn-owner', mode: 'steered' }));
-  const markDelivered = vi.fn(async (ownerSessionId: string, taskIds: string[]) => {
+  const steer = mock(async (_input: SteerInput) => ({ turnId: 'turn-owner', mode: 'steered' }));
+  const markDelivered = mock(async (ownerSessionId: string, taskIds: string[]) => {
     for (const taskId of taskIds) {
       const task = tasks.get(taskId);
       if (task && task.ownerSessionId === ownerSessionId) task.deliveredAt = 9_999;
     }
     return [];
   });
-  const stop = vi.fn(async (taskId: string) => {
+  const stop = mock(async (taskId: string) => {
     patch(taskId, 'canceled');
     return tasks.get(taskId);
   });
-  const list = vi.fn(async (query: { ownerSessionId?: string; statuses?: string[] }) => ({
+  const list = mock(async (query: { ownerSessionId?: string; statuses?: string[] }) => ({
     items: [...tasks.values()].filter(
       (task) =>
         task.ownerSessionId === query.ownerSessionId &&
         (!query.statuses || query.statuses.includes(task.status)),
     ),
   }));
-  const metrics = vi.fn();
+  const metrics = mock();
 
   function patch(taskId: string, status: BackgroundTaskStatus): void {
     const task = tasks.get(taskId);

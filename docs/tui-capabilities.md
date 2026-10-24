@@ -96,6 +96,31 @@ The evidence column summarizes the historical TUI 0.3.11 restoration record from
 | Files, shell, subagents, sessions, headless, ACP | Actual runtime retained | BYOK, file reads, session resume, ACP, sandbox, and status protocol tests |
 | Built-in skills, MCP, plugin tools | Original TUI assets and activation conditions retained | Asset build, plugin, and MCP tests; no claim that every skill has passed a real task |
 
+## Interface language
+
+`/settings` carries an interface-language row. The choice is saved as `locale`
+in `tui-settings.json` beside `tuiMode` and `theme`, and applies to the whole
+process: status line, permission prompts, session titles and times, and the
+localized channel replies. Removing the key, or writing a malformed tag, falls
+back to the environment chain below; a well-formed tag without a catalog
+(`fr-FR`, for example) renders English.
+
+Resolution order, first match wins:
+
+1. a locale a caller passes explicitly
+2. the locale saved in `/settings`
+3. `MAVIS_ELECTRON_LOCALE`, the Desktop host handshake
+4. `MCODE_LOCALE`, an explicit override for the CLI, scripts and tests
+5. the host locale reported by `Intl.DateTimeFormat().resolvedOptions()`
+6. `LANG` / `LC_ALL`, with any `.codeset` suffix removed
+7. `en`
+
+`MCODE_LOCALE` outranks the host, which is what makes the interface language
+pinnable outside the interface: `MCODE_LOCALE=zh-Hans mcode` renders Chinese
+regardless of the machine's own locale. `LANG` does not override the host's
+`Intl` answer — on most platforms `Intl` already follows it — so use
+`MCODE_LOCALE` when a specific language is required.
+
 ## Model request timeouts
 
 Each model request attempt has a first-response bound: if the provider accepts

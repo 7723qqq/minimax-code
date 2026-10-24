@@ -1,3 +1,5 @@
+import { waitFor } from '../../../../test/bun-test-setup.js';
+import { afterEach, describe, expect, it, mock } from 'bun:test';
 import { ConversationApplication } from '../../../local-runtime-v2/src/application/conversation/conversation-application.js';
 import { DirectSendDeliveryService } from '../../../local-runtime-v2/src/application/conversation/direct-send-delivery.js';
 import { TuiUserProjection } from '../../src/tui/controller/projection/turn-user-projection.js';
@@ -21,7 +23,7 @@ import { TuiCommandFlow } from '../../src/tui/controller/product/command-flow.js
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+
 import { serializePluginMention, parsePluginMentions } from '@mavis/shared/plugin-mention';
 import { createTuiAutocomplete } from '../../src/tui/controller/run/active-run-flow.js';
 import {
@@ -48,7 +50,7 @@ afterEach(() => {
 });
 function createEditor() {
   const editor = new Editor(
-    { terminal: { rows: 24 }, requestRender: vi.fn() },
+    { terminal: { rows: 24 }, requestRender: mock() },
     {
       borderColor: identity,
       selectList: {
@@ -73,7 +75,7 @@ function createEditor() {
 }
 async function selectPlugin(editor: Editor) {
   editor.handleInput('@');
-  await vi.waitFor(() =>
+  await waitFor(() =>
     expect(stripTerminalSequences(editor.render(80).join('\n'))).toContain('local · notes'),
   );
   editor.handleInput('\t');
@@ -85,10 +87,10 @@ async function selectPlugin(editor: Editor) {
 
 describe('Plugin mentions from Composer to durable text', () => {
   it('carries the display label through Runtime direct-send admission while preserving execution identity', async () => {
-    const submit = vi.fn(async () => ({ accepted: false, reason: 'invalid-input' }));
+    const submit = mock(async () => ({ accepted: false, reason: 'invalid-input' }));
     const directSend = new DirectSendDeliveryService({
       turns: { submit },
-      stream: { reserve: () => ({ discardIfEmpty: vi.fn() }) },
+      stream: { reserve: () => ({ discardIfEmpty: mock() }) },
     } as never);
     const application = new ConversationApplication({ directSend } as never);
     const content = '[@Codex 插件](plugin://codex%40official) hello';
@@ -135,7 +137,7 @@ describe('Plugin mentions from Composer to durable text', () => {
     const editor = createEditor();
     editor.setAutocompleteProvider(provider);
     editor.handleInput('@');
-    await vi.waitFor(() => expect(editor.render(180).join('\n')).toContain('Plugins'));
+    await waitFor(() => expect(editor.render(180).join('\n')).toContain('Plugins'));
     expect(editor.render(180).join('\n')).not.toContain('local · notes');
     for (const width of [40, 80, 180]) {
       for (const line of editor.render(width))
@@ -148,7 +150,7 @@ describe('Plugin mentions from Composer to durable text', () => {
   });
 
   it('offers enabled plugins alongside files, refreshes state, and preserves file completion', async () => {
-    const listInstalledPlugins = vi.fn(async () => [
+    const listInstalledPlugins = mock(async () => [
       makePlugin(),
       { ...makePlugin('off'), enabled: false },
     ]);
@@ -174,7 +176,7 @@ describe('Plugin mentions from Composer to durable text', () => {
     const editor = createEditor();
     await selectPlugin(editor);
     editor.handleInput('整理笔记');
-    const submitted = vi.fn();
+    const submitted = mock();
     editor.onSubmit = submitted;
     editor.handleInput('\r');
     const [content, draft] = submitted.mock.calls[0]!;
@@ -289,8 +291,8 @@ describe('Plugin mentions from Composer to durable text', () => {
       entries: [entry],
       initialQuery: 'My Notes',
       onSelect: (text) => editor.setText(text),
-      onCancel: vi.fn(),
-      requestRender: vi.fn(),
+      onCancel: mock(),
+      requestRender: mock(),
     });
     const rendered = stripTerminalSequences(panel.render(100).join('\n'));
     expect(rendered).toContain('@My Notes');
@@ -319,7 +321,7 @@ describe('Plugin mentions from Composer to durable text', () => {
     editor.handleInput('summarize');
     const draft = editor.captureDraft();
     const content = submittedEditorContent(draft);
-    const submit = vi.fn(
+    const submit = mock(
       async (
         _text: string,
         options: {
@@ -353,24 +355,24 @@ describe('Plugin mentions from Composer to durable text', () => {
       composerDraft: {
         hasContent: () => false,
         capture: () => ({ attachments: [] }),
-        reserveSubmission: vi.fn(),
-        restoreSubmission: vi.fn(),
+        reserveSubmission: mock(),
+        restoreSubmission: mock(),
         completeSubmission: async () => undefined,
       } as never,
       workspaceRoots: { additionalDirectories: () => [] } as never,
       runProjection: new TuiRunProjection(),
       editor,
       surface: {} as never,
-      surfaceHost: { setChatFocus: vi.fn() } as never,
+      surfaceHost: { setChatFocus: mock() } as never,
       queueEnabled: true,
       liveRunId: () => undefined,
       runtimeStopping: () => false,
       abortLiveTurn: async () => false,
       leaveUi: async () => undefined,
       whenReady: async () => undefined,
-      append: vi.fn(),
-      setHint: vi.fn(),
-      onChanged: vi.fn(),
+      append: mock(),
+      setHint: mock(),
+      onChanged: mock(),
     });
     const seed = flow.captureSubmissionSeed(draft);
     editor.setText('');
@@ -416,7 +418,7 @@ describe('Plugin mentions from Composer to durable text', () => {
         attachments: [],
       };
       const projection = new TuiRunProjection();
-      const updateQueuedMessageContent = vi.fn(
+      const updateQueuedMessageContent = mock(
         async (_session: string, _item: string, content: string) => {
           item = { ...item, content };
           return item;
@@ -437,15 +439,15 @@ describe('Plugin mentions from Composer to durable text', () => {
           updateQueuedMessageContent,
         } as never,
         controller: { snapshot: () => ({ session: { sessionId: 's1' } }) } as never,
-        composerDraft: { restoreQueuedSubmission: vi.fn(), releaseQueueItem: vi.fn() } as never,
+        composerDraft: { restoreQueuedSubmission: mock(), releaseQueueItem: mock() } as never,
         runProjection: projection,
-        transcript: { get: vi.fn(), remove: vi.fn(), upsert: vi.fn() } as never,
-        followUp: { setQueueSummary: vi.fn(), setItems: vi.fn() } as never,
+        transcript: { get: mock(), remove: mock(), upsert: mock() } as never,
+        followUp: { setQueueSummary: mock(), setItems: mock() } as never,
         surface: {} as never,
         enabled: true,
-        setHint: vi.fn(),
-        onChanged: vi.fn(),
-        requestRender: vi.fn(),
+        setHint: mock(),
+        onChanged: mock(),
+        requestRender: mock(),
       });
       await queue.refresh('s1');
       expect(projection.snapshot().queuedItems[0]?.content).toBe('@My Notes summarize');
@@ -470,19 +472,19 @@ describe('Plugin mention review regressions', () => {
     editor.setText('[@My Notes](plugin://notes%40local) summarize');
     const flow = new TuiInputFlow({
       editor,
-      tui: { requestRender: vi.fn() },
+      tui: { requestRender: mock() },
       interaction: { isActive: () => false },
       liveRunId: () => undefined,
       hasWaitingMessage: () => false,
       featureFlow: { isFeatureScreenActive: () => false },
       composerDraft: {
         abortClipboardRead: () => false,
-        stashForClear: vi.fn(),
+        stashForClear: mock(),
         hasContent: () => false,
-        restoreClearedDraft: vi.fn(),
+        restoreClearedDraft: mock(),
       },
-      setHint: vi.fn(),
-      onChanged: vi.fn(),
+      setHint: mock(),
+      onChanged: mock(),
       workspaceDir: '/workspace',
     } as never);
     flow.handle('\x03');
@@ -520,15 +522,15 @@ describe('Plugin mention review regressions', () => {
       let rename = false;
       const flow = new TuiExternalEditorFlow({
         editor,
-        tui: { start: vi.fn(), stop: vi.fn(), requestRender: vi.fn() },
+        tui: { start: mock(), stop: mock(), requestRender: mock() },
         workspaceDir: '/workspace',
         configuredCommand: 'synthetic-editor',
         editDraft: async ({ draft }) =>
           rename ? draft.replace('@My Notes', '@Other Notes') : `${draft} tomorrow`,
         isAppStopped: () => false,
-        append: vi.fn(),
-        setHint: vi.fn(),
-        onChanged: vi.fn(),
+        append: mock(),
+        setHint: mock(),
+        onChanged: mock(),
       });
       await flow.open();
       expect(submittedEditorTransport(editor.captureDraft())).toBe(`${transport} tomorrow`);
@@ -546,14 +548,14 @@ describe('Plugin mention review regressions', () => {
     editor.setText('[@My Notes](plugin://notes%40local) summarize');
     const flow = new TuiExternalEditorFlow({
       editor,
-      tui: { start: vi.fn(), stop: vi.fn(), requestRender: vi.fn() },
+      tui: { start: mock(), stop: mock(), requestRender: mock() },
       workspaceDir: '/workspace',
       configuredCommand: 'synthetic-editor',
       editDraft: async ({ draft }) => `Please ${draft} tomorrow`,
       isAppStopped: () => false,
-      append: vi.fn(),
-      setHint: vi.fn(),
-      onChanged: vi.fn(),
+      append: mock(),
+      setHint: mock(),
+      onChanged: mock(),
     });
     await flow.open();
     expect(submittedEditorTransport(editor.captureDraft())).toBe(
@@ -598,7 +600,7 @@ describe('Plugin mention review regressions', () => {
       });
       const delivery = new UserMessageTurnDeliveryService({
         messages: commits,
-        stream: { write: vi.fn() },
+        stream: { write: mock() },
         queryCollapse: {
           resolveQueryKey: async () => 'q1',
           start: async () => {
@@ -644,27 +646,27 @@ describe('Plugin mention review regressions', () => {
       expect(reloaded.content).toBe(display);
       expect(reloaded.editContent).toBe(canonical);
       const editor = createEditor();
-      const editSessionMessage = vi.fn(async () => ({}));
+      const editSessionMessage = mock(async () => ({}));
       const flow = new TuiSessionMutationFlow({
         editor,
         controller: {
           snapshot: () => ({ session: { sessionId: 's1' } }),
           getTerminalDurationId: () => undefined,
-          dismissTerminalDuration: vi.fn(),
+          dismissTerminalDuration: mock(),
         },
         runtime: {
           listSessionInputSummaries: async () => [{ userMessageId: 'u1', timestamp: 1 }],
           listMessagePage: async () => ({ messages: [reloaded], hasMore: false }),
           editSessionMessage,
         },
-        surfaceHost: { setChatFocus: vi.fn() },
-        setHint: vi.fn(),
-        append: vi.fn(),
-        onChanged: vi.fn(),
+        surfaceHost: { setChatFocus: mock() },
+        setHint: mock(),
+        append: mock(),
+        onChanged: mock(),
         hasLiveRun: () => false,
       } as never);
       flow.startEdit();
-      await vi.waitFor(() => expect(flow.isEditing()).toBe(true));
+      await waitFor(() => expect(flow.isEditing()).toBe(true));
       expect(editor.getText()).toBe(display);
       editor.handleInput(' tomorrow');
       await flow.submitEdit(editor.getText(), [], editor.captureDraft());

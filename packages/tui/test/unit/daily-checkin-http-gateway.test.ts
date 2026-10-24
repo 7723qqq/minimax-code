@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { waitFor } from '../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock } from 'bun:test';
 
 import {
   SigninClaimResult,
@@ -41,8 +42,7 @@ function ok(data: unknown): Response {
 
 describe('TuiDailyCheckinHttpGateway', () => {
   it('uses the signed public status and claim endpoints', async () => {
-    const fetchImpl = vi
-      .fn<typeof fetch>()
+    const fetchImpl = mock<typeof fetch>()
       .mockResolvedValueOnce(ok(panel()))
       .mockResolvedValueOnce(ok(claim()));
     const gateway = new TuiDailyCheckinHttpGateway({
@@ -76,11 +76,10 @@ describe('TuiDailyCheckinHttpGateway', () => {
   });
 
   it('refreshes managed auth once after an HTTP 401', async () => {
-    const fetchImpl = vi
-      .fn<typeof fetch>()
+    const fetchImpl = mock<typeof fetch>()
       .mockResolvedValueOnce(new Response('', { status: 401 }))
       .mockResolvedValueOnce(ok(panel()));
-    const resolver = vi.fn(async () => ({ accessToken: 'token-2', realUserID: 'user-1' }));
+    const resolver = mock(async () => ({ accessToken: 'token-2', realUserID: 'user-1' }));
     const gateway = new TuiDailyCheckinHttpGateway({
       appVersion: '0.2.4',
       authContextGetter: () => ({ accessToken: 'token-1', realUserID: 'user-1' }),
@@ -98,7 +97,7 @@ describe('TuiDailyCheckinHttpGateway', () => {
 
   it('refuses to claim when the account changes after the status request', async () => {
     let realUserID = 'user-1';
-    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(ok(panel()));
+    const fetchImpl = mock<typeof fetch>().mockResolvedValue(ok(panel()));
     const gateway = new TuiDailyCheckinHttpGateway({
       appVersion: '0.2.4',
       authContextGetter: () => ({ accessToken: 'token-1', realUserID }),
@@ -116,7 +115,7 @@ describe('TuiDailyCheckinHttpGateway', () => {
   it('discards a late status response after the active account changes', async () => {
     let realUserID = 'user-1';
     let release!: (response: Response) => void;
-    const fetchImpl = vi.fn<typeof fetch>(
+    const fetchImpl = mock<typeof fetch>(
       async () =>
         await new Promise<Response>((resolve) => {
           release = resolve;
@@ -130,15 +129,14 @@ describe('TuiDailyCheckinHttpGateway', () => {
     });
 
     const request = gateway.getSigninPanel();
-    await vi.waitFor(() => expect(fetchImpl).toHaveBeenCalledOnce());
+    await waitFor(() => expect(fetchImpl).toHaveBeenCalledOnce());
     realUserID = 'user-2';
     release(ok(panel()));
 
     await expect(request).rejects.toThrow('account changed');
   });
   it('preserves the empty claim body when authentication refreshes', async () => {
-    const fetchImpl = vi
-      .fn<typeof fetch>()
+    const fetchImpl = mock<typeof fetch>()
       .mockResolvedValueOnce(ok(panel()))
       .mockResolvedValueOnce(new Response('', { status: 401 }))
       .mockResolvedValueOnce(ok(claim()));

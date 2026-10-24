@@ -4,9 +4,11 @@ import {
   selectTuiAgentTeamPreview,
   tuiAgentTeamElapsedMs,
   tuiAgentTeamMemberLabel,
+  tuiAgentTeamStatusLabel,
   type TuiAgentTeamMember,
   type TuiAgentTeamSnapshot,
 } from './model.js';
+import { tuiText } from '../copy.js';
 
 export type TuiAgentTeamPresentationStatus =
   | 'pending'
@@ -35,13 +37,15 @@ export function renderTuiAgentTeamSummary(
 ): string[] {
   const { summary } = snapshot;
   const counts = [
-    `${String(summary.total)} agent${summary.total === 1 ? '' : 's'}`,
-    summary.running ? `${String(summary.running)} running` : undefined,
-    summary.waiting ? `${String(summary.waiting)} waiting` : undefined,
-    summary.queued ? `${String(summary.queued)} queued` : undefined,
-    summary.done ? `${String(summary.done)} done` : undefined,
-    summary.failed ? `${String(summary.failed)} failed` : undefined,
-    summary.stopped ? `${String(summary.stopped)} stopped` : undefined,
+    tuiText(summary.total === 1 ? 'count.agents.one' : 'count.agents.many', {
+      count: summary.total,
+    }),
+    summary.running ? tuiText('count.running', { count: summary.running }) : undefined,
+    summary.waiting ? tuiText('count.waiting', { count: summary.waiting }) : undefined,
+    summary.queued ? tuiText('count.queued', { count: summary.queued }) : undefined,
+    summary.done ? tuiText('count.done', { count: summary.done }) : undefined,
+    summary.failed ? tuiText('count.failed', { count: summary.failed }) : undefined,
+    summary.stopped ? tuiText('count.stopped', { count: summary.stopped }) : undefined,
   ].filter((value): value is string => Boolean(value));
   const headingMarker =
     status === 'succeeded'
@@ -54,7 +58,7 @@ export function renderTuiAgentTeamSummary(
             ? chalk.hex(colors.warning)('◉')
             : chalk.hex(colors.accent)('◐');
   const heading = `${headingMarker} ${chalk.bold.hex(colors.text)(
-    'Agent team',
+    tuiText('agentTeam.heading.title'),
   )}${chalk.hex(colors.muted)(` · ${counts.join(' · ')}`)}`;
   const preview = options.expanded ? snapshot.members : selectTuiAgentTeamPreview(snapshot);
   const rows = preview.map((member, index) =>
@@ -69,7 +73,7 @@ export function renderTuiAgentTeamSummary(
   const overflow = hiddenCount
     ? [
         truncateToWidth(
-          chalk.hex(colors.dim)(`   └ … ${String(hiddenCount)} more`),
+          chalk.hex(colors.dim)(`   ${tuiText('agentTeam.overflow', { count: hiddenCount })}`),
           Math.max(0, width),
           '',
         ),
@@ -95,15 +99,12 @@ function renderMember(
           : member.status === 'stopped'
             ? chalk.hex(colors.muted)('■')
             : chalk.hex(colors.accent)('●');
-  const status =
-    member.status === 'done'
-      ? 'Done'
-      : `${member.status.charAt(0).toLocaleUpperCase()}${member.status.slice(1)}`;
+  const status = tuiAgentTeamStatusLabel(member.status);
   const details = [
     status,
     member.activity,
     member.task,
-    member.toolCount ? `${String(member.toolCount)} tools` : undefined,
+    member.toolCount ? tuiText('count.tools', { count: member.toolCount }) : undefined,
     formatDuration(tuiAgentTeamElapsedMs(member, snapshot.capturedAtMs)),
   ]
     .filter((value): value is string => Boolean(value))

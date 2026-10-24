@@ -1,7 +1,10 @@
 import { lstatSync, type Stats } from 'node:fs';
 import { join } from 'node:path';
 
-import { loadSqlite3Constructor, type BetterSqlite3Instance } from '../db/client.js';
+import { FinalizingSqliteDatabase } from '@mavis/shared';
+import { Database } from 'bun:sqlite';
+
+import type { SqliteDatabase } from '../db/client.js';
 
 export interface LegacyDaemonSessionIdentity {
   readonly legacyDaemonSessionId: string;
@@ -15,15 +18,14 @@ export interface LegacyDaemonSessionIdentity {
 export function deleteLegacyDaemonSessionMessages(options: {
   readonly dataDir: string;
   readonly identity: LegacyDaemonSessionIdentity;
-  readonly sqlite3ModulePath?: string;
 }): number {
   const daemonSessionId = options.identity.legacyDaemonSessionId.trim();
   if (!daemonSessionId) throw new TypeError('Legacy daemon Session id is required');
   const databasePath = join(options.dataDir, 'sqlite.db');
   if (!legacyDatabaseExists(options.dataDir, databasePath)) return 0;
-  const Database = loadSqlite3Constructor(options.sqlite3ModulePath);
   // Obsolete copies are best effort: never wait for a legacy writer to release its lock.
-  const db = new Database(databasePath, { fileMustExist: true, timeout: 0 });
+  const db = new FinalizingSqliteDatabase(databasePath, { create: false });
+  db.exec('PRAGMA busy_timeout = 0');
   try {
     return db
       .transaction(() => {
@@ -44,7 +46,7 @@ export function deleteLegacyDaemonSessionMessages(options: {
 }
 
 function resolveMessageStorageId(
-  db: BetterSqlite3Instance,
+  db: SqliteDatabase,
   identity: LegacyDaemonSessionIdentity,
 ): string {
   const frameworkSessionId = identity.legacyFrameworkSessionId?.trim();
@@ -70,7 +72,7 @@ function unconfirmedIdentity(legacyDaemonSessionId: string): Error {
   return new Error(`Legacy Session message identity is unconfirmed: ${legacyDaemonSessionId}`);
 }
 
-function hasMessageRows(db: BetterSqlite3Instance, sessionId: string): boolean {
+function hasMessageRows(db: SqliteDatabase, sessionId: string): boolean {
   return Boolean(
     db
       .prepare('SELECT 1 AS found FROM session_messages WHERE session_id = ? LIMIT 1')
@@ -79,7 +81,7 @@ function hasMessageRows(db: BetterSqlite3Instance, sessionId: string): boolean {
 }
 
 function hasColumns(
-  db: BetterSqlite3Instance,
+  db: SqliteDatabase,
   table: string,
   required: readonly string[],
 ): boolean {

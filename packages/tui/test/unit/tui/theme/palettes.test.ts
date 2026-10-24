@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import {
   BUILT_IN_THEMES,
   DEFAULT_THEME_ID,

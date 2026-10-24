@@ -1,5 +1,7 @@
+import { stubEnv, unstubAllEnvs } from '../../../../test/bun-test-setup.js';
+import { afterEach, describe, expect, it, jest, mock, spyOn } from 'bun:test';
 import { PassThrough } from 'node:stream';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+
 import { ProcessTerminal, StdinBuffer } from '../../src/tui/engine/public.js';
 import { Editor } from '../../src/tui/widgets/editor/editor.js';
 
@@ -10,14 +12,14 @@ const identity = (text: string) => text;
 function createHarness() {
   const stdin = Object.assign(new PassThrough(), {
     isRaw: false,
-    setRawMode: vi.fn(),
+    setRawMode: mock(),
   });
-  vi.spyOn(process, 'stdin', 'get').mockReturnValue(stdin as typeof process.stdin);
-  vi.spyOn(process, 'kill').mockReturnValue(true);
-  const output = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
-  vi.stubEnv('TERM_PROGRAM', '');
+  spyOn(process, 'stdin', 'get').mockReturnValue(stdin as typeof process.stdin);
+  spyOn(process, 'kill').mockReturnValue(true);
+  const output = spyOn(process.stdout, 'write').mockReturnValue(true);
+  stubEnv('TERM_PROGRAM', '');
   const editor = new Editor(
-    { terminal: { rows: 24 }, requestRender: vi.fn() },
+    { terminal: { rows: 24 }, requestRender: mock() },
     {
       borderColor: identity,
       selectList: {
@@ -26,10 +28,10 @@ function createHarness() {
       },
     },
   );
-  const submitted = vi.fn();
+  const submitted = mock();
   editor.onSubmit = submitted;
   const terminal = new ProcessTerminal();
-  const input = vi.fn((data: string) => editor.handleInput(data));
+  const input = mock((data: string) => editor.handleInput(data));
   const start = () => terminal.start(input, () => {});
   start();
   return { editor, submitted, terminal, input, output, stdin, start,
@@ -37,8 +39,8 @@ function createHarness() {
 }
 
 afterEach(() => {
-  vi.restoreAllMocks();
-  vi.unstubAllEnvs();
+  jest.restoreAllMocks();
+  unstubAllEnvs();
 });
 
 describe('terminal text paste', () => {
@@ -112,8 +114,8 @@ describe('terminal text paste', () => {
 
   it('keeps control sequences and incomplete escape sequences out of the unframed fallback', () => {
     const buffer = new StdinBuffer();
-    const paste = vi.fn();
-    const data = vi.fn();
+    const paste = mock();
+    const data = mock();
     buffer.on('paste', paste);
     buffer.on('data', data);
     try {
@@ -127,21 +129,21 @@ describe('terminal text paste', () => {
   });
 
   it('does not time out a bracketed payload or merge neighboring keyboard events into it', () => {
-    vi.useFakeTimers();
+    jest.useFakeTimers();
     const buffer = new StdinBuffer();
     const events: string[][] = [];
     buffer.on('paste', (text) => events.push(['paste', text]));
     buffer.on('data', (text) => events.push(['data', text]));
     try {
       buffer.process(`a${startPaste}first\r`);
-      vi.advanceTimersByTime(1_000);
+      jest.advanceTimersByTime(1_000);
       buffer.process(`\nsecond${endPaste}${startPaste}${endPaste}\r`);
       expect(events).toEqual([
         ['data', 'a'], ['paste', 'first\r\nsecond'], ['paste', ''], ['data', '\r'],
       ]);
     } finally {
       buffer.destroy();
-      vi.useRealTimers();
+      jest.useRealTimers();
     }
   });
 });

@@ -1,4 +1,5 @@
 import type { LocalChannelContext } from './infra.js';
+import { feishuText } from './adapters/feishu/feishu-copy.js';
 import {
   LocalChannelClientUnavailableError,
   type LocalChannelOutboundStore,
@@ -190,7 +191,7 @@ export class LocalFeishuChannelClient implements LocalMultiChannelClient {
     for (const ref of input.media ?? []) {
       await sender.sendMedia(chatId, ref, 'chat_id', thread);
     }
-    const finalText = input.text.trim() || (hasMedia ? '[已发送媒体]' : '');
+    const finalText = input.text.trim() || (hasMedia ? feishuText('media.sent') : '');
     const pending = this.pendingThinkingStore?.get(chatId);
     if (pending) {
       this.pendingThinkingStore?.delete(chatId);

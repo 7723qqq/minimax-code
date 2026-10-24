@@ -7,14 +7,15 @@ import {
   tuiSelectListTheme as theme,
 } from '../../theme/runtime.js';
 import { SelectList } from '../../widgets/select-list.js';
+import { authText, type AuthCopyKey } from './copy.js';
 
 const LOGIN_REGIONS: readonly {
   value: MavisRegion;
-  label: string;
-  description: string;
+  labelKey: AuthCopyKey;
+  descriptionKey: AuthCopyKey;
 }[] = [
-  { value: 'cn', label: 'China (CN)', description: 'MiniMax China account' },
-  { value: 'en', label: 'Global', description: 'MiniMax international account' },
+  { value: 'cn', labelKey: 'regionChinaLabel', descriptionKey: 'regionChinaDescription' },
+  { value: 'en', labelKey: 'regionGlobalLabel', descriptionKey: 'regionGlobalDescription' },
 ];
 
 export class TuiLoginRegionPicker implements Component {
@@ -23,10 +24,19 @@ export class TuiLoginRegionPicker implements Component {
   private readonly list: SelectList;
 
   constructor(onSelect: (region: MavisRegion) => void, onCancel: () => void) {
-    this.list = new SelectList([...LOGIN_REGIONS], LOGIN_REGIONS.length, theme, {
-      minPrimaryColumnWidth: 16,
-      maxPrimaryColumnWidth: 24,
-    });
+    this.list = new SelectList(
+      LOGIN_REGIONS.map((region) => ({
+        value: region.value,
+        label: authText(region.labelKey),
+        description: authText(region.descriptionKey),
+      })),
+      LOGIN_REGIONS.length,
+      theme,
+      {
+        minPrimaryColumnWidth: 16,
+        maxPrimaryColumnWidth: 24,
+      },
+    );
     this.list.onSelect = (item) => onSelect(item.value as MavisRegion);
     this.list.onCancel = onCancel;
   }
@@ -44,13 +54,11 @@ export class TuiLoginRegionPicker implements Component {
   }
 
   renderViewport(width: number, height: number): string[] {
-    const layout = panelLayout(width, height, '↑↓ select · Enter continue · Esc cancel');
+    const layout = panelLayout(width, height, authText('selectContinueCancel'));
     const helper =
-      layout.bodyHeight >= 4
-        ? [chalk.hex(colors.muted)('Only one MiniMax account region can be signed in at a time.')]
-        : [];
+      layout.bodyHeight >= 4 ? [chalk.hex(colors.muted)(authText('singleRegionOnly'))] : [];
     return layout.render({
-      title: 'Choose account region',
+      title: authText('chooseRegion'),
       body: [
         ...helper,
         ...this.list.renderViewport(layout.contentWidth, layout.bodyHeight - helper.length),

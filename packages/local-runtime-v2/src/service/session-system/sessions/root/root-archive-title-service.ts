@@ -1,4 +1,5 @@
 import type { PromptSnapshotSource } from '@mavis/agent-runtime';
+import { isChineseLocale } from '@mavis/shared/i18n';
 
 import { readPromptWithBuiltinFallback } from '../../../agent/index.js';
 import type { SessionRecord, SessionRepository } from '../repo/contract.js';
@@ -133,10 +134,9 @@ export class RootArchiveTitleService {
     try {
       const systemPrompt = await readPromptWithBuiltinFallback({
         source: this.options.promptSnapshots,
-        key:
-          locale.split('-')[0]?.toLowerCase() === 'zh'
-            ? ARCHIVE_TITLE_SYSTEM_PROMPT_ZH_KEY
-            : ARCHIVE_TITLE_SYSTEM_PROMPT_EN_KEY,
+        key: isChineseLocale(locale)
+          ? ARCHIVE_TITLE_SYSTEM_PROMPT_ZH_KEY
+          : ARCHIVE_TITLE_SYSTEM_PROMPT_EN_KEY,
         builtin: archiveTitleSystemPrompt(locale),
       });
       return await this.options.model.summarize({

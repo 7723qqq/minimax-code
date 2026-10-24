@@ -1,7 +1,9 @@
+import { waitFor } from '../../../../test/bun-test-setup.js';
+import { afterEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+
 import { LocalBashTool } from '@mavis/agent-tools/desktop';
 import { createLocalBashOperations } from '@earendil-works/pi-coding-agent/tools';
 import { getShellConfig } from '@earendil-works/pi-coding-agent/shell';
@@ -126,10 +128,10 @@ describe('child Bash lifecycle', () => {
     await create('bash');
     expect(await lifecycle.hasPending()).toBe(true);
     expect(await lifecycle.poll(poll)).toBeUndefined();
-    const complete = vi.fn();
-    const waiting = vi.spyOn(service, 'waitForTaskChange');
+    const complete = mock();
+    const waiting = spyOn(service, 'waitForTaskChange');
     const pending = lifecycle.poll({ ...poll, wait: true }).then(complete);
-    await vi.waitFor(() => expect(waiting).toHaveBeenCalled());
+    await waitFor(() => expect(waiting).toHaveBeenCalled());
     expect(complete).not.toHaveBeenCalled();
     await service.patch('bash', { status: 'succeeded' });
     await pending;
@@ -325,11 +327,11 @@ describe('child Bash steering interruption', () => {
       const { create, lifecycle, service, controller } = await fixture();
       await create('bash');
       const steering = new AbortController();
-      const waiting = vi.spyOn(service, 'waitForTaskChange');
+      const waiting = spyOn(service, 'waitForTaskChange');
       if (arrival === 'before-wait') steering.abort();
       const pending = lifecycle.poll({ ...poll, wait: true, steeringSignal: steering.signal });
       if (arrival === 'during-wait') {
-        await vi.waitFor(() => expect(waiting).toHaveBeenCalled());
+        await waitFor(() => expect(waiting).toHaveBeenCalled());
         steering.abort();
       }
       await expect(pending).resolves.toBeUndefined();

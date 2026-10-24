@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { parseDeliverAssetsContent } from '@mavis/shared/asset-markup';
 import { projectAssistantContentForTerminal } from '../../src/application/assistant-content.js';
 

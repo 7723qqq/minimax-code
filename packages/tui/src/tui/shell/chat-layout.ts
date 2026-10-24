@@ -8,6 +8,7 @@ import {
 import type { Component } from '../rendering/component.js';
 import { stripAnsi } from '../rendering/text.js';
 import { tuiChalk as chalk, tuiColors as colors } from '../theme/runtime.js';
+import { shellText } from './copy.js';
 import { resolveTuiLayoutPolicy } from './layout-policy.js';
 
 const OSC133_ZONE_PREFIX = /^(?:\x1b\]133;[ABC](?:\x07|\x1b\\))+/;
@@ -632,8 +633,11 @@ function joinWelcomeAndTranscript(
 }
 
 function renderHeldRowsNotice(hiddenRows: number): string {
-  const noun = hiddenRows === 1 ? 'line' : 'lines';
-  return chalk.hex(colors.muted)(`↑ ${hiddenRows} more ${noun} above · still updating`);
+  const notice =
+    hiddenRows === 1
+      ? shellText('chat.heldRows.one', { n: hiddenRows })
+      : shellText('chat.heldRows.many', { n: hiddenRows });
+  return chalk.hex(colors.muted)(notice);
 }
 
 function isStableRowsAwareComponent(

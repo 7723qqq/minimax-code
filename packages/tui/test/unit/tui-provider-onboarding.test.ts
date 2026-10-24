@@ -1,9 +1,10 @@
+import { waitFor } from '../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock } from 'bun:test';
 import type {
   McodeProviderTemplate,
   McodeProviderView,
 } from "../../src/provider/contract.js";
 import { stripAnsi, visibleWidth } from "../../src/tui/rendering/text.js";
-import { describe, expect, it, vi } from "vitest";
 
 import { TuiProviderOnboarding } from "../../src/tui/features/provider/onboarding.js";
 
@@ -38,10 +39,10 @@ describe("TuiProviderOnboarding", () => {
   it("moves from the first model to API Key with Up and shows the setup shortcut inline", () => {
     const onboarding = new TuiProviderOnboarding({
       templates: [knownTemplate],
-      onSave: vi.fn(),
-      onComplete: vi.fn(),
-      onCancel: vi.fn(),
-      requestRender: vi.fn(),
+      onSave: mock(),
+      onComplete: mock(),
+      onCancel: mock(),
+      requestRender: mock(),
     });
 
     onboarding.handleInput("\r");
@@ -62,13 +63,13 @@ describe("TuiProviderOnboarding", () => {
   });
 
   it("moves down from API Key to models and keeps the key entered before moving down", async () => {
-    const onSave = vi.fn(async () => ({ success: true }));
+    const onSave = mock(async () => ({ success: true }));
     const onboarding = new TuiProviderOnboarding({
       templates: [knownTemplate],
       onSave,
-      onComplete: vi.fn(),
-      onCancel: vi.fn(),
-      requestRender: vi.fn(),
+      onComplete: mock(),
+      onCancel: mock(),
+      requestRender: mock(),
     });
 
     onboarding.handleInput("\r");
@@ -89,24 +90,24 @@ describe("TuiProviderOnboarding", () => {
 
     onboarding.handleInput("\r");
     onboarding.handleInput("\r");
-    await vi.waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({ apiKey: "key-kept-with-down" }),
     );
   });
 
   it("browses model details and only saves on the second Enter with a configured key", async () => {
-    const onSave = vi.fn(async () => ({
+    const onSave = mock(async () => ({
       success: true,
       provider: { providerId: "custom_provider:deepseek" },
     }));
-    const onComplete = vi.fn(async () => undefined);
+    const onComplete = mock(async () => undefined);
     const onboarding = new TuiProviderOnboarding({
       templates: [knownTemplate],
       onSave,
       onComplete,
-      onCancel: vi.fn(),
-      requestRender: vi.fn(),
+      onCancel: mock(),
+      requestRender: mock(),
     });
 
     onboarding.handleInput("\r");
@@ -137,7 +138,7 @@ describe("TuiProviderOnboarding", () => {
     expect(onSave).not.toHaveBeenCalled();
     onboarding.handleInput("\r");
 
-    await vi.waitFor(() => expect(onComplete).toHaveBeenCalledOnce());
+    await waitFor(() => expect(onComplete).toHaveBeenCalledOnce());
     expect(onSave).toHaveBeenCalledWith({
       name: "DeepSeek",
       baseUrl: "https://api.deepseek.com/v1",
@@ -155,13 +156,13 @@ describe("TuiProviderOnboarding", () => {
   });
 
   it("opens masked API Key editing on the second Enter when no key is configured", () => {
-    const onSave = vi.fn();
+    const onSave = mock();
     const onboarding = new TuiProviderOnboarding({
       templates: [knownTemplate],
       onSave,
-      onComplete: vi.fn(),
-      onCancel: vi.fn(),
-      requestRender: vi.fn(),
+      onComplete: mock(),
+      onCancel: mock(),
+      requestRender: mock(),
     });
 
     onboarding.handleInput("\r");
@@ -207,13 +208,13 @@ describe("TuiProviderOnboarding", () => {
   });
 
   it("cancels key editing without replacing the previous draft", async () => {
-    const onSave = vi.fn(async () => ({ success: true }));
+    const onSave = mock(async () => ({ success: true }));
     const onboarding = new TuiProviderOnboarding({
       templates: [knownTemplate],
       onSave,
-      onComplete: vi.fn(),
-      onCancel: vi.fn(),
-      requestRender: vi.fn(),
+      onComplete: mock(),
+      onCancel: mock(),
+      requestRender: mock(),
     });
 
     onboarding.handleInput("\r");
@@ -229,11 +230,11 @@ describe("TuiProviderOnboarding", () => {
     onboarding.handleInput("\r");
     onboarding.handleInput("\r");
 
-    await vi.waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({ apiKey: "kept-key" }),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(stripAnsi(onboarding.render(90).join("\n"))).toContain(
         "API Key: Not configured",
       ),
@@ -241,20 +242,19 @@ describe("TuiProviderOnboarding", () => {
   });
 
   it("keeps known-provider details and key draft after a failed connection test", async () => {
-    const onSave = vi
-      .fn()
+    const onSave = mock()
       .mockResolvedValueOnce({
         success: false,
         status: { state: "failed", lastErrorMessage: "401 unauthorized" },
       })
       .mockResolvedValueOnce({ success: true });
-    const onComplete = vi.fn();
+    const onComplete = mock();
     const onboarding = new TuiProviderOnboarding({
       templates: [knownTemplate],
       onSave,
       onComplete,
-      onCancel: vi.fn(),
-      requestRender: vi.fn(),
+      onCancel: mock(),
+      requestRender: mock(),
     });
 
     onboarding.handleInput("\r");
@@ -265,7 +265,7 @@ describe("TuiProviderOnboarding", () => {
     onboarding.handleInput("\r");
     onboarding.handleInput("\r");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(stripAnsi(onboarding.render(90).join("\n"))).toContain(
         "401 unauthorized",
       ),
@@ -281,25 +281,25 @@ describe("TuiProviderOnboarding", () => {
     onboarding.handleInput("\r");
     onboarding.handleInput("\r");
 
-    await vi.waitFor(() => expect(onComplete).toHaveBeenCalledOnce());
+    await waitFor(() => expect(onComplete).toHaveBeenCalledOnce());
     expect(onSave).toHaveBeenLastCalledWith(
       expect.objectContaining({ apiKey: "good-key" }),
     );
   });
 
   it("collects the minimum custom provider fields without the remote catalog", async () => {
-    const onSave = vi.fn(async () => ({
+    const onSave = mock(async () => ({
       success: true,
       provider: { providerId: "custom_provider:team-gateway" },
     }));
-    const onComplete = vi.fn(async () => undefined);
+    const onComplete = mock(async () => undefined);
     const onboarding = new TuiProviderOnboarding({
       templates: [],
       catalogWarning: "Known providers unavailable; Custom remains available.",
       onSave,
       onComplete,
-      onCancel: vi.fn(),
-      requestRender: vi.fn(),
+      onCancel: mock(),
+      requestRender: mock(),
     });
 
     expect(stripAnsi(onboarding.render(90).join("\n"))).toContain(
@@ -317,7 +317,7 @@ describe("TuiProviderOnboarding", () => {
     onboarding.handleInput("model-a");
     onboarding.handleInput("\r");
 
-    await vi.waitFor(() => expect(onComplete).toHaveBeenCalledOnce());
+    await waitFor(() => expect(onComplete).toHaveBeenCalledOnce());
     expect(onSave).toHaveBeenCalledWith({
       name: "Team Gateway",
       baseUrl: "https://gateway.example/v1",
@@ -337,16 +337,16 @@ describe("TuiProviderOnboarding", () => {
   });
 
   it("keeps the form open when Runtime rejects the connection test", async () => {
-    const onComplete = vi.fn();
+    const onComplete = mock();
     const onboarding = new TuiProviderOnboarding({
       templates: [],
-      onSave: vi.fn(async () => ({
+      onSave: mock(async () => ({
         success: false,
         status: { state: "failed", lastErrorMessage: "401 unauthorized" },
       })),
       onComplete,
-      onCancel: vi.fn(),
-      requestRender: vi.fn(),
+      onCancel: mock(),
+      requestRender: mock(),
     });
 
     onboarding.handleInput("\r");
@@ -361,7 +361,7 @@ describe("TuiProviderOnboarding", () => {
     onboarding.handleInput("model-a");
     onboarding.handleInput("\r");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(stripAnsi(onboarding.render(90).join("\n"))).toContain(
         "401 unauthorized",
       ),
@@ -386,15 +386,15 @@ const savedConnection: McodeProviderView = {
 
 describe("existing connection onboarding", () => {
   it("defaults to the existing connection and saves with its ID, revision and saved Key", async () => {
-    const onSave = vi.fn(async () => ({ success: true }));
-    const onComplete = vi.fn();
+    const onSave = mock(async () => ({ success: true }));
+    const onComplete = mock();
     const onboarding = new TuiProviderOnboarding({
       templates: [knownTemplate],
       providers: [savedConnection],
       onSave,
       onComplete,
-      onCancel: vi.fn(),
-      requestRender: vi.fn(),
+      onCancel: mock(),
+      requestRender: mock(),
     });
     onboarding.handleInput("\r");
     const choice = stripAnsi(onboarding.render(150).join("\n"));
@@ -406,7 +406,7 @@ describe("existing connection onboarding", () => {
     );
     onboarding.handleInput("\r");
     onboarding.handleInput("\r");
-    await vi.waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
     expect(onSave).toHaveBeenCalledWith({
       providerId: savedConnection.providerId,
       expectedRevision: "rev-1",
@@ -427,14 +427,14 @@ describe("existing connection onboarding", () => {
   });
 
   it("creates a separate account only after an explicit choice and alias", async () => {
-    const onSave = vi.fn(async () => ({ success: true }));
+    const onSave = mock(async () => ({ success: true }));
     const onboarding = new TuiProviderOnboarding({
       templates: [knownTemplate],
       providers: [savedConnection],
       onSave,
-      onComplete: vi.fn(),
-      onCancel: vi.fn(),
-      requestRender: vi.fn(),
+      onComplete: mock(),
+      onCancel: mock(),
+      requestRender: mock(),
     });
     onboarding.handleInput("\r");
     onboarding.handleInput("\u001b[B");
@@ -449,7 +449,7 @@ describe("existing connection onboarding", () => {
     onboarding.handleInput("second-account-key");
     onboarding.handleInput("\r");
     onboarding.handleInput("\r");
-    await vi.waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "DeepSeek Personal",
@@ -469,10 +469,10 @@ describe("existing connection onboarding", () => {
       const onboarding = new TuiProviderOnboarding({
         templates: [knownTemplate],
         providers: [provider],
-        onSave: vi.fn(),
-        onComplete: vi.fn(),
-        onCancel: vi.fn(),
-        requestRender: vi.fn(),
+        onSave: mock(),
+        onComplete: mock(),
+        onCancel: mock(),
+        requestRender: mock(),
       });
       onboarding.handleInput("\r");
       expect(stripAnsi(onboarding.render(100).join("\n"))).toContain(
@@ -492,20 +492,19 @@ describe("preset endpoint editing", () => {
   };
 
   it("keeps the key and model after failure and tests only an explicitly confirmed endpoint", async () => {
-    const onSave = vi
-      .fn()
+    const onSave = mock()
       .mockResolvedValueOnce({
         success: false,
         status: { lastErrorMessage: "429 insufficient balance synthetic-key" },
       })
       .mockResolvedValueOnce({ success: true });
-    const onComplete = vi.fn();
+    const onComplete = mock();
     const onboarding = new TuiProviderOnboarding({
       templates: [template],
       onSave,
       onComplete,
-      onCancel: vi.fn(),
-      requestRender: vi.fn(),
+      onCancel: mock(),
+      requestRender: mock(),
     });
     onboarding.handleInput("\r");
     expect(stripAnsi(onboarding.render(140).join("\n"))).toContain(
@@ -516,7 +515,7 @@ describe("preset endpoint editing", () => {
     onboarding.handleInput("synthetic-key");
     onboarding.handleInput("\r");
     onboarding.handleInput("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(stripAnsi(onboarding.render(180).join("\n"))).toContain(
         "Changes were not saved",
       ),
@@ -546,7 +545,7 @@ describe("preset endpoint editing", () => {
     expect(view).toContain("Model ID: glm-5.3");
     expect(view).toContain("API Key: Ready for test");
     onboarding.handleInput("\r");
-    await vi.waitFor(() => expect(onComplete).toHaveBeenCalledOnce());
+    await waitFor(() => expect(onComplete).toHaveBeenCalledOnce());
     expect(onSave.mock.calls.map(([input]) => input.baseUrl)).toEqual([
       template.baseUrl,
       codingUrl,
@@ -560,13 +559,13 @@ describe("preset endpoint editing", () => {
   });
 
   it("cancels endpoint editing and clears the override when another preset is selected", async () => {
-    const onSave = vi.fn(async () => ({ success: true }));
+    const onSave = mock(async () => ({ success: true }));
     const onboarding = new TuiProviderOnboarding({
       templates: [template, knownTemplate],
       onSave,
-      onComplete: vi.fn(),
-      onCancel: vi.fn(),
-      requestRender: vi.fn(),
+      onComplete: mock(),
+      onCancel: mock(),
+      requestRender: mock(),
     });
     onboarding.handleInput("\r");
     onboarding.handleInput("\u0005");
@@ -604,26 +603,26 @@ function enterCustomCredentials(onboarding: TuiProviderOnboarding): void {
 
 describe("custom provider model import", () => {
   it("discovers with credentials before requiring a model and saves all unique models after selection", async () => {
-    const onDiscover = vi.fn(async () => [
+    const onDiscover = mock(async () => [
       { modelId: " model-a ", displayName: "Model A" },
       { modelId: "model-b", displayName: "Model B" },
       { modelId: "model-a" },
       { modelId: " " },
     ]);
-    const onSave = vi.fn(async () => ({ success: true }));
-    const onComplete = vi.fn();
+    const onSave = mock(async () => ({ success: true }));
+    const onComplete = mock();
     const onboarding = new TuiProviderOnboarding({
       templates: [],
       onDiscover,
       onSave,
       onComplete,
-      onCancel: vi.fn(),
-      requestRender: vi.fn(),
+      onCancel: mock(),
+      requestRender: mock(),
     });
     enterCustomCredentials(onboarding);
     expect(stripAnsi(onboarding.render(120).join("\n"))).toContain("Import models from /models");
     onboarding.handleInput("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(stripAnsi(onboarding.render(120).join("\n"))).toContain("Import 2 models"),
     );
     expect(onDiscover).toHaveBeenCalledWith({
@@ -635,7 +634,7 @@ describe("custom provider model import", () => {
     expect(onSave).not.toHaveBeenCalled();
     onboarding.handleInput("model-b");
     onboarding.handleInput("\r");
-    await vi.waitFor(() => expect(onComplete).toHaveBeenCalledOnce());
+    await waitFor(() => expect(onComplete).toHaveBeenCalledOnce());
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({
         apiKey: "synthetic-discovery-key",
@@ -652,22 +651,22 @@ describe("custom provider model import", () => {
   it.each(["error", "empty"])(
     "keeps credentials and manual entry available after %s discovery",
     async (failure) => {
-      const onDiscover = vi.fn(async () => {
+      const onDiscover = mock(async () => {
         if (failure === "error") throw new Error("401 synthetic-discovery-key");
         return [];
       });
-      const onSave = vi.fn(async () => ({ success: true }));
+      const onSave = mock(async () => ({ success: true }));
       const onboarding = new TuiProviderOnboarding({
         templates: [],
         onDiscover,
         onSave,
-        onComplete: vi.fn(),
-        onCancel: vi.fn(),
-        requestRender: vi.fn(),
+        onComplete: mock(),
+        onCancel: mock(),
+        requestRender: mock(),
       });
       enterCustomCredentials(onboarding);
       onboarding.handleInput("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(stripAnsi(onboarding.render(120).join("\n"))).toContain(
           failure === "error" ? "Couldn't import models" : "No models returned",
         ),
@@ -679,7 +678,7 @@ describe("custom provider model import", () => {
       onboarding.handleInput("\r");
       onboarding.handleInput("manual-model");
       onboarding.handleInput("\r");
-      await vi.waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+      await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
       expect(onSave).toHaveBeenCalledWith(
         expect.objectContaining({
           apiKey: "synthetic-discovery-key",
@@ -693,25 +692,25 @@ describe("custom provider model import", () => {
   );
 
   it("returns to API key editing and retries discovery with the replacement key", async () => {
-    const onDiscover = vi.fn(async () => []);
+    const onDiscover = mock(async () => []);
     const onboarding = new TuiProviderOnboarding({
       templates: [],
       onDiscover,
-      onSave: vi.fn(),
-      onComplete: vi.fn(),
-      onCancel: vi.fn(),
-      requestRender: vi.fn(),
+      onSave: mock(),
+      onComplete: mock(),
+      onCancel: mock(),
+      requestRender: mock(),
     });
     enterCustomCredentials(onboarding);
     onboarding.handleInput("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(stripAnsi(onboarding.render(120).join("\n"))).toContain("No models returned"),
     );
     onboarding.handleInput("\u001b");
     onboarding.handleInput("replacement-key");
     onboarding.handleInput("\r");
     onboarding.handleInput("\r");
-    await vi.waitFor(() => expect(onDiscover).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(onDiscover).toHaveBeenCalledTimes(2));
     expect(onDiscover).toHaveBeenLastCalledWith(
       expect.objectContaining({ apiKey: "replacement-key" }),
     );
@@ -720,27 +719,26 @@ describe("custom provider model import", () => {
 
 it("keeps the imported list after a failed connection test and saves only once while busy", async () => {
   let finishDiscovery!: (models: { modelId: string }[]) => void;
-  const onDiscover = vi.fn(
+  const onDiscover = mock(
     () =>
       new Promise<{ modelId: string }[]>((resolve) => {
         finishDiscovery = resolve;
       }),
   );
-  const onSave = vi
-    .fn()
+  const onSave = mock()
     .mockResolvedValueOnce({
       success: false,
       status: { state: "failed", lastErrorMessage: "unsupported model synthetic-discovery-key" },
     })
     .mockResolvedValueOnce({ success: true });
-  const onComplete = vi.fn();
+  const onComplete = mock();
   const onboarding = new TuiProviderOnboarding({
     templates: [],
     onDiscover,
     onSave,
     onComplete,
-    onCancel: vi.fn(),
-    requestRender: vi.fn(),
+    onCancel: mock(),
+    requestRender: mock(),
   });
   enterCustomCredentials(onboarding);
   onboarding.handleInput("\r");
@@ -748,13 +746,13 @@ it("keeps the imported list after a failed connection test and saves only once w
   expect(onDiscover).toHaveBeenCalledOnce();
   expect(stripAnsi(onboarding.render(100).join("\n"))).toContain("Importing models");
   finishDiscovery([{ modelId: "model-a" }, { modelId: "model-b" }]);
-  await vi.waitFor(() =>
+  await waitFor(() =>
     expect(stripAnsi(onboarding.render(100).join("\n"))).toContain("Import 2 models"),
   );
   expect(onboarding.render(40).every((line) => visibleWidth(line) <= 40)).toBe(true);
   onboarding.handleInput("\r");
   onboarding.handleInput("\r");
-  await vi.waitFor(() =>
+  await waitFor(() =>
     expect(stripAnsi(onboarding.render(120).join("\n"))).toContain("Changes were not saved"),
   );
   expect(onSave).toHaveBeenCalledOnce();
@@ -762,7 +760,7 @@ it("keeps the imported list after a failed connection test and saves only once w
   expect(stripAnsi(onboarding.render(120).join("\n"))).not.toContain("synthetic-discovery-key");
   onboarding.handleInput("\u001b[B");
   onboarding.handleInput("\r");
-  await vi.waitFor(() => expect(onComplete).toHaveBeenCalledOnce());
+  await waitFor(() => expect(onComplete).toHaveBeenCalledOnce());
   expect(onSave).toHaveBeenLastCalledWith(
     expect.objectContaining({
       modelId: "model-b",

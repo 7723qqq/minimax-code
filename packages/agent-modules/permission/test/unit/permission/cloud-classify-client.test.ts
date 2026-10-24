@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'bun:test';
 
 import { getPermissionCheckApiUrl } from '../../../src/classifier/cloud-classify-client.js';
 import {

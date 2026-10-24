@@ -23,6 +23,8 @@ import { TuiHistorySearchPanel } from '../../features/history/search-panel.js';
 import { formatTuiActionFailure } from '../../../user-facing-failure.js';
 import type { RecentCodexSession } from '../../../host/recent-codex-session.js';
 import { parseTuiBashInput } from '../../commands/bash-input.js';
+import { controllerText } from '../copy.js';
+import { controllerInteractionText } from './copy.js';
 
 const DOUBLE_ESCAPE_WINDOW_MS = 500;
 
@@ -115,8 +117,8 @@ export class TuiInputFlow {
       void this.options.composerDraft.queueAttachment(imageReference).catch((error: unknown) =>
         this.options.append(
           formatTuiActionFailure(error, {
-            summary: "Couldn't attach that image.",
-            nextStep: 'Check the path and try again.',
+            summary: controllerInteractionText('input.image.attachFailed'),
+            nextStep: controllerInteractionText('input.image.attachFailedNextStep'),
           }),
           'error',
         ),
@@ -130,8 +132,8 @@ export class TuiInputFlow {
         .catch((error: unknown) =>
           this.options.append(
             formatTuiActionFailure(error, {
-              summary: "Couldn't attach that file.",
-              nextStep: 'Check the path and try again.',
+              summary: controllerInteractionText('input.file.attachFailed'),
+              nextStep: controllerInteractionText('input.image.attachFailedNextStep'),
             }),
             'error',
           ),
@@ -147,8 +149,8 @@ export class TuiInputFlow {
         .catch((error: unknown) =>
           this.options.append(
             formatTuiActionFailure(error, {
-              summary: "Couldn't remove that attachment.",
-              nextStep: 'Retry.',
+              summary: controllerInteractionText('input.attachment.removeFailed'),
+              nextStep: controllerText('common.retry'),
             }),
             'error',
           ),
@@ -169,9 +171,9 @@ export class TuiInputFlow {
         this.options.editor.restoreDraft(editorDraft);
         this.options.append(
           formatTuiActionFailure(error, {
-            summary: "Couldn't prepare this message.",
-            nextStep: 'Review attachments and retry.',
-            preservation: 'Your draft is preserved.',
+            summary: controllerText('common.prepareMessageFailed'),
+            nextStep: controllerInteractionText('input.message.prepareFailedNextStep'),
+            preservation: controllerText('common.draftPreserved'),
           }),
           'error',
         );
@@ -202,9 +204,9 @@ export class TuiInputFlow {
           },
           async (error: unknown) => {
             const message = formatTuiActionFailure(error, {
-              summary: "Couldn't send this message.",
-              nextStep: 'Retry.',
-              preservation: 'Your draft is preserved.',
+              summary: controllerText('common.sendMessageFailed'),
+              nextStep: controllerText('common.retry'),
+              preservation: controllerText('common.draftPreserved'),
             });
             await this.options.commandFlow.restoreFailedSeed(input, submission);
             this.options.append(message, 'error');
@@ -214,8 +216,8 @@ export class TuiInputFlow {
         .catch((error: unknown) =>
           this.options.append(
             formatTuiActionFailure(error, {
-              summary: "Couldn't preserve this failed message.",
-              nextStep: 'Copy it before exiting.',
+              summary: controllerInteractionText('input.message.preserveFailed'),
+              nextStep: controllerInteractionText('input.message.preserveFailedNextStep'),
             }),
             'error',
           ),
@@ -259,7 +261,7 @@ export class TuiInputFlow {
       void this.options.toggleSideConversation?.().then((toggled) => {
         if (!toggled) {
           this.options.setHint(
-            'No side conversation is open. Run /btw first; this shortcut only switches conversations.',
+            controllerInteractionText('input.side.notOpen'),
             'warning',
           );
         }
@@ -299,7 +301,7 @@ export class TuiInputFlow {
       this.ctrlCExitArmed = false;
       this.options.composerDraft.restoreClearedDraft();
       this.options.editor.restoreDraft(restored);
-      this.options.setHint('Draft restored');
+      this.options.setHint(controllerInteractionText('input.draft.restored'));
       this.options.onChanged();
       return { consume: true };
     }
@@ -308,8 +310,8 @@ export class TuiInputFlow {
       void this.options.composerDraft.discardClearedDraft().catch((error: unknown) =>
         this.options.append(
           formatTuiActionFailure(error, {
-            summary: "Couldn't discard the saved draft.",
-            nextStep: 'Retry.',
+            summary: controllerInteractionText('input.draft.discardFailed'),
+            nextStep: controllerText('common.retry'),
           }),
           'error',
         ),
@@ -333,8 +335,8 @@ export class TuiInputFlow {
           this.options.restoreRecentCodexSession?.(session);
           this.options.append(
             formatTuiActionFailure(error, {
-              summary: "Couldn't resume that Codex session.",
-              nextStep: 'Press Ctrl+U to retry or run /resume-codex with the session id.',
+              summary: controllerInteractionText('input.codex.resumeFailed'),
+              nextStep: controllerInteractionText('input.codex.resumeFailedNextStep'),
             }),
             'error',
           );
@@ -351,9 +353,9 @@ export class TuiInputFlow {
       void this.externalEditorFlow.open().catch((error: unknown) =>
         this.options.append(
           formatTuiActionFailure(error, {
-            summary: "Couldn't open the external editor.",
-            nextStep: 'Check $VISUAL or $EDITOR and retry.',
-            preservation: 'Your draft is preserved.',
+            summary: controllerInteractionText('input.editor.openFailed'),
+            nextStep: controllerInteractionText('input.editor.openFailedNextStep'),
+            preservation: controllerText('common.draftPreserved'),
           }),
           'error',
         ),
@@ -378,8 +380,8 @@ export class TuiInputFlow {
       void this.options.restoreWaitingMessage().catch((error: unknown) =>
         this.options.append(
           formatTuiActionFailure(error, {
-            summary: "Couldn't restore the latest queued message.",
-            nextStep: 'Retry.',
+            summary: controllerInteractionText('input.queue.restoreFailed'),
+            nextStep: controllerText('common.retry'),
           }),
           'error',
         ),
@@ -406,7 +408,7 @@ export class TuiInputFlow {
     }
     if (keyAction === 'toggle-plan') {
       if (this.options.interactionFlow.hasPending()) {
-        this.options.setHint('Resolve the pending Agent interaction before changing Plan Mode.');
+        this.options.setHint(controllerInteractionText('input.plan.resolveBeforePlanMode'));
         this.options.interactionFlow.showPending();
         this.options.onChanged();
         return { consume: true };
@@ -466,8 +468,8 @@ export class TuiInputFlow {
           (error: unknown) => {
             this.options.append(
               formatTuiActionFailure(error, {
-                summary: "Couldn't edit the latest message.",
-                nextStep: 'Run /edit to retry.',
+                summary: controllerInteractionText('input.edit.failed'),
+                nextStep: controllerInteractionText('input.edit.retryEdit'),
               }),
               'error',
             );
@@ -477,7 +479,7 @@ export class TuiInputFlow {
         return { consume: true };
       }
       this.lastEscapeAtMs = now;
-      this.options.setHint('Press Esc again to edit the latest message');
+      this.options.setHint(controllerInteractionText('input.edit.pressAgain'));
       this.options.onChanged();
       return undefined;
     }
@@ -520,13 +522,20 @@ export class TuiInputFlow {
       });
       const keybindings = this.options.keybindings ?? getDefaultTuiKeybindingRegistry();
       this.options.setHint(
-        `Draft cleared · ${formatTuiKeybinding('composer.restore-draft', keybindings)} restore · ${formatTuiKeybinding('app.clear', keybindings)} exit`,
+        controllerInteractionText('input.draft.clearedHint', {
+          restore: formatTuiKeybinding('composer.restore-draft', keybindings),
+          exit: formatTuiKeybinding('app.clear', keybindings),
+        }),
       );
       this.options.onChanged();
     } else {
       this.ctrlCExitArmed = true;
       const keybindings = this.options.keybindings ?? getDefaultTuiKeybindingRegistry();
-      this.options.setHint(`Press ${formatTuiKeybinding('app.clear', keybindings)} again to exit`);
+      this.options.setHint(
+        controllerInteractionText('input.exit.pressAgain', {
+          key: formatTuiKeybinding('app.clear', keybindings),
+        }),
+      );
       this.options.onChanged();
     }
     this.options.tui.requestRender();
@@ -536,7 +545,7 @@ export class TuiInputFlow {
   private openHistorySearch(): void {
     const entries = this.options.editor.getHistoryEntries();
     if (entries.length === 0) {
-      this.options.setHint('No prompt history yet.');
+      this.options.setHint(controllerInteractionText('input.history.empty'));
       this.options.onChanged();
       return;
     }

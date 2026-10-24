@@ -1,3 +1,5 @@
+import { translateRuntimeText } from '@mavis/shared/i18n';
+
 import type { ClipboardProvider } from './clipboard.js';
 import { classifyBrowserNavigationEvent } from './browser-action-helpers.js';
 import { BrowserExtendedActionSupport } from './browser-extended-actions.js';
@@ -484,7 +486,7 @@ export class BrowserCoreSession extends BrowserExtendedActionSupport {
         success: false,
         code: 'ACTION_TIMEOUT',
         error: 'The click did not produce an observable main-document navigation.',
-        recovery: 'Inspect the current page before deciding whether to retry.',
+        recovery: translateRuntimeText(null, 'browser.inspectBeforeRetry'),
       };
     }
     try {
@@ -517,7 +519,7 @@ export class BrowserCoreSession extends BrowserExtendedActionSupport {
         success: false,
         code: 'NAVIGATION_FAILED',
         error: error instanceof Error ? error.message : String(error),
-        recovery: 'Inspect the current page before deciding whether to retry.',
+        recovery: translateRuntimeText(null, 'browser.inspectBeforeRetry'),
       };
     }
   }

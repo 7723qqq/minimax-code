@@ -1,7 +1,7 @@
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { LocalModelCache } from '../catalog/model-cache.js';
 import type {
@@ -22,7 +22,7 @@ interface Harness {
   readonly config: LocalRuntimeConfig;
   readonly cache: LocalModelCache;
   readonly service: LocalModelProviderService;
-  readonly selectModel: ReturnType<typeof vi.fn>;
+  readonly selectModel: ReturnType<typeof mock>;
   readonly testCalls: Array<{ key: string; target: ModelConnectionTestTarget }>;
   setTestResult(result: ModelConnectionTestResult): void;
 }
@@ -48,7 +48,7 @@ function createHarness(
   };
   const cache = new LocalModelCache(() => dataDir);
   const testCalls: Array<{ key: string; target: ModelConnectionTestTarget }> = [];
-  const selectModel = vi.fn(async (modelKey: string) => {
+  const selectModel = mock(async (modelKey: string) => {
     config.defaultModel = modelKey;
   });
   let testResult: ModelConnectionTestResult = { ok: true };

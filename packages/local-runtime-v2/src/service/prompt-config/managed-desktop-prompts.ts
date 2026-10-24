@@ -2,6 +2,8 @@ import { access, readFile, stat } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { hasEmbeddedAssets, resolveBundledAsset } from '@mavis/shared/bundled-assets';
+
 import { assertPromptRelativePath } from './storage/prompt-path.js';
 
 const MANAGED_DESKTOP_PROMPT_GROUP_NAMES = ['desktop_agent'] as const;
@@ -15,6 +17,10 @@ export interface ManagedDesktopPromptRegistry {
 
 /** Resolves the same packaged asset directory used by BuiltinAgentCatalog. */
 export async function resolveBuiltinPromptAssetsDir(): Promise<string> {
+  // A packaged executable carries the assets inside its image, keyed by relative
+  // path; there is no directory to return. The sentinel makes every caller resolve
+  // through the embedded table instead of the filesystem.
+  if (hasEmbeddedAssets()) return '<mcode-embedded-assets>';
   const configured = process.env.MAVIS_BUILTIN_AGENTS_V2_DIR?.trim();
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = configured
@@ -50,10 +56,18 @@ export async function loadManagedDesktopPromptRegistry(
 }
 
 async function readRegistryFile(builtinAssetsDir: string): Promise<unknown> {
+  const registryPath = join(builtinAssetsDir, 'managed-prompts.json');
   try {
-    return JSON.parse(await readFile(join(builtinAssetsDir, 'managed-prompts.json'), 'utf8'));
+    return JSON.parse(await readFile(registryPath, 'utf8'));
   } catch {
-    throw new Error('Managed Desktop Prompt registry is unavailable.');
+    // Packaged builds hold the registry inside the image under its asset key.
+    const embedded = resolveBundledAsset('', 'assets/agents/managed-prompts.json');
+    if (embedded === undefined) throw new Error('Managed Desktop Prompt registry is unavailable.');
+    try {
+      return JSON.parse(await readFile(embedded, 'utf8'));
+    } catch {
+      throw new Error('Managed Desktop Prompt registry is unavailable.');
+    }
   }
 }
 

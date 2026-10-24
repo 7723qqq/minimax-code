@@ -1,4 +1,3 @@
-import { performance } from 'node:perf_hooks';
 
 import type { TuiStreamEvent, TuiToolCall } from '../runtime/stream-events.js';
 

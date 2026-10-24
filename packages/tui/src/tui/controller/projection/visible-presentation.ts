@@ -18,6 +18,7 @@ import {
   type TuiSideConversationPresentation,
 } from '../../commands/side-session.js';
 import { LIGHTWEIGHT_SESSION_PURPOSE } from '@mavis/protocol/local';
+import { controllerText } from '../copy.js';
 
 export interface ResolveTuiVisiblePresentationInput {
   readonly snapshot: TuiChatSnapshot;
@@ -98,9 +99,16 @@ export function resolveTuiVisiblePresentation(
 function resolveDraftLabel(input: ResolveTuiVisiblePresentationInput): string | undefined {
   if (!input.queueEnabled) return undefined;
   const attachment = input.attachmentCount
-    ? `${String(input.attachmentCount)} attachment${input.attachmentCount === 1 ? '' : 's'}`
+    ? controllerText(
+        input.attachmentCount === 1
+          ? 'projection.attachmentLabelOne'
+          : 'projection.attachmentLabelMany',
+        { count: input.attachmentCount },
+      )
     : undefined;
-  const queue = `${formatTuiKeybinding('run.queue-draft', input.keybindings)} queue`;
+  const queue = controllerText('projection.queueDraftLabel', {
+    keybinding: formatTuiKeybinding('run.queue-draft', input.keybindings),
+  });
   return attachment ? `${attachment} · ${queue}` : queue;
 }
 
@@ -158,11 +166,21 @@ function resolveVisibleActivity(input: ResolveTuiVisiblePresentationInput): TuiA
       phase: 'retrying',
       runId,
       ...controls,
-      message: `Retrying model request · ${String(input.llmRetry.retryAttempt)}/${String(
-        input.llmRetry.maxRetries,
-      )}${retryDelay !== undefined ? ` · next in ${formatRetryDelay(retryDelay)}` : ''}${
-        retryReason ? ` · ${retryReason}` : ''
-      }${retryCode !== undefined ? ` · code ${String(retryCode)}` : ''}`,
+      message: joinHintParts([
+        controllerText('projection.retryAttempt', {
+          attempt: String(input.llmRetry.retryAttempt),
+          max: String(input.llmRetry.maxRetries),
+        }),
+        retryDelay !== undefined
+          ? controllerText('projection.retryNextIn', {
+              delay: formatRetryDelay(retryDelay),
+            })
+          : '',
+        retryReason ? controllerText('projection.retryReason', { reason: retryReason }) : '',
+        retryCode !== undefined
+          ? controllerText('projection.retryCode', { code: String(retryCode) })
+          : '',
+      ]),
     };
   }
   if (input.activePermission || input.activeQuestionnaire) return { phase: 'idle', runId };
@@ -177,6 +195,11 @@ function resolveVisibleActivity(input: ResolveTuiVisiblePresentationInput): TuiA
       : { phase: 'loading', runId, ...controls };
   }
   return { phase: 'idle' };
+}
+
+/** Join the optional activity-line hint fragments into one message. */
+function joinHintParts(parts: readonly string[]): string {
+  return parts.filter(Boolean).join('');
 }
 
 function formatRetryDelay(delayMs: number): string {
@@ -246,10 +269,12 @@ function resolveVisibleComposer(input: ResolveTuiVisiblePresentationInput): TuiC
     resolvePlanTransitionHint(input.planMode) ??
     (running
       ? input.runtimeStoppingRunId
-        ? 'Stopping · draft preserved'
+        ? controllerText('projection.stoppingDraftPreserved')
         : undefined
       : input.runtimeQueuedCount > 0
-        ? `Message · ${formatTuiKeybinding('tui.input.submit', input.keybindings)} send`
+        ? controllerText('projection.messageSendHint', {
+            keybinding: formatTuiKeybinding('tui.input.submit', input.keybindings),
+          })
         : undefined);
   return {
     surface: input.surface,
@@ -257,7 +282,7 @@ function resolveVisibleComposer(input: ResolveTuiVisiblePresentationInput): TuiC
     ...(input.sideConversation
       ? {
           ...(input.sideConversation.view === 'side'
-            ? { placeholder: 'Ask a side question…' }
+            ? { placeholder: controllerText('projection.sideQuestionPlaceholder') }
             : {}),
           contextLabel: formatSideConversationLabel(
             input.sideConversation,
@@ -286,11 +311,13 @@ function resolveVisibleComposer(input: ResolveTuiVisiblePresentationInput): TuiC
 function resolvePlanTransitionHint(planMode: TuiPlanModeSnapshot | undefined): string | undefined {
   if (planMode?.transition === 'next-message') {
     return planMode.displayMode === 'plan'
-      ? 'Plan Mode · next message enters Plan'
-      : 'Default Mode · next message exits Plan';
+      ? controllerText('projection.planNextMessageEnters')
+      : controllerText('projection.defaultNextMessageExits');
   }
   if (planMode?.transition === 'submitting') {
-    return `${planMode.displayMode === 'plan' ? 'Plan' : 'Default'} Mode change submitting…`;
+    return controllerText('projection.modeChangeSubmitting', {
+      mode: planMode.displayMode === 'plan' ? 'Plan' : 'Default',
+    });
   }
   return undefined;
 }
@@ -314,7 +341,7 @@ function resolveStableShell(input: ResolveTuiVisiblePresentationInput): TuiShell
         : input.snapshot.account?.status === 'needs-login'
           ? 'offline'
           : 'ready',
-    sessionTitle: session?.title ?? 'New session',
+    sessionTitle: session?.title ?? controllerText('session.defaultTitle'),
     ...(session?.purpose === LIGHTWEIGHT_SESSION_PURPOSE ? { lightweightMode: true } : {}),
     sessionRole: delegatedSession ? 'subagent' : 'root',
     sessionAgentName: delegatedSession?.agentName,
@@ -366,9 +393,9 @@ function resolveAccountShellState(
 }
 
 function resolveWelcomeAccountStatus(account: TuiAccountStatus | undefined): string {
-  if (!account) return 'Checking account';
-  if (tuiAccountNeedsLoginPrompt(account)) return 'Sign in with /login';
-  if (account.status === 'ready') return 'Account ready';
-  if (account.status === 'warning') return 'Connected with warnings';
-  return 'Account unavailable';
+  if (!account) return controllerText('projection.accountChecking');
+  if (tuiAccountNeedsLoginPrompt(account)) return controllerText('projection.accountSignIn');
+  if (account.status === 'ready') return controllerText('projection.accountReady');
+  if (account.status === 'warning') return controllerText('projection.accountWarnings');
+  return controllerText('projection.accountUnavailable');
 }

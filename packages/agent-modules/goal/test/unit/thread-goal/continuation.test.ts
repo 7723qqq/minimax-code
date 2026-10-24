@@ -6,7 +6,7 @@
  * (c) the template still carries the codex-derived continuation guidance.
  */
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'bun:test';
 
 import {
   renderContinuationPrompt,

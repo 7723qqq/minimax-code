@@ -49,13 +49,13 @@ irm https://filecdn.minimax.chat/public/install.ps1 | iex
 
 The scripts install into `~/.minimax-code` on macOS / Linux / WSL and `%USERPROFILE%\.minimax-code` on Windows. The launchers are `bin/mcode` and `bin/mcode-tools` on POSIX, or `mcode.cmd` / `mcode.ps1` and `mcode-tools.cmd` / `mcode-tools.ps1` on Windows. Set `MCODE_INSTALL_DIR` before installation to choose a different location. See [Uninstall](#uninstall) to remove the CLI.
 
-**npm** — if you already have **Node.js 22.19+ (22.x), 24.2+ (24.x), 25, or 26**:
+**npm** — you need **Bun 1.4.4+** (the CLI runtime) and, where npm performs the installation, **Node.js 22.19+ (22.x), 24.2+ (24.x), 25, or 26**:
 
 ```bash
-npm install -g @minimax-ai/code@latest --registry=https://registry.npmjs.org/ --ignore-scripts=false --include=optional --allow-scripts=@minimax-ai/code,better-sqlite3
+npm install -g @minimax-ai/code@latest --registry=https://registry.npmjs.org/ --ignore-scripts=false --include=optional --allow-scripts=@minimax-ai/code
 ```
 
-The npm command uses the public registry, includes the optional SQLite dependency, and permits the package and SQLite installation scripts. See the [installation guide](docs/installation.md) for version pinning and Node.js compatibility.
+The npm command uses the public registry and permits the package lifecycle script; SQLite runs through Bun's builtin `bun:sqlite`. See the [installation guide](docs/installation.md) for version pinning and Node.js compatibility.
 
 Reopen your terminal and check the installation:
 
@@ -257,22 +257,22 @@ Account features, updates, feedback, and diagnostics are also included. Managed 
 
 ## Build from source
 
-To develop MCode or run this source checkout, you need Git, **Node.js 22.19+ (22.x), 24.2+ (24.x), 25, or 26**, and **pnpm 9.12.0**. On Windows, keep the checkout on a local NTFS volume and outside cloud-synced folders; the preflight command below checks the volume before pnpm creates workspace links.
+To develop MCode or run this source checkout, you need Git, **Bun 1.4.4+** (dependency installation, tests and the CLI runtime), and **Node.js 22.19+ (22.x), 24.2+ (24.x), 25, or 26** for the build scripts. On Windows, keep the checkout on a local NTFS volume and outside cloud-synced folders; the preflight command below checks the volume before dependencies are installed.
 ```bash
 git clone https://github.com/MiniMax-AI/minimax-code.git
 cd minimax-code
 node scripts/check-windows-source-location.mjs
-pnpm install --frozen-lockfile
-pnpm build
-pnpm mcode
+bun install --frozen-lockfile
+bun run build
+bun run mcode
 ```
 
-The first build requires an internet connection. Dependencies and the integrity-checked `mcode-tools` bundle come from public npm. See the [source installation guide](docs/installation.md) for pnpm setup, system dependencies, and updates.
+The first build requires an internet connection. Dependencies and the integrity-checked `mcode-tools` bundle come from public npm. See the [source installation guide](docs/installation.md) for Bun setup, system dependencies, and updates.
 
-From the source directory, use `pnpm mcode` in place of `mcode` in the examples above. To work on your own project, open its directory and launch the built CLI:
+From the source directory, use `bun run mcode` in place of `mcode` in the examples above. To work on your own project, open its directory and launch the built CLI:
 
 ```bash
-node /absolute/path/to/minimax-code/dist/cli.js
+bun /absolute/path/to/minimax-code/dist/cli.js
 ```
 
 This repository targets the **0.6.3 source preview**. Installing the published package and building this checkout are separate paths. Matching versions do not prove identical build provenance; see the [version and evidence baseline](docs/open-source-status.md#version-and-evidence-baseline).

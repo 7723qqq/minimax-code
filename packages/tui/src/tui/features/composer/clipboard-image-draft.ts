@@ -8,6 +8,7 @@ import type { TuiTextClipboardReader } from '../../../host/clipboard-text.js';
 import { tmpdir } from 'node:os';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { formatTuiActionFailure } from '../../../user-facing-failure.js';
+import { composerText } from './copy.js';
 
 export type ClipboardImageReader = (signal?: AbortSignal) => Promise<TuiClipboardImageLease>;
 
@@ -36,16 +37,14 @@ export class ClipboardImageDraft {
 
   async paste(callbacks: ClipboardImagePasteCallbacks): Promise<void> {
     if (!this.readClipboardImage && !this.readClipboardText) {
-      callbacks.onWarning(
-        'Clipboard paste is unavailable in this host. Save media and reference it in the prompt with @.',
-      );
+      callbacks.onWarning(composerText('clipboardUnavailable'));
       return;
     }
     if (this.activeRead) return;
 
     const controller = new AbortController();
     this.activeRead = controller;
-    callbacks.onHint('Reading clipboard…');
+    callbacks.onHint(composerText('clipboardReading'));
     try {
       let imageError: unknown;
       if (this.readClipboardImage) {
@@ -75,8 +74,8 @@ export class ClipboardImageDraft {
       if (imageError && shouldReportClipboardImageError(imageError)) {
         callbacks.onWarning(
           formatTuiActionFailure(imageError, {
-            summary: "Couldn't paste media from the clipboard.",
-            nextStep: 'Copy the image or video file again, or attach the saved file with @.',
+            summary: composerText('clipboardPasteFailed'),
+            nextStep: composerText('clipboardFailed'),
           }),
         );
       }

@@ -1,9 +1,7 @@
-import { execFile } from 'node:child_process';
 import { lstat, readFile, realpath } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
-import { promisify } from 'node:util';
 
-const execFileAsync = promisify(execFile);
+import { execGitStdout } from './git-exec.js';
 
 export class ReviewTargetError extends Error {
   constructor(
@@ -20,11 +18,7 @@ export async function readSafeGitBaseTextFile(
 ): Promise<{ lines: string[] }> {
   await validateWorkspaceRelativePath(workspace, sourcePath);
   try {
-    const { stdout } = await execFileAsync('git', ['show', `HEAD:${sourcePath}`], {
-      cwd: workspace,
-      encoding: 'utf8',
-      maxBuffer: 16 * 1024 * 1024,
-    });
+    const stdout = await execGitStdout(workspace, ['show', `HEAD:${sourcePath}`]);
     if (stdout.includes('\0')) {
       throw new ReviewTargetError('invalid', 'Binary review targets are not supported');
     }

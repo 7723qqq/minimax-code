@@ -2,7 +2,6 @@ import { Buffer } from 'node:buffer';
 import {
   appendFileSync,
   closeSync,
-  existsSync,
   lstatSync,
   mkdirSync,
   openSync,
@@ -600,7 +599,7 @@ function resolveLegacyDraftSessionArtifactPaths(
     contract.legacyDraftLedgers,
     `${safeLegacyFlatFileName(sessionId)}.jsonl`,
   );
-  const hasFlatLedger = existsSync(flatLedgerPath);
+  const hasFlatLedger = pathExists(flatLedgerPath);
   const ledgerPath = hasFlatLedger ? flatLedgerPath : path.join(ledgerDir, 'ledger.jsonl');
   const displayPath = hasFlatLedger
     ? path.join(contract.legacyDraftLedgers, `${safeLegacyFlatFileName(sessionId)}.display.jsonl`)
@@ -627,18 +626,18 @@ function resolveLegacyDraftSessionArtifactPaths(
 function legacyArtifactExists(paths: V2SessionArtifactPaths): boolean {
   return (
     paths.layout === 'legacy-draft' &&
-    (existsSync(paths.ledger) || existsSync(paths.snapshot) || existsSync(paths.display))
+    (pathExists(paths.ledger) || pathExists(paths.snapshot) || pathExists(paths.display))
   );
 }
 
 function artifactPathsStillExist(paths: V2SessionArtifactPaths): boolean {
-  if (paths.layout === 'final-dated') return Boolean(paths.manifest && existsSync(paths.manifest));
+  if (paths.layout === 'final-dated') return Boolean(paths.manifest && pathExists(paths.manifest));
   return legacyArtifactExists(paths);
 }
 
 function findFinalManifestPath(dataDir: DataDirInput, sessionId: string): string | undefined {
   const root = resolveV2DirectoryContract(dataDir).sessions;
-  if (!existsSync(root)) return undefined;
+  if (!pathExists(root)) return undefined;
   const matches: Array<{ path: string; createdAtMs: number }> = [];
   for (const manifestPath of listFinalManifestPaths(root)) {
     const manifest = readManifest(manifestPath);
@@ -658,7 +657,7 @@ function listFinalManifestPaths(root: string): string[] {
       for (const day of safeReadDirs(path.join(root, year, month))) {
         for (const sessionDir of safeReadDirs(path.join(root, year, month, day))) {
           const manifestPath = path.join(root, year, month, day, sessionDir, 'manifest.json');
-          if (existsSync(manifestPath)) manifests.push(manifestPath);
+          if (pathExists(manifestPath)) manifests.push(manifestPath);
         }
       }
     }
@@ -830,5 +829,24 @@ function needsJsonlLineBoundarySync(filePath: string): boolean {
     throw err;
   } finally {
     if (handle !== undefined) closeSync(handle);
+  }
+}
+
+/**
+ * Whether `target` exists.
+ *
+ * A `statSync` inside a `try` answers the same question as `existsSync` for a
+ * file, a directory, a missing entry and an unreadable path. It also removes the
+ * second syscall these call sites used to pay, since `statSync` already yields
+ * what they then inspect. `existsSync` is the Node compatibility surface and
+ * measures roughly an order of magnitude slower per call in this runtime. This
+ * module is synchronous throughout, so `Bun.file()` does not apply.
+ */
+function pathExists(target: string): boolean {
+  try {
+    statSync(target);
+    return true;
+  } catch {
+    return false;
   }
 }

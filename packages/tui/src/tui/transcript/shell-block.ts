@@ -1,6 +1,7 @@
 import { truncateToWidth, visibleWidth, wrapTextWithAnsi } from '../rendering/text.js';
 import { sanitizeTerminalText } from '../rendering/terminal-text.js';
 import { tuiChalk as chalk, tuiColors as colors } from '../theme/runtime.js';
+import { transcriptText } from '../features/transcript/copy.js';
 import type { TranscriptCell } from './model.js';
 
 export function renderShellBlock(cell: TranscriptCell, width: number): string[] {
@@ -24,7 +25,9 @@ export function renderShellBlock(cell: TranscriptCell, width: number): string[] 
         : cell.status === 'cancelled'
           ? '○'
           : '●';
-  const heading = command.startsWith('!!') ? 'Shell · Local only' : 'Shell';
+  const heading = command.startsWith('!!')
+    ? transcriptText('shell.heading.localOnly')
+    : transcriptText('shell.title');
   const status = `${marker} ${footer}`;
   if (columns < 5) {
     return wrapTextWithAnsi(`${heading}\n${command}\n${output}\n${status}`, columns).map((line) =>
@@ -46,7 +49,10 @@ export function renderShellBlock(cell: TranscriptCell, width: number): string[] 
     );
   };
   const wrap = (text: string) => wrapTextWithAnsi(text.replace(/\t/gu, '    '), innerWidth);
-  const emptyOutput = cell.status === 'running' ? 'Waiting for output…' : 'No output';
+  const emptyOutput =
+    cell.status === 'running'
+      ? transcriptText('shell.waitingForOutput')
+      : transcriptText('shell.noOutput');
   return [
     rule('╭', '╮', heading),
     ...wrap(command).map((line) => row(chalk.bold.hex(colors.warning)(line))),

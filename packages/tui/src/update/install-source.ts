@@ -2,6 +2,7 @@ import { accessSync, constants, existsSync, readFileSync, realpathSync, statSync
 import path from 'node:path';
 import spawn from 'cross-spawn';
 import { parseMcodeVersion } from './release.js';
+import { tuiUpdateText } from './copy.js';
 import type { McodeUpdateOperationOptions } from './progress.js';
 
 export const MCODE_INTERNAL_NPM_REGISTRY = 'https://npmmirror.example.invalid/';
@@ -210,12 +211,14 @@ export function buildMcodePackageManagerCommand(
   const npmInstallArgs = [
     '--ignore-scripts=false',
     '--include=optional',
-    `--allow-scripts=${distribution.packageName},better-sqlite3`,
+    `--allow-scripts=${distribution.packageName}`,
   ];
   const npmInstallDisplay = npmInstallArgs.join(' ');
   switch (source) {
     case 'npm-prefix': {
-      if (!prefixInstall) throw new Error('MCode npm prefix ownership metadata is missing.');
+      if (!prefixInstall) {
+        throw new Error(tuiUpdateText('update.prefix.ownershipMissing'));
+      }
       if (
         prefixInstall.packageName !== distribution.packageName ||
         new URL(prefixInstall.registry).href !== distribution.registry

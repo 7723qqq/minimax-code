@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
+
 import type { Terminal } from '../../src/tui/engine/public.js';
 import { createObservedTerminal } from '../../src/tui/platform/observed-terminal.js';
 import { detectTerminalCapabilities } from '../../src/tui/platform/terminal-capabilities.js';
@@ -44,7 +45,7 @@ describe('terminal title ownership', () => {
   });
 
   it('deduplicates writes, releases its title on suspend and reapplies it on resume', () => {
-    const terminal = { setTitle: vi.fn() };
+    const terminal = { setTitle: mock() };
     const title = new TuiTerminalTitle(terminal, true);
     title.update('Before start');
     expect(terminal.setTitle).not.toHaveBeenCalled();
@@ -69,7 +70,7 @@ describe('terminal title ownership', () => {
   });
 
   it('does not clear an unmanaged title or write to a non-TTY', () => {
-    const terminal = { setTitle: vi.fn() };
+    const terminal = { setTitle: mock() };
     const disabled = new TuiTerminalTitle(terminal, true);
     disabled.setActive(true);
     disabled.update(undefined);
@@ -83,7 +84,7 @@ describe('terminal title ownership', () => {
 
   it('does not cache a failed title write or interrupt the caller', () => {
     const terminal = {
-      setTitle: vi.fn().mockImplementationOnce(() => {
+      setTitle: mock().mockImplementationOnce(() => {
         throw new Error('closed');
       }),
     };
@@ -109,7 +110,7 @@ describe('OSC 7501 program status', () => {
     ['error', 'state=error'],
     ['cancel', 'state=idle'],
   ] as const)('reports %s using fixed protocol metadata', (state, body) => {
-    const terminal = { write: vi.fn() };
+    const terminal = { write: mock() };
     const status = new TuiTerminalProgramStatus(terminal, true);
     status.setActive(true);
     status.update(state);
@@ -125,7 +126,7 @@ describe('OSC 7501 program status', () => {
   });
 
   it('releases a suspended TUI, ignores late updates and reapplies status on resume', () => {
-    const terminal = { write: vi.fn() };
+    const terminal = { write: mock() };
     const status = new TuiTerminalProgramStatus(terminal, true);
     status.update('run');
     expect(terminal.write).not.toHaveBeenCalled();
@@ -148,7 +149,7 @@ describe('OSC 7501 program status', () => {
   });
 
   it.each(['done', 'fail', 'error'] as const)('preserves %s on exit', (state) => {
-    const terminal = { write: vi.fn() };
+    const terminal = { write: mock() };
     const status = new TuiTerminalProgramStatus(terminal, true);
     status.setActive(true);
     status.update(state);
@@ -159,7 +160,7 @@ describe('OSC 7501 program status', () => {
   });
 
   it('never writes to a non-TTY or clears a record it did not write', () => {
-    const terminal = { write: vi.fn() };
+    const terminal = { write: mock() };
     for (const isTTY of [false, true]) {
       const status = new TuiTerminalProgramStatus(terminal, isTTY);
       status.setActive(true);
@@ -172,7 +173,7 @@ describe('OSC 7501 program status', () => {
 
   it('ignores unknown states and retries failed writes without interrupting the caller', () => {
     const terminal = {
-      write: vi.fn().mockImplementationOnce(() => {
+      write: mock().mockImplementationOnce(() => {
         throw new Error('closed');
       }),
     };
@@ -188,8 +189,8 @@ describe('OSC 7501 program status', () => {
 
 describe('terminal notification policy and transport', () => {
   it('preserves live focus through the production wrapper and suppresses each foreground event once', () => {
-    const base = { focused: true, write: vi.fn() };
-    const terminal = createObservedTerminal(base as unknown as Terminal, vi.fn());
+    const base = { focused: true, write: mock() };
+    const terminal = createObservedTerminal(base as unknown as Terminal, mock());
     const notifications = new TuiTerminalNotifications(terminal, {
       capabilities: capabilities(),
     });
@@ -203,7 +204,7 @@ describe('terminal notification policy and transport', () => {
   });
 
   it('honors event filters, always/never, unknown focus and non-TTY output', () => {
-    const terminal = { focused: true, write: vi.fn() };
+    const terminal = { focused: true, write: mock() };
     const filtered = new TuiTerminalNotifications(terminal, {
       capabilities: capabilities(),
       settings: { when: 'always', events: ['turn-failed'] },
@@ -269,8 +270,8 @@ describe('terminal notification policy and transport', () => {
       { WT_SESSION: 'test', SSH_CONNECTION: 'synthetic' },
       { WT_SESSION: 'test' },
     ]) {
-      const executeFile = vi.fn();
-      const terminal = { write: vi.fn() };
+      const executeFile = mock();
+      const terminal = { write: mock() };
       const notifications = new TuiTerminalNotifications(terminal, {
         environment: env,
         capabilities: capabilities(env),
@@ -285,9 +286,9 @@ describe('terminal notification policy and transport', () => {
 
   it('quotes native notification text and ignores native failures from a suspended generation', () => {
     const env = { WT_SESSION: 'test' };
-    const terminal = { write: vi.fn() };
+    const terminal = { write: mock() };
     let callback: ((error: Error | null) => void) | undefined;
-    const executeFile = vi.fn(
+    const executeFile = mock(
       (_file: string, _args: readonly string[], done: (error: Error | null) => void) => {
         callback = done;
       },

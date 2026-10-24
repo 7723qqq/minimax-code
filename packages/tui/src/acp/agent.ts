@@ -3,6 +3,7 @@ import { isAbsolute, resolve } from 'node:path';
 
 import * as acp from '@agentclientprotocol/sdk';
 
+import { applicationText } from '../application/copy.js';
 import { executeTuiInteractiveTurn } from '../application/interactive-turn-delivery.js';
 import { TuiLoginRequiredError, requireTuiAgentAccess } from '../application/login-gate.js';
 import type { TuiPermissionMode } from '../application/permission-mode.js';
@@ -20,6 +21,7 @@ import { buildTuiMessageParts } from '../runtime/stream-events.js';
 import type { TuiMessage, TuiStreamEvent } from '../runtime/stream-events.js';
 import type { TuiAcpRuntime } from './runtime.js';
 import { availableSkillCommands, executeTuiAcpCommand, TUI_ACP_AVAILABLE_COMMANDS } from './commands.js';
+import { acpText } from './copy.js';
 import {
   ACP_CONFIG_MODEL,
   ACP_CONFIG_PERMISSION_MODE,
@@ -600,7 +602,7 @@ export function createTuiAcpAgent(options: CreateTuiAcpAgentOptions): acp.AgentA
             undefined,
             session
               ? `Failed to complete new Session ${session.sessionId}, and cleanup failed.`
-              : 'Failed to create a new ACP Session.',
+              : acpText('acp.agent.sessionCreationFailed'),
           );
         }
         throw error;
@@ -981,7 +983,7 @@ export function createTuiAcpAgent(options: CreateTuiAcpAgentOptions): acp.AgentA
         } catch (error) {
           throw acp.RequestError.invalidParams(
             undefined,
-            error instanceof Error ? error.message : 'Invalid model selection.',
+            error instanceof Error ? error.message : acpText('acp.agent.invalidModelSelection'),
           );
         }
         await runSessionConfigMutation(params.sessionId, async (mutationSignal) => {
@@ -1210,8 +1212,8 @@ export function createTuiAcpAgent(options: CreateTuiAcpAgentOptions): acp.AgentA
       throw acp.RequestError.internalError(
         undefined,
         result.error
-          ? `MiniMax Code Runtime failed: ${result.error}`
-          : 'MiniMax Code Runtime failed.',
+          ? acpText('acp.agent.runtimeFailed', { reason: result.error })
+          : acpText('acp.agent.runtimeFailedWithoutReason'),
       );
     } finally {
       context.signal.removeEventListener('abort', cancel);
@@ -2055,8 +2057,8 @@ async function followQuestionnaireContinuations(options: {
         throw acp.RequestError.internalError(
           undefined,
           transition.message
-            ? `MiniMax Code Runtime continuation failed: ${transition.message}`
-            : 'MiniMax Code Runtime continuation failed.',
+            ? acpText('acp.agent.continuationFailed', { reason: transition.message })
+            : acpText('acp.agent.continuationFailedWithoutReason'),
         );
       }
 
@@ -2092,7 +2094,7 @@ function isQuestionnaireContinuation(result: TuiRunResult): boolean {
   return (
     error?.code === 'QUESTIONNAIRE_REQUIRED' ||
     error?.code === 'QUESTION_REQUIRED' ||
-    error?.message.includes('Questionnaire requires user input') === true
+    error?.message.includes(applicationText('application.run.questionnaireRequiresInput')) === true
   );
 }
 

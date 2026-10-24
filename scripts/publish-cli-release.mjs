@@ -10,7 +10,7 @@ export function validateReleaseReports({ archive, reports, version, revision }) 
   const sha256 = createHash('sha256').update(readFileSync(archive)).digest('hex');
   assert.equal(readFileSync(`${archive}.sha256`, 'utf8'), `${sha256}  ${path.basename(archive)}\n`);
   for (const target of cliReleaseTargets) {
-    const directory = path.join(reports, `cli-install-${target.os}-${target.node}`);
+    const directory = path.join(reports, `cli-install-${target.os}-bun-${target.bun}`);
     const installation = JSON.parse(readFileSync(path.join(directory, 'package-install.json'), 'utf8'));
     const verification = JSON.parse(readFileSync(path.join(directory, 'verification.json'), 'utf8'));
     assert.equal(verification.status, 'PASS');
@@ -22,7 +22,7 @@ export function validateReleaseReports({ archive, reports, version, revision }) 
     assert.equal(installation.revision, revision);
     assert.equal(installation.sha256, sha256);
     assert.equal(installation.platform, target.os.startsWith('ubuntu') ? 'linux' : 'darwin');
-    assert.ok(installation.node === `v${target.node}` || installation.node.startsWith(`v${target.node}.`));
+    assert.equal(installation.bun, target.bun);
   }
   return sha256;
 }
@@ -40,13 +40,13 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
 Download the tar.gz and its checksum, verify the checksum, then install:
 
 \`\`\`sh
-npm install --global ./minimax-code-${version}.tar.gz --registry=https://registry.npmjs.org/ --include=optional --ignore-scripts=false --allow-scripts=better-sqlite3
+npm install --global ./minimax-code-${version}.tar.gz --registry=https://registry.npmjs.org/ --include=optional --ignore-scripts=false --allow-scripts=@minimax-ai/code
 mcode --version
 \`\`\`
 
-Requires Node.js 22.19+ (22.x), 24.2+ (24.x), 25 or 26 and network access to public npm for runtime dependencies. Native dependencies may require a C/C++ toolchain and Python when no prebuilt binary is available.
+Requires Bun 1.4.4+ (the CLI runs on the Bun runtime; \`bun:sqlite\` is a Bun builtin) and network access to public npm for runtime dependencies. Node.js 22.19+ remains required for the build toolchain only.
 
-The same archive passed npm installation and offline CLI/BYOK tests on Linux and macOS across the supported Node lines. Windows and live-service acceptance were not run. This package shares the official npm CLI's package name and user data. Install future GitHub archives explicitly; the built-in updater follows the npm registry channel.
+The same archive passed npm installation and offline CLI/BYOK tests on Linux and macOS under the pinned Bun runtime. Windows and live-service acceptance were not run. This package shares the official npm CLI's package name and user data. Install future GitHub archives explicitly; the built-in updater follows the npm registry channel.
 `);
   // An existing release is never overwritten. Upload to a draft so failures
   // cannot expose a release with missing assets; maintainers can inspect/retry.

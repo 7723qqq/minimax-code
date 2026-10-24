@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, jest, mock } from 'bun:test';
+
 import type { GlobalThreadGoal } from "@mavis/shared/global-events";
 import { createTuiChalk } from "../../src/tui/theme/runtime.js";
 import {
@@ -26,34 +27,34 @@ const activeGoal: GlobalThreadGoal = {
 
 describe("TuiGoalBanner", () => {
   it("stops elapsed-time renders while an interaction owns the viewport", () => {
-    vi.useFakeTimers();
+    jest.useFakeTimers();
     try {
-      const requestRender = vi.fn();
+      const requestRender = mock();
       const banner = new TuiGoalBanner({ requestRender });
       banner.setGoal(activeGoal);
       requestRender.mockClear();
 
-      vi.advanceTimersByTime(1_000);
+      jest.advanceTimersByTime(1_000);
       expect(requestRender).toHaveBeenCalledOnce();
 
       banner.setAnimationPaused(true);
       requestRender.mockClear();
-      vi.advanceTimersByTime(2_000);
+      jest.advanceTimersByTime(2_000);
       expect(requestRender).not.toHaveBeenCalled();
 
       banner.setAnimationPaused(false);
-      vi.advanceTimersByTime(1_000);
+      jest.advanceTimersByTime(1_000);
       expect(requestRender).toHaveBeenCalledOnce();
 
       banner.dispose();
     } finally {
-      vi.useRealTimers();
+      jest.useRealTimers();
     }
   });
 
   it("shows status, monotonic elapsed time, attachments, objective, and lifecycle actions", () => {
     let now = 100_000;
-    const requestRender = vi.fn();
+    const requestRender = mock();
     const banner = new TuiGoalBanner({
       now: () => now,
       animate: false,

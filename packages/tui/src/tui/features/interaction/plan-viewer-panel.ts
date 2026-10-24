@@ -5,6 +5,7 @@ import { sanitizeTerminalText } from '../../rendering/terminal-text.js';
 import { truncateToWidth } from '../../rendering/text.js';
 import { renderTuiActionHint, tuiMarkdownTheme } from '../../theme/runtime.js';
 import { questionnaireFrameContentWidth, renderQuestionnaireFrame } from './decision-frame.js';
+import { interactionText } from './copy.js';
 
 export class TuiPlanViewerPanel implements Component {
   private readonly markdown: Markdown;
@@ -57,7 +58,9 @@ export class TuiPlanViewerPanel implements Component {
       return full;
     }
 
-    const fixedRows = this.renderFrame(safeWidth, [], ['Lines 1-1 of 1 · PgUp/PgDn scroll']).length;
+    const fixedRows = this.renderFrame(safeWidth, [], [
+      interactionText('planViewer.navigation', { a: '1', b: '1', n: '1' }),
+    ]).length;
     if (fixedRows >= height) {
       if (height === 1) return [full[0] ?? ''];
       return [...full.slice(0, height - 1), full.at(-1) ?? ''];
@@ -71,7 +74,11 @@ export class TuiPlanViewerPanel implements Component {
     );
     const end = Math.min(planLines.length, this.viewportOffset + this.viewportRows);
     return this.renderFrame(safeWidth, planLines.slice(this.viewportOffset, end), [
-      `Lines ${String(this.viewportOffset + 1)}-${String(end)} of ${String(planLines.length)} · PgUp/PgDn scroll`,
+      interactionText('planViewer.navigation', {
+        a: String(this.viewportOffset + 1),
+        b: String(end),
+        n: String(planLines.length),
+      }),
     ]).slice(0, height);
   }
 
@@ -98,11 +105,11 @@ export class TuiPlanViewerPanel implements Component {
     const contentWidth = questionnaireFrameContentWidth(width);
     return renderQuestionnaireFrame(
       {
-        title: 'Latest Plan',
+        title: interactionText('planViewer.title'),
         meta: this.path ? truncateToWidth(this.path, contentWidth) : undefined,
         navigation: navigation.map(renderTuiActionHint),
         body,
-        footer: 'Esc close',
+        footer: interactionText('planViewer.footer'),
       },
       width,
       'signal',

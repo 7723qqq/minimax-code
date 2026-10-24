@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { eq } from "drizzle-orm";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from 'bun:test';
 
 import type { AppDb } from "../../src/infra/db/client.js";
 import { DatabaseClient } from "../../src/infra/db/client.js";

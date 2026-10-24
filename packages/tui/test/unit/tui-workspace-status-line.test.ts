@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { advanceTimersByTimeAsync, waitFor } from '../../../../test/bun-test-setup.js';
+import { describe, expect, it, jest, mock } from 'bun:test';
 
 import type {
   TuiCustomStatusLineConfig,
@@ -13,20 +14,20 @@ import {
 
 describe('TuiWorkspaceStatusLine', () => {
   it('starts and stops Git refreshes with the selected dependencies, including late results', async () => {
-    vi.useFakeTimers();
+    jest.useFakeTimers();
     const resolvers: Array<(metadata: TuiWorkspaceGitMetadata) => void> = [];
-    const runtime = { getWorkspaceGitMetadata: vi.fn(() => new Promise<TuiWorkspaceGitMetadata>((resolve) => { resolvers.push(resolve); })) };
+    const runtime = { getWorkspaceGitMetadata: mock(() => new Promise<TuiWorkspaceGitMetadata>((resolve) => { resolvers.push(resolve); })) };
     const state = { version: '0.1', workspace: '/repo', runtimeStatus: 'ready' as const };
-    const status = new TuiWorkspaceStatusLine({ ...state, statusLineItems: ['model'] }, runtime, vi.fn());
+    const status = new TuiWorkspaceStatusLine({ ...state, statusLineItems: ['model'] }, runtime, mock());
     try {
       status.preview(['git-branch'], 80, 3);
-      await vi.advanceTimersByTimeAsync(20_000);
+      await advanceTimersByTimeAsync(20_000);
       expect(runtime.getWorkspaceGitMetadata).not.toHaveBeenCalled();
       status.setConfiguredItems(['git-branch']);
       expect(runtime.getWorkspaceGitMetadata).toHaveBeenCalledTimes(1);
       status.setConfiguredItems([]);
       resolvers[0]?.({ isGitRepo: true, branch: 'stale', detached: false, isWorktree: false });
-      await vi.advanceTimersByTimeAsync(20_000);
+      await advanceTimersByTimeAsync(20_000);
       expect(runtime.getWorkspaceGitMetadata).toHaveBeenCalledTimes(1);
       expect(status.render(80)).toEqual([]);
       status.setState({ ...state, workspace: '/other', busy: true });
@@ -35,18 +36,18 @@ describe('TuiWorkspaceStatusLine', () => {
       status.setConfiguredItems(['review-link']);
       expect(runtime.getWorkspaceGitMetadata).toHaveBeenLastCalledWith('/other');
       expect(status.preview(['git-branch'], 80, 3).lines.join('')).not.toContain('stale');
-      await vi.advanceTimersByTimeAsync(10_000);
+      await advanceTimersByTimeAsync(10_000);
       expect(runtime.getWorkspaceGitMetadata).toHaveBeenCalledTimes(3);
       status.dispose();
-      await vi.advanceTimersByTimeAsync(20_000);
+      await advanceTimersByTimeAsync(20_000);
       expect(runtime.getWorkspaceGitMetadata).toHaveBeenCalledTimes(3);
-    } finally { status.dispose(); vi.useRealTimers(); }
+    } finally { status.dispose(); jest.useRealTimers(); }
   });
 
   it('applies an empty selection across projections and restores adaptive default context behavior', () => {
-    const runtime = { getWorkspaceGitMetadata: vi.fn(async () => ({ isGitRepo: false, branch: '', detached: false, isWorktree: false })) };
+    const runtime = { getWorkspaceGitMetadata: mock(async () => ({ isGitRepo: false, branch: '', detached: false, isWorktree: false })) };
     const state = { version: '0.1', workspace: '/repo', runtimeStatus: 'ready' as const, contextUsage: { usedTokens: 20, contextWindowTokens: 100 } };
-    const status = new TuiWorkspaceStatusLine(state, runtime, vi.fn());
+    const status = new TuiWorkspaceStatusLine(state, runtime, mock());
     try {
       status.setConfiguredItems([]);
       status.setState(state);
@@ -65,9 +66,9 @@ describe('TuiWorkspaceStatusLine', () => {
   });
 
   it('rejects changing machine mode in either direction', () => {
-    const runtime = { getWorkspaceGitMetadata: vi.fn(async () => ({ isGitRepo: false, branch: '', detached: false, isWorktree: false })) };
+    const runtime = { getWorkspaceGitMetadata: mock(async () => ({ isGitRepo: false, branch: '', detached: false, isWorktree: false })) };
     for (const items of [[], ['build-mode']] as const) {
-      const status = new TuiWorkspaceStatusLine({ version: '0.1', workspace: '/repo', runtimeStatus: 'ready', statusLineItems: items }, runtime, vi.fn());
+      const status = new TuiWorkspaceStatusLine({ version: '0.1', workspace: '/repo', runtimeStatus: 'ready', statusLineItems: items }, runtime, mock());
       try {
         expect(() => status.setConfiguredItems(items.length ? [] : ['build-mode'])).toThrow('startup-only');
         expect(status.getConfiguredItems()).toEqual(items);
@@ -79,7 +80,7 @@ describe('TuiWorkspaceStatusLine', () => {
   it('clears stale Git metadata and refreshes immediately when the Session workspace changes', async () => {
     const resolvers: Array<(metadata: TuiWorkspaceGitMetadata) => void> = [];
     const runtime = {
-      getWorkspaceGitMetadata: vi.fn(
+      getWorkspaceGitMetadata: mock(
         async () =>
           await new Promise<TuiWorkspaceGitMetadata>((resolve) => {
             resolvers.push(resolve);
@@ -91,22 +92,22 @@ describe('TuiWorkspaceStatusLine', () => {
       workspace: '/repo-a',
       runtimeStatus: 'ready' as const,
     };
-    const status = new TuiWorkspaceStatusLine(initialState, runtime, vi.fn());
+    const status = new TuiWorkspaceStatusLine(initialState, runtime, mock());
 
     try {
-      await vi.waitFor(() => expect(resolvers).toHaveLength(1));
+      await waitFor(() => expect(resolvers).toHaveLength(1));
       resolvers[0]?.({
         isGitRepo: true,
         branch: 'repo-a-branch',
         detached: false,
         isWorktree: false,
       });
-      await vi.waitFor(() => expect(status.render(120).join('\n')).toContain('repo-a-branch'));
+      await waitFor(() => expect(status.render(120).join('\n')).toContain('repo-a-branch'));
 
       status.setState({ ...initialState, workspace: '/repo-b' });
 
       expect(status.render(120).join('\n')).not.toContain('repo-a-branch');
-      await vi.waitFor(() => expect(resolvers).toHaveLength(2));
+      await waitFor(() => expect(resolvers).toHaveLength(2));
       expect(runtime.getWorkspaceGitMetadata).toHaveBeenLastCalledWith('/repo-b');
     } finally {
       status.dispose();
@@ -116,7 +117,7 @@ describe('TuiWorkspaceStatusLine', () => {
   it('does not let an older Git refresh replace newer branch metadata', async () => {
     const resolvers: Array<(metadata: TuiWorkspaceGitMetadata) => void> = [];
     const runtime = {
-      getWorkspaceGitMetadata: vi.fn(
+      getWorkspaceGitMetadata: mock(
         async () =>
           await new Promise<TuiWorkspaceGitMetadata>((resolve) => {
             resolvers.push(resolve);
@@ -129,13 +130,13 @@ describe('TuiWorkspaceStatusLine', () => {
       runtimeStatus: 'ready' as const,
       busy: true,
     };
-    const requestRender = vi.fn();
+    const requestRender = mock();
     const status = new TuiWorkspaceStatusLine(initialState, runtime, requestRender);
 
     try {
-      await vi.waitFor(() => expect(resolvers).toHaveLength(1));
+      await waitFor(() => expect(resolvers).toHaveLength(1));
       status.setState({ ...initialState, busy: false });
-      await vi.waitFor(() => expect(resolvers).toHaveLength(2));
+      await waitFor(() => expect(resolvers).toHaveLength(2));
 
       resolvers[1]?.({
         isGitRepo: true,
@@ -143,7 +144,7 @@ describe('TuiWorkspaceStatusLine', () => {
         detached: false,
         isWorktree: false,
       });
-      await vi.waitFor(() => expect(status.render(120).join('\n')).toContain('new-branch'));
+      await waitFor(() => expect(status.render(120).join('\n')).toContain('new-branch'));
 
       resolvers[0]?.({
         isGitRepo: true,
@@ -151,7 +152,7 @@ describe('TuiWorkspaceStatusLine', () => {
         detached: false,
         isWorktree: false,
       });
-      await vi.waitFor(() => expect(requestRender).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(requestRender).toHaveBeenCalledTimes(1));
 
       expect(status.render(120).join('\n')).toContain('new-branch');
       expect(status.render(120).join('\n')).not.toContain('old-branch');
@@ -162,7 +163,7 @@ describe('TuiWorkspaceStatusLine', () => {
 
   it('preserves the configured status line items across Runtime shell projections', async () => {
     const runtime = {
-      getWorkspaceGitMetadata: vi.fn(async () => ({
+      getWorkspaceGitMetadata: mock(async () => ({
         isGitRepo: true,
         branch: 'feat/pinned',
         detached: false,
@@ -177,7 +178,7 @@ describe('TuiWorkspaceStatusLine', () => {
         // `workspace` is a legacy alias for `current-dir`; `nope` must be ignored.
         statusLineItems: ['workspace', 'nope'],
       },
-      vi.fn(),
+      mock(),
     );
 
     try {
@@ -201,7 +202,7 @@ describe('TuiWorkspaceStatusLine', () => {
 
   it('preserves the configured status protocol across Runtime shell projections', () => {
     const runtime = {
-      getWorkspaceGitMetadata: vi.fn(async () => ({
+      getWorkspaceGitMetadata: mock(async () => ({
         isGitRepo: false,
         branch: '',
         detached: false,
@@ -215,7 +216,7 @@ describe('TuiWorkspaceStatusLine', () => {
         version: '0.1.0',
         statusLineItems: ['build-mode', 'current-dir'],
       },
-      vi.fn(),
+      mock(),
     );
 
     try {
@@ -238,7 +239,7 @@ describe('TuiWorkspaceStatusLine', () => {
 
 describe('TuiWorkspaceStatusLine custom status command', () => {
   const quietGitRuntime = () => ({
-    getWorkspaceGitMetadata: vi.fn(async () => ({
+    getWorkspaceGitMetadata: mock(async () => ({
       isGitRepo: false,
       branch: '',
       detached: false,
@@ -253,7 +254,7 @@ describe('TuiWorkspaceStatusLine custom status command', () => {
       invocation: TuiCustomStatusProcessInvocation,
     ) => Promise<TuiCustomStatusProcessResult>;
   }) {
-    const runProcess = vi.fn(
+    const runProcess = mock(
       overrides?.runProcess ??
         (async () => ({ exitCode: 0, stdout: 'Cost $1.23\nignored', timedOut: false })),
     );
@@ -266,7 +267,7 @@ describe('TuiWorkspaceStatusLine custom status command', () => {
         customStatusLine: { command: 'cost-probe --fast', ...overrides?.customStatusLine },
         runCustomStatusProcess: runProcess,
       },
-      vi.fn(),
+      mock(),
     );
     return { status, runProcess };
   }
@@ -275,7 +276,7 @@ describe('TuiWorkspaceStatusLine custom status command', () => {
     const { status, runProcess } = createCustomStatus();
 
     try {
-      await vi.waitFor(() => expect(status.render(120).join('\n')).toContain('Cost $1.23'));
+      await waitFor(() => expect(status.render(120).join('\n')).toContain('Cost $1.23'));
       expect(status.render(120).join('\n')).not.toContain('ignored');
       expect(runProcess).toHaveBeenCalledTimes(1);
       const invocation = runProcess.mock.calls[0]?.[0] as TuiCustomStatusProcessInvocation;
@@ -310,17 +311,16 @@ describe('TuiWorkspaceStatusLine custom status command', () => {
       status.setConfiguredItems(['custom-command']);
       expect(runProcess).toHaveBeenCalledTimes(1);
       resolvers[0]?.({ exitCode: 0, timedOut: false, stdout: 'stale-command-result' });
-      await vi.waitFor(() => expect(runProcess).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(runProcess).toHaveBeenCalledTimes(2));
       expect(status.render(80).join('')).not.toContain('stale-command-result');
       resolvers[1]?.({ exitCode: 0, timedOut: false, stdout: 'new-command-result' });
-      await vi.waitFor(() => expect(status.render(80).join('')).toContain('new-command-result'));
+      await waitFor(() => expect(status.render(80).join('')).toContain('new-command-result'));
       expect(status.render(80).join('')).toContain('new-command-result');
     } finally { status.dispose(); }
   });
 
   it('retains block settings across shell projections and clears on successful empty output', async () => {
-    const runProcess = vi
-      .fn()
+    const runProcess = mock()
       .mockResolvedValueOnce({
         exitCode: 0,
         stdout: 'Context ready\nCI passed\nThird',
@@ -335,16 +335,16 @@ describe('TuiWorkspaceStatusLine custom status command', () => {
     });
     const state = { version: '0.1.0', workspace: '/workspace', runtimeStatus: 'ready' as const };
     try {
-      await vi.waitFor(() => expect(status.render(120)).toHaveLength(4));
+      await waitFor(() => expect(status.render(120)).toHaveLength(4));
       status.setState({ ...state, busy: true });
       expect(status.render(120).join('\n')).toContain('CI passed');
       expect(status.render(120).join('\n')).not.toContain('Third');
       status.setState({ ...state, busy: false });
-      await vi.waitFor(() => expect(runProcess).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(runProcess).toHaveBeenCalledTimes(2));
       expect(status.render(120).join('\n')).toContain('CI passed');
       status.setState({ ...state, busy: true });
       status.setState({ ...state, busy: false });
-      await vi.waitFor(() => expect(status.render(120)).toHaveLength(2));
+      await waitFor(() => expect(status.render(120)).toHaveLength(2));
       expect(status.render(120).join('\n')).toContain('/workspace');
     } finally {
       status.dispose();
@@ -368,7 +368,7 @@ describe('TuiWorkspaceStatusLine custom status command', () => {
       try {
         status.setState(state);
         resolvers[0]?.({ exitCode: 0, stdout: 'startup\nignored', timedOut: false });
-        await vi.waitFor(() => expect(runProcess).toHaveBeenCalledTimes(2));
+        await waitFor(() => expect(runProcess).toHaveBeenCalledTimes(2));
         status.setState({
           ...state,
           workspace: change === 'workspace' ? '/another-workspace' : state.workspace,
@@ -377,10 +377,10 @@ describe('TuiWorkspaceStatusLine custom status command', () => {
         // Returning to the old identity must not resurrect its in-flight result.
         if (change === 'session') status.setState(state);
         resolvers[1]?.({ exitCode: 0, stdout: 'stale first\nstale second', timedOut: false });
-        await vi.waitFor(() => expect(runProcess).toHaveBeenCalledTimes(3));
+        await waitFor(() => expect(runProcess).toHaveBeenCalledTimes(3));
         expect(status.render(120)).toEqual([]);
         resolvers[2]?.({ exitCode: 0, stdout: 'fresh first\nfresh second', timedOut: false });
-        await vi.waitFor(() => expect(status.render(120).join('\n')).toContain('fresh second'));
+        await waitFor(() => expect(status.render(120).join('\n')).toContain('fresh second'));
       } finally {
         status.dispose();
       }
@@ -402,12 +402,12 @@ describe('TuiWorkspaceStatusLine custom status command', () => {
     };
 
     try {
-      await vi.waitFor(() => expect(status.render(120).join('\n')).toContain('v1'));
+      await waitFor(() => expect(status.render(120).join('\n')).toContain('v1'));
 
       status.setState({ ...baseState, busy: true });
       expect(runProcess).toHaveBeenCalledTimes(1);
       status.setState({ ...baseState, busy: false });
-      await vi.waitFor(() => expect(runProcess).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(runProcess).toHaveBeenCalledTimes(2));
       const invocation = runProcess.mock.calls[1]?.[0] as TuiCustomStatusProcessInvocation;
       expect(JSON.parse(invocation.stdin)).toMatchObject({ event: 'turn-end' });
 
@@ -428,7 +428,7 @@ describe('TuiWorkspaceStatusLine custom status command', () => {
     });
 
     try {
-      await vi.waitFor(() => expect(status.render(120).join('\n')).toContain('old-session-cost'));
+      await waitFor(() => expect(status.render(120).join('\n')).toContain('old-session-cost'));
 
       status.setState({
         version: '0.1.0',
@@ -439,7 +439,7 @@ describe('TuiWorkspaceStatusLine custom status command', () => {
 
       // Stale output disappears immediately: a wrong figure is worse than none.
       expect(status.render(120).join('\n')).not.toContain('old-session-cost');
-      await vi.waitFor(() => expect(status.render(120).join('\n')).toContain('new-session-cost'));
+      await waitFor(() => expect(status.render(120).join('\n')).toContain('new-session-cost'));
       const invocation = runProcess.mock.calls[1]?.[0] as TuiCustomStatusProcessInvocation;
       expect(JSON.parse(invocation.stdin)).toMatchObject({
         event: 'session-change',
@@ -494,7 +494,7 @@ describe('TuiWorkspaceStatusLine custom status command', () => {
 
   it('stops triggering after dispose', async () => {
     const { status, runProcess } = createCustomStatus();
-    await vi.waitFor(() => expect(runProcess).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(runProcess).toHaveBeenCalledTimes(1));
 
     status.dispose();
     status.setState({
@@ -509,16 +509,15 @@ describe('TuiWorkspaceStatusLine custom status command', () => {
   });
 });
 
-
 describe('context meter projection', () => {
   it('previews and refreshes current usage without retaining cleared data', () => {
-    const runtime = { getWorkspaceGitMetadata: vi.fn() };
+    const runtime = { getWorkspaceGitMetadata: mock() };
     const state = {
       version: '0.1', workspace: '/repo', runtimeStatus: 'ready' as const,
       statusLineItems: ['context-meter', 'context-remaining'] as const,
       contextWindowTokens: 100,
     };
-    const status = new TuiWorkspaceStatusLine(state, runtime, vi.fn());
+    const status = new TuiWorkspaceStatusLine(state, runtime, mock());
     try {
       expect(status.preview(['context-meter'], 80, 3).unavailable).toEqual(['context-meter']);
       expect(status.render(80)).toEqual([]);

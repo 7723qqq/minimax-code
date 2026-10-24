@@ -1,4 +1,5 @@
 import { formatTuiActionFailure } from '../../../user-facing-failure.js';
+import { controllerText } from '../copy.js';
 
 const DEFAULT_RETIREMENT_WARNING_TIMEOUT_MS = 5_000;
 
@@ -18,8 +19,7 @@ export interface TuiRuntimeRetirementMonitorOptions {
 }
 
 export function monitorTuiRuntimeRetirement(options: TuiRuntimeRetirementMonitorOptions): void {
-  const timeoutMessage =
-    'Runtime is taking too long to stop the previous response. New messages remain blocked until Runtime releases the Session.';
+  const timeoutMessage = controllerText('runtime.retirement.timeout');
   let timeoutShown = false;
   const timeout = setTimeout(
     () => {
@@ -43,7 +43,7 @@ export function monitorTuiRuntimeRetirement(options: TuiRuntimeRetirementMonitor
             : {}
           : {
               status: 'error',
-              error: 'Runtime could not confirm that the previous turn stopped.',
+              error: controllerText('runtime.retirement.notConfirmed'),
             }),
       });
       options.onSettled();
@@ -55,9 +55,9 @@ export function monitorTuiRuntimeRetirement(options: TuiRuntimeRetirementMonitor
         status: 'error',
         retiringTurnId: undefined,
         error: formatTuiActionFailure(error, {
-          summary: "Couldn't confirm that the previous response stopped.",
-          nextStep: 'Retry Esc.',
-          preservation: 'New messages remain blocked.',
+          summary: controllerText('runtime.retirement.confirmFailed'),
+          nextStep: controllerText('common.retryEsc'),
+          preservation: controllerText('runtime.retirement.messagesBlocked'),
         }),
       });
       options.onSettled();

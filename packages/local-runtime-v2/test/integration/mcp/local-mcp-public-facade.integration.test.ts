@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'bun:test';
 
 import { LocalMcpPublicFacade } from "../../../src/service/mcp/tools/public-facade.js";
 

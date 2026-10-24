@@ -1,6 +1,3 @@
-import { execFile as execFileCallback, spawn } from 'node:child_process';
-import { promisify } from 'node:util';
-
 import type {
   LocalFileDiff,
   LocalTurnDiffRecord,
@@ -10,7 +7,6 @@ import type { LocalSessionRecord } from '../sessions/controller.js';
 import { json } from '../api/host-helpers.js';
 import { applyLocalTurnDiffSnapshotMutation } from './file-changes.js';
 
-const execFile = promisify(execFileCallback);
 // Read paths and metrics as NUL records; patch headers are presentation only.
 const WORKSPACE_DIFF_ARGS = [
   '--raw',
@@ -267,12 +263,48 @@ async function readWorkspaceDiff(
   }
 }
 
-async function execGit(args: string[], cwd: string): Promise<{ stdout: string; stderr: string }> {
-  return execFile('git', args, {
+/**
+ * Runs Git and buffers both streams.
+ *
+ * A non-zero exit still resolves: `readUntrackedFileDiff` treats exit 1 as a
+ * usable `--no-index` diff, so the code is returned rather than thrown.
+ *
+ * Expect the first spawn in a process to be slow on Windows: launching a native
+ * executable without a shell costs one multi-second wait before the runtime
+ * settles. That is an upstream runtime characteristic, recorded here rather than
+ * worked around.
+ */
+async function execGit(
+  args: string[],
+  cwd: string,
+): Promise<{ stdout: string; stderr: string; code: number }> {
+  const child = Bun.spawn({
+    cmd: ['git', ...args],
     cwd,
     env: cleanGitEnv(),
-    maxBuffer: 10 * 1024 * 1024,
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
   });
+  const [stdout, stderr, code] = await Promise.all([
+    readCapped(child.stdout, GIT_MAX_BUFFER),
+    readCapped(child.stderr, GIT_MAX_BUFFER),
+    child.exited,
+  ]);
+  return { stdout, stderr, code };
+}
+
+/** Upper bound on buffered output, previously `execFile`'s `maxBuffer`. */
+const GIT_MAX_BUFFER = 10 * 1024 * 1024;
+
+async function readCapped(stream: ReadableStream<Uint8Array>, limit: number): Promise<string> {
+  const decoder = new TextDecoder();
+  let text = '';
+  for await (const chunk of stream) {
+    text += decoder.decode(chunk, { stream: true });
+    if (text.length > limit) return text.slice(0, limit);
+  }
+  return text + decoder.decode();
 }
 
 function parseGitDiffSummary(output: string): LocalFileDiff[] {
@@ -338,19 +370,15 @@ async function readUntrackedFileDiff(
   file: string,
 ): Promise<{ fileChange: LocalFileDiff; rawDiff?: string }> {
   try {
-    const rawDiff = await execFile(
-      'git',
+    const rawDiff = await execGit(
       ['diff', '--no-index', ...WORKSPACE_DIFF_ARGS, '--', '/dev/null', file],
-      {
-        cwd: workspaceDir,
-        env: cleanGitEnv(),
-        maxBuffer: 10 * 1024 * 1024,
-      },
-    ).catch((err: unknown) => {
-      const error = err as { stdout?: string; code?: number };
-      if (error.code === 1 && typeof error.stdout === 'string') return { stdout: error.stdout };
-      throw err;
-    });
+      workspaceDir,
+    );
+    // `--no-index` reports "differences found" as exit 1, which is the success
+    // case here; only a genuinely empty or failed run has no patch to parse.
+    if (rawDiff.code !== 0 && rawDiff.code !== 1) {
+      throw new Error(rawDiff.stderr || `git diff exited with ${String(rawDiff.code)}`);
+    }
     const parsed = parseGitDiffSummary(rawDiff.stdout)[0];
     if (!parsed) throw new Error('Git diff is missing an untracked file');
     return {
@@ -383,31 +411,35 @@ function numericDiffStat(value: string | undefined): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function applyGitPatch(input: {
+export async function applyGitPatch(input: {
   cwd: string;
   patch: string;
   reverse: boolean;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
-  return new Promise((resolve) => {
-    const args = ['apply', '--whitespace=nowarn', ...(input.reverse ? ['--reverse'] : [])];
-    const child = spawn('git', args, { cwd: input.cwd, env: cleanGitEnv() });
-    let stderr = '';
-    child.stderr.setEncoding('utf8');
-    child.stderr.on('data', (chunk) => {
-      stderr += chunk;
+  const args = ['apply', '--whitespace=nowarn', ...(input.reverse ? ['--reverse'] : [])];
+  try {
+    const child = Bun.spawn({
+      cmd: ['git', ...args],
+      cwd: input.cwd,
+      env: cleanGitEnv(),
+      stdin: 'pipe',
+      stdout: 'ignore',
+      stderr: 'pipe',
     });
-    child.on('error', (err) => {
-      resolve({ ok: false, error: err.message });
-    });
-    child.on('close', (code) => {
-      if (code === 0) {
-        resolve({ ok: true });
-        return;
-      }
-      resolve({ ok: false, error: stderr.trim() || `git apply exited with ${String(code)}` });
-    });
-    child.stdin.end(input.patch);
-  });
+    // The patch is written before awaiting so a large diff is not held behind
+    // the stream reads; `end()` closes the pipe and lets git start applying.
+    child.stdin.write(input.patch);
+    child.stdin.end();
+    const [stderr, code] = await Promise.all([new Response(child.stderr).text(), child.exited]);
+    if (code === 0) return { ok: true };
+    return {
+      ok: false,
+      error: stderr.trim() || `git apply exited with ${String(code)}`,
+    };
+  } catch (error) {
+    // `Bun.spawn` throws where `child_process.spawn` emitted `error`.
+    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 function cleanGitEnv(): NodeJS.ProcessEnv {

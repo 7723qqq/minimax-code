@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 
 import type { AgentHost } from '../agent-host/contracts.js';
 import type { TurnFailureProjection, TurnPreparationProjection } from '../contracts.js';
@@ -138,34 +138,34 @@ describe('ExecutionCoordinator durable Queue pause terminal policy', () => {
 
 function fixture(overrides: Partial<ExecutionCoordinatorOptions> = {}) {
   const host = {
-    run: vi.fn<AgentHost['run']>(async () => ({ status: 'completed' })),
-    compact: vi.fn<AgentHost['compact']>(async () => ({
+    run: mock<AgentHost['run']>(async () => ({ status: 'completed' })),
+    compact: mock<AgentHost['compact']>(async () => ({
       status: 'unchanged',
       reason: 'nothing-to-compact',
     })),
   };
   const repository = {
-    settle: vi.fn<TurnRepository['settle']>(async ({ outcome }) => ({
+    settle: mock<TurnRepository['settle']>(async ({ outcome }) => ({
       status: 'settled' as const,
       completedAtMs: 100,
       outcome,
     })),
   };
   const controller = {
-    complete: vi.fn<TurnController['complete']>(),
+    complete: mock<TurnController['complete']>(),
   };
   const failures = {
-    project: vi.fn<TurnFailureProjection['project']>(async () => undefined),
+    project: mock<TurnFailureProjection['project']>(async () => undefined),
   };
   const preparation = {
-    projectStarted: vi.fn<TurnPreparationProjection['projectStarted']>(async () => undefined),
+    projectStarted: mock<TurnPreparationProjection['projectStarted']>(async () => undefined),
   };
-  const released = { publish: vi.fn(async () => undefined) };
+  const released = { publish: mock(async () => undefined) };
   const turnSettlement = {
-    settle: vi.fn(async () => undefined),
-    abandon: vi.fn(async () => undefined),
+    settle: mock(async () => undefined),
+    abandon: mock(async () => undefined),
   };
-  const onBeginSettlement = vi.fn();
+  const onBeginSettlement = mock();
   const options: ExecutionCoordinatorOptions = {
     onBeginSettlement,
     host,

@@ -11,6 +11,7 @@ import {
   type TuiInspectionTone,
 } from '../../shell/inspection-panel.js';
 import { tuiErrorDiagnostic } from '../../../user-facing-failure.js';
+import { inspectionText } from './copy.js';
 
 export function createTuiSkillsInspectionPanel(
   result: TuiSkillList,
@@ -21,15 +22,15 @@ export function createTuiSkillsInspectionPanel(
   const skills = result.skills ?? [];
   const groups = [
     {
-      title: 'Built-in',
+      title: inspectionText('capabilities.section.builtIn'),
       skills: skills.filter((skill) => classifyTuiSkillSource(skill) === 'builtin'),
     },
     {
-      title: 'User',
+      title: inspectionText('capabilities.section.user'),
       skills: skills.filter((skill) => classifyTuiSkillSource(skill) === 'user'),
     },
     {
-      title: 'Other',
+      title: inspectionText('capabilities.section.other'),
       skills: skills.filter((skill) => classifyTuiSkillSource(skill) === 'other'),
     },
   ];
@@ -44,22 +45,24 @@ export function createTuiSkillsInspectionPanel(
   if (sections.length === 0) sections.push(emptySkillsSection(filter));
   const normalizedFilter = filter.trim();
   const subtitle = [
-    normalizedFilter ? `Matching “${normalizedFilter}”` : 'Available to the current Agent',
-    result.hasMore ? 'More results exist' : undefined,
-    'Read-only catalog',
+    normalizedFilter
+      ? inspectionText('capabilities.subtitle.matching', { filter: normalizedFilter })
+      : inspectionText('capabilities.subtitle.agentScope'),
+    result.hasMore ? inspectionText('capabilities.subtitle.moreResults') : undefined,
+    inspectionText('capabilities.subtitle.readOnly'),
   ]
     .filter(Boolean)
     .join(' · ');
 
   return new TuiInspectionPanel({
-    title: 'Skills',
+    title: inspectionText('capabilities.title.skills'),
     subtitle,
     badge: {
       label: `${skills.length}${result.hasMore ? '+' : ''} FOUND`,
       tone: skills.length > 0 ? 'accent' : 'neutral',
     },
     sections,
-    footer: 'Esc close · read only',
+    footer: inspectionText('capabilities.footer.readOnly'),
     layout: 'stacked',
     maxRows,
     onCancel,
@@ -86,10 +89,12 @@ export function createTuiMcpInspectionPanel(
   const session = catalog.filter((server) => server.sourceScope === 'session');
 
   return new TuiInspectionPanel({
-    title: 'MCP servers',
+    title: inspectionText('capabilities.title.mcp'),
     subtitle: [
-      'Runtime capability catalog · Read-only',
-      normalizedFilter ? `Matching “${normalizedFilter}”` : undefined,
+      inspectionText('capabilities.subtitle.runtimeCatalog'),
+      normalizedFilter
+        ? inspectionText('capabilities.subtitle.matching', { filter: normalizedFilter })
+        : undefined,
     ]
       .filter(Boolean)
       .join(' · '),
@@ -98,12 +103,20 @@ export function createTuiMcpInspectionPanel(
       tone: attention ? 'warning' : available > 0 ? 'success' : 'neutral',
     },
     sections: [
-      mcpSection('Built-in', builtin, normalizedFilter),
-      mcpSection('User-configured', configured, normalizedFilter),
-      ...(project.length ? [mcpSection('Project · .mcp.json', project, normalizedFilter)] : []),
-      ...(session.length ? [mcpSection('Client session', session, normalizedFilter)] : []),
+      mcpSection(inspectionText('capabilities.section.builtIn'), builtin, normalizedFilter),
+      mcpSection(
+        inspectionText('capabilities.section.userConfigured'),
+        configured,
+        normalizedFilter,
+      ),
+      ...(project.length
+        ? [mcpSection(inspectionText('capabilities.section.projectScope'), project, normalizedFilter)]
+        : []),
+      ...(session.length
+        ? [mcpSection(inspectionText('capabilities.section.clientSession'), session, normalizedFilter)]
+        : []),
     ],
-    footer: 'Esc close · /mcp reload',
+    footer: inspectionText('capabilities.footer.reload'),
     layout: 'stacked',
     maxRows,
     onCancel,
@@ -126,16 +139,16 @@ function skillRow(skill: TuiSkill): TuiInspectionRow {
 function emptySkillsSection(filter: string): TuiInspectionSection {
   const normalizedFilter = filter.trim();
   return {
-    title: 'Catalog',
+    title: inspectionText('capabilities.section.catalog'),
     rows: [
       {
-        label: 'No matches',
-        value: normalizedFilter || 'No Skills configured',
+        label: inspectionText('capabilities.empty.noMatches'),
+        value: normalizedFilter || inspectionText('capabilities.empty.noSkillsConfigured'),
         labelTone: 'neutral',
         labelBold: true,
         detail: normalizedFilter
-          ? 'Close this panel and try a broader /skills filter.'
-          : 'The current Agent has no visible Skills.',
+          ? inspectionText('capabilities.empty.broaderFilter')
+          : inspectionText('capabilities.empty.noVisibleSkills'),
       },
     ],
   };
@@ -193,11 +206,15 @@ function mcpSection(
         ? servers.map(mcpRow)
         : [
             {
-              label: 'No matches',
-              value: filter || `No ${title.toLocaleLowerCase()} servers`,
+              label: inspectionText('capabilities.empty.noMatches'),
+              value:
+                filter ||
+                inspectionText('capabilities.empty.noServersInGroup', {
+                  group: title.toLocaleLowerCase(),
+                }),
               labelTone: 'neutral',
               labelBold: true,
-              detail: 'The current Runtime returned no matching capabilities in this group.',
+              detail: inspectionText('capabilities.empty.noMatchingCapabilities'),
             },
           ],
   };

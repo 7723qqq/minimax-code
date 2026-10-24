@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, mock } from 'bun:test';
 
 import type { QueueDispatchCapability } from "../session-system/index.js";
 import type {
@@ -21,7 +21,7 @@ describe("QueueDispatcher handoff preflight", () => {
         queue,
         recoverState: noop,
         executor: {
-          execute: vi.fn(async () => ({
+          execute: mock(async () => ({
             accepted: false as const,
             reason,
             queueDisposition: "cancel" as const,
@@ -42,7 +42,7 @@ describe("QueueDispatcher handoff preflight", () => {
   it("retains a handoff queue item and reports a recoverable preparation failure", async () => {
     const queue = dispatchQueue([]);
     const reason = "policy:cloud-handoff:preparation-failed" as const;
-    const execute = vi.fn(async () => ({
+    const execute = mock(async () => ({
       accepted: false as const,
       reason,
       queueDisposition: "cancel" as const,
@@ -70,7 +70,7 @@ describe("QueueDispatcher pending cancellation", () => {
     async (stage) => {
       const queue = dispatchQueue([]);
       let cancelled = false;
-      const execute = vi.fn<QueueTurnExecutor["execute"]>(async () => {
+      const execute = mock<QueueTurnExecutor["execute"]>(async () => {
         cancelled = true;
         return {
           accepted: false,
@@ -102,7 +102,7 @@ describe("QueueDispatcher pending cancellation", () => {
   it("cancels a handoff preparation failure instead of retaining a cancelled item", async () => {
     const queue = dispatchQueue([]);
     let cancelled = false;
-    const execute = vi.fn<QueueTurnExecutor["execute"]>(async () => {
+    const execute = mock<QueueTurnExecutor["execute"]>(async () => {
       cancelled = true;
       return {
         accepted: false,
@@ -135,7 +135,7 @@ describe("QueueDispatcher cancellation on exceptions", () => {
     async (stage) => {
       const queue = dispatchQueue([]);
       let cancelled = false;
-      const execute = vi.fn<QueueTurnExecutor["execute"]>(async () => {
+      const execute = mock<QueueTurnExecutor["execute"]>(async () => {
         cancelled = true;
         throw new Error("execution failed");
       });
@@ -168,8 +168,8 @@ describe("QueueDispatcher cancellation and durable delivery ownership", () => {
       const queue = dispatchQueue([]);
       let cancelled = false;
       const failure = new Error("delivery failed");
-      const onExecution = vi.fn();
-      const execute = vi.fn<QueueTurnExecutor["execute"]>(async (input) => {
+      const onExecution = mock();
+      const execute = mock<QueueTurnExecutor["execute"]>(async (input) => {
         await input.beforeSubmit?.("turn-1");
         if (acknowledged) {
           await input.onAccepted?.({
@@ -210,8 +210,7 @@ describe("QueueDispatcher cancellation and durable delivery ownership", () => {
 describe("QueueDispatcher", () => {
   it("keeps a busy cloud handoff queued and accepts it on a later wake", async () => {
     const queue = dispatchQueue([]);
-    const execute = vi
-      .fn<QueueTurnExecutor["execute"]>()
+    const execute = mock<QueueTurnExecutor["execute"]>()
       .mockResolvedValueOnce({
         accepted: false,
         reason: "policy:cloud-handoff:session-busy",
@@ -246,7 +245,7 @@ describe("QueueDispatcher", () => {
     const order: string[] = [];
     const completion = new Promise<never>(() => undefined);
     const queue = dispatchQueue(order);
-    const execute = vi.fn(async () => {
+    const execute = mock(async () => {
       order.push("turn.accept");
       return {
         accepted: true as const,
@@ -314,7 +313,7 @@ describe("QueueDispatcher", () => {
         inputSafetyDecision,
       },
     });
-    const execute = vi.fn(
+    const execute = mock(
       async (_input: Parameters<QueueTurnExecutor["execute"]>[0]) => ({
         accepted: true as const,
         turnId: "turn-1",
@@ -357,7 +356,7 @@ describe("QueueDispatcher", () => {
         sourceContext: { task: { parentSessionId: "session-parent" } },
       },
     });
-    const execute = vi.fn(async () => ({
+    const execute = mock(async () => ({
       accepted: true as const,
       turnId: "turn-verifier",
       acceptedAtMs: 100,
@@ -414,8 +413,7 @@ describe("QueueDispatcher lifecycle", () => {
       await finishAcknowledgement.promise;
       firstAcknowledged = true;
     });
-    const execute = vi
-      .fn()
+    const execute = mock()
       .mockResolvedValueOnce({
         accepted: true,
         turnId: "turn-1",
@@ -461,7 +459,7 @@ describe("QueueDispatcher lifecycle", () => {
       queue,
       recoverState: noop,
       executor: {
-        execute: vi.fn(async () => ({ accepted: false as const, reason })),
+        execute: mock(async () => ({ accepted: false as const, reason })),
       },
     });
 
@@ -479,7 +477,7 @@ describe("QueueDispatcher lifecycle", () => {
       queue,
       recoverState: noop,
       executor: {
-        execute: vi.fn(async () => ({
+        execute: mock(async () => ({
           accepted: false as const,
           reason: "duplicate" as const,
           turnId: "turn-existing",
@@ -502,7 +500,7 @@ describe("QueueDispatcher lifecycle", () => {
       queue,
       recoverState: noop,
       executor: {
-        execute: vi.fn(async () => {
+        execute: mock(async () => {
           throw new Error("execute failed");
         }),
       },
@@ -518,8 +516,8 @@ describe("QueueDispatcher lifecycle", () => {
 describe("QueueDispatcher Goal claim classification", () => {
   it("defers an unready Goal kickoff without executing later Queue items", async () => {
     const queue = dispatchQueue([]);
-    const execute = vi.fn();
-    const classifyQueuedItem = vi.fn(async () => "defer" as const);
+    const execute = mock();
+    const classifyQueuedItem = mock(async () => "defer" as const);
     const dispatcher = createQueueDispatcher({
       queue,
       recoverState: noop,
@@ -552,11 +550,10 @@ describe("QueueDispatcher Goal claim classification", () => {
         claim({ claimId: "claim-ready", itemId: "item-ready" }),
       )
       .mockResolvedValueOnce(undefined);
-    const classifyQueuedItem = vi
-      .fn()
+    const classifyQueuedItem = mock()
       .mockResolvedValueOnce("cancel")
       .mockResolvedValueOnce("ready");
-    const execute = vi.fn(
+    const execute = mock(
       async (_input: Parameters<QueueTurnExecutor["execute"]>[0]) => ({
         accepted: false as const,
         reason: "duplicate" as const,
@@ -595,7 +592,7 @@ describe("QueueDispatcher Goal claim classification", () => {
     const dispatcher = createQueueDispatcher({
       queue,
       recoverState: noop,
-      executor: { execute: vi.fn() },
+      executor: { execute: mock() },
       classifyQueuedItem: async () => {
         throw failure;
       },
@@ -615,7 +612,7 @@ describe("QueueDispatcher Goal claim classification", () => {
       queue,
       recoverState: noop,
       executor: {
-        execute: vi.fn(async () => ({
+        execute: mock(async () => ({
           accepted: false as const,
           reason: "policy:goal-final-recheck:deferred(plan)" as const,
           queueDisposition: "defer" as const,
@@ -644,8 +641,7 @@ describe("QueueDispatcher Goal claim classification", () => {
         claim({ claimId: "claim-ready", itemId: "item-ready" }),
       )
       .mockResolvedValueOnce(undefined);
-    const execute = vi
-      .fn()
+    const execute = mock()
       .mockResolvedValueOnce({
         accepted: false as const,
         reason: "policy:goal-final-recheck:stale(goal_epoch)" as const,
@@ -692,7 +688,7 @@ describe("QueueDispatcher acknowledgement recovery", () => {
       queue,
       recoverState: noop,
       executor: {
-        execute: vi.fn(async () => ({
+        execute: mock(async () => ({
           accepted: true as const,
           turnId: "turn-1",
           acceptedAtMs: 100,
@@ -727,8 +723,7 @@ describe("QueueDispatcher acknowledgement recovery", () => {
       .mockResolvedValueOnce(claim({ claimId: "claim-1", itemId: "item-1" }))
       .mockResolvedValueOnce(claim({ claimId: "claim-2", itemId: "item-2" }))
       .mockResolvedValueOnce(undefined);
-    const execute = vi
-      .fn()
+    const execute = mock()
       .mockResolvedValueOnce({
         accepted: false,
         reason: "duplicate",
@@ -797,7 +792,7 @@ describe("QueueDispatcher lifecycle fencing", () => {
       .mockReset()
       .mockResolvedValueOnce(claim({ selection: "continued-fifo" }))
       .mockResolvedValue(undefined);
-    const execute = vi.fn(async () => ({
+    const execute = mock(async () => ({
       accepted: true as const,
       turnId: "turn-continued",
       acceptedAtMs: 100,
@@ -838,7 +833,7 @@ describe("QueueDispatcher lifecycle fencing", () => {
       claimStarted.resolve();
       return finishClaim.promise;
     });
-    const execute = vi.fn(async () => ({
+    const execute = mock(async () => ({
       accepted: false as const,
       reason: "active-turn" as const,
     }));
@@ -873,7 +868,7 @@ describe("QueueDispatcher lifecycle fencing", () => {
       claimStarted.resolve();
       return finishClaim.promise;
     });
-    const execute = vi.fn();
+    const execute = mock();
     const dispatcher = createQueueDispatcher({
       queue,
       recoverState: noop,
@@ -908,7 +903,7 @@ describe("QueueDispatcher lifecycle fencing", () => {
       claimStarted.resolve();
       return finishClaim.promise;
     });
-    const execute = vi.fn();
+    const execute = mock();
     const dispatcher = createQueueDispatcher({
       queue,
       recoverState: noop,
@@ -956,7 +951,7 @@ describe("QueueDispatcher claim validation and startup recovery", () => {
         },
       })
       .mockResolvedValue(undefined);
-    const execute = vi.fn(
+    const execute = mock(
       async (_input: Parameters<QueueTurnExecutor["execute"]>[0]) => ({
         accepted: false as const,
         reason: "duplicate" as const,
@@ -1032,7 +1027,7 @@ describe("QueueDispatcher claim validation and startup recovery", () => {
           },
         } as never)
         .mockResolvedValue(undefined);
-      const execute = vi.fn(
+      const execute = mock(
         async (_input: Parameters<QueueTurnExecutor["execute"]>[0]) => ({
           accepted: false as const,
           reason: "duplicate" as const,
@@ -1084,7 +1079,7 @@ describe("QueueDispatcher claim validation and startup recovery", () => {
           },
         } as never)
         .mockResolvedValue(undefined);
-      const execute = vi.fn(
+      const execute = mock(
         async (_input: Parameters<QueueTurnExecutor["execute"]>[0]) => ({
           accepted: false as const,
           reason: "duplicate" as const,
@@ -1139,7 +1134,7 @@ describe("QueueDispatcher startup recovery", () => {
         },
       } as never)
       .mockResolvedValue(undefined);
-    const execute = vi.fn(async () => ({
+    const execute = mock(async () => ({
       accepted: true as const,
       turnId: "turn-rich",
       acceptedAtMs: 100,
@@ -1206,7 +1201,7 @@ describe("QueueDispatcher startup recovery", () => {
     });
     const dispatcher = createQueueDispatcher({
       queue,
-      executor: { execute: vi.fn() },
+      executor: { execute: mock() },
       recoverState: async () => {
         order.push("ingress.recover");
       },
@@ -1327,7 +1322,7 @@ describe("QueueDispatcher admission-stage FIFO yield", () => {
       { itemId: "user-1", source: "api" },
     ]);
     const executed: string[] = [];
-    const execute = vi.fn<QueueTurnExecutor["execute"]>(async (input) => {
+    const execute = mock<QueueTurnExecutor["execute"]>(async (input) => {
       if (input.ingress.itemId === "goal-1") {
         return {
           accepted: false,
@@ -1368,7 +1363,7 @@ describe("QueueDispatcher admission-stage FIFO yield", () => {
       { itemId: "goal-1", source: "thread-goal" },
       { itemId: "user-1", source: "api" },
     ]);
-    const execute = vi.fn<QueueTurnExecutor["execute"]>(async () => ({
+    const execute = mock<QueueTurnExecutor["execute"]>(async () => ({
       accepted: false,
       reason: "active-turn",
       queueDisposition: "defer",
@@ -1475,7 +1470,7 @@ describe("QueueDispatcher admission-stage FIFO yield", () => {
           selection,
         })
         .mockResolvedValue(undefined);
-      const shouldYieldFifoPosition = vi.fn(() => true);
+      const shouldYieldFifoPosition = mock(() => true);
       const dispatcher = createQueueDispatcher({
         queue,
         recoverState: noop,
@@ -1538,7 +1533,7 @@ function fifoDispatchQueue(
     claimed.delete(claimId);
   };
   const queue = {
-    claimNext: vi.fn<QueueDispatchCapability["claimNext"]>(
+    claimNext: mock<QueueDispatchCapability["claimNext"]>(
       async ({ excludeItemIds }) => {
         if (claimed.size > 0) return undefined;
         const excluded = new Set(excludeItemIds ?? []);
@@ -1551,32 +1546,32 @@ function fifoDispatchQueue(
         return claim({ claimId, itemId, source: sources.get(itemId) });
       },
     ),
-    prepareDelivery: vi.fn<QueueDispatchCapability["prepareDelivery"]>(
+    prepareDelivery: mock<QueueDispatchCapability["prepareDelivery"]>(
       async () => undefined,
     ),
-    acknowledge: vi.fn<QueueDispatchCapability["acknowledge"]>(
+    acknowledge: mock<QueueDispatchCapability["acknowledge"]>(
       async ({ claimId }) => {
         settle(claimId, true);
       },
     ),
-    release: vi.fn<QueueDispatchCapability["release"]>(async ({ claimId }) => {
+    release: mock<QueueDispatchCapability["release"]>(async ({ claimId }) => {
       settle(claimId, false);
     }),
-    cancelClaim: vi.fn<QueueDispatchCapability["cancelClaim"]>(
+    cancelClaim: mock<QueueDispatchCapability["cancelClaim"]>(
       async ({ claimId }) => {
         settle(claimId, true);
       },
     ),
-    consume: vi.fn<QueueDispatchCapability["consume"]>(async ({ claimId }) => {
+    consume: mock<QueueDispatchCapability["consume"]>(async ({ claimId }) => {
       settle(claimId, true);
     }),
-    reject: vi.fn<QueueDispatchCapability["reject"]>(async ({ claimId }) => {
+    reject: mock<QueueDispatchCapability["reject"]>(async ({ claimId }) => {
       settle(claimId, true);
     }),
-    listPendingSessionIds: vi.fn<
+    listPendingSessionIds: mock<
       QueueDispatchCapability["listPendingSessionIds"]
     >(async () => []),
-    recoverClaims: vi.fn<QueueDispatchCapability["recoverClaims"]>(
+    recoverClaims: mock<QueueDispatchCapability["recoverClaims"]>(
       async () => undefined,
     ),
   } satisfies QueueDispatchCapability;
@@ -1587,7 +1582,7 @@ function fifoDispatchQueue(
 }
 
 function recordingExecutor(executed: string[]) {
-  return vi.fn<QueueTurnExecutor["execute"]>(async (input) => {
+  return mock<QueueTurnExecutor["execute"]>(async (input) => {
     executed.push(input.ingress.itemId);
     return {
       accepted: true,
@@ -1600,35 +1595,34 @@ function recordingExecutor(executed: string[]) {
 
 function dispatchQueue(order: string[]) {
   return {
-    claimNext: vi
-      .fn<QueueDispatchCapability["claimNext"]>()
+    claimNext: mock<QueueDispatchCapability["claimNext"]>()
       .mockImplementationOnce(async () => {
         order.push("queue.claim");
         return claim();
       })
       .mockResolvedValue(undefined),
-    prepareDelivery: vi.fn<QueueDispatchCapability["prepareDelivery"]>(
+    prepareDelivery: mock<QueueDispatchCapability["prepareDelivery"]>(
       async () => undefined,
     ),
-    acknowledge: vi.fn<QueueDispatchCapability["acknowledge"]>(async () => {
+    acknowledge: mock<QueueDispatchCapability["acknowledge"]>(async () => {
       order.push("queue.ack");
     }),
-    release: vi.fn(async () => {
+    release: mock(async () => {
       order.push("queue.release");
     }),
-    cancelClaim: vi.fn(async () => {
+    cancelClaim: mock(async () => {
       order.push("queue.cancel");
     }),
-    consume: vi.fn(async () => {
+    consume: mock(async () => {
       order.push("queue.consume");
     }),
-    reject: vi.fn(async () => {
+    reject: mock(async () => {
       order.push("queue.reject");
     }),
-    listPendingSessionIds: vi.fn<
+    listPendingSessionIds: mock<
       QueueDispatchCapability["listPendingSessionIds"]
     >(async () => []),
-    recoverClaims: vi.fn<QueueDispatchCapability["recoverClaims"]>(
+    recoverClaims: mock<QueueDispatchCapability["recoverClaims"]>(
       async () => undefined,
     ),
   } satisfies QueueDispatchCapability;

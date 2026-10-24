@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { waitFor } from '../../../../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock } from 'bun:test';
+
 import { TuiCommandFlow } from "../../../../../src/tui/controller/product/command-flow.js";
 import {
   MINIMAX_CODE_TUI_LOGIN_REQUIRED_MESSAGE,
@@ -8,10 +10,10 @@ import {
 function createFeatureFlowMock() {
   return {
     skillCommands: () => [],
-    waitForWelcomeModelSelection: vi.fn(async () => undefined),
-    applyPendingModelSelection: vi.fn(async () => undefined),
-    applyPendingModelSelection: vi.fn(async () => undefined),
-    showChangelog: vi.fn(async () => undefined),
+    waitForWelcomeModelSelection: mock(async () => undefined),
+    applyPendingModelSelection: mock(async () => undefined),
+    applyPendingModelSelection: mock(async () => undefined),
+    showChangelog: mock(async () => undefined),
   };
 }
 
@@ -44,30 +46,30 @@ function createReadinessCommandFlow(options: {
   return new TuiCommandFlow({
     workspaceDir: "/workspace",
     controller: {
-      snapshot: vi.fn(() => ({
+      snapshot: mock(() => ({
         status: "idle" as const,
         sessions: [],
         ...(options.hasSession ? { session: { sessionId: "session-a" } } : {}),
       })),
     } as never,
-    activeRunFlow: { showHelp: options.showHelp ?? vi.fn() } as never,
+    activeRunFlow: { showHelp: options.showHelp ?? mock() } as never,
     featureFlow: {
       ...createFeatureFlowMock(),
       skillCommands: () => [],
-      showAccountStatus: options.showAccountStatus ?? vi.fn(),
-      showChangelog: options.showChangelog ?? vi.fn(),
-      copyLastAssistantReply: options.copyLastAssistantReply ?? vi.fn(),
-      exportCurrentTranscript: options.exportCurrentTranscript ?? vi.fn(),
+      showAccountStatus: options.showAccountStatus ?? mock(),
+      showChangelog: options.showChangelog ?? mock(),
+      copyLastAssistantReply: options.copyLastAssistantReply ?? mock(),
+      exportCurrentTranscript: options.exportCurrentTranscript ?? mock(),
     } as never,
     feedbackFlow: {} as never,
     updateFlow: {} as never,
     interactionFlow: {
-      handleCommand: vi.fn(async () => false),
-      hasPending: vi.fn(() => false),
+      handleCommand: mock(async () => false),
+      hasPending: mock(() => false),
     } as never,
     sessionFlow: {} as never,
     queueFlow: {} as never,
-    composerDraft: { hasContent: vi.fn(() => false) } as never,
+    composerDraft: { hasContent: mock(() => false) } as never,
     workspaceRoots: { additionalDirectories: () => [] } as never,
     runProjection: {
       snapshot: () => ({ queuedCount: options.queuedCount ?? 0 }),
@@ -82,22 +84,22 @@ function createReadinessCommandFlow(options: {
     queueEnabled: true,
     liveRunId: options.liveRunId ?? (() => undefined),
     runtimeStopping: () => false,
-    abortLiveTurn: vi.fn(async () => false),
-    leaveUi: vi.fn(async () => undefined),
+    abortLiveTurn: mock(async () => false),
+    leaveUi: mock(async () => undefined),
     whenReady: options.whenReady,
     ...(options.whenControllerReady
       ? { whenControllerReady: options.whenControllerReady }
       : {}),
-    append: options.append ?? vi.fn(),
-    setHint: options.setHint ?? vi.fn(),
-    onChanged: vi.fn(),
+    append: options.append ?? mock(),
+    setHint: options.setHint ?? mock(),
+    onChanged: mock(),
   });
 }
 
 describe("TuiCommandFlow", () => {
   it("opens /statusline locally without waiting for hydration or submitting a model turn", async () => {
-    const showStatusLine = vi.fn();
-    const whenReady = vi.fn(() => new Promise<void>(() => undefined));
+    const showStatusLine = mock();
+    const whenReady = mock(() => new Promise<void>(() => undefined));
     const flow = createReadinessCommandFlow({ whenReady, showStatusLine });
     await expect(flow.submit("/statusline")).resolves.toBe("consumed");
     expect(showStatusLine).toHaveBeenCalledOnce();
@@ -108,7 +110,7 @@ describe("TuiCommandFlow", () => {
     const ready = new Promise<void>((resolve) => {
       releaseReady = resolve;
     });
-    const showHelp = vi.fn();
+    const showHelp = mock();
     const flow = createReadinessCommandFlow({
       whenReady: () => ready,
       showHelp,
@@ -116,14 +118,14 @@ describe("TuiCommandFlow", () => {
 
     const opening = flow.submit("/help");
 
-    await vi.waitFor(() => expect(showHelp).toHaveBeenCalledOnce());
+    await waitFor(() => expect(showHelp).toHaveBeenCalledOnce());
     await expect(opening).resolves.toBe("consumed");
     releaseReady?.();
   });
 
   it("tells the user to stop an in-flight response before /retry instead of claiming nothing failed (#425)", async () => {
-    const append = vi.fn();
-    const setHint = vi.fn();
+    const append = mock();
+    const setHint = mock();
     const live = createReadinessCommandFlow({
       whenReady: async () => undefined,
       hasSession: true,
@@ -150,7 +152,7 @@ describe("TuiCommandFlow", () => {
   });
 
   it("opens the packaged changelog through the command catalog", async () => {
-    const showChangelog = vi.fn(async () => undefined);
+    const showChangelog = mock(async () => undefined);
     const flow = createReadinessCommandFlow({
       whenReady: async () => undefined,
       showChangelog,
@@ -162,7 +164,7 @@ describe("TuiCommandFlow", () => {
   });
 
   it("submits /review with hidden fixed transport and local_changes provenance", async () => {
-    const submit = vi.fn(
+    const submit = mock(
       async (
         _content: string,
         options: {
@@ -183,40 +185,40 @@ describe("TuiCommandFlow", () => {
       sizeBytes: 10,
     };
     const resources = { attachments: [attachment] };
-    const restoreSubmission = vi.fn();
-    const completeSubmission = vi.fn(async () => undefined);
+    const restoreSubmission = mock();
+    const completeSubmission = mock(async () => undefined);
     const flow = new TuiCommandFlow({
       workspaceDir: "/workspace",
       controller: {
-        snapshot: vi.fn(() => ({
+        snapshot: mock(() => ({
           status: "idle" as const,
           sessions: [],
           session: { sessionId: "session-a" },
         })),
         submit,
-        refreshSessionMetadata: vi.fn(async () => undefined),
+        refreshSessionMetadata: mock(async () => undefined),
       } as never,
       activeRunFlow: {} as never,
       featureFlow: createFeatureFlowMock() as never,
       feedbackFlow: {} as never,
       updateFlow: {} as never,
       interactionFlow: {
-        handleCommand: vi.fn(async () => false),
-        hasPending: vi.fn(() => false),
+        handleCommand: mock(async () => false),
+        hasPending: mock(() => false),
       } as never,
       sessionFlow: {} as never,
       queueFlow: {} as never,
       composerDraft: {
-        hasContent: vi.fn(() => false),
-        capture: vi.fn(() => resources),
-        reserveSubmission: vi.fn(),
+        hasContent: mock(() => false),
+        capture: mock(() => resources),
+        reserveSubmission: mock(),
         restoreSubmission,
         completeSubmission,
       } as never,
       workspaceRoots: { additionalDirectories: () => [] } as never,
       runProjection: { snapshot: () => ({ queuedCount: 0 }) } as never,
       editor: {
-        captureDraft: vi.fn(() => ({
+        captureDraft: mock(() => ({
           schemaVersion: 1,
           text: "/review",
           cursor: 7,
@@ -229,12 +231,12 @@ describe("TuiCommandFlow", () => {
       queueEnabled: true,
       liveRunId: () => undefined,
       runtimeStopping: () => false,
-      abortLiveTurn: vi.fn(async () => false),
-      leaveUi: vi.fn(async () => undefined),
-      whenReady: vi.fn(async () => undefined),
-      append: vi.fn(),
-      setHint: vi.fn(),
-      onChanged: vi.fn(),
+      abortLiveTurn: mock(async () => false),
+      leaveUi: mock(async () => undefined),
+      whenReady: mock(async () => undefined),
+      append: mock(),
+      setHint: mock(),
+      onChanged: mock(),
     });
 
     await expect(
@@ -264,7 +266,7 @@ describe("TuiCommandFlow", () => {
   });
 
   it("opens the unified background task center for the current Session", async () => {
-    const showTasks = vi.fn(async () => undefined);
+    const showTasks = mock(async () => undefined);
     const flow = createReadinessCommandFlow({
       whenReady: async () => undefined,
       hasSession: true,
@@ -286,8 +288,8 @@ describe("TuiCommandFlow", () => {
     const status = new Promise<void>((resolve) => {
       releaseStatus = resolve;
     });
-    const showAccountStatus = vi.fn(() => status);
-    const setHint = vi.fn();
+    const showAccountStatus = mock(() => status);
+    const setHint = mock();
     const flow = createReadinessCommandFlow({
       whenReady: () => fullReady,
       whenControllerReady: () => controllerReady,
@@ -300,7 +302,7 @@ describe("TuiCommandFlow", () => {
     expect(setHint).toHaveBeenCalledWith("Loading account status…");
     expect(showAccountStatus).not.toHaveBeenCalled();
     releaseController?.();
-    await vi.waitFor(() => expect(showAccountStatus).toHaveBeenCalledOnce());
+    await waitFor(() => expect(showAccountStatus).toHaveBeenCalledOnce());
     expect(setHint).toHaveBeenLastCalledWith("Loading account status…");
     releaseStatus?.();
     await expect(loading).resolves.toBe("consumed");
@@ -308,9 +310,9 @@ describe("TuiCommandFlow", () => {
   });
 
   it("dispatches /copy to the latest Assistant response clipboard action", async () => {
-    const copyLastAssistantReply = vi.fn(async () => undefined);
+    const copyLastAssistantReply = mock(async () => undefined);
     const flow = createReadinessCommandFlow({
-      whenReady: vi.fn(async () => undefined),
+      whenReady: mock(async () => undefined),
       copyLastAssistantReply,
       hasSession: true,
     });
@@ -321,9 +323,9 @@ describe("TuiCommandFlow", () => {
   });
 
   it("dispatches /export with the requested Markdown path", async () => {
-    const exportCurrentTranscript = vi.fn(async () => undefined);
+    const exportCurrentTranscript = mock(async () => undefined);
     const flow = createReadinessCommandFlow({
-      whenReady: vi.fn(async () => undefined),
+      whenReady: mock(async () => undefined),
       exportCurrentTranscript,
       hasSession: true,
     });
@@ -336,14 +338,14 @@ describe("TuiCommandFlow", () => {
   });
 
   it("switches and persists the explicitly selected TUI mode", async () => {
-    const surface = { show: vi.fn(), close: vi.fn(() => true) };
+    const surface = { show: mock(), close: mock(() => true) };
     const surfaceHost = {
-      getChatMode: vi.fn(() => "regular" as const),
-      setChatMode: vi.fn(() => true),
+      getChatMode: mock(() => "regular" as const),
+      setChatMode: mock(() => true),
     };
-    const persistTuiMode = vi.fn();
+    const persistTuiMode = mock();
     const flow = createReadinessCommandFlow({
-      whenReady: vi.fn(async () => undefined),
+      whenReady: mock(async () => undefined),
       surface,
       surfaceHost,
       persistTuiMode,
@@ -362,10 +364,10 @@ describe("TuiCommandFlow", () => {
   });
 
   it("reloads TUI configuration only while the product is idle", async () => {
-    const reloadTui = vi.fn(async () => undefined);
-    const setHint = vi.fn();
+    const reloadTui = mock(async () => undefined);
+    const setHint = mock();
     const flow = createReadinessCommandFlow({
-      whenReady: vi.fn(async () => undefined),
+      whenReady: mock(async () => undefined),
       reloadTui,
       setHint,
     });
@@ -378,7 +380,7 @@ describe("TuiCommandFlow", () => {
   });
 
   it.each(['Plugin refresh failed', 'Invalid keybindings.json'])("preserves /reload cause: %s", async (message) => {
-    const append = vi.fn();
+    const append = mock();
     const flow = createReadinessCommandFlow({
       whenReady: async () => {}, append,
       reloadTui: async () => { throw new Error(message); },
@@ -390,10 +392,10 @@ describe("TuiCommandFlow", () => {
   });
 
   it("retains /reload while queued work is present", async () => {
-    const reloadTui = vi.fn(async () => undefined);
-    const setHint = vi.fn();
+    const reloadTui = mock(async () => undefined);
+    const setHint = mock();
     const flow = createReadinessCommandFlow({
-      whenReady: vi.fn(async () => undefined),
+      whenReady: mock(async () => undefined),
       reloadTui,
       queuedCount: 1,
       setHint,
@@ -420,14 +422,14 @@ describe("TuiCommandFlow", () => {
       const ready = new Promise<void>((resolve) => {
         releaseReady = resolve;
       });
-      const projectOptimisticUserMessage = vi.fn();
-      const removeOptimisticUserMessage = vi.fn();
-      const submit = vi.fn(async () => "succeeded" as const);
+      const projectOptimisticUserMessage = mock();
+      const removeOptimisticUserMessage = mock();
+      const submit = mock(async () => "succeeded" as const);
       const resources = { attachments: [] };
       const flow = new TuiCommandFlow({
         workspaceDir: "/workspace",
         controller: {
-          snapshot: vi.fn(() => ({
+          snapshot: mock(() => ({
             status: "idle" as const,
             sessions: [],
             session: { sessionId: "session-a" },
@@ -441,14 +443,14 @@ describe("TuiCommandFlow", () => {
         feedbackFlow: {} as never,
         updateFlow: {} as never,
         interactionFlow: {
-          handleCommand: vi.fn(async () => false),
-          hasPending: vi.fn(() => false),
+          handleCommand: mock(async () => false),
+          hasPending: mock(() => false),
         } as never,
         sessionFlow: {} as never,
         queueFlow: {} as never,
         composerDraft: {
-          hasContent: vi.fn(() => false),
-          completeSubmission: vi.fn(async () => undefined),
+          hasContent: mock(() => false),
+          completeSubmission: mock(async () => undefined),
         } as never,
         workspaceRoots: { additionalDirectories: () => [] } as never,
         runProjection: { snapshot: () => ({ queuedCount: 0 }) } as never,
@@ -458,12 +460,12 @@ describe("TuiCommandFlow", () => {
         queueEnabled: true,
         liveRunId: () => undefined,
         runtimeStopping: () => false,
-        abortLiveTurn: vi.fn(async () => false),
-        leaveUi: vi.fn(async () => undefined),
-        whenReady: vi.fn(() => ready),
-        append: vi.fn(),
-        setHint: vi.fn(),
-        onChanged: vi.fn(),
+        abortLiveTurn: mock(async () => false),
+        leaveUi: mock(async () => undefined),
+        whenReady: mock(() => ready),
+        append: mock(),
+        setHint: mock(),
+        onChanged: mock(),
         userMessageCount: () => 0,
       });
       const seed = {
@@ -519,14 +521,14 @@ describe("TuiCommandFlow", () => {
         { filePath: "/tmp/a.png", fileName: "a.png", mimeType: "image/png" },
       ],
     };
-    const reserveSubmission = vi.fn();
-    const restoreSubmission = vi.fn();
-    const startNew = vi.fn();
-    const projectOptimisticUserMessage = vi.fn();
+    const reserveSubmission = mock();
+    const restoreSubmission = mock();
+    const startNew = mock();
+    const projectOptimisticUserMessage = mock();
     const flow = new TuiCommandFlow({
       workspaceDir: "/workspace",
       controller: {
-        snapshot: vi.fn(() => ({
+        snapshot: mock(() => ({
           status: "idle" as const,
           sessions: [],
           session: { sessionId: "session-a" },
@@ -538,33 +540,33 @@ describe("TuiCommandFlow", () => {
       feedbackFlow: {} as never,
       updateFlow: {} as never,
       interactionFlow: {
-        handleCommand: vi.fn(async () => false),
-        hasPending: vi.fn(() => false),
+        handleCommand: mock(async () => false),
+        hasPending: mock(() => false),
       } as never,
       sessionFlow: { startNew } as never,
       queueFlow: {} as never,
       composerDraft: {
-        capture: vi.fn(() => resources),
+        capture: mock(() => resources),
         reserveSubmission,
         restoreSubmission,
-        hasContent: vi.fn(() => false),
+        hasContent: mock(() => false),
       } as never,
       workspaceRoots: {
         additionalDirectories: () => ["/captured-root"],
       } as never,
       runProjection: { snapshot: () => ({ queuedCount: 0 }) } as never,
-      editor: { captureDraft: vi.fn(() => editorDraft) } as never,
+      editor: { captureDraft: mock(() => editorDraft) } as never,
       surface: {} as never,
       surfaceHost: {} as never,
       queueEnabled: true,
       liveRunId: () => undefined,
       runtimeStopping: () => false,
-      abortLiveTurn: vi.fn(async () => false),
-      leaveUi: vi.fn(async () => undefined),
-      whenReady: vi.fn(async () => undefined),
-      append: vi.fn(),
-      setHint: vi.fn(),
-      onChanged: vi.fn(),
+      abortLiveTurn: mock(async () => false),
+      leaveUi: mock(async () => undefined),
+      whenReady: mock(async () => undefined),
+      append: mock(),
+      setHint: mock(),
+      onChanged: mock(),
     });
 
     const seed = flow.captureSubmissionSeed(editorDraft);
@@ -592,13 +594,13 @@ describe("TuiCommandFlow", () => {
       sizeBytes: 100,
     };
     const resources = { attachments: [attachment] };
-    const restoreSubmission = vi.fn();
-    const executeGoal = vi.fn(async () => "consumed" as const);
-    const submit = vi.fn(async () => "succeeded" as const);
+    const restoreSubmission = mock();
+    const executeGoal = mock(async () => "consumed" as const);
+    const submit = mock(async () => "succeeded" as const);
     const flow = new TuiCommandFlow({
       workspaceDir: "/workspace",
       controller: {
-        snapshot: vi.fn(() => ({
+        snapshot: mock(() => ({
           status: "idle" as const,
           sessions: [],
           session: { sessionId: "session-a" },
@@ -611,13 +613,13 @@ describe("TuiCommandFlow", () => {
       updateFlow: {} as never,
       goalFlow: { execute: executeGoal },
       interactionFlow: {
-        handleCommand: vi.fn(async () => false),
-        hasPending: vi.fn(() => false),
+        handleCommand: mock(async () => false),
+        hasPending: mock(() => false),
       } as never,
       sessionFlow: {} as never,
       queueFlow: {} as never,
       composerDraft: {
-        hasContent: vi.fn(() => false),
+        hasContent: mock(() => false),
         restoreSubmission,
       } as never,
       workspaceRoots: { additionalDirectories: () => [] } as never,
@@ -628,12 +630,12 @@ describe("TuiCommandFlow", () => {
       queueEnabled: true,
       liveRunId: () => undefined,
       runtimeStopping: () => false,
-      abortLiveTurn: vi.fn(async () => false),
-      leaveUi: vi.fn(async () => undefined),
-      whenReady: vi.fn(async () => undefined),
-      append: vi.fn(),
-      setHint: vi.fn(),
-      onChanged: vi.fn(),
+      abortLiveTurn: mock(async () => false),
+      leaveUi: mock(async () => undefined),
+      whenReady: mock(async () => undefined),
+      append: mock(),
+      setHint: mock(),
+      onChanged: mock(),
     });
     const seed = {
       sessionId: "session-a",
@@ -663,12 +665,12 @@ describe("TuiCommandFlow", () => {
       fileName: "a.png",
       mimeType: "image/png",
     };
-    const submit = vi.fn(async () => "succeeded" as const);
-    const completeSubmission = vi.fn(async () => undefined);
+    const submit = mock(async () => "succeeded" as const);
+    const completeSubmission = mock(async () => undefined);
     const flow = new TuiCommandFlow({
       workspaceDir: "/workspace",
       controller: {
-        snapshot: vi.fn(() => ({
+        snapshot: mock(() => ({
           status: "idle" as const,
           sessions: [],
           session: { sessionId: "session-a" },
@@ -680,13 +682,13 @@ describe("TuiCommandFlow", () => {
       feedbackFlow: {} as never,
       updateFlow: {} as never,
       interactionFlow: {
-        handleCommand: vi.fn(async () => false),
-        hasPending: vi.fn(() => false),
+        handleCommand: mock(async () => false),
+        hasPending: mock(() => false),
       } as never,
       sessionFlow: {} as never,
       queueFlow: {} as never,
       composerDraft: {
-        hasContent: vi.fn(() => false),
+        hasContent: mock(() => false),
         completeSubmission,
       } as never,
       workspaceRoots: { additionalDirectories: () => [] } as never,
@@ -697,12 +699,12 @@ describe("TuiCommandFlow", () => {
       queueEnabled: true,
       liveRunId: () => undefined,
       runtimeStopping: () => false,
-      abortLiveTurn: vi.fn(async () => false),
-      leaveUi: vi.fn(async () => undefined),
-      whenReady: vi.fn(async () => undefined),
-      append: vi.fn(),
-      setHint: vi.fn(),
-      onChanged: vi.fn(),
+      abortLiveTurn: mock(async () => false),
+      leaveUi: mock(async () => undefined),
+      whenReady: mock(async () => undefined),
+      append: mock(),
+      setHint: mock(),
+      onChanged: mock(),
     });
     const resources = { attachments: [attachment] };
 
@@ -728,7 +730,7 @@ describe("TuiCommandFlow", () => {
   });
 
   it("sends directory-like @ text without resolving a directory reference", async () => {
-    const resolveMentionedDirectories = vi.fn(async () => [
+    const resolveMentionedDirectories = mock(async () => [
       {
         schemaVersion: 1 as const,
         referenceId: "dirref_src",
@@ -736,12 +738,12 @@ describe("TuiCommandFlow", () => {
         rootPath: "/workspace/src",
       },
     ]);
-    const submit = vi.fn(async () => "succeeded" as const);
-    const completeSubmission = vi.fn(async () => undefined);
+    const submit = mock(async () => "succeeded" as const);
+    const completeSubmission = mock(async () => undefined);
     const flow = new TuiCommandFlow({
       workspaceDir: "/workspace",
       controller: {
-        snapshot: vi.fn(() => ({
+        snapshot: mock(() => ({
           status: "idle" as const,
           sessions: [],
           session: { sessionId: "session-a" },
@@ -753,13 +755,13 @@ describe("TuiCommandFlow", () => {
       feedbackFlow: {} as never,
       updateFlow: {} as never,
       interactionFlow: {
-        handleCommand: vi.fn(async () => false),
-        hasPending: vi.fn(() => false),
+        handleCommand: mock(async () => false),
+        hasPending: mock(() => false),
       } as never,
       sessionFlow: {} as never,
       queueFlow: {} as never,
       composerDraft: {
-        hasContent: vi.fn(() => false),
+        hasContent: mock(() => false),
         resolveMentionedDirectories,
         completeSubmission,
       } as never,
@@ -771,12 +773,12 @@ describe("TuiCommandFlow", () => {
       queueEnabled: true,
       liveRunId: () => undefined,
       runtimeStopping: () => false,
-      abortLiveTurn: vi.fn(async () => false),
-      leaveUi: vi.fn(async () => undefined),
-      whenReady: vi.fn(async () => undefined),
-      append: vi.fn(),
-      setHint: vi.fn(),
-      onChanged: vi.fn(),
+      abortLiveTurn: mock(async () => false),
+      leaveUi: mock(async () => undefined),
+      whenReady: mock(async () => undefined),
+      append: mock(),
+      setHint: mock(),
+      onChanged: mock(),
     });
     const resources = { attachments: [] };
 
@@ -812,12 +814,12 @@ describe("TuiCommandFlow", () => {
     const recovery = new Promise<void>((resolve) => {
       finishRecovery = resolve;
     });
-    const completeSubmission = vi.fn(async () => undefined);
-    const submit = vi.fn(() => primary);
+    const completeSubmission = mock(async () => undefined);
+    const submit = mock(() => primary);
     const flow = new TuiCommandFlow({
       workspaceDir: "/workspace",
       controller: {
-        snapshot: vi.fn(() => ({
+        snapshot: mock(() => ({
           status: "idle" as const,
           sessions: [],
           session: { sessionId: "session-a" },
@@ -829,13 +831,13 @@ describe("TuiCommandFlow", () => {
       feedbackFlow: {} as never,
       updateFlow: {} as never,
       interactionFlow: {
-        handleCommand: vi.fn(async () => false),
-        hasPending: vi.fn(() => false),
+        handleCommand: mock(async () => false),
+        hasPending: mock(() => false),
       } as never,
       sessionFlow: {} as never,
       queueFlow: {} as never,
       composerDraft: {
-        hasContent: vi.fn(() => false),
+        hasContent: mock(() => false),
         completeSubmission,
       } as never,
       workspaceRoots: { additionalDirectories: () => [] } as never,
@@ -846,14 +848,14 @@ describe("TuiCommandFlow", () => {
       queueEnabled: true,
       liveRunId: () => undefined,
       runtimeStopping: () => false,
-      abortLiveTurn: vi.fn(async () => false),
-      leaveUi: vi.fn(async () => undefined),
-      whenReady: vi.fn(async () => undefined),
-      whenStopping: vi.fn(() => recovery),
+      abortLiveTurn: mock(async () => false),
+      leaveUi: mock(async () => undefined),
+      whenReady: mock(async () => undefined),
+      whenStopping: mock(() => recovery),
       isStopped: () => stopped,
-      append: vi.fn(),
-      setHint: vi.fn(),
-      onChanged: vi.fn(),
+      append: mock(),
+      setHint: mock(),
+      onChanged: mock(),
     });
     const resources = {
       attachments: [
@@ -872,7 +874,7 @@ describe("TuiCommandFlow", () => {
       },
       resources,
     });
-    await vi.waitFor(() => expect(submit).toHaveBeenCalledOnce());
+    await waitFor(() => expect(submit).toHaveBeenCalledOnce());
 
     stopped = true;
     finishPrimary?.("cancelled");
@@ -894,37 +896,37 @@ describe("TuiCommandFlow", () => {
     const queueLogin = new Promise<void>((resolve) => {
       releaseQueueLogin = resolve;
     });
-    const projectOptimisticUserMessage = vi.fn();
+    const projectOptimisticUserMessage = mock();
     const controller = {
-      snapshot: vi.fn(() => ({
+      snapshot: mock(() => ({
         status: liveRunId ? ("running" as const) : ("idle" as const),
         sessions: [],
         session: { sessionId: "session-1" },
         activeTurnId: liveRunId,
       })),
-      submit: vi.fn(() => {
+      submit: mock(() => {
         liveRunId = "turn-1";
         return primary;
       }),
-      requireLoginForAgentAction: vi.fn(() => queueLogin),
+      requireLoginForAgentAction: mock(() => queueLogin),
       projectOptimisticUserMessage,
-      removeOptimisticUserMessage: vi.fn(),
+      removeOptimisticUserMessage: mock(),
     };
     const composerDraft = {
-      hasContent: vi.fn(() => false),
-      capture: vi.fn(() => ({
+      hasContent: mock(() => false),
+      capture: mock(() => ({
         attachments: [],
       })),
-      reserveSubmission: vi.fn(() => ({
+      reserveSubmission: mock(() => ({
         attachments: [],
       })),
-      restoreSubmission: vi.fn(),
-      completeSubmission: vi.fn(async () => undefined),
+      restoreSubmission: mock(),
+      completeSubmission: mock(async () => undefined),
     };
     const queueFlow = {
-      beginAdmission: vi.fn(),
-      cancelAdmission: vi.fn(),
-      enqueue: vi.fn(async () => undefined),
+      beginAdmission: mock(),
+      cancelAdmission: mock(),
+      enqueue: mock(async () => undefined),
     };
     const flow = new TuiCommandFlow({
       workspaceDir: "/workspace",
@@ -934,31 +936,31 @@ describe("TuiCommandFlow", () => {
       feedbackFlow: {} as never,
       updateFlow: {} as never,
       interactionFlow: {
-        handleCommand: vi.fn(async () => false),
-        hasPending: vi.fn(() => false),
-        showPending: vi.fn(),
+        handleCommand: mock(async () => false),
+        hasPending: mock(() => false),
+        showPending: mock(),
       } as never,
       sessionFlow: {} as never,
       queueFlow: queueFlow as never,
       composerDraft: composerDraft as never,
       workspaceRoots: { additionalDirectories: () => [] } as never,
       runProjection: { snapshot: () => ({ queuedCount: 0 }) } as never,
-      editor: { setText: vi.fn() } as never,
+      editor: { setText: mock() } as never,
       surface: {} as never,
       surfaceHost: {} as never,
       queueEnabled: true,
       liveRunId: () => liveRunId,
       runtimeStopping: () => false,
-      abortLiveTurn: vi.fn(async () => false),
-      leaveUi: vi.fn(async () => undefined),
-      whenReady: vi.fn(async () => undefined),
-      append: vi.fn(),
-      setHint: vi.fn(),
-      onChanged: vi.fn(),
+      abortLiveTurn: mock(async () => false),
+      leaveUi: mock(async () => undefined),
+      whenReady: mock(async () => undefined),
+      append: mock(),
+      setHint: mock(),
+      onChanged: mock(),
     });
 
     const first = flow.submit("first");
-    await vi.waitFor(() => expect(controller.submit).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(controller.submit).toHaveBeenCalledTimes(1));
     const followUpSeed = {
       sessionId: "session-1",
       editor: {
@@ -981,7 +983,7 @@ describe("TuiCommandFlow", () => {
     expect(queueFlow.enqueue).not.toHaveBeenCalled();
 
     releaseQueueLogin?.();
-    await vi.waitFor(() => expect(queueFlow.enqueue).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(queueFlow.enqueue).toHaveBeenCalledTimes(1));
     await expect(followUp).resolves.toBe("consumed");
     expect(projectOptimisticUserMessage).not.toHaveBeenCalled();
     expect(controller.submit).toHaveBeenCalledTimes(1);
@@ -1005,28 +1007,28 @@ describe("TuiCommandFlow", () => {
       mimeType: "image/png",
       sizeBytes: 42,
     };
-    const activeRunFlow = { steer: vi.fn(async () => true) };
+    const activeRunFlow = { steer: mock(async () => true) };
     const controller = {
-      snapshot: vi.fn(() => ({
+      snapshot: mock(() => ({
         status: "running" as const,
         sessions: [],
         session: { sessionId: "session-1" },
         activeTurnId: "turn-active",
       })),
-      hasInProcessRun: vi.fn(() => true),
-      requireLoginForAgentAction: vi.fn(async () => undefined),
-      projectOptimisticUserMessage: vi.fn(),
-      removeOptimisticUserMessage: vi.fn(),
+      hasInProcessRun: mock(() => true),
+      requireLoginForAgentAction: mock(async () => undefined),
+      projectOptimisticUserMessage: mock(),
+      removeOptimisticUserMessage: mock(),
     };
     const composerDraft = {
-      hasContent: vi.fn(() => false),
-      restoreSubmission: vi.fn(),
-      completeSubmission: vi.fn(async () => undefined),
+      hasContent: mock(() => false),
+      restoreSubmission: mock(),
+      completeSubmission: mock(async () => undefined),
     };
     const queueFlow = {
-      beginAdmission: vi.fn(),
-      cancelAdmission: vi.fn(),
-      enqueue: vi.fn(async () => undefined),
+      beginAdmission: mock(),
+      cancelAdmission: mock(),
+      enqueue: mock(async () => undefined),
     };
     const flow = new TuiCommandFlow({
       workspaceDir: "/workspace",
@@ -1036,8 +1038,8 @@ describe("TuiCommandFlow", () => {
       feedbackFlow: {} as never,
       updateFlow: {} as never,
       interactionFlow: {
-        handleCommand: vi.fn(async () => false),
-        hasPending: vi.fn(() => false),
+        handleCommand: mock(async () => false),
+        hasPending: mock(() => false),
       } as never,
       sessionFlow: {} as never,
       queueFlow: queueFlow as never,
@@ -1050,12 +1052,12 @@ describe("TuiCommandFlow", () => {
       queueEnabled: true,
       liveRunId: () => "turn-active",
       runtimeStopping: () => false,
-      abortLiveTurn: vi.fn(async () => false),
-      leaveUi: vi.fn(async () => undefined),
-      whenReady: vi.fn(async () => undefined),
-      append: vi.fn(),
-      setHint: vi.fn(),
-      onChanged: vi.fn(),
+      abortLiveTurn: mock(async () => false),
+      leaveUi: mock(async () => undefined),
+      whenReady: mock(async () => undefined),
+      append: mock(),
+      setHint: mock(),
+      onChanged: mock(),
     });
     const seed = {
       sessionId: "session-1",
@@ -1094,28 +1096,28 @@ describe("TuiCommandFlow", () => {
     "preserves direct-admission semantics when the Runtime queue %s",
     async (_scenario, enqueueFails, queuedItemId) => {
       const draft = { attachments: [] };
-      const append = vi.fn();
-      const onMessageAdmitted = vi.fn();
+      const append = mock();
+      const onMessageAdmitted = mock();
       const controller = {
-        snapshot: vi.fn(() => ({
+        snapshot: mock(() => ({
           status: "idle" as const,
           sessions: [],
           session: { sessionId: "session-1" },
           activeTurnId: undefined,
         })),
-        submit: vi.fn(async () => "queue-required" as const),
-        requireLoginForAgentAction: vi.fn(async () => undefined),
+        submit: mock(async () => "queue-required" as const),
+        requireLoginForAgentAction: mock(async () => undefined),
       };
       const composerDraft = {
-        hasContent: vi.fn(() => false),
-        reserveSubmission: vi.fn(() => draft),
-        restoreSubmission: vi.fn(),
-        completeSubmission: vi.fn(async () => undefined),
+        hasContent: mock(() => false),
+        reserveSubmission: mock(() => draft),
+        restoreSubmission: mock(),
+        completeSubmission: mock(async () => undefined),
       };
       const queueFlow = {
-        beginAdmission: vi.fn(),
-        cancelAdmission: vi.fn(),
-        enqueue: vi.fn(async () => {
+        beginAdmission: mock(),
+        cancelAdmission: mock(),
+        enqueue: mock(async () => {
           if (enqueueFails) throw new Error("queue unavailable");
           return queuedItemId;
         }),
@@ -1128,8 +1130,8 @@ describe("TuiCommandFlow", () => {
         feedbackFlow: {} as never,
         updateFlow: {} as never,
         interactionFlow: {
-          handleCommand: vi.fn(async () => false),
-          hasPending: vi.fn(() => false),
+          handleCommand: mock(async () => false),
+          hasPending: mock(() => false),
         } as never,
         sessionFlow: {} as never,
         queueFlow: queueFlow as never,
@@ -1142,12 +1144,12 @@ describe("TuiCommandFlow", () => {
         queueEnabled: true,
         liveRunId: () => undefined,
         runtimeStopping: () => false,
-        abortLiveTurn: vi.fn(async () => false),
-        leaveUi: vi.fn(async () => undefined),
-        whenReady: vi.fn(async () => undefined),
+        abortLiveTurn: mock(async () => false),
+        leaveUi: mock(async () => undefined),
+        whenReady: mock(async () => undefined),
         append,
-        setHint: vi.fn(),
-        onChanged: vi.fn(),
+        setHint: mock(),
+        onChanged: mock(),
         onMessageAdmitted,
       });
 
@@ -1189,21 +1191,21 @@ describe("TuiCommandFlow", () => {
   );
 
   it("moves a direct optimistic message into Queue projection on queue-required fallback", async () => {
-    const projectOptimisticUserMessage = vi.fn();
-    const removeOptimisticUserMessage = vi.fn();
-    const beginAdmission = vi.fn();
-    const enqueue = vi.fn(async () => undefined);
+    const projectOptimisticUserMessage = mock();
+    const removeOptimisticUserMessage = mock();
+    const beginAdmission = mock();
+    const enqueue = mock(async () => undefined);
     const draft = { attachments: [] };
     const flow = new TuiCommandFlow({
       workspaceDir: "/workspace",
       controller: {
-        snapshot: vi.fn(() => ({
+        snapshot: mock(() => ({
           status: "idle" as const,
           sessions: [],
           session: { sessionId: "session-1" },
         })),
-        submit: vi.fn(async () => "queue-required" as const),
-        requireLoginForAgentAction: vi.fn(async () => undefined),
+        submit: mock(async () => "queue-required" as const),
+        requireLoginForAgentAction: mock(async () => undefined),
         projectOptimisticUserMessage,
         removeOptimisticUserMessage,
       } as never,
@@ -1212,18 +1214,18 @@ describe("TuiCommandFlow", () => {
       feedbackFlow: {} as never,
       updateFlow: {} as never,
       interactionFlow: {
-        handleCommand: vi.fn(async () => false),
-        hasPending: vi.fn(() => false),
+        handleCommand: mock(async () => false),
+        hasPending: mock(() => false),
       } as never,
       sessionFlow: {} as never,
       queueFlow: {
         beginAdmission,
-        cancelAdmission: vi.fn(),
+        cancelAdmission: mock(),
         enqueue,
       } as never,
       composerDraft: {
-        hasContent: vi.fn(() => false),
-        completeSubmission: vi.fn(async () => undefined),
+        hasContent: mock(() => false),
+        completeSubmission: mock(async () => undefined),
       } as never,
       workspaceRoots: { additionalDirectories: () => [] } as never,
       runProjection: { snapshot: () => ({ queuedCount: 0 }) } as never,
@@ -1233,12 +1235,12 @@ describe("TuiCommandFlow", () => {
       queueEnabled: true,
       liveRunId: () => undefined,
       runtimeStopping: () => false,
-      abortLiveTurn: vi.fn(async () => false),
-      leaveUi: vi.fn(async () => undefined),
-      whenReady: vi.fn(async () => undefined),
-      append: vi.fn(),
-      setHint: vi.fn(),
-      onChanged: vi.fn(),
+      abortLiveTurn: mock(async () => false),
+      leaveUi: mock(async () => undefined),
+      whenReady: mock(async () => undefined),
+      append: mock(),
+      setHint: mock(),
+      onChanged: mock(),
     });
     const seed = {
       sessionId: "session-1",
@@ -1270,22 +1272,22 @@ describe("TuiCommandFlow", () => {
 
   it("preserves the draft and guides login when a direct Agent Turn is blocked", async () => {
     const draft = { attachments: [] };
-    const append = vi.fn();
+    const append = mock();
     const controller = {
-      snapshot: vi.fn(() => ({ status: "idle" as const, sessions: [] })),
-      submit: vi.fn(async () => {
+      snapshot: mock(() => ({ status: "idle" as const, sessions: [] })),
+      submit: mock(async () => {
         throw new TuiLoginRequiredError(
           { status: "needs-login", managedTokenPresent: false, warnings: [] },
           MINIMAX_CODE_TUI_LOGIN_REQUIRED_MESSAGE,
         );
       }),
-      requireLoginForAgentAction: vi.fn(async () => undefined),
+      requireLoginForAgentAction: mock(async () => undefined),
     };
     const composerDraft = {
-      hasContent: vi.fn(() => false),
-      reserveSubmission: vi.fn(() => draft),
-      restoreSubmission: vi.fn(),
-      completeSubmission: vi.fn(async () => undefined),
+      hasContent: mock(() => false),
+      reserveSubmission: mock(() => draft),
+      restoreSubmission: mock(),
+      completeSubmission: mock(async () => undefined),
     };
     const flow = new TuiCommandFlow({
       workspaceDir: "/workspace",
@@ -1295,8 +1297,8 @@ describe("TuiCommandFlow", () => {
       feedbackFlow: {} as never,
       updateFlow: {} as never,
       interactionFlow: {
-        handleCommand: vi.fn(async () => false),
-        hasPending: vi.fn(() => false),
+        handleCommand: mock(async () => false),
+        hasPending: mock(() => false),
       } as never,
       sessionFlow: {} as never,
       queueFlow: {} as never,
@@ -1309,12 +1311,12 @@ describe("TuiCommandFlow", () => {
       queueEnabled: true,
       liveRunId: () => undefined,
       runtimeStopping: () => false,
-      abortLiveTurn: vi.fn(async () => false),
-      leaveUi: vi.fn(async () => undefined),
-      whenReady: vi.fn(async () => undefined),
+      abortLiveTurn: mock(async () => false),
+      leaveUi: mock(async () => undefined),
+      whenReady: mock(async () => undefined),
       append,
-      setHint: vi.fn(),
-      onChanged: vi.fn(),
+      setHint: mock(),
+      onChanged: mock(),
     });
 
     await expect(flow.submit("retry after login")).resolves.toBe("retained");
@@ -1328,24 +1330,24 @@ describe("TuiCommandFlow", () => {
   });
 
   it("restores one atomic Submission to the Composer when admission throws synchronously", async () => {
-    const restoreSubmittedDraft = vi.fn(() => true);
-    const setChatFocus = vi.fn();
+    const restoreSubmittedDraft = mock(() => true);
+    const setChatFocus = mock();
     const controller = {
-      snapshot: vi.fn(() => ({
+      snapshot: mock(() => ({
         status: "idle" as const,
         sessions: [],
         session: { sessionId: "session-1" },
       })),
-      submit: vi.fn(() => {
+      submit: mock(() => {
         throw new Error("admission failed");
       }),
-      requireLoginForAgentAction: vi.fn(async () => undefined),
+      requireLoginForAgentAction: mock(async () => undefined),
     };
     const composerDraft = {
-      hasContent: vi.fn(() => true),
-      reserveSubmission: vi.fn(),
-      restoreSubmission: vi.fn(),
-      completeSubmission: vi.fn(async () => undefined),
+      hasContent: mock(() => true),
+      reserveSubmission: mock(),
+      restoreSubmission: mock(),
+      completeSubmission: mock(async () => undefined),
     };
     const flow = new TuiCommandFlow({
       workspaceDir: "/workspace",
@@ -1355,8 +1357,8 @@ describe("TuiCommandFlow", () => {
       feedbackFlow: {} as never,
       updateFlow: {} as never,
       interactionFlow: {
-        handleCommand: vi.fn(async () => false),
-        hasPending: vi.fn(() => false),
+        handleCommand: mock(async () => false),
+        hasPending: mock(() => false),
       } as never,
       sessionFlow: {} as never,
       queueFlow: {} as never,
@@ -1369,12 +1371,12 @@ describe("TuiCommandFlow", () => {
       queueEnabled: true,
       liveRunId: () => undefined,
       runtimeStopping: () => false,
-      abortLiveTurn: vi.fn(async () => false),
-      leaveUi: vi.fn(async () => undefined),
-      whenReady: vi.fn(async () => undefined),
-      append: vi.fn(),
-      setHint: vi.fn(),
-      onChanged: vi.fn(),
+      abortLiveTurn: mock(async () => false),
+      leaveUi: mock(async () => undefined),
+      whenReady: mock(async () => undefined),
+      append: mock(),
+      setHint: mock(),
+      onChanged: mock(),
     });
     const seed = {
       sessionId: "session-1",
@@ -1402,46 +1404,46 @@ describe("TuiCommandFlow", () => {
   it.each(["failed", "retracted"] as const)(
     "restores an atomic Submission to the Composer when the Turn is %s",
     async (status) => {
-      const restoreSubmittedDraft = vi.fn(() => true);
-      const restoreSubmission = vi.fn();
+      const restoreSubmittedDraft = mock(() => true);
+      const restoreSubmission = mock();
       const flow = new TuiCommandFlow({
         workspaceDir: "/workspace",
         controller: {
-          snapshot: vi.fn(() => ({
+          snapshot: mock(() => ({
             status: "idle" as const,
             sessions: [],
             session: { sessionId: "session-1" },
           })),
-          submit: vi.fn(async () => status),
+          submit: mock(async () => status),
         } as never,
         activeRunFlow: {} as never,
         featureFlow: createFeatureFlowMock() as never,
         feedbackFlow: {} as never,
         updateFlow: {} as never,
         interactionFlow: {
-          handleCommand: vi.fn(async () => false),
-          hasPending: vi.fn(() => false),
+          handleCommand: mock(async () => false),
+          hasPending: mock(() => false),
         } as never,
         sessionFlow: {} as never,
         queueFlow: {} as never,
         composerDraft: {
-          hasContent: vi.fn(() => false),
+          hasContent: mock(() => false),
           restoreSubmission,
         } as never,
         workspaceRoots: { additionalDirectories: () => [] } as never,
         runProjection: { snapshot: () => ({ queuedCount: 0 }) } as never,
         editor: { restoreSubmittedDraft } as never,
         surface: {} as never,
-        surfaceHost: { setChatFocus: vi.fn() } as never,
+        surfaceHost: { setChatFocus: mock() } as never,
         queueEnabled: true,
         liveRunId: () => undefined,
         runtimeStopping: () => false,
-        abortLiveTurn: vi.fn(async () => false),
-        leaveUi: vi.fn(async () => undefined),
-        whenReady: vi.fn(async () => undefined),
-        append: vi.fn(),
-        setHint: vi.fn(),
-        onChanged: vi.fn(),
+        abortLiveTurn: mock(async () => false),
+        leaveUi: mock(async () => undefined),
+        whenReady: mock(async () => undefined),
+        append: mock(),
+        setHint: mock(),
+        onChanged: mock(),
       });
       const seed = {
         sessionId: "session-1",
@@ -1463,16 +1465,16 @@ describe("TuiCommandFlow", () => {
   );
 
   it("restores a captured Submission to the Composer when focus changes before admission", async () => {
-    const restoreSubmittedDraft = vi.fn(() => true);
-    const restoreSubmission = vi.fn();
+    const restoreSubmittedDraft = mock(() => true);
+    const restoreSubmission = mock();
     const controller = {
-      snapshot: vi.fn(() => ({
+      snapshot: mock(() => ({
         status: "idle" as const,
         sessions: [],
         session: { sessionId: "session-b" },
       })),
-      submit: vi.fn(),
-      requireLoginForAgentAction: vi.fn(),
+      submit: mock(),
+      requireLoginForAgentAction: mock(),
     };
     const flow = new TuiCommandFlow({
       workspaceDir: "/workspace",
@@ -1482,13 +1484,13 @@ describe("TuiCommandFlow", () => {
       feedbackFlow: {} as never,
       updateFlow: {} as never,
       interactionFlow: {
-        handleCommand: vi.fn(async () => false),
-        hasPending: vi.fn(() => false),
+        handleCommand: mock(async () => false),
+        hasPending: mock(() => false),
       } as never,
       sessionFlow: {} as never,
       queueFlow: {} as never,
       composerDraft: {
-        hasContent: vi.fn(() => true),
+        hasContent: mock(() => true),
         restoreSubmission,
       } as never,
       workspaceRoots: {
@@ -1497,16 +1499,16 @@ describe("TuiCommandFlow", () => {
       runProjection: { snapshot: () => ({ queuedCount: 0 }) } as never,
       editor: { restoreSubmittedDraft } as never,
       surface: {} as never,
-      surfaceHost: { setChatFocus: vi.fn() } as never,
+      surfaceHost: { setChatFocus: mock() } as never,
       queueEnabled: true,
       liveRunId: () => undefined,
       runtimeStopping: () => false,
-      abortLiveTurn: vi.fn(async () => false),
-      leaveUi: vi.fn(async () => undefined),
-      whenReady: vi.fn(async () => undefined),
-      append: vi.fn(),
-      setHint: vi.fn(),
-      onChanged: vi.fn(),
+      abortLiveTurn: mock(async () => false),
+      leaveUi: mock(async () => undefined),
+      whenReady: mock(async () => undefined),
+      append: mock(),
+      setHint: mock(),
+      onChanged: mock(),
     });
 
     await expect(
@@ -1539,36 +1541,36 @@ describe("TuiCommandFlow", () => {
       },
       MINIMAX_CODE_TUI_LOGIN_REQUIRED_MESSAGE,
     );
-    const append = vi.fn();
-    const queueFlow = { enqueue: vi.fn(async () => undefined) };
-    const feedbackFlow = { show: vi.fn(async () => undefined) };
+    const append = mock();
+    const queueFlow = { enqueue: mock(async () => undefined) };
+    const feedbackFlow = { show: mock(async () => undefined) };
     const activeRunFlow = {
-      handle: vi.fn(async () => {
+      handle: mock(async () => {
         throw loginError;
       }),
     };
     const featureFlow = {
       skillCommands: () => [],
-      compactSession: vi.fn(async () => undefined),
+      compactSession: mock(async () => undefined),
     };
     const controller = {
-      snapshot: vi.fn(() => ({
+      snapshot: mock(() => ({
         status: "running" as const,
         sessions: [],
         session: { sessionId: "session-1" },
         activeTurnId: "turn-1",
       })),
-      submit: vi.fn(),
-      requireLoginForAgentAction: vi.fn(async () => {
+      submit: mock(),
+      requireLoginForAgentAction: mock(async () => {
         throw loginError;
       }),
     };
     const composerDraft = {
-      hasContent: vi.fn(() => false),
-      capture: vi.fn(() => ({ attachments: [] })),
-      reserveSubmission: vi.fn(),
-      restoreSubmission: vi.fn(),
-      completeSubmission: vi.fn(async () => undefined),
+      hasContent: mock(() => false),
+      capture: mock(() => ({ attachments: [] })),
+      reserveSubmission: mock(),
+      restoreSubmission: mock(),
+      completeSubmission: mock(async () => undefined),
     };
     const flow = new TuiCommandFlow({
       workspaceDir: "/workspace",
@@ -1578,8 +1580,8 @@ describe("TuiCommandFlow", () => {
       feedbackFlow: feedbackFlow as never,
       updateFlow: {} as never,
       interactionFlow: {
-        handleCommand: vi.fn(async () => false),
-        hasPending: vi.fn(() => false),
+        handleCommand: mock(async () => false),
+        hasPending: mock(() => false),
       } as never,
       sessionFlow: {} as never,
       queueFlow: queueFlow as never,
@@ -1592,12 +1594,12 @@ describe("TuiCommandFlow", () => {
       queueEnabled: true,
       liveRunId: () => "run-1",
       runtimeStopping: () => false,
-      abortLiveTurn: vi.fn(async () => false),
-      leaveUi: vi.fn(async () => undefined),
-      whenReady: vi.fn(async () => undefined),
+      abortLiveTurn: mock(async () => false),
+      leaveUi: mock(async () => undefined),
+      whenReady: mock(async () => undefined),
       append,
-      setHint: vi.fn(),
-      onChanged: vi.fn(),
+      setHint: mock(),
+      onChanged: mock(),
     });
 
     await expect(flow.submit("queue me")).resolves.toBe("retained");
@@ -1614,15 +1616,15 @@ describe("TuiCommandFlow", () => {
   });
 
   it("retains steer text when fresh Runtime admission rejects it", async () => {
-    const activeRunFlow = { handle: vi.fn(async () => false) };
+    const activeRunFlow = { handle: mock(async () => false) };
     const controller = {
-      snapshot: vi.fn(() => ({
+      snapshot: mock(() => ({
         status: "running" as const,
         sessions: [],
         session: { sessionId: "session-1" },
         activeTurnId: "turn-1",
       })),
-      requireLoginForAgentAction: vi.fn(async () => undefined),
+      requireLoginForAgentAction: mock(async () => undefined),
     };
     const flow = new TuiCommandFlow({
       workspaceDir: "/workspace",
@@ -1632,12 +1634,12 @@ describe("TuiCommandFlow", () => {
       feedbackFlow: {} as never,
       updateFlow: {} as never,
       interactionFlow: {
-        handleCommand: vi.fn(async () => false),
-        hasPending: vi.fn(() => false),
+        handleCommand: mock(async () => false),
+        hasPending: mock(() => false),
       } as never,
       sessionFlow: {} as never,
       queueFlow: {} as never,
-      composerDraft: { hasContent: vi.fn(() => false) } as never,
+      composerDraft: { hasContent: mock(() => false) } as never,
       workspaceRoots: { additionalDirectories: () => [] } as never,
       runProjection: { snapshot: () => ({ queuedCount: 0 }) } as never,
       editor: {} as never,
@@ -1646,12 +1648,12 @@ describe("TuiCommandFlow", () => {
       queueEnabled: true,
       liveRunId: () => "turn-1",
       runtimeStopping: () => false,
-      abortLiveTurn: vi.fn(async () => false),
-      leaveUi: vi.fn(async () => undefined),
-      whenReady: vi.fn(async () => undefined),
-      append: vi.fn(),
-      setHint: vi.fn(),
-      onChanged: vi.fn(),
+      abortLiveTurn: mock(async () => false),
+      leaveUi: mock(async () => undefined),
+      whenReady: mock(async () => undefined),
+      append: mock(),
+      setHint: mock(),
+      onChanged: mock(),
     });
 
     await expect(flow.submit("/steer keep this guidance")).resolves.toBe(
@@ -1663,12 +1665,12 @@ describe("TuiCommandFlow", () => {
   });
 
   it("retains steer guidance while an Agent interaction is pending", async () => {
-    const activeRunFlow = { handle: vi.fn(async () => true) };
-    const showPending = vi.fn();
+    const activeRunFlow = { handle: mock(async () => true) };
+    const showPending = mock();
     const flow = new TuiCommandFlow({
       workspaceDir: "/workspace",
       controller: {
-        snapshot: vi.fn(() => ({
+        snapshot: mock(() => ({
           status: "running" as const,
           sessions: [],
           session: { sessionId: "session-1" },
@@ -1680,13 +1682,13 @@ describe("TuiCommandFlow", () => {
       feedbackFlow: {} as never,
       updateFlow: {} as never,
       interactionFlow: {
-        handleCommand: vi.fn(async () => false),
-        hasPending: vi.fn(() => true),
+        handleCommand: mock(async () => false),
+        hasPending: mock(() => true),
         showPending,
       } as never,
       sessionFlow: {} as never,
       queueFlow: {} as never,
-      composerDraft: { hasContent: vi.fn(() => false) } as never,
+      composerDraft: { hasContent: mock(() => false) } as never,
       workspaceRoots: { additionalDirectories: () => [] } as never,
       runProjection: { snapshot: () => ({ queuedCount: 0 }) } as never,
       editor: {} as never,
@@ -1695,12 +1697,12 @@ describe("TuiCommandFlow", () => {
       queueEnabled: true,
       liveRunId: () => "turn-1",
       runtimeStopping: () => false,
-      abortLiveTurn: vi.fn(async () => false),
-      leaveUi: vi.fn(async () => undefined),
-      whenReady: vi.fn(async () => undefined),
-      append: vi.fn(),
-      setHint: vi.fn(),
-      onChanged: vi.fn(),
+      abortLiveTurn: mock(async () => false),
+      leaveUi: mock(async () => undefined),
+      whenReady: mock(async () => undefined),
+      append: mock(),
+      setHint: mock(),
+      onChanged: mock(),
     });
 
     await expect(flow.submit("/steer keep rollback guidance")).resolves.toBe(

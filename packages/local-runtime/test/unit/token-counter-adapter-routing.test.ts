@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import { resolveRemoteTokenCounterAdapter } from '../../src/context/token-counter-adapters/registry.js';
 import { buildResponsesInputTokensUrl } from '../../src/context/token-counter-adapters/responses.js';

@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { waitFor } from '../../../../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock } from 'bun:test';
 
 import { TuiThemePicker } from '../../../../../src/tui/features/settings/theme-picker.js';
 import { stripAnsi } from '../../../../../src/tui/rendering/text.js';
@@ -17,11 +18,11 @@ const CUSTOM: TuiThemeDefinition = {
 const THEMES = [...BUILT_IN_THEMES, CUSTOM];
 
 function build(overrides: Partial<ConstructorParameters<typeof TuiThemePicker>[0]> = {}) {
-  const preview = vi.fn();
-  const setAppearance = vi.fn();
-  const save = vi.fn().mockResolvedValue(undefined);
-  const onClose = vi.fn();
-  const requestRender = vi.fn();
+  const preview = mock();
+  const setAppearance = mock();
+  const save = mock().mockResolvedValue(undefined);
+  const onClose = mock();
+  const requestRender = mock();
   const picker = new TuiThemePicker({
     themes: THEMES,
     currentThemeId: 'minimax',
@@ -105,7 +106,7 @@ describe('TuiThemePicker', () => {
 
     picker.handleInput('\u001b[B');
     picker.handleInput('\r');
-    await vi.waitFor(() => expect(onClose).toHaveBeenCalled());
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
 
     expect(save).toHaveBeenCalledWith(BUILT_IN_THEMES[1]!.id, 'auto');
   });
@@ -116,7 +117,7 @@ describe('TuiThemePicker', () => {
     picker.handleInput('\u001b[B');
     picker.handleInput('\u001b[D');
     picker.handleInput('\r');
-    await vi.waitFor(() => expect(onClose).toHaveBeenCalled());
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
 
     expect(save).toHaveBeenCalledWith(BUILT_IN_THEMES[1]!.id, 'light');
   });
@@ -125,7 +126,7 @@ describe('TuiThemePicker', () => {
     const { picker, save, onClose } = build();
 
     picker.handleInput('\r');
-    await vi.waitFor(() => expect(onClose).toHaveBeenCalled());
+    await waitFor(() => expect(onClose).toHaveBeenCalled());
 
     expect(save).not.toHaveBeenCalled();
   });
@@ -145,12 +146,12 @@ describe('TuiThemePicker', () => {
   });
 
   it('keeps the picker open and reports a failed save', async () => {
-    const save = vi.fn().mockRejectedValue(new Error('read-only'));
+    const save = mock().mockRejectedValue(new Error('read-only'));
     const { picker, onClose, requestRender } = build({ save });
 
     picker.handleInput('\u001b[B');
     picker.handleInput('\r');
-    await vi.waitFor(() => expect(requestRender).toHaveBeenCalled());
+    await waitFor(() => expect(requestRender).toHaveBeenCalled());
 
     expect(onClose).not.toHaveBeenCalled();
     expect(stripAnsi(picker.render(100).join('\n'))).toContain(

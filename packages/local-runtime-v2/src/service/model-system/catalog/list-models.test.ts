@@ -1,5 +1,5 @@
 import { ThinkingLevel } from '@mavis/protocol';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import type { LocalCustomProviderConfig, LocalRuntimeConfig } from '../contracts.js';
 import { resolveThinkingLevel } from '../resolution/model-ref.js';

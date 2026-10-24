@@ -1,3 +1,7 @@
+import { resolveLocaleName } from '@mavis/shared/i18n';
+
+import { transcriptText } from '../features/transcript/copy.js';
+
 export interface TranscriptToolDefinition {
   readonly names: readonly string[];
   readonly family?:
@@ -23,66 +27,68 @@ export interface TranscriptToolDefinition {
   };
 }
 
-const BUILTIN_TOOL_DEFINITIONS: readonly TranscriptToolDefinition[] = [
+const BUILTIN_TOOL_DEFINITIONS = (): readonly TranscriptToolDefinition[] => [
   {
     names: ['bash'],
     family: 'shell',
-    runningAction: 'Running',
-    completedAction: 'Ran',
-    failedAction: 'Command failed',
+    runningAction: transcriptText('tool.action.running'),
+    completedAction: transcriptText('tool.action.ran'),
+    failedAction: transcriptText('tool.action.commandFailed'),
     previewLines: { running: 3, completed: 3, failed: 8 },
   },
   {
     names: ['edit', 'edit_file', 'apply_patch'],
     family: 'edit',
-    runningAction: 'Editing',
-    completedAction: 'Edited',
-    failedAction: 'Edit failed',
+    runningAction: transcriptText('tool.action.editing'),
+    completedAction: transcriptText('tool.action.edited'),
+    failedAction: transcriptText('tool.action.editFailed'),
     previewLines: { running: 3, completed: 3, failed: 8 },
   },
   {
     names: ['grep', 'search'],
     family: 'search',
-    runningAction: 'Searching',
-    completedAction: 'Searched',
-    failedAction: 'Search failed',
-    failedActionsByCode: { invalid_regex: 'Invalid search pattern' },
+    runningAction: transcriptText('tool.action.searching'),
+    completedAction: transcriptText('tool.action.searched'),
+    failedAction: transcriptText('tool.action.searchFailed'),
+    failedActionsByCode: {
+      invalid_regex: transcriptText('tool.action.invalidSearchPattern'),
+    },
     previewLines: { running: 3, completed: 3, failed: 6 },
   },
   {
     names: ['glob', 'list', 'list_files'],
     family: 'search',
-    runningAction: 'Listing',
-    completedAction: 'Listed',
-    failedAction: 'List failed',
+    runningAction: transcriptText('tool.action.listing'),
+    completedAction: transcriptText('tool.action.listed'),
+    failedAction: transcriptText('tool.action.listFailed'),
   },
   {
     names: ['memory'],
-    runningAction: 'Updating memory',
-    completedAction: 'Updated memory',
-    failedAction: 'Memory update failed',
+    runningAction: transcriptText('tool.action.updatingMemory'),
+    completedAction: transcriptText('tool.action.updatedMemory'),
+    failedAction: transcriptText('tool.action.memoryUpdateFailed'),
   },
   {
     names: ['read', 'read_file', 'readfile'],
     family: 'read',
-    runningAction: 'Reading',
-    completedAction: 'Read',
-    failedAction: 'Read failed',
+    runningAction: transcriptText('tool.action.reading'),
+    completedAction: transcriptText('tool.action.read'),
+    failedAction: transcriptText('tool.action.readFailed'),
   },
   {
     names: ['write', 'write_file'],
     family: 'write',
-    runningAction: 'Writing',
-    completedAction: 'Wrote',
-    failedAction: 'Write failed',
+    runningAction: transcriptText('tool.action.writing'),
+    completedAction: transcriptText('tool.action.wrote'),
+    failedAction: transcriptText('tool.action.writeFailed'),
     previewLines: { running: 3, completed: 3, failed: 8 },
   },
   {
     names: ['task', 'delegate', 'spawn_agent'],
     family: 'task',
-    runningAction: 'Delegating',
-    completedAction: 'Delegated',
-    failedAction: 'Delegation failed',
+    runningAction: transcriptText('tool.action.delegating'),
+    completedAction: transcriptText('tool.action.delegated'),
+    failedAction: transcriptText('tool.action.delegationFailed'),
     previewLines: { running: 3, completed: 3, failed: 8 },
   },
   {
@@ -90,56 +96,70 @@ const BUILTIN_TOOL_DEFINITIONS: readonly TranscriptToolDefinition[] = [
     family: 'task-control',
     summaryStyle: 'dot',
     succeededMarker: 'check',
-    runningAction: 'Reading task result',
-    completedAction: 'Read task result',
-    failedAction: 'Read task result',
+    runningAction: transcriptText('tool.action.readingTaskResult'),
+    completedAction: transcriptText('tool.action.readTaskResult'),
+    failedAction: transcriptText('tool.action.readTaskResult'),
   },
   {
     names: ['task_query'],
     family: 'task-control',
     summaryStyle: 'dot',
     succeededMarker: 'check',
-    runningAction: 'Checking background tasks',
-    completedAction: 'Checked background tasks',
-    failedAction: 'Background task check failed',
+    runningAction: transcriptText('tool.action.checkingBackgroundTasks'),
+    completedAction: transcriptText('tool.action.checkedBackgroundTasks'),
+    failedAction: transcriptText('tool.action.backgroundTaskCheckFailed'),
   },
   {
     names: ['web_search', 'matrix_web_search', 'mcp__matrix__web_search'],
-    runningAction: 'Using WebSearch',
-    completedAction: 'Used WebSearch',
-    failedAction: 'WebSearch failed',
+    runningAction: transcriptText('tool.action.usingWebSearch'),
+    completedAction: transcriptText('tool.action.usedWebSearch'),
+    failedAction: transcriptText('tool.action.webSearchFailed'),
     accentLabel: 'WebSearch',
   },
   {
     names: ['web_fetch'],
-    runningAction: 'Using WebFetch',
-    completedAction: 'Used WebFetch',
-    failedAction: 'WebFetch failed',
+    runningAction: transcriptText('tool.action.usingWebFetch'),
+    completedAction: transcriptText('tool.action.usedWebFetch'),
+    failedAction: transcriptText('tool.action.webFetchFailed'),
     accentLabel: 'WebFetch',
   },
   {
     names: ['mcp'],
     family: 'mcp',
-    runningAction: 'Calling',
-    completedAction: 'Called',
-    failedAction: 'Call failed',
+    runningAction: transcriptText('tool.action.calling'),
+    completedAction: transcriptText('tool.action.called'),
+    failedAction: transcriptText('tool.action.callFailed'),
     previewLines: { running: 3, completed: 3, failed: 8 },
   },
 ];
 
-const TOOL_DEFINITIONS: ReadonlyMap<string, TranscriptToolDefinition> = new Map(
-  BUILTIN_TOOL_DEFINITIONS.flatMap((definition) =>
-    definition.names.map((name) => [normalizeToolName(name), definition] as const),
-  ),
-);
+/**
+ * Tool definitions carry localized action labels, so they are rebuilt when the
+ * host locale changes instead of being frozen at import time.
+ */
+let cachedToolDefinitions:
+  | { readonly locale: string; readonly definitions: ReadonlyMap<string, TranscriptToolDefinition> }
+  | undefined;
+
+function toolDefinitions(): ReadonlyMap<string, TranscriptToolDefinition> {
+  const locale = resolveLocaleName();
+  if (cachedToolDefinitions?.locale === locale) return cachedToolDefinitions.definitions;
+  const definitions: ReadonlyMap<string, TranscriptToolDefinition> = new Map(
+    BUILTIN_TOOL_DEFINITIONS().flatMap((definition) =>
+      definition.names.map((name) => [normalizeToolName(name), definition] as const),
+    ),
+  );
+  cachedToolDefinitions = { locale, definitions };
+  return definitions;
+}
 
 export function resolveTranscriptToolDefinition(
   title: string | undefined,
 ): TranscriptToolDefinition | undefined {
   const normalized = normalizeToolName(title);
+  const definitions = toolDefinitions();
   return (
-    TOOL_DEFINITIONS.get(normalized) ??
-    (isMcpToolName(normalized) ? TOOL_DEFINITIONS.get('mcp') : undefined)
+    definitions.get(normalized) ?? (isMcpToolName(normalized) ? definitions.get('mcp') : undefined)
   );
 }
 

@@ -42,6 +42,7 @@ import {
   formatTuiExecFailure,
   formatTuiExecResultFailure,
 } from "./error-presentation.js";
+import { headlessText } from "./copy.js";
 import { MINIMAX_CODE_DEFAULT_AGENT_NAME } from "../product-context.js";
 import { requireTuiAgentAccess } from "../application/login-gate.js";
 import { formatTuiActionFailure } from "../user-facing-failure.js";
@@ -412,11 +413,11 @@ export async function runTuiExec(
     try {
       const shutdownFailed = await dependencies.shutdown();
       if (shutdownFailed === true)
-        shutdownFailure = "Runtime shutdown did not complete cleanly.";
+        shutdownFailure = headlessText("headless.runner.shutdownIncomplete");
     } catch (error) {
       shutdownFailure = formatTuiActionFailure(error, {
-        summary: "mcode exec shutdown failed.",
-        nextStep: "Verify no process is still running.",
+        summary: headlessText("headless.runner.shutdownFailed"),
+        nextStep: headlessText("headless.runner.shutdownNextStep"),
       });
     }
 
@@ -520,7 +521,7 @@ function projectHeadlessReviewResult(
       error: {
         category: "runtime",
         code: "REVIEW_RESULT_MISSING",
-        message: "Runtime completed without a validated code review result.",
+        message: headlessText("headless.runner.reviewResultMissing"),
         retryable: true,
       },
     };
@@ -547,7 +548,7 @@ function projectHeadlessReviewResult(
         error: {
           category: "runtime",
           code: "REVIEW_RESULT_INVALID",
-          message: "Runtime returned an invalid code review result.",
+          message: headlessText("headless.runner.reviewResultInvalid"),
           retryable: true,
         },
       };
@@ -565,7 +566,7 @@ function projectHeadlessReviewStreamEvent(
       ...event.message,
       content: result
         ? renderReviewResultText(result)
-        : "Runtime returned an invalid code review result.",
+        : headlessText("headless.runner.reviewResultInvalid"),
     },
   };
 }
@@ -671,12 +672,20 @@ async function resolveExecutionFacts(
   );
   const responses = [...(outcome.usageResponses ?? [])];
   const historyIds = new Set<string>();
+  // One pass over the turn history answers three questions the summary needs:
+  // which responses have identity, whether any compaction message participated,
+  // and whether any response arrived without an id. `responseUsageFromMessage`
+  // decodes per message, so re-walking the array repeated that decode.
+  let hasCompactionMessage = false;
+  let hasUnidentifiedResponse = false;
   for (const message of history?.messages ?? []) {
+    if (isTurnCompactionMessage(message, turnId)) hasCompactionMessage = true;
     const response = responseUsageFromMessage(message, turnId);
     if (!response) continue;
     if (response.messageId) historyIds.add(response.messageId);
     // Unidentified history cannot be reconciled against stream delivery safely.
     if (response.messageId) upsertResponseUsage(responses, response);
+    else hasUnidentifiedResponse = true;
   }
   const responseSummary = sumResponseUsage(responses);
   const responseUsage = toExecTokenUsage(
@@ -687,9 +696,7 @@ async function resolveExecutionFacts(
     outcome.status !== "succeeded" ||
     outcome.usageIncomplete === true ||
     !history?.complete ||
-    history.messages.some((message) =>
-      isTurnCompactionMessage(message, turnId),
-    ) ||
+    hasCompactionMessage ||
     responseSummary.usageIncomplete ||
     (responseUsage !== undefined && responseUsage.totalTokens === undefined) ||
     responses.length === 0 ||
@@ -700,11 +707,7 @@ async function resolveExecutionFacts(
         !toExecTokenUsage(response.usage) ||
         response.usageIncomplete,
     ) ||
-    (history?.messages.some((message) => {
-      const response = responseUsageFromMessage(message, turnId);
-      return response !== undefined && !response.messageId;
-    }) ??
-      false);
+    hasUnidentifiedResponse;
   return {
     ...(model ? { model } : {}),
     ...(tokenUsage ? { usage: tokenUsage } : {}),

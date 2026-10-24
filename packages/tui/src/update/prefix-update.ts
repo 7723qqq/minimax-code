@@ -1,12 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
 import {
   cpSync,
-  existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
@@ -108,12 +108,12 @@ export function prepareMcodePrefixUpdateStaging(
 ): void {
   const activeModulesRoot = resolveMcodePrefixModulesRoot(activePrefix, platform);
   const stagedModulesRoot = resolveMcodePrefixModulesRoot(stagingPrefix, platform);
-  if (!existsSync(activeModulesRoot)) {
+  if (!pathExists(activeModulesRoot)) {
     throw new Error(`Active MCode modules directory is missing: ${activeModulesRoot}`);
   }
   cpSync(activeModulesRoot, stagedModulesRoot, { recursive: true, dereference: false });
   for (const launcher of resolveMcodePrefixLauncherPairs(activePrefix, stagingPrefix, platform)) {
-    if (!existsSync(launcher.activePath)) continue;
+    if (!pathExists(launcher.activePath)) continue;
     mkdirSync(path.dirname(launcher.stagedPath), { recursive: true });
     cpSync(launcher.activePath, launcher.stagedPath, { dereference: false, force: true });
   }
@@ -164,8 +164,8 @@ export async function validateMcodePrefixPackage(
     'mcode-tools',
     (output) => output.length > 0,
   );
-  // --version does not load the native runtime. Validate it with the exact Node
-  // executable that the new release launcher will use, independently of npm's Node.
+  // --version does not load the runtime. Validate SQLite with the exact runtime
+  // executable that the new release launcher will use.
   await validateMcodePrefixEntry(
     prefix,
     runtimeExecutable,
@@ -173,9 +173,7 @@ export async function validateMcodePrefixPackage(
       '--input-type=module',
       '--eval',
       `
-      import { createRequire } from 'node:module';
-      const require = createRequire(process.argv[1]);
-      const Database = require('better-sqlite3');
+      import { Database } from 'bun:sqlite';
       const database = new Database(':memory:');
       try {
         if (database.prepare('SELECT 1 AS value').get()?.value !== 1) {
@@ -183,7 +181,6 @@ export async function validateMcodePrefixPackage(
         }
       } finally { database.close(); }
     `,
-      path.join(metadata.packageRoot, 'package.json'),
     ],
     'SQLite',
     () => true,
@@ -299,7 +296,7 @@ export async function schedulePendingMcodePrefixUpdate(
   const prefix = resolvePrefixFromEntryFile(entryFile);
   if (!prefix) return false;
   const pendingFile = path.join(prefix, PENDING_UPDATE_FILE);
-  if (!existsSync(pendingFile)) return false;
+  if (!pathExists(pendingFile)) return false;
   await scheduleMcodePrefixUpdate(
     pendingFile,
     runtimeExecutable,
@@ -330,7 +327,7 @@ export function inspectPendingMcodePrefixUpdate(
   const prefix = resolvePrefixFromEntryFile(entryFile);
   if (!prefix) return undefined;
   const pendingFile = path.join(prefix, PENDING_UPDATE_FILE);
-  if (!existsSync(pendingFile)) return undefined;
+  if (!pathExists(pendingFile)) return undefined;
   const { pending } = readPendingUpdateFile(pendingFile);
   if (path.resolve(pendingFile) !== path.resolve(pending.activePrefix, PENDING_UPDATE_FILE)) {
     throw new Error(`MCode pending update file is outside its active prefix: ${pendingFile}`);
@@ -358,7 +355,7 @@ function classifyRecoverableMcodePrefixUpdateArtifacts(
   if (
     activeMatches &&
     pending.launchers.every(
-      (launcher) => existsSync(launcher.activePath) || existsSync(launcher.stagedPath),
+      (launcher) => pathExists(launcher.activePath) || pathExists(launcher.stagedPath),
     )
   ) {
     return 'activated';
@@ -370,11 +367,11 @@ function classifyRecoverableMcodePrefixUpdateArtifacts(
     pending.expectedVersion,
   );
   if (!stagedMatches) return undefined;
-  const backupExists = existsSync(pending.backupModulesRoot);
+  const backupExists = pathExists(pending.backupModulesRoot);
   return pending.launchers.every(
     (launcher) =>
-      existsSync(launcher.stagedPath) ||
-      (backupExists && existsSync(launcher.activePath) && existsSync(launcher.backupPath)),
+      pathExists(launcher.stagedPath) ||
+      (backupExists && pathExists(launcher.activePath) && pathExists(launcher.backupPath)),
   )
     ? 'staged'
     : undefined;
@@ -542,7 +539,7 @@ export function countMcodePrefixUpdateBlockers(
   currentPid = process.pid,
 ): number | undefined {
   const directory = path.join(activePrefix, ACTIVE_PROCESS_DIRECTORY);
-  if (!existsSync(directory)) return 0;
+  if (!pathExists(directory)) return 0;
   let markerNames: string[];
   try {
     markerNames = readdirSync(directory);
@@ -578,7 +575,7 @@ function resolvePrefixFromEntryFile(entryFile: string | undefined): string | und
   let current = path.dirname(entryFile);
   for (;;) {
     const receiptFile = path.join(current, 'install.json');
-    if (existsSync(receiptFile)) {
+    if (pathExists(receiptFile)) {
       try {
         const receipt = JSON.parse(readFileSync(receiptFile, 'utf8')) as {
           updateOwner?: unknown;
@@ -592,7 +589,7 @@ function resolvePrefixFromEntryFile(entryFile: string | undefined): string | und
       }
     }
     const pendingFile = path.join(current, PENDING_UPDATE_FILE);
-    if (existsSync(pendingFile)) {
+    if (pathExists(pendingFile)) {
       try {
         const pending = readPendingUpdate(pendingFile);
         return path.resolve(pending.activePrefix) === path.resolve(current)
@@ -869,4 +866,26 @@ async function activate() {
   await activate();
 })().catch((error) => { writeStatus('failed', error); process.stderr.write(String(error && error.stack || error) + '\n'); process.exitCode = 1; });
 `;
+}
+
+/**
+ * Whether `target` exists.
+ *
+ * A `statSync` inside a `try` answers the same question as `existsSync` for a
+ * file, a directory, a missing entry and an unreadable path, at a fraction of the
+ * per-call cost: `existsSync` is the Node compatibility surface and measures
+ * roughly an order of magnitude slower in this runtime. This module runs inside
+ * the synchronous activation path, so `Bun.file()` does not apply.
+ *
+ * The generated activator source (`prefixActivatorSource`) is deliberately not
+ * changed: it is written to disk and executed by a separate process, and keeping
+ * it on `node:fs` keeps that helper readable by a plain Node runtime.
+ */
+function pathExists(target: string): boolean {
+  try {
+    statSync(target);
+    return true;
+  } catch {
+    return false;
+  }
 }

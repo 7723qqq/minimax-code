@@ -1,5 +1,7 @@
+import { stubEnv, unstubAllEnvs } from '../../../../test/bun-test-setup.js';
+import { afterEach, describe, expect, it, jest, mock, spyOn } from 'bun:test';
 import { logger } from '../../src/common/logger.js';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+
 import { SAFETY_CHECK_V2_SCENE } from '@mavis/shared/safety-check-v2';
 import { callLocalSafetyCheckV2 } from '../../src/content-safety/api-v2.js';
 import { callSafetyApi, SAFETY_SCENE } from '../../src/content-safety/api.js';
@@ -14,10 +16,10 @@ const defaults = {
   buildEnv: () => 'test' as const,
 };
 const fetchResponse = (body: unknown) =>
-  vi.fn<typeof fetch>().mockImplementation(async () => Response.json(body));
+  mock<typeof fetch>().mockImplementation(async () => Response.json(body));
 afterEach(() => {
-  vi.unstubAllEnvs();
-  vi.restoreAllMocks();
+  unstubAllEnvs();
+  jest.restoreAllMocks();
 });
 
 describe('local biz-gateway SafetyCheckV2 client', () => {
@@ -228,7 +230,7 @@ describe('local biz-gateway SafetyCheckV2 client', () => {
   });
 
   it('does not send a credential when there is no active token', async () => {
-    vi.stubEnv('MAVIS_ACCESS_TOKEN', '');
+    stubEnv('MAVIS_ACCESS_TOKEN', '');
     const fetchImpl = fetchResponse({ action: 1 });
     await callLocalSafetyCheckV2({ ...defaults, fetchImpl });
     expect(new Headers(fetchImpl.mock.calls[0]![1]?.headers).has('Authorization')).toBe(false);
@@ -263,7 +265,7 @@ describe('V2 production failure diagnostics', () => {
     [{ name: 'AbortError' }, 'aborted'],
     [{ cause: { code: 'private-code' } }, 'unknown'],
   ] as const)('retains only the transport category %j', async (details, transportKind) => {
-    const log = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    const log = spyOn(logger, 'warn').mockImplementation(() => {});
     const error = Object.assign(
       new Error('private-error https://secret.invalid/?token=private-token'),
       details,
@@ -314,7 +316,7 @@ describe('V2 production failure diagnostics', () => {
         ),
     ],
   ] as const)('logs failed %s reviews without response data', async (kind, response) => {
-    const log = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    const log = spyOn(logger, 'warn').mockImplementation(() => {});
     await expect(
       callLocalSafetyCheckV2({
         ...defaults,

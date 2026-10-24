@@ -11,6 +11,7 @@ import {
   type TuiStopOptions,
 } from '../engine/public.js';
 import { captureTuiIncidentBestEffort, type TuiIncidentSink } from '../../observability/index.js';
+import { shellText } from '../shell/copy.js';
 
 export interface McodeInteractiveRendererOptions {
   readonly terminal: Terminal;
@@ -258,7 +259,7 @@ export class McodeInteractiveRenderer {
       ? options.cause
       : new AggregateError(
           [options.cause, ...rollbackErrors],
-          'TUI mode switch failed and could not fully restore the previous renderer.',
+          shellText('shell.renderer.modeSwitchFailed'),
         );
     captureTuiIncidentBestEffort(this.options.incidentReporter, {
       eventType: 'cli_render_error',

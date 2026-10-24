@@ -23,7 +23,7 @@ export interface MigrationDatabase {
  * Why not drizzle-kit migrate():
  * 1. It reads the migration directory from fs at runtime, which is unfriendly to Electron asar.
  * 2. We must coexist with v1 data; some migrations backfill data rather than only applying DDL.
- * 3. Keep runtime dependencies minimal: only drizzle-orm + better-sqlite3.
+ * 3. Keep runtime dependencies minimal: only drizzle-orm + bun:sqlite.
  */
 export function runMigrations(
   rawDb: MigrationDatabase,

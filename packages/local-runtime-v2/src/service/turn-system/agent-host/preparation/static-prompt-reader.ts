@@ -6,6 +6,7 @@ import {
   resolveAgentCapabilities,
   type ResolvedAgentCapabilities,
 } from '@mavis/config';
+import { resolveLocale as resolveHostLocale } from '@mavis/shared/i18n';
 
 const LEGACY_AGENT_INSTRUCTIONS_FILE = '\x43\x4c\x41\x55\x44\x45.md';
 const PROJECT_INSTRUCTIONS_MAX_BYTES = 32 * 1024;
@@ -139,14 +140,8 @@ function shouldReadWindowsBase(
   );
 }
 
-export function resolveRuntimeLocale(): string {
-  const electron = process.env.MAVIS_ELECTRON_LOCALE?.trim();
-  if (electron === 'en' || electron === 'zh') return electron;
-  return (
-    Intl.DateTimeFormat().resolvedOptions().locale ||
-    process.env.LANG?.split('.')[0]?.replace('_', '-') ||
-    'en'
-  );
+export function resolveRuntimeLocale(explicit?: string | null): string {
+  return resolveHostLocale(explicit);
 }
 
 async function requireAgentAssetsDir(explicit: string | undefined): Promise<string> {

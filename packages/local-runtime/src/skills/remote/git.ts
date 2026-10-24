@@ -1,8 +1,6 @@
-import { execFile as execFileCallback } from 'node:child_process';
 import { mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
-import { promisify } from 'node:util';
 
 import { LocalSkillHubInstallError } from '../hub-errors.js';
 import type {
@@ -18,7 +16,6 @@ type SkillFileScanner = (
   exactHintSubPath?: boolean,
 ) => Promise<ScannedSkillCandidate[]>;
 
-const execFile = promisify(execFileCallback);
 const REMOTE_SKILL_GIT_TIMEOUT_MS = 120_000;
 
 export async function scanGithubSkillRepository(
@@ -76,14 +73,39 @@ export async function scanGithubSkillRepository(
   }
 }
 
-function runGit(cwd: string, args: string[]): Promise<string> {
-  return execFile('git', args, {
+/**
+ * Runs Git inside a skill checkout and returns its standard output.
+ *
+ * `Bun.spawn` replaces `promisify(execFile)`. `GIT_TERMINAL_PROMPT=0` still
+ * applies, and the sandbox is kept non-interactive by merging it over the
+ * inherited environment rather than replacing it — a replacement would also drop
+ * the inherited `PATH` handling the previous call relied on.
+ *
+ * Expect the first spawn in a process to be slow on Windows: launching a native
+ * executable without a shell costs one multi-second wait before the runtime
+ * settles. That is an upstream runtime characteristic, recorded here rather than
+ * worked around.
+ */
+async function runGit(cwd: string, args: string[]): Promise<string> {
+  const child = Bun.spawn({
+    cmd: ['git', ...args],
     cwd,
-    encoding: 'utf8',
     env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
     timeout: REMOTE_SKILL_GIT_TIMEOUT_MS,
     windowsHide: true,
-  }).then((result) => result.stdout);
+  });
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+    child.exited,
+  ]);
+  if (code !== 0) {
+    throw new Error(`git ${args[0] ?? ''} failed with exit ${code}: ${stderr.trim()}`);
+  }
+  return stdout;
 }
 
 async function normalizeDirectoryFiles(root: string): Promise<SkillArchiveFile[]> {

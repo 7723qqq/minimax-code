@@ -1,3 +1,5 @@
+import { mocked } from '../../../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock } from 'bun:test';
 import type { AgentMessage, StreamFn } from '@earendil-works/pi-agent-core';
 import {
   createAssistantMessageEventStream,
@@ -8,7 +10,6 @@ import {
   type Model,
 } from '@earendil-works/pi-ai';
 import { wrapInternalContext } from '@mavis/goal';
-import { describe, expect, it, vi } from 'vitest';
 
 import { buildLocalRequestPayloadTransform } from '../agent-host/assembly/local-turn-payload-transform.js';
 import { buildCheckpointMessage } from './algorithm/checkpoint-format.js';
@@ -51,12 +52,12 @@ describe('LocalContextCompactor', () => {
     const headers = { 'x-provider-route': 'selected-route' };
     const summary = validCheckpointSummary();
     const privateThinking = 'private manual checkpoint reasoning';
-    const streamFn: StreamFn = vi.fn(() =>
+    const streamFn: StreamFn = mock(() =>
       completedStream(checkpointMessage(model, summary, privateThinking)),
     );
-    const onStarted = vi.fn();
-    const onCheckpointGenerated = vi.fn();
-    const captureSubagents = vi.fn(async () => ({
+    const onStarted = mock();
+    const onCheckpointGenerated = mock();
+    const captureSubagents = mock(async () => ({
       capturedAtMs: 5,
       total: 1,
       counts: {
@@ -81,7 +82,7 @@ describe('LocalContextCompactor', () => {
         },
       ],
     }));
-    const onCheckpointAttemptSettled = vi.fn();
+    const onCheckpointAttemptSettled = mock();
 
     const result = await localCompactor({ captureSubagents }).compactManual(
       {
@@ -121,7 +122,7 @@ describe('LocalContextCompactor', () => {
     expect(onCheckpointAttemptSettled).toHaveBeenCalledWith(
       expect.objectContaining({ candidate: 'h0', attemptNumber: 1, outcome: 'generated' }),
     );
-    const [calledModel, context, options] = vi.mocked(streamFn).mock.calls[0] ?? [];
+    const [calledModel, context, options] = mocked(streamFn).mock.calls[0] ?? [];
     if (!context) throw new Error('Expected checkpoint context.');
     expect(calledModel).toBe(model);
     expect(context.messages).toEqual([
@@ -143,10 +144,10 @@ describe('LocalContextCompactor', () => {
   it('sends blank-instructions manual compaction directly to the checkpoint Provider', async () => {
     const messages = twoToolRounds();
     const snapshot = structuredClone(messages);
-    const onStarted = vi.fn();
+    const onStarted = mock();
     const summary = validCheckpointSummary();
     const model = testModel({ contextWindow: 1_000_000 });
-    const streamFn: StreamFn = vi.fn(() => completedStream(checkpointMessage(model, summary)));
+    const streamFn: StreamFn = mock(() => completedStream(checkpointMessage(model, summary)));
 
     const result = await localCompactor().compactManual(
       {
@@ -162,7 +163,7 @@ describe('LocalContextCompactor', () => {
 
     expect(result).toMatchObject({ status: 'completed', method: 'llm_checkpoint', summary });
     expect(streamFn).toHaveBeenCalledOnce();
-    expect(vi.mocked(streamFn).mock.calls[0]?.[1].messages.slice(0, -1)).toEqual(messages);
+    expect(mocked(streamFn).mock.calls[0]?.[1].messages.slice(0, -1)).toEqual(messages);
     expect(onStarted).toHaveBeenCalledOnce();
     expect(messages).toEqual(snapshot);
 
@@ -183,7 +184,7 @@ describe('LocalContextCompactor', () => {
     ).flat();
     const summary = validCheckpointSummary();
     const model = testModel({ contextWindow: 1_000_000 });
-    const streamFn: StreamFn = vi.fn(() => completedStream(checkpointMessage(model, summary)));
+    const streamFn: StreamFn = mock(() => completedStream(checkpointMessage(model, summary)));
 
     const result = await localCompactor().compactManual({
       sessionId: 'session-manual-no-read',
@@ -196,7 +197,7 @@ describe('LocalContextCompactor', () => {
 
     expect(result).toMatchObject({ status: 'completed', method: 'llm_checkpoint', summary });
     expect(streamFn).toHaveBeenCalledOnce();
-    expect(vi.mocked(streamFn).mock.calls[0]?.[1].messages.slice(0, -1)).toEqual(messages);
+    expect(mocked(streamFn).mock.calls[0]?.[1].messages.slice(0, -1)).toEqual(messages);
   });
 });
 
@@ -219,7 +220,7 @@ describe('LocalContextCompactor admission', () => {
       maxTokens: 128_000,
     });
     const summary = validCheckpointSummary();
-    const streamFn: StreamFn = vi.fn(() => completedStream(checkpointMessage(model, summary)));
+    const streamFn: StreamFn = mock(() => completedStream(checkpointMessage(model, summary)));
 
     await expect(
       localCompactor().compactManual({
@@ -245,7 +246,7 @@ describe('LocalContextCompactor admission', () => {
       maxTokens: 128_000,
     });
     const summary = validCheckpointSummary();
-    const streamFn: StreamFn = vi.fn(() => completedStream(checkpointMessage(model, summary)));
+    const streamFn: StreamFn = mock(() => completedStream(checkpointMessage(model, summary)));
 
     await expect(
       localCompactor().compactManual({
@@ -278,7 +279,7 @@ describe('LocalContextCompactor admission', () => {
       buildCheckpointMessage(messages, summary, 1, { timestamp: 2 }),
     ]).inputTokens;
     const model = testModel({ contextWindow: replacementTokens + 16_383 });
-    const streamFn: StreamFn = vi.fn(() => completedStream({ ...checkpoint, model: model.id }));
+    const streamFn: StreamFn = mock(() => completedStream({ ...checkpoint, model: model.id }));
 
     await expect(
       localCompactor().compactManual({
@@ -299,7 +300,7 @@ describe('LocalContextCompactor admission', () => {
   });
 
   it('logs a content-free growth trace only when the manual replacement outgrows the history', async () => {
-    const logger = { warn: vi.fn(), error: vi.fn() };
+    const logger = { warn: mock(), error: mock() };
     const model = testModel({ contextWindow: 1_000_000 });
 
     const shrinkSummary = validCheckpointSummary();
@@ -315,7 +316,7 @@ describe('LocalContextCompactor admission', () => {
         ],
         model,
         thinkingLevel: 'off',
-        streamFn: vi.fn(() => completedStream(checkpointMessage(model, shrinkSummary))),
+        streamFn: mock(() => completedStream(checkpointMessage(model, shrinkSummary))),
       }),
     ).resolves.toMatchObject({ status: 'completed' });
     expect(logger.warn).not.toHaveBeenCalled();
@@ -327,7 +328,7 @@ describe('LocalContextCompactor admission', () => {
         messages: [{ role: 'user', content: [{ type: 'text', text: 'hi' }], timestamp: 1 }],
         model,
         thinkingLevel: 'off',
-        streamFn: vi.fn(() => completedStream(checkpointMessage(model, growthSummary))),
+        streamFn: mock(() => completedStream(checkpointMessage(model, growthSummary))),
       }),
     ).resolves.toMatchObject({ status: 'completed', method: 'llm_checkpoint' });
     expect(logger.warn).toHaveBeenCalledOnce();
@@ -349,7 +350,7 @@ describe('LocalContextCompactor admission', () => {
   });
 
   it('uses the same conservative input limit for manual checkpoint fit', async () => {
-    const streamFn = vi.fn<StreamFn>();
+    const streamFn = mock<StreamFn>();
 
     await expect(
       localCompactor().compactManual({
@@ -405,7 +406,7 @@ describe('LocalContextCompactor checkpoint output budget on the wire', () => {
       () => messagesSse(thinkingOnlyEvents('reasoning spent the budget', 125_000)),
       () => messagesSse(textEvents(summary)),
     ];
-    const fetch = vi.fn(async (_input: unknown, init?: RequestInit) => {
+    const fetch = mock(async (_input: unknown, init?: RequestInit) => {
       wireBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
       const next = responses.shift();
       if (!next) throw new Error('Unexpected extra checkpoint request.');
@@ -413,8 +414,8 @@ describe('LocalContextCompactor checkpoint output budget on the wire', () => {
     });
     const streamFn: StreamFn = (calledModel, context, options) =>
       streamSimple(calledModel, context, { ...options, fetch });
-    const onCheckpointAttemptSettled = vi.fn();
-    const onCheckpointGenerated = vi.fn();
+    const onCheckpointAttemptSettled = mock();
+    const onCheckpointGenerated = mock();
 
     const result = await localCompactor().compactManual(
       {
@@ -427,7 +428,7 @@ describe('LocalContextCompactor checkpoint output budget on the wire', () => {
         payloadTransform,
         customInstructions: 'Preserve exact paths.',
       },
-      { onStarted: vi.fn(), onCheckpointAttemptSettled, onCheckpointGenerated },
+      { onStarted: mock(), onCheckpointAttemptSettled, onCheckpointGenerated },
     );
 
     expect(result).toMatchObject({ status: 'completed', method: 'llm_checkpoint', summary });
@@ -469,7 +470,7 @@ describe('LocalContextCompactor Provider usage', () => {
       totalTokens: 32,
       incomplete: false,
     } as const;
-    const onProviderRequestSettled = vi.fn();
+    const onProviderRequestSettled = mock();
     const result = await localCompactor().compactManual(
       {
         sessionId: 'session-manual-usage',
@@ -482,10 +483,10 @@ describe('LocalContextCompactor Provider usage', () => {
         ],
         model,
         thinkingLevel: 'off',
-        streamFn: vi.fn(() => completedStream(checkpointMessage(model, summary))),
+        streamFn: mock(() => completedStream(checkpointMessage(model, summary))),
       },
       {
-        onStarted: vi.fn(),
+        onStarted: mock(),
         onProviderRequestSettled,
         getProviderTokenUsage: () => tokenUsage,
       },

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 
 import { TuiExecError } from '../../src/headless/exit-policy.js';
 import {
@@ -18,7 +18,7 @@ function catalog(...models: readonly Partial<TuiModel>[]): TuiModel[] {
 }
 
 function runtimeWith(models: readonly TuiModel[]) {
-  return { listModels: vi.fn(async () => [...models]) };
+  return { listModels: mock(async () => [...models]) };
 }
 
 const defaultRuntime = () =>
@@ -373,7 +373,7 @@ describe('resolveHeadlessModelSelection', () => {
   });
 
   it('fails --effort when the model roster cannot be read', async () => {
-    const runtime = { listModels: vi.fn(async () => Promise.reject(new Error('roster down'))) };
+    const runtime = { listModels: mock(async () => Promise.reject(new Error('roster down'))) };
 
     await expect(
       resolveHeadlessModelSelection({
@@ -386,7 +386,7 @@ describe('resolveHeadlessModelSelection', () => {
   });
 
   it('keeps an unverifiable variant working when the model roster cannot be read', async () => {
-    const runtime = { listModels: vi.fn(async () => Promise.reject(new Error('roster down'))) };
+    const runtime = { listModels: mock(async () => Promise.reject(new Error('roster down'))) };
 
     await expect(
       resolveHeadlessModelSelection({

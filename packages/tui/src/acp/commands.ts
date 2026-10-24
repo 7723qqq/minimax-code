@@ -3,6 +3,7 @@ import * as acp from '@agentclientprotocol/sdk';
 import { TUI_COMMAND_DESCRIPTORS } from '../application/command-descriptors.js';
 import { sanitizeTerminalText } from '../tui/rendering/terminal-text.js';
 import type { TuiModel, TuiSkillList } from '../runtime/port.js';
+import { acpText } from './copy.js';
 import type { TuiAcpRuntime } from './runtime.js';
 
 export const TUI_ACP_AVAILABLE_COMMANDS = [
@@ -99,22 +100,31 @@ export async function executeTuiAcpCommand(options: {
   if (!command) return { handled: false };
   if (command.name === 'help') {
     if (command.input) {
-      throw acp.RequestError.invalidParams(undefined, 'Use `/help` without arguments.');
+      throw acp.RequestError.invalidParams(
+        undefined,
+        acpText('acp.command.requiresNoArguments', { command: 'help' }),
+      );
     }
     return { handled: true, output: formatAvailableCommands() };
   }
   if (command.name === 'new') {
     if (command.input) {
-      throw acp.RequestError.invalidParams(undefined, 'Use `/new` without arguments.');
+      throw acp.RequestError.invalidParams(
+        undefined,
+        acpText('acp.command.requiresNoArguments', { command: 'new' }),
+      );
     }
     return {
       handled: true,
-      output: 'Start a new thread in your ACP client to begin a fresh session.',
+      output: acpText('acp.command.newThread'),
     };
   }
   if (command.name === 'status') {
     if (command.input) {
-      throw acp.RequestError.invalidParams(undefined, 'Use `/status` without arguments.');
+      throw acp.RequestError.invalidParams(
+        undefined,
+        acpText('acp.command.requiresNoArguments', { command: 'status' }),
+      );
     }
     const [account, models] = await Promise.all([
       options.runtime.getAccountStatus(options.sessionId),
@@ -124,7 +134,10 @@ export async function executeTuiAcpCommand(options: {
   }
   if (command.name === 'doctor') {
     if (command.input) {
-      throw acp.RequestError.invalidParams(undefined, 'Use `/doctor` without arguments.');
+      throw acp.RequestError.invalidParams(
+        undefined,
+        acpText('acp.command.requiresNoArguments', { command: 'doctor' }),
+      );
     }
     return {
       handled: true,
@@ -175,7 +188,7 @@ export async function executeTuiAcpCommand(options: {
     if (result.code === 'NOTHING_TO_COMPACT' || result.code === 'unchanged') {
       return {
         handled: true,
-        output: 'No compaction is needed for this conversation yet.',
+        output: acpText('acp.command.noCompactionNeeded'),
       };
     }
     throw acp.RequestError.internalError(
@@ -198,7 +211,10 @@ export async function executeTuiAcpCommand(options: {
       `MiniMax Code Runtime rejected model selection ${formatModelSelection(selection)}.`,
     );
   }
-  return { handled: true, output: `Model selected: ${formatModelSelection(selection)}` };
+  return {
+    handled: true,
+    output: acpText('acp.command.modelSelected', { selection: formatModelSelection(selection) }),
+  };
 }
 
 function formatCompaction(result: Awaited<ReturnType<TuiAcpRuntime['requestCompaction']>>): string {
@@ -217,15 +233,18 @@ function formatCompaction(result: Awaited<ReturnType<TuiAcpRuntime['requestCompa
 
 function requireNoInput(command: { readonly input: string }, name: string): void {
   if (command.input) {
-    throw acp.RequestError.invalidParams(undefined, `Use \`/${name}\` without arguments.`);
+    throw acp.RequestError.invalidParams(
+      undefined,
+      acpText('acp.command.requiresNoArguments', { command: name }),
+    );
   }
 }
 
 function formatContext(snapshot: Awaited<ReturnType<TuiAcpRuntime['getContextSnapshot']>>): string {
-  if (snapshot.status === 'loading') return 'Context is still loading. Retry /context shortly.';
+  if (snapshot.status === 'loading') return acpText('acp.command.contextLoading');
   const usage = snapshot.contextUsage;
   if (!usage || snapshot.status === 'empty') {
-    return 'No Runtime context snapshot is available for this session yet.';
+    return acpText('acp.command.noContextSnapshot');
   }
   const window = usage.contextWindowTokens || snapshot.model?.contextWindow;
   const utilization = window
@@ -256,7 +275,7 @@ function contextComponentLabel(kind: string): string {
 
 function formatSkills(result: Awaited<ReturnType<TuiAcpRuntime['listSkills']>>): string {
   const skills = result.skills ?? [];
-  if (skills.length === 0) return 'No Skills matched the current Agent configuration.';
+  if (skills.length === 0) return acpText('acp.command.noSkills');
   return [
     `Skills · ${String(skills.length)}${result.hasMore ? '+' : ''}`,
     ...skills.map((skill) => {
@@ -269,7 +288,7 @@ function formatSkills(result: Awaited<ReturnType<TuiAcpRuntime['listSkills']>>):
 }
 
 function formatMcpServers(servers: Awaited<ReturnType<TuiAcpRuntime['listMcpServers']>>): string {
-  if (servers.length === 0) return 'No configured MCP servers matched the filter.';
+  if (servers.length === 0) return acpText('acp.command.noMcpServers');
   return [
     `MCP servers · ${String(servers.length)}`,
     ...servers.map(
@@ -281,7 +300,7 @@ function formatMcpServers(servers: Awaited<ReturnType<TuiAcpRuntime['listMcpServ
 
 function formatUsage(usage: Awaited<ReturnType<TuiAcpRuntime['getSessionUsage']>>): string {
   const summary = usage.summary;
-  if (!summary) return 'No usage has been recorded for this session.';
+  if (!summary) return acpText('acp.command.noUsage');
   return [
     'Session usage:',
     `Input tokens: ${formatInteger(summary.inputTokens ?? 0)}`,
@@ -359,9 +378,9 @@ function parseCommand(
 }
 
 function formatAvailableModels(models: readonly TuiModel[]): string {
-  if (models.length === 0) return 'No models are available for this session.';
+  if (models.length === 0) return acpText('acp.command.noModels');
   return [
-    'Available models:',
+    acpText('acp.availableModels'),
     ...models.map((model) => {
       const label = model.displayName ? ` (${model.displayName})` : '';
       const selected = model.selected ? ' [selected]' : '';

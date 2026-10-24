@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { waitFor } from '../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock } from 'bun:test';
+
 import { stripAnsi } from "../../src/tui/rendering/text.js";
 import { TuiProviderManager } from "../../src/tui/features/provider/manager.js";
 import type { McodeProviderSnapshot } from "../../src/provider/contract.js";
@@ -86,22 +88,22 @@ function createManager(
 ) {
   return new TuiProviderManager({
     snapshot,
-    onRefresh: vi.fn(async () => snapshot),
-    onTest: vi.fn(async () => ({
+    onRefresh: mock(async () => snapshot),
+    onTest: mock(async () => ({
       success: true,
       status: { state: "available" },
     })),
-    onSetMiniMaxApiKey: vi.fn(async () => undefined),
-    onSetMiniMaxSource: vi.fn(async () => undefined),
-    onCancel: vi.fn(),
-    requestRender: vi.fn(),
+    onSetMiniMaxApiKey: mock(async () => undefined),
+    onSetMiniMaxSource: mock(async () => undefined),
+    onCancel: mock(),
+    requestRender: mock(),
     ...overrides,
   });
 }
 
 describe("TuiProviderManager", () => {
   it("starts the independent Codex OAuth flow from its provider row", async () => {
-    const onConnectCodex = vi.fn(async () => ({
+    const onConnectCodex = mock(async () => ({
       state: "pending" as const,
       providerId: "openai-codex" as const,
       authUrl: "https://auth.openai.example/authorize",
@@ -117,11 +119,11 @@ describe("TuiProviderManager", () => {
     );
     manager.handleInput("\r");
 
-    await vi.waitFor(() => expect(onConnectCodex).toHaveBeenCalledOnce());
+    await waitFor(() => expect(onConnectCodex).toHaveBeenCalledOnce());
   });
 
   it("resumes the Codex login panel while sign-in is pending", async () => {
-    const onConnectCodex = vi.fn(async () => ({
+    const onConnectCodex = mock(async () => ({
       state: "pending" as const,
       providerId: "openai-codex" as const,
       authUrl: "https://auth.openai.example/authorize",
@@ -142,11 +144,11 @@ describe("TuiProviderManager", () => {
     manager.handleInput("\u001b[A");
     manager.handleInput("\r");
 
-    await vi.waitFor(() => expect(onConnectCodex).toHaveBeenCalledOnce());
+    await waitFor(() => expect(onConnectCodex).toHaveBeenCalledOnce());
   });
 
   it("uses the Pi cancel binding to close the provider list", () => {
-    const onCancel = vi.fn();
+    const onCancel = mock();
     const manager = createManager({ onCancel });
 
     manager.handleInput("\x03");
@@ -172,8 +174,8 @@ describe("TuiProviderManager", () => {
   });
 
   it("switches from MiniMax API Key back to MiniMax OAuth with space", async () => {
-    const onSetMiniMaxSource = vi.fn(async () => undefined);
-    const onRefresh = vi.fn(async () => withSource("token_plan"));
+    const onSetMiniMaxSource = mock(async () => undefined);
+    const onRefresh = mock(async () => withSource("token_plan"));
     const manager = createManager({
       snapshot: withSource("minimax_api_key"),
       onRefresh,
@@ -183,10 +185,10 @@ describe("TuiProviderManager", () => {
     manager.handleInput("\u001b[A");
     manager.handleInput(" ");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(onSetMiniMaxSource).toHaveBeenCalledWith("token_plan"),
     );
-    await vi.waitFor(() => {
+    await waitFor(() => {
       const rendered = stripAnsi(manager.render(84).join("\n"));
       expect(rendered).toContain("Using MiniMax Token Plan.");
       expect(rendered).toContain("Active · Token Plan");
@@ -195,8 +197,8 @@ describe("TuiProviderManager", () => {
   });
 
   it("selects OAuth with enter and never sends it to the test API", async () => {
-    const onSetMiniMaxSource = vi.fn(async () => undefined);
-    const onTest = vi.fn(async () => ({
+    const onSetMiniMaxSource = mock(async () => undefined);
+    const onTest = mock(async () => ({
       success: true,
       status: { state: "available" },
     }));
@@ -204,7 +206,7 @@ describe("TuiProviderManager", () => {
 
     manager.handleInput("\r");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(stripAnsi(manager.render(84).join("\n"))).toContain(
         "Using MiniMax Token Plan.",
       ),
@@ -222,8 +224,8 @@ describe("TuiProviderManager", () => {
   });
 
   it("captures the MiniMax API key when the row has none yet", async () => {
-    const onSetMiniMaxApiKey = vi.fn(async () => undefined);
-    const onRefresh = vi.fn(async () => withSource("minimax_api_key"));
+    const onSetMiniMaxApiKey = mock(async () => undefined);
+    const onRefresh = mock(async () => withSource("minimax_api_key"));
     const manager = createManager({ onSetMiniMaxApiKey, onRefresh });
 
     manager.handleInput("\u001b[B");
@@ -238,10 +240,10 @@ describe("TuiProviderManager", () => {
     );
     manager.handleInput("\r");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(onSetMiniMaxApiKey).toHaveBeenCalledWith("sk-live-key"),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(stripAnsi(manager.render(84).join("\n"))).toContain(
         "MiniMax API Key saved and selected.",
       ),
@@ -249,7 +251,7 @@ describe("TuiProviderManager", () => {
   });
 
   it("ignores the removed add and delete shortcuts", () => {
-    const onRefresh = vi.fn(async () => snapshot);
+    const onRefresh = mock(async () => snapshot);
     const manager = createManager({ onRefresh });
 
     for (const key of ["a", "d", "y"]) manager.handleInput(key);
@@ -262,8 +264,8 @@ describe("TuiProviderManager", () => {
   });
 
   it("replaces a saved MiniMax API key with e", async () => {
-    const onSetMiniMaxApiKey = vi.fn(async () => undefined);
-    const onRefresh = vi.fn(async () => withSource("minimax_api_key"));
+    const onSetMiniMaxApiKey = mock(async () => undefined);
+    const onRefresh = mock(async () => withSource("minimax_api_key"));
     const manager = createManager({
       snapshot: withSource("minimax_api_key"),
       onSetMiniMaxApiKey,
@@ -285,10 +287,10 @@ describe("TuiProviderManager", () => {
     );
     manager.handleInput("\r");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(onSetMiniMaxApiKey).toHaveBeenCalledWith("sk-rotated"),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(stripAnsi(manager.render(84).join("\n"))).toContain(
         "MiniMax API Key replaced and selected.",
       ),
@@ -296,8 +298,8 @@ describe("TuiProviderManager", () => {
   });
 
   it("starts a fresh sign-in from the OAuth row with e", () => {
-    const onReLogin = vi.fn();
-    const onSetMiniMaxSource = vi.fn(async () => undefined);
+    const onReLogin = mock();
+    const onSetMiniMaxSource = mock(async () => undefined);
     const manager = createManager({ onReLogin, onSetMiniMaxSource });
 
     manager.handleInput("e");
@@ -318,8 +320,8 @@ describe("TuiProviderManager", () => {
   });
 
   it("explains when a host does not support editing a custom row", () => {
-    const onReLogin = vi.fn();
-    const onSetMiniMaxApiKey = vi.fn(async () => undefined);
+    const onReLogin = mock();
+    const onSetMiniMaxApiKey = mock(async () => undefined);
     const manager = createManager({ onReLogin, onSetMiniMaxApiKey });
 
     manager.handleInput("\u001b[B");
@@ -396,14 +398,14 @@ describe("TuiProviderManager", () => {
   });
 
   it("keeps custom rows informational instead of toggling them", async () => {
-    const onRefresh = vi.fn(async () => snapshot);
+    const onRefresh = mock(async () => snapshot);
     const manager = createManager({ onRefresh });
 
     manager.handleInput("\u001b[B");
     manager.handleInput("\u001b[B");
     manager.handleInput(" ");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(stripAnsi(manager.render(84).join("\n"))).toContain(
         "This connection cannot be edited in this host.",
       ),
@@ -412,7 +414,7 @@ describe("TuiProviderManager", () => {
   });
 
   it("still runs a connectivity test for a custom provider", async () => {
-    const onTest = vi.fn(async () => ({
+    const onTest = mock(async () => ({
       success: true,
       status: { state: "available" },
     }));
@@ -422,7 +424,7 @@ describe("TuiProviderManager", () => {
     manager.handleInput("\u001b[B");
     manager.handleInput("t");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(onTest).toHaveBeenCalledWith("custom_provider:openai"),
     );
   });
@@ -455,11 +457,11 @@ describe("TuiProviderManager", () => {
     const sourceChange = new Promise<void>((resolve) => {
       resolveSource = resolve;
     });
-    const requestRender = vi.fn();
-    const onRefresh = vi.fn(async () => withSource("token_plan"));
+    const requestRender = mock();
+    const onRefresh = mock(async () => withSource("token_plan"));
     const manager = createManager({
       snapshot: withSource("minimax_api_key"),
-      onSetMiniMaxSource: vi.fn(() => sourceChange),
+      onSetMiniMaxSource: mock(() => sourceChange),
       onRefresh,
       requestRender,
     });
@@ -478,7 +480,7 @@ describe("TuiProviderManager", () => {
 });
 
 it("opens the custom editor and keeps the provider ID and revision when replacing a Key", async () => {
-  const onSaveCustom = vi.fn(async () => ({ success: true }));
+  const onSaveCustom = mock(async () => ({ success: true }));
   const manager = createManager({ onSaveCustom });
   manager.handleInput("\u001b[B");
   manager.handleInput("\u001b[B");
@@ -492,7 +494,7 @@ it("opens the custom editor and keeps the provider ID and revision when replacin
   );
   for (let i = 0; i < 4; i++) manager.handleInput("\u001b[B");
   manager.handleInput("\r");
-  await vi.waitFor(() => expect(onSaveCustom).toHaveBeenCalledOnce());
+  await waitFor(() => expect(onSaveCustom).toHaveBeenCalledOnce());
   expect(onSaveCustom).toHaveBeenCalledWith(
     expect.objectContaining({
       providerId: "custom_provider:openai",
@@ -501,7 +503,7 @@ it("opens the custom editor and keeps the provider ID and revision when replacin
       saveAndUse: false,
     }),
   );
-  await vi.waitFor(() =>
+  await waitFor(() =>
     expect(stripAnsi(manager.render(110).join("\n"))).toContain(
       "All its models now use the new API Key.",
     ),
@@ -509,13 +511,13 @@ it("opens the custom editor and keeps the provider ID and revision when replacin
 });
 
 it("refreshes the selected provider once and reports new models", async () => {
-  const onRefreshModels = vi.fn(async () => 2);
+  const onRefreshModels = mock(async () => 2);
   const manager = createManager({ onRefreshModels });
   manager.handleInput("\u001b[B");
   manager.handleInput("\u001b[B");
   manager.handleInput("r");
   manager.handleInput("r");
-  await vi.waitFor(() =>
+  await waitFor(() =>
     expect(stripAnsi(manager.render(110).join("\n"))).toContain(
       "Added 2 new model(s)",
     ),
@@ -525,19 +527,18 @@ it("refreshes the selected provider once and reports new models", async () => {
 });
 
 it("shows discovery failures and allows a retry", async () => {
-  const onRefreshModels = vi
-    .fn()
+  const onRefreshModels = mock()
     .mockRejectedValueOnce(new Error("HTTP 401"))
     .mockResolvedValueOnce(0);
   const manager = createManager({ onRefreshModels });
   manager.handleInput("\u001b[B");
   manager.handleInput("\u001b[B");
   manager.handleInput("r");
-  await vi.waitFor(() =>
+  await waitFor(() =>
     expect(stripAnsi(manager.render(180).join("\n"))).toContain("HTTP 401"),
   );
   manager.handleInput("r");
-  await vi.waitFor(() =>
+  await waitFor(() =>
     expect(stripAnsi(manager.render(110).join("\n"))).toContain(
       "Models are already up to date.",
     ),

@@ -1,7 +1,7 @@
+import { afterEach, describe, expect, it, mock } from 'bun:test';
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createProcessLocalApplication } from "../../../application/session/process-local-application.js";
 import { DatabaseClient } from "../../../infra/db/client.js";
@@ -87,16 +87,16 @@ describe("process-local model favorites", () => {
     favorites?: ModelFavoritesPreference,
   ) {
     return createProcessLocalApplication({
-      eventBus: { subscribe: vi.fn(() => () => undefined) },
+      eventBus: { subscribe: mock(() => () => undefined) },
       skills: {} as never,
       plugins: {} as never,
       workspace: {} as never,
       plan: {} as never,
       peripherals: {} as never,
       modelProvider: {
-        application: { list, select: vi.fn(async () => true) },
+        application: { list, select: mock(async () => true) },
         providers: {} as never,
-        listProviderPresets: vi.fn(async () => []),
+        listProviderPresets: mock(async () => []),
         oauth: {} as never,
         ...(favorites ? { favorites } : {}),
       },
@@ -131,7 +131,7 @@ describe("process-local model favorites", () => {
       list: () => {
         throw new Error("database is locked");
       },
-      set: vi.fn(),
+      set: mock(),
     } as unknown as ModelFavoritesPreference;
     await expect(application(async () => [m3], broken).models?.list()).resolves.toEqual([m3]);
     const withoutStore = application(async () => [m3]);

@@ -1,21 +1,32 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, mock } from 'bun:test';
 
 import { McpConnectionPool } from '../src/runtime/connection-pool.js';
 
-const state = vi.hoisted(() => ({
+// `bun test` runs every file of a suite in one process, and `mock.module()`
+// replaces the module for that whole process. Snapshot the real modules before
+// replacing them and put them back in `afterAll`, so the replacements never
+// leak into the files that run after this one.
+const actualTransportFactory = { ...(await import('../src/runtime/transport/factory.js')) };
+const actualSdkClient = { ...(await import('@modelcontextprotocol/sdk/client/index.js')) };
+
+// `mock.module()` replaces both modules for the whole graph. Bun evaluates the
+// factories lazily, so the plain `const` state is picked up as-is.
+const state = {
   transports: [] as unknown[],
   clients: [] as Array<{ transport?: unknown }>,
-}));
+};
 
-vi.mock('../src/runtime/transport/factory.js', () => ({
-  createTransport: vi.fn((transport: unknown) => {
-    const created = { transport, close: vi.fn(async () => undefined) };
+mock.module('../src/runtime/transport/factory.js', () => ({
+  ...actualTransportFactory,
+  createTransport: mock((transport: unknown) => {
+    const created = { transport, close: mock(async () => undefined) };
     state.transports.push(created);
     return created;
   }),
 }));
 
-vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
+mock.module('@modelcontextprotocol/sdk/client/index.js', () => ({
+  ...actualSdkClient,
   Client: class {
     transport?: unknown;
 
@@ -36,6 +47,11 @@ vi.mock('@modelcontextprotocol/sdk/client/index.js', () => ({
     async close(): Promise<void> {}
   },
 }));
+
+afterAll(() => {
+  mock.module('../src/runtime/transport/factory.js', () => actualTransportFactory);
+  mock.module('@modelcontextprotocol/sdk/client/index.js', () => actualSdkClient);
+});
 
 describe('McpConnectionPool session server override', () => {
   beforeEach(() => {

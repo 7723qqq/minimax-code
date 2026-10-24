@@ -1330,7 +1330,7 @@ export class SqliteLocalCommunicationMessageStore implements LocalCommunicationM
 // A single JS string cannot exceed V8's `String::kMaxLength` (0x1fffffe8,
 // ~512MB). A legacy `local_runtime_messages` blob for a very heavy session
 // (many tool outputs / image processing / PPT intermediate dumps) can grow
-// past that ceiling. When better-sqlite3 materializes such a column value it
+// past that ceiling. When the SQLite driver materializes such a column value it
 // throws `RangeError: Cannot create a string longer than 0x1fffffe8`. That
 // RangeError previously propagated out of `listDisplayMessages` / `getPiHistory`
 // (both re-run the legacy blob → rows backfill on every read until the

@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { waitFor } from '../../../../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock } from 'bun:test';
+
 import type { TuiModel } from "../../../../../src/runtime/port.js";
 import type { TuiMessage } from "../../../../../src/runtime/stream-events.js";
 import type { McodeProviderTemplate } from "../../../../../src/provider/contract.js";
@@ -27,74 +29,74 @@ function createHarness(
   let activeSessionId: string | undefined = "session-a";
   const shown: unknown[] = [];
   const closed: unknown[] = [];
-  const append = vi.fn();
-  const exportTranscript = vi.fn(
+  const append = mock();
+  const exportTranscript = mock(
     async (input: { readonly markdown: string }) => {
       void input;
       return "/exports/session.md";
     },
   );
-  const setCompacting = vi.fn();
-  const setHint = vi.fn();
-  const refreshCurrentSessionHistory = vi.fn();
-  const editor = { setText: vi.fn() };
-  const onOpenSession = vi.fn(async () => undefined);
+  const setCompacting = mock();
+  const setHint = mock();
+  const refreshCurrentSessionHistory = mock();
+  const editor = { setText: mock() };
+  const onOpenSession = mock(async () => undefined);
   const runtime = {
-    listModels: vi.fn(),
-    getAccountStatus: vi.fn(async () => ({
+    listModels: mock(),
+    getAccountStatus: mock(async () => ({
       status: "needs-login",
       managedTokenPresent: false,
       warnings: [],
     })),
-    selectModel: vi.fn(),
-    getSessionUsage: vi.fn(),
-    getContextSnapshot: vi.fn(async () => ({ status: "empty" as const })),
-    getRuntimeDiagnostics: vi.fn(),
-    getInstructionSources: vi.fn(async () => [
+    selectModel: mock(),
+    getSessionUsage: mock(),
+    getContextSnapshot: mock(async () => ({ status: "empty" as const })),
+    getRuntimeDiagnostics: mock(),
+    getInstructionSources: mock(async () => [
       { scope: "project" as const, path: "/workspace/AGENTS.md" },
     ]),
-    getPermissionMode: vi.fn(async () => "auto" as const),
-    getWorkspaceGitMetadata: vi.fn(async () => ({
+    getPermissionMode: mock(async () => "auto" as const),
+    getWorkspaceGitMetadata: mock(async () => ({
       isGitRepo: true,
       branch: "feat/status-details",
       detached: false,
       isWorktree: true,
     })),
-    requestCompaction: vi.fn(),
-    listSkills: vi.fn(async () => ({
+    requestCompaction: mock(),
+    listSkills: mock(async () => ({
       skills: [
         { name: "office-tools:compose", sourceKind: "plugin", enabled: true },
       ],
       hasMore: false,
     })),
-    listMessagePage: vi.fn(async () => ({
+    listMessagePage: mock(async () => ({
       messages: [] as TuiMessage[],
       hasMore: false,
     })),
-    listMarketplacePlugins: vi.fn(),
-    listSessionPage: vi.fn(),
-    listInstalledPlugins: vi.fn(async () => []),
-    mutatePlugin: vi.fn(),
-    refreshPlugins: vi.fn(),
-    saveUserModelProviderCandidate: vi.fn(),
-    listProviderPresets: vi.fn(async () => []),
-    getCodexOAuthStatus: vi.fn(async () => ({
+    listMarketplacePlugins: mock(),
+    listSessionPage: mock(),
+    listInstalledPlugins: mock(async () => []),
+    mutatePlugin: mock(),
+    refreshPlugins: mock(),
+    saveUserModelProviderCandidate: mock(),
+    listProviderPresets: mock(async () => []),
+    getCodexOAuthStatus: mock(async () => ({
       state: "disconnected" as const,
       providerId: "openai-codex" as const,
     })),
-    cancelCodexOAuthLogin: vi.fn(async () => ({
+    cancelCodexOAuthLogin: mock(async () => ({
       state: "disconnected",
       providerId: "openai-codex",
     })),
-    startCodexOAuthLogin: vi.fn(async () => ({
+    startCodexOAuthLogin: mock(async () => ({
       state: "pending" as const,
       providerId: "openai-codex" as const,
       authUrl: "https://auth.openai.example/authorize",
     })),
-    listUserModelProviders: vi.fn(async () => []),
-    getMiniMaxApiKeyStatus: vi.fn(async () => ({ hasApiKey: false })),
-    getMiniMaxModelSource: vi.fn(async () => "token_plan" as const),
-    deleteUserModelProvider: vi.fn(async () => undefined),
+    listUserModelProviders: mock(async () => []),
+    getMiniMaxApiKeyStatus: mock(async () => ({ hasApiKey: false })),
+    getMiniMaxModelSource: mock(async () => "token_plan" as const),
+    deleteUserModelProvider: mock(async () => undefined),
   };
   const transcript = new TranscriptStore();
   const flow = new TuiFeatureFlow({
@@ -112,7 +114,7 @@ function createHarness(
           : undefined,
       }),
       refreshCurrentSessionHistory,
-      refreshStatusMetricsNow: vi.fn(),
+      refreshStatusMetricsNow: mock(),
     } as never,
     surface: {
       show: (panel: unknown) => shown.push(panel),
@@ -139,7 +141,7 @@ function createHarness(
     } as never,
     editor: editor as never,
     transcript,
-    transcriptView: { toggleDetailMode: vi.fn() } as never,
+    transcriptView: { toggleDetailMode: mock() } as never,
     writeClipboardText: options.writeClipboardText,
     openExternalTarget: options.openExternalTarget,
     exportTranscript,
@@ -151,12 +153,12 @@ function createHarness(
     append,
     setCompacting,
     setHint,
-    onChanged: vi.fn(),
+    onChanged: mock(),
     ...(options.hasLiveRun ? { hasLiveRun: options.hasLiveRun } : {}),
-    onNewSession: vi.fn(),
+    onNewSession: mock(),
     onOpenSession,
-    onArchivedCurrentSession: vi.fn(),
-    refreshAutocomplete: vi.fn(),
+    onArchivedCurrentSession: mock(),
+    refreshAutocomplete: mock(),
     ...(options.loadProviderTemplates
       ? { loadProviderTemplates: options.loadProviderTemplates }
       : {}),
@@ -187,7 +189,7 @@ function createHarness(
 
 describe("TuiFeatureFlow", () => {
   it("opens the Codex OAuth URL from the independent /provider row", async () => {
-    const openExternalTarget = vi.fn(async () => undefined);
+    const openExternalTarget = mock(async () => undefined);
     const harness = createHarness({ openExternalTarget });
 
     await harness.flow.showProviderManager();
@@ -198,22 +200,22 @@ describe("TuiFeatureFlow", () => {
     manager.handleInput("\u001b[A");
     manager.handleInput("\r");
 
-    await vi.waitFor(() => expect(harness.shown).toHaveLength(2));
+    await waitFor(() => expect(harness.shown).toHaveLength(2));
     const login = harness.shown[1] as {
       render(width: number): string[];
       handleInput(data: string): void;
       dispose(): void;
     };
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(stripAnsi(login.render(90).join("\n"))).toContain("Browser login"),
     );
     login.handleInput("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.runtime.startCodexOAuthLogin).toHaveBeenCalledWith({
         method: "browser",
       }),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(openExternalTarget).toHaveBeenCalledWith(
         "https://auth.openai.example/authorize",
       ),
@@ -239,7 +241,7 @@ describe("TuiFeatureFlow", () => {
     );
 
     const opening = harness.flow.showSessionManager();
-    await vi.waitFor(() => expect(resolvePage).toBeTypeOf("function"));
+    await waitFor(() => expect(resolvePage).toBeTypeOf("function"));
     live = true;
     resolvePage?.({ sessions: [], hasMore: false, nextCursor: undefined });
     await opening;
@@ -313,8 +315,7 @@ describe("TuiFeatureFlow", () => {
   });
 
   it("copies the last Assistant response as sanitized Markdown and reports clipboard failures", async () => {
-    const writeClipboardText = vi
-      .fn<(text: string) => Promise<void>>()
+    const writeClipboardText = mock<(text: string) => Promise<void>>()
       .mockResolvedValueOnce()
       .mockRejectedValueOnce(new Error("clipboard unavailable"));
     const harness = createHarness({ writeClipboardText });
@@ -344,7 +345,7 @@ describe("TuiFeatureFlow", () => {
   });
 
   it("keeps the clipboard unchanged when there is no Assistant response", async () => {
-    const writeClipboardText = vi.fn(async () => undefined);
+    const writeClipboardText = mock(async () => undefined);
     const harness = createHarness({ writeClipboardText });
 
     await harness.flow.copyLastAssistantReply();
@@ -386,13 +387,13 @@ describe("TuiFeatureFlow", () => {
     };
     expect(manager.id).toBe("plugins");
     manager.handleInput("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.runtime.mutatePlugin).toHaveBeenCalledWith({
         action: "install",
         plugin: { name: "office-tools", marketplace: "official" },
       }),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.runtime.listSkills).toHaveBeenCalledWith("mavis"),
     );
     expect(harness.flow.skillCommands()).toEqual(
@@ -484,7 +485,7 @@ describe("TuiFeatureFlow", () => {
     );
 
     const showing = harness.flow.showModelPicker("");
-    await vi.waitFor(() => expect(resolveModels).toBeTypeOf("function"));
+    await waitFor(() => expect(resolveModels).toBeTypeOf("function"));
     harness.switchSession("session-b");
     resolveModels?.([model("model-a")]);
     await showing;
@@ -572,7 +573,7 @@ describe("TuiFeatureFlow", () => {
       const picker = harness.shown[0] as { handleInput(data: string): void };
       picker.handleInput("\r");
 
-      await vi.waitFor(() => expect(harness.append).toHaveBeenCalled());
+      await waitFor(() => expect(harness.append).toHaveBeenCalled());
       const warnings = harness.append.mock.calls.filter(
         ([, kind]) => kind === "warning",
       );
@@ -609,7 +610,7 @@ describe("TuiFeatureFlow", () => {
     await harness.flow.showModelPicker("model-b");
     const picker = harness.shown[0] as { handleInput(data: string): void };
     picker.handleInput("\r");
-    await vi.waitFor(() => expect(finishSelection).toBeTypeOf("function"));
+    await waitFor(() => expect(finishSelection).toBeTypeOf("function"));
     harness.switchSession("session-b");
     finishSelection?.(true);
     await new Promise<void>((resolve) => setImmediate(resolve));
@@ -644,7 +645,7 @@ describe("TuiFeatureFlow", () => {
   });
 
   it("keeps the independent Codex OAuth entry visible from /model", async () => {
-    const openExternalTarget = vi.fn(async () => undefined);
+    const openExternalTarget = mock(async () => undefined);
     const harness = createHarness({ openExternalTarget });
     harness.runtime.listModels.mockResolvedValue([
       {
@@ -668,22 +669,22 @@ describe("TuiFeatureFlow", () => {
     picker.handleInput("\u001b[B");
     picker.handleInput("\r");
 
-    await vi.waitFor(() => expect(harness.shown).toHaveLength(2));
+    await waitFor(() => expect(harness.shown).toHaveLength(2));
     const login = harness.shown[1] as {
       render(width: number): string[];
       handleInput(data: string): void;
       dispose(): void;
     };
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(stripAnsi(login.render(90).join("\n"))).toContain("Browser login"),
     );
     login.handleInput("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.runtime.startCodexOAuthLogin).toHaveBeenCalledWith({
         method: "browser",
       }),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(openExternalTarget).toHaveBeenCalledWith(
         "https://auth.openai.example/authorize",
       ),
@@ -748,12 +749,12 @@ describe("TuiFeatureFlow", () => {
     );
     picker.handleInput("\r");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.runtime.deleteUserModelProvider).toHaveBeenCalledWith(
         "custom_provider:openai",
       ),
     );
-    await vi.waitFor(() => expect(harness.shown).toHaveLength(2));
+    await waitFor(() => expect(harness.shown).toHaveLength(2));
     expect(harness.append).toHaveBeenCalledWith(
       "Provider deleted: OpenAI · 2 models removed.",
     );
@@ -785,7 +786,7 @@ describe("TuiFeatureFlow", () => {
     picker.handleInput("\x04");
     picker.handleInput("\r");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(stripAnsi(picker.render(180).join("\n"))).toContain(
         "Switch to another model before deleting this provider",
       ),
@@ -852,7 +853,7 @@ describe("TuiFeatureFlow", () => {
     picker.handleInput("\u001b[B");
     picker.handleInput("\r");
 
-    await vi.waitFor(() => expect(harness.shown).toHaveLength(2));
+    await waitFor(() => expect(harness.shown).toHaveLength(2));
     const onboarding = harness.shown[1] as { handleInput(data: string): void };
     onboarding.handleInput("\r");
     onboarding.handleInput("\t");
@@ -862,7 +863,7 @@ describe("TuiFeatureFlow", () => {
     onboarding.handleInput("\r");
     onboarding.handleInput("\r");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.runtime.selectModel).toHaveBeenCalled(),
     );
     expect(harness.runtime.listProviderPresets).toHaveBeenCalledOnce();
@@ -884,7 +885,7 @@ describe("TuiFeatureFlow", () => {
       }),
       "session-a",
     );
-    await vi.waitFor(() => expect(harness.shown).toHaveLength(3));
+    await waitFor(() => expect(harness.shown).toHaveLength(3));
     const modelPicker = harness.shown[2] as { render(width: number): string[] };
     expect(stripAnsi(modelPicker.render(90).join("\n"))).toContain(
       "DeepSeek Chat",
@@ -905,7 +906,7 @@ describe("TuiFeatureFlow", () => {
 
   it("falls back to Custom provider onboarding when models.dev is unavailable", async () => {
     const harness = createHarness({
-      loadProviderTemplates: vi.fn(async () => {
+      loadProviderTemplates: mock(async () => {
         throw new Error("offline");
       }),
     });
@@ -915,7 +916,7 @@ describe("TuiFeatureFlow", () => {
     const picker = harness.shown[0] as { handleInput(data: string): void };
     picker.handleInput("\r");
 
-    await vi.waitFor(() => expect(harness.shown).toHaveLength(2));
+    await waitFor(() => expect(harness.shown).toHaveLength(2));
     const onboarding = harness.shown[1] as { render(width: number): string[] };
     expect(onboarding.render(90).join("\n")).toContain("Custom provider");
     expect(onboarding.render(90).join("\n")).toContain(
@@ -938,7 +939,7 @@ describe("TuiFeatureFlow", () => {
         ),
     );
     const showing = harness.flow.showSessionUsage();
-    await vi.waitFor(() => expect(resolveUsage).toBeTypeOf("function"));
+    await waitFor(() => expect(resolveUsage).toBeTypeOf("function"));
     expect(harness.shown).toHaveLength(1);
     const panel = harness.shown[0];
     harness.switchSession("session-b");
@@ -964,7 +965,7 @@ describe("TuiFeatureFlow", () => {
     );
 
     const showing = harness.flow.showSessionUsage();
-    await vi.waitFor(() => expect(resolveUsage).toBeTypeOf("function"));
+    await waitFor(() => expect(resolveUsage).toBeTypeOf("function"));
     const panel = harness.shown[0] as {
       handleInput(data: string): void;
       render(width: number): string[];
@@ -1109,7 +1110,7 @@ describe("TuiFeatureFlow", () => {
       render(width: number): string[];
       handleInput(data: string): void;
     };
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(stripAnsi(panel.render(100).join("\n"))).toContain("/workspace"),
     );
     const localOutput = stripAnsi(panel.render(100).join("\n"));
@@ -1213,7 +1214,7 @@ describe("TuiFeatureFlow", () => {
     );
 
     const showing = harness.flow.showConfigurationInspection(false);
-    await vi.waitFor(() => expect(resolveDiagnostics).toBeTypeOf("function"));
+    await waitFor(() => expect(resolveDiagnostics).toBeTypeOf("function"));
     harness.switchSession("session-b");
     resolveDiagnostics?.({ warnings: [] });
     await showing;
@@ -1232,7 +1233,7 @@ describe("TuiFeatureFlow", () => {
     );
 
     const showing = harness.flow.showConfigurationInspection(false);
-    await vi.waitFor(() => expect(rejectDiagnostics).toBeTypeOf("function"));
+    await waitFor(() => expect(rejectDiagnostics).toBeTypeOf("function"));
     harness.flow.stop();
     rejectDiagnostics?.(new Error("late failure"));
     await showing;
@@ -1305,7 +1306,7 @@ describe("TuiFeatureFlow", () => {
     expect(harness.runtime.selectModel).not.toHaveBeenCalled();
     picker.handleInput("\r");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.runtime.selectModel).toHaveBeenCalledWith(
         expect.objectContaining({
           providerId: "minimax",

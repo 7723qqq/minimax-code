@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from 'bun:test';
 import { formatTokensPerSecond } from "../../../../../src/tui/rendering/output-rate.js";
 import { TuiTurnOutputRate } from "../../../../../src/tui/controller/projection/turn-output-rate.js";
 

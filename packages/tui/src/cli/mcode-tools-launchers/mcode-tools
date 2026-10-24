@@ -1,9 +1,16 @@
 #!/bin/sh
 set -eu
+# A packaged build ships mcode-tools as its own executable beside this launcher;
+# a source or npm checkout ships mcode-tools.js and needs the runtime that the
+# host injects through __MAVIS_MCODE_TOOLS_RUNTIME_EXECUTABLE.
+mcode_tools_bin_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+mcode_tools_exe="$mcode_tools_bin_dir/../mcode-tools.exe"
+if [ -x "$mcode_tools_exe" ]; then
+  exec "$mcode_tools_exe" "$@"
+fi
 runtime_executable=${__MAVIS_MCODE_TOOLS_RUNTIME_EXECUTABLE:-}
 if [ -z "$runtime_executable" ]; then
   echo "MCode mcode-tools runtime is unavailable. Restart MCode." >&2
   exit 1
 fi
-mcode_tools_bin_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 exec "$runtime_executable" "$mcode_tools_bin_dir/../mcode-tools.js" "$@"

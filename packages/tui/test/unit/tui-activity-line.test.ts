@@ -1,5 +1,6 @@
+import { describe, expect, it, jest, mock } from 'bun:test';
 import { stripAnsi, visibleWidth } from '../../src/tui/rendering/text.js';
-import { describe, expect, it, vi } from 'vitest';
+
 import {
   TuiActivityLine,
   resolveTuiActivityColor,
@@ -237,7 +238,7 @@ describe('TuiActivityLine', () => {
   });
 
   it('animates a Braille spinner without painting terminal backgrounds', () => {
-    vi.useFakeTimers();
+    jest.useFakeTimers();
     try {
       const component = new TuiActivityLine(
         { phase: 'running', runId: 'turn-1', startedAtMs: 8_000 },
@@ -249,7 +250,7 @@ describe('TuiActivityLine', () => {
       );
 
       const first = component.render(80).join('\n');
-      vi.advanceTimersByTime(80);
+      jest.advanceTimersByTime(80);
       const second = component.render(80).join('\n');
 
       expect(stripAnsi(first)).toContain('⠋ Running 2s');
@@ -257,28 +258,28 @@ describe('TuiActivityLine', () => {
       expect(first).not.toContain('\u001B[48;2;');
       component.dispose();
     } finally {
-      vi.useRealTimers();
+      jest.useRealTimers();
     }
   });
 
   it('releases the animation timer when idle', () => {
-    vi.useFakeTimers();
+    jest.useFakeTimers();
     try {
-      const requestRender = vi.fn();
+      const requestRender = mock();
       const component = new TuiActivityLine(
         { phase: 'running', runId: 'turn-1' },
         { requestRender },
       );
 
-      vi.advanceTimersByTime(240);
+      jest.advanceTimersByTime(240);
       expect(requestRender).toHaveBeenCalledTimes(3);
       component.setState({ phase: 'idle' });
-      vi.advanceTimersByTime(240);
+      jest.advanceTimersByTime(240);
       expect(requestRender).toHaveBeenCalledTimes(3);
       component.dispose();
-      expect(vi.getTimerCount()).toBe(0);
+      expect(jest.getTimerCount()).toBe(0);
     } finally {
-      vi.useRealTimers();
+      jest.useRealTimers();
     }
   });
 });

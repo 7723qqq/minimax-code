@@ -6,6 +6,7 @@ import { basename, dirname, join } from 'node:path';
 import { simplifyAssistantContentForTerminal } from '../application/assistant-content.js';
 import type { TuiStreamEvent } from '../runtime/stream-events.js';
 import { isExecResult, type ExecResult } from './contract.js';
+import { headlessText } from './copy.js';
 import { ExecEventProjector } from './events.js';
 import { TuiExecError } from './exit-policy.js';
 import { isReviewResultV1, renderReviewResultText } from '../review/result.js';
@@ -94,7 +95,11 @@ export function createNodeStreamWriter(stream: Writable): TuiOutputWrite {
         if (settled) return;
         settled = true;
         if (error.code === 'EPIPE') {
-          reject(new TuiExecError('brokenPipe', 'stdout pipe was closed.', { cause: error }));
+          reject(
+            new TuiExecError('brokenPipe', headlessText('headless.output.pipeClosed'), {
+              cause: error,
+            }),
+          );
           return;
         }
         reject(
@@ -133,7 +138,9 @@ async function writeSafely(write: TuiOutputWrite, value: string): Promise<void> 
         : undefined;
     throw new TuiExecError(
       code === 'EPIPE' ? 'brokenPipe' : 'internal',
-      code === 'EPIPE' ? 'stdout pipe was closed.' : 'stdout writer failed.',
+      code === 'EPIPE'
+        ? headlessText('headless.output.pipeClosed')
+        : headlessText('headless.output.writerFailed'),
       { cause: error },
     );
   }

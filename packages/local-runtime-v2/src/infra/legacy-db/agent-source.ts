@@ -3,7 +3,8 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { logger } from '../logging/index.js';
-import { loadSqlite3Constructor } from '../db/client.js';
+import { FinalizingSqliteDatabase } from '@mavis/shared';
+import { Database } from 'bun:sqlite';
 
 const AGENT_COLUMNS = [
   'agent_name',
@@ -181,8 +182,7 @@ class SqliteLegacyAgentSource implements LegacyAgentSource {
 
   readAgents(): LegacyAgentSourceResult {
     if (!existsSync(this.path)) return { status: 'missing', rows: [] };
-    const Database = loadSqlite3Constructor();
-    const db = new Database(this.path, { readonly: true, fileMustExist: true });
+    const db = new FinalizingSqliteDatabase(this.path, { readonly: true, create: false });
     try {
       const tableInfo = db.prepare('PRAGMA table_info(agents)').all();
       const columns = new Set(
@@ -486,7 +486,7 @@ function normalizeLegacyAgentTimestamp(
   if (typeof value === 'string' && value.trim().length === 0) {
     return invalidLegacyAgentTimestamp(column, 'empty');
   }
-  // BLOB values arrive as Uint8Array/Buffer from better-sqlite3.  They are
+  // BLOB values arrive as Uint8Array from the SQLite driver. They are
   // recognized value contamination and receive the field's normal fallback.
   if (value instanceof Uint8Array) {
     return invalidLegacyAgentTimestamp(column, 'binary');

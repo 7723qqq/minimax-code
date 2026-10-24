@@ -1,3 +1,5 @@
+import { mocked } from '../../../../../../test/bun-test-setup.js';
+import { afterEach, describe, expect, it, jest, mock, spyOn } from 'bun:test';
 import { cp, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -8,7 +10,6 @@ import type {
   PromptReadSnapshot,
   PromptSnapshotSource,
 } from "@mavis/agent-runtime";
-import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   BuiltinAgentCatalog,
@@ -38,7 +39,7 @@ function extractCitationSection(prompt: string): string {
 }
 
 afterEach(async () => {
-  vi.restoreAllMocks();
+  jest.restoreAllMocks();
   await Promise.all(
     fixtureDirectories
       .splice(0)
@@ -71,9 +72,9 @@ function promptFiles(version: string): Readonly<Record<string, string>> {
 
 function promptReader(
   byDirectory: Readonly<Record<string, Readonly<Record<string, string>>>>,
-): PromptFileReader & { readonly read: ReturnType<typeof vi.fn> } {
+): PromptFileReader & { readonly read: ReturnType<typeof mock> } {
   return {
-    read: vi.fn(
+    read: mock(
       async (context: PromptReadContext, relativePath: string) =>
         byDirectory[context.directory]?.[relativePath],
     ),
@@ -91,14 +92,14 @@ describe("BuiltinAgentCatalog", () => {
     await writeFile(join(root, "worker", "PERSONA.md"), "Static identity only");
     const snapshot = {} as PromptReadSnapshot;
     const source: PromptSnapshotSource = {
-      capture: vi.fn(async () => snapshot),
-      captureBuiltin: vi.fn(async () => snapshot),
-      read: vi.fn(async (_snapshot, key) => ({
+      capture: mock(async () => snapshot),
+      captureBuiltin: mock(async () => snapshot),
+      read: mock(async (_snapshot, key) => ({
         kind: "found" as const,
         content: key,
       })),
     };
-    vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+    spyOn(process, "platform", "get").mockReturnValue("win32");
 
     await new BuiltinAgentCatalog({ assetsDir: root }).render({
       agentName: "worker",
@@ -110,7 +111,7 @@ describe("BuiltinAgentCatalog", () => {
       promptReadContext: { source, snapshot },
     });
 
-    const keys = vi.mocked(source.read).mock.calls.map(([, key]) => key);
+    const keys = mocked(source.read).mock.calls.map(([, key]) => key);
     expect(keys).toContain("_default/prompt-base-windows.md.hbs");
     expect(keys).toContain("worker/features/delegation.md.hbs");
     expect(keys.every((key) => !key.includes("\\"))).toBe(true);
@@ -126,9 +127,9 @@ describe("BuiltinAgentCatalog", () => {
     await writeFile(join(root, "worker", "PERSONA.md"), "static metadata");
     const snapshot = {} as PromptReadSnapshot;
     const source: PromptSnapshotSource = {
-      capture: vi.fn(async () => snapshot),
-      captureBuiltin: vi.fn(async () => snapshot),
-      read: vi.fn(async (_snapshot, key) => {
+      capture: mock(async () => snapshot),
+      captureBuiltin: mock(async () => snapshot),
+      read: mock(async (_snapshot, key) => {
         if (key === "worker/PERSONA-en.md") return { kind: "missing" as const };
         if (key === "worker/PERSONA.md")
           return { kind: "found" as const, content: "remote persona" };
@@ -369,7 +370,7 @@ describe("BuiltinAgentCatalog composition", () => {
     );
 
     const catalog = new BuiltinAgentCatalog({ assetsDir: root });
-    vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+    spyOn(process, "platform", "get").mockReturnValue("win32");
     const common = {
       surface: "interactive" as const,
       appMode: "coding" as const,
@@ -416,7 +417,7 @@ describe("BuiltinAgentCatalog composition", () => {
     );
     await writeFile(join(root, "_default", "prompt-base-windows.md.hbs"), "");
 
-    vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+    spyOn(process, "platform", "get").mockReturnValue("win32");
     const catalog = new BuiltinAgentCatalog({ assetsDir: root });
     const common = {
       agentName: "worker",
@@ -1170,7 +1171,7 @@ describe("BuiltinAgentCatalog TUI prompt profile", () => {
       join(customDir, "prompt-session-branch.md"),
       "Custom child briefing",
     );
-    vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+    spyOn(process, "platform", "get").mockReturnValue("win32");
     const catalog = new BuiltinAgentCatalog();
     const input = {
       agentName: "worker",

@@ -2,6 +2,7 @@ import type { TurnAssemblyCtx, TurnEndHandler, TurnStartHandler } from '@mavis/a
 import { pluginHookEffort } from '@mavis/plugin-hooks';
 
 import type { SessionRecord } from '../../session-system/index.js';
+import { v2TurnSystemText } from '../copy.js';
 import type { AgentHost, AgentHostDependencies, AgentHostRunInput } from './contracts.js';
 import type { AgentCompactionInput, CompactionOutcome } from './compaction/contracts.js';
 import type { AgentEventContext } from './events/contracts.js';
@@ -620,7 +621,7 @@ export class LocalAgentHost<
                     reason:
                       result.decision.stopReason ??
                       result.decision.reason ??
-                      'Automatic compaction stopped by Plugin Hook.',
+                      v2TurnSystemText('agentHost.automaticCompactionStopped'),
                   };
                 }
                 const requestedDefer =

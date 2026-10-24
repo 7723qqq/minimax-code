@@ -43,6 +43,7 @@ import {
   type UploadedArchive,
   type WebsiteDeployGateway,
 } from './archive-upload.js';
+import { websiteDeployClientText } from './copy.js';
 import { materializeWebsiteCover } from './cover-materializer.js';
 import { deployFailure, ensureNotAborted, runDeployStage } from './deploy-failure.js';
 
@@ -52,7 +53,9 @@ const PUBLISH_ARCHIVE_PATH = '/mavis/api/v1/drive/websites/publish_archive';
 const UPDATE_ARCHIVE_PATH = '/mavis/api/v1/drive/websites/update_archive';
 // Mirrors IDL WebsiteManagementCode_CONTENT_REJECTED; non-zero base_resp always wins.
 const CONTENT_REJECTED_CODE = 10;
-const CONTENT_REJECTED_MESSAGE = '网站正文未通过审核，未发布';
+// The rejection text is product copy, not a backend message: it is used when the
+// backend reports CONTENT_REJECTED without a status_msg of its own.
+const CONTENT_REJECTED_MESSAGE_KEY = 'publish.contentRejected' as const;
 
 const DEFAULT_UPLOAD_TIMEOUT_MS = 1_500_000;
 
@@ -72,6 +75,8 @@ export interface LocalWebsiteDeployClientOptions {
   dataDir?: string;
   /** Injectable only to keep the bounded cover download deterministic in unit tests. */
   fetchImpl?: typeof fetch;
+  /** Interface language for the client's own fallback messages; defaults to the runtime locale. */
+  locale?: string | null;
 }
 
 export class LocalWebsiteDeployClient implements LocalWebsiteDeployAdapter {
@@ -81,6 +86,7 @@ export class LocalWebsiteDeployClient implements LocalWebsiteDeployAdapter {
   private readonly uploadTimeoutMs: number;
   private readonly dataDir: string | undefined;
   private readonly fetchImpl: typeof fetch;
+  private readonly locale: string | null | undefined;
 
   constructor(options: LocalWebsiteDeployClientOptions = {}) {
     this.gateway =
@@ -95,6 +101,7 @@ export class LocalWebsiteDeployClient implements LocalWebsiteDeployAdapter {
     this.uploadTimeoutMs = options.uploadTimeoutMs ?? DEFAULT_UPLOAD_TIMEOUT_MS;
     this.dataDir = options.dataDir;
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch;
+    this.locale = options.locale;
   }
 
   async deploy(
@@ -271,7 +278,7 @@ export class LocalWebsiteDeployClient implements LocalWebsiteDeployAdapter {
         baseStatusCode !== 0
           ? (published.base_resp?.status_msg ?? published.message)
           : statusCode === CONTENT_REJECTED_CODE
-            ? CONTENT_REJECTED_MESSAGE
+            ? websiteDeployClientText(CONTENT_REJECTED_MESSAGE_KEY, this.locale)
             : published.message;
       const errorCode =
         baseStatusCode === 0 ? normalizeNonEmptyString(published.error_code) : undefined;
