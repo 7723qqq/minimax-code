@@ -1,7 +1,8 @@
+import { waitFor } from '../../../../../../../test/bun-test-setup.js';
+import { describe, expect, it, jest, mock, spyOn } from 'bun:test';
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
 
 import { TuiInputFlow } from "../../../../../src/tui/controller/interaction/input-flow.js";
 import { resolveTuiAttachment } from "../../../../../src/tui/features/composer/attachments.js";
@@ -16,7 +17,7 @@ function createHarness(
   hasLiveRun = true,
   commandDisposition: "consumed" | "retained" = "consumed",
   interactionActive = false,
-  cancelSessionEdit = vi.fn(() => false),
+  cancelSessionEdit = mock(() => false),
   recentCodexSession?: {
     sessionId: string;
     updatedAtMs: number;
@@ -27,18 +28,18 @@ function createHarness(
   let inputListener: ((data: string) => unknown) | undefined;
   let currentInput = input;
   let sideSessionActive = inSideSession;
-  const trackAutocompleteSelect = vi.fn();
+  const trackAutocompleteSelect = mock();
   const editor = {
-    getAttachmentPreview: vi.fn(() => undefined),
-    dismissAttachmentPreview: vi.fn(),
+    getAttachmentPreview: mock(() => undefined),
+    dismissAttachmentPreview: mock(),
     onPaste: undefined,
     onSubmit: undefined,
     onAttachmentPlaceholderDeleted: undefined,
     onAttachmentPlaceholderRestored: undefined,
     onAutocompleteSelect: trackAutocompleteSelect,
-    getExpandedText: vi.fn(() => currentInput),
-    getText: vi.fn(() => currentInput),
-    captureDraft: vi.fn(() => ({
+    getExpandedText: mock(() => currentInput),
+    getText: mock(() => currentInput),
+    captureDraft: mock(() => ({
       schemaVersion: 1 as const,
       text: input,
       cursor: input.length,
@@ -46,15 +47,15 @@ function createHarness(
       pasteCounter: 0,
       attachmentPlaceholders: [],
     })),
-    restoreDraft: vi.fn((snapshot: { text: string }) => {
+    restoreDraft: mock((snapshot: { text: string }) => {
       currentInput = snapshot.text;
       return true;
     }),
-    setText: vi.fn((value: string) => {
+    setText: mock((value: string) => {
       currentInput = value;
     }),
-    addToHistory: vi.fn(),
-    submit: vi.fn(() => {
+    addToHistory: mock(),
+    submit: mock(() => {
       const snapshot = editor.captureDraft();
       const value = currentInput;
       currentInput = "";
@@ -72,87 +73,87 @@ function createHarness(
   editor.captureDraft.mockClear();
   const commandFlow = {
     catalog: {
-      resolve: vi.fn(() => undefined as { name: string } | undefined),
+      resolve: mock(() => undefined as { name: string } | undefined),
     },
-    captureSubmissionSeed: vi.fn(() => submissionSeed),
-    submit: vi.fn(async () => commandDisposition),
-    restoreFailedSeed: vi.fn(async () => undefined),
+    captureSubmissionSeed: mock(() => submissionSeed),
+    submit: mock(async () => commandDisposition),
+    restoreFailedSeed: mock(async () => undefined),
   };
-  const cancelBash = vi.fn(() => false);
-  const setHint = vi.fn();
-  const restoreWaitingMessage = vi.fn(async () => true);
-  const onSubmissionStarted = vi.fn();
-  const onSubmissionAdmitted = vi.fn();
-  const onSubmissionSettled = vi.fn();
-  const requestProcessSuspend = vi.fn();
-  const abortLiveTurn = vi.fn(async () => false);
-  const leaveUi = vi.fn(async () => undefined);
-  const returnFromSideSession = vi.fn(async () => {
+  const cancelBash = mock(() => false);
+  const setHint = mock();
+  const restoreWaitingMessage = mock(async () => true);
+  const onSubmissionStarted = mock();
+  const onSubmissionAdmitted = mock();
+  const onSubmissionSettled = mock();
+  const requestProcessSuspend = mock();
+  const abortLiveTurn = mock(async () => false);
+  const leaveUi = mock(async () => undefined);
+  const returnFromSideSession = mock(async () => {
     sideSessionActive = false;
     return true;
   });
-  const toggleSideConversation = vi.fn(async () => {
+  const toggleSideConversation = mock(async () => {
     if (!inSideSession) return false;
     sideSessionActive = !sideSessionActive;
     return true;
   });
-  const toggleTasks = vi.fn();
-  const toggleTranscriptDetails = vi.fn();
-  const onChanged = vi.fn();
-  const requestRender = vi.fn();
+  const toggleTasks = mock();
+  const toggleTranscriptDetails = mock();
+  const onChanged = mock();
+  const requestRender = mock();
   let offeredCodexSession = recentCodexSession;
-  const takeRecentCodexSession = vi.fn(() => {
+  const takeRecentCodexSession = mock(() => {
     const selected = offeredCodexSession;
     offeredCodexSession = undefined;
     return selected;
   });
-  const restoreRecentCodexSession = vi.fn(
+  const restoreRecentCodexSession = mock(
     (session: typeof recentCodexSession) => {
       offeredCodexSession = session;
     },
   );
-  const dismissRecentCodexSession = vi.fn(() => {
+  const dismissRecentCodexSession = mock(() => {
     offeredCodexSession = undefined;
   });
-  const scrollByPage = vi.fn();
+  const scrollByPage = mock();
   const composerDraft = {
-    snapshot: vi.fn(() => ({
+    snapshot: mock(() => ({
       attachments: draft.attachments,
     })),
-    capture: vi.fn(() => ({
+    capture: mock(() => ({
       attachments: draft.attachments,
     })),
-    ensureAttachmentPlaceholders: vi.fn(),
-    removeAttachmentById: vi.fn(async () => true),
-    restoreAttachmentById: vi.fn(() => true),
-    stashForClear: vi.fn(() => true),
-    restoreClearedDraft: vi.fn(() => true),
-    discardClearedDraft: vi.fn(async () => undefined),
-    hasContent: vi.fn(() => draft.attachments.length > 0),
-    abortClipboardRead: vi.fn(() => false),
-    pasteClipboard: vi.fn(async () => undefined),
-    queueAttachment: vi.fn<TuiComposerDraft["queueAttachment"]>(
+    ensureAttachmentPlaceholders: mock(),
+    removeAttachmentById: mock(async () => true),
+    restoreAttachmentById: mock(() => true),
+    stashForClear: mock(() => true),
+    restoreClearedDraft: mock(() => true),
+    discardClearedDraft: mock(async () => undefined),
+    hasContent: mock(() => draft.attachments.length > 0),
+    abortClipboardRead: mock(() => false),
+    pasteClipboard: mock(async () => undefined),
+    queueAttachment: mock<TuiComposerDraft["queueAttachment"]>(
       async () => undefined,
     ),
   };
   const flow = new TuiInputFlow({
     tui: {
-      addInputListener: vi.fn((listener) => {
+      addInputListener: mock((listener) => {
         inputListener = listener;
-        return vi.fn();
+        return mock();
       }),
       requestRender,
     } as never,
     editor: editor as never,
     workspaceDir: "/workspace",
     interaction: {
-      isActive: vi.fn(() => interactionActive),
+      isActive: mock(() => interactionActive),
       scrollByPage,
     } as never,
     interactionSurface: {} as never,
     interactionFlow: {} as never,
     featureFlow: {
-      isFeatureScreenActive: vi.fn(() => featureScreenActive),
+      isFeatureScreenActive: mock(() => featureScreenActive),
       toggleTranscriptDetails,
     } as never,
     commandFlow: commandFlow as never,
@@ -161,7 +162,7 @@ function createHarness(
     liveRunId: () => (hasLiveRun ? "turn-1" : undefined),
     hasWaitingMessage: () => hasWaitingMessage,
     restoreWaitingMessage,
-    openQueueManager: vi.fn(),
+    openQueueManager: mock(),
     toggleTasks,
     isStopped: () => false,
     abortLiveTurn,
@@ -174,14 +175,14 @@ function createHarness(
     isSideModeActive: () => sideSessionActive,
     toggleSideConversation,
     closeSideConversation: returnFromSideSession,
-    append: vi.fn(),
+    append: mock(),
     setHint,
     onChanged,
     onSubmissionStarted,
     onSubmissionAdmitted,
     onSubmissionSettled,
     requestProcessSuspend,
-    requestInteractionRender: vi.fn(),
+    requestInteractionRender: mock(),
   });
   flow.attach();
   return {
@@ -231,12 +232,12 @@ describe("TuiInputFlow steer Draft handling", () => {
       try {
         await mkdir(dirname(imagePath));
         await writeFile(imagePath, png);
-        const placeholders = vi.fn();
+        const placeholders = mock();
         const draft = new TuiComposerDraft({
           workspaceDir,
           resolveAttachment: resolveTuiAttachment,
-          append: vi.fn(),
-          onChanged: vi.fn(),
+          append: mock(),
+          onChanged: mock(),
           onAttachmentPlaceholdersChanged: placeholders,
         });
         const harness = createHarness("Describe this image", {
@@ -250,7 +251,7 @@ describe("TuiInputFlow steer Draft handling", () => {
           | undefined;
 
         expect(onPaste?.(imagePath.replaceAll(" ", "\\ "))).toBe(true);
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(draft.snapshot().attachments).toEqual([
             {
               type: "image",
@@ -285,12 +286,12 @@ describe("TuiInputFlow steer Draft handling", () => {
       false,
       "consumed",
       false,
-      vi.fn(() => false),
+      mock(() => false),
       session,
     );
 
     expect(harness.inputListener?.("\x15")).toEqual({ consume: true });
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.commandFlow.submit).toHaveBeenCalledWith(
         "/resume-codex 01a02373-25ae-76a1-880c-9253ba939cdc",
       ),
@@ -299,7 +300,7 @@ describe("TuiInputFlow steer Draft handling", () => {
     expect(harness.onSubmissionStarted).toHaveBeenCalledWith(
       "/resume-codex 01a02373-25ae-76a1-880c-9253ba939cdc",
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.onSubmissionSettled).toHaveBeenCalledOnce(),
     );
   });
@@ -319,7 +320,7 @@ describe("TuiInputFlow steer Draft handling", () => {
       false,
       "consumed",
       false,
-      vi.fn(() => false),
+      mock(() => false),
       session,
     );
 
@@ -344,7 +345,7 @@ describe("TuiInputFlow steer Draft handling", () => {
       false,
       "consumed",
       false,
-      vi.fn(() => false),
+      mock(() => false),
       session,
     );
 
@@ -374,7 +375,7 @@ describe("TuiInputFlow steer Draft handling", () => {
       { prefix: "@ref", items: [item] },
       item,
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.composerDraft.queueAttachment).toHaveBeenCalledWith(
         '"figures/reference overview.png"',
       ),
@@ -455,7 +456,7 @@ describe("TuiInputFlow steer Draft handling", () => {
     harness.editor.getText.mockReturnValue("draft B");
     settle?.("consumed");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.onSubmissionSettled).toHaveBeenCalledOnce(),
     );
     expect(harness.commandFlow.captureSubmissionSeed).toHaveBeenCalledWith(
@@ -493,10 +494,10 @@ describe("TuiInputFlow steer Draft handling", () => {
 
     harness.editor.onSubmit?.("keep pending transport", editorDraft);
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.commandFlow.submit).toHaveBeenCalledOnce(),
     );
-    await vi.waitFor(() => expect(harness.onChanged).toHaveBeenCalled());
+    await waitFor(() => expect(harness.onChanged).toHaveBeenCalled());
     expect(harness.onSubmissionSettled).not.toHaveBeenCalled();
   });
 
@@ -515,7 +516,7 @@ describe("TuiInputFlow steer Draft handling", () => {
       harness.submissionSeed.editor,
     );
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.commandFlow.submit).toHaveBeenCalledOnce(),
     );
     expect(harness.onSubmissionStarted).toHaveBeenCalledWith(
@@ -541,7 +542,7 @@ describe("TuiInputFlow steer Draft handling", () => {
     submit?.("send A", editorDraft);
     harness.editor.getText.mockReturnValue("draft B");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.commandFlow.restoreFailedSeed).toHaveBeenCalledOnce(),
     );
     expect(harness.commandFlow.restoreFailedSeed).toHaveBeenCalledWith(
@@ -675,7 +676,7 @@ describe("TuiInputFlow steer Draft handling", () => {
   });
 
   it("keeps the first Ctrl+C armed across a Kitty release and a pause", () => {
-    vi.useFakeTimers();
+    jest.useFakeTimers();
     try {
       const harness = createHarness(
         "",
@@ -698,13 +699,13 @@ describe("TuiInputFlow steer Draft handling", () => {
       );
       expect(harness.leaveUi).not.toHaveBeenCalled();
 
-      vi.advanceTimersByTime(5_000);
+      jest.advanceTimersByTime(5_000);
       expect(harness.inputListener?.("\u001B[99;5u")).toEqual({
         consume: true,
       });
       expect(harness.leaveUi).toHaveBeenCalledOnce();
     } finally {
-      vi.useRealTimers();
+      jest.useRealTimers();
     }
   });
 
@@ -730,7 +731,7 @@ describe("TuiInputFlow steer Draft handling", () => {
       false,
       "consumed",
       false,
-      vi.fn(() => false),
+      mock(() => false),
       undefined,
       true,
     );
@@ -756,7 +757,7 @@ describe("TuiInputFlow steer Draft handling", () => {
       false,
       "consumed",
       false,
-      vi.fn(() => false),
+      mock(() => false),
       undefined,
       true,
     );
@@ -775,7 +776,7 @@ describe("TuiInputFlow steer Draft handling", () => {
       false,
       "consumed",
       false,
-      vi.fn(() => false),
+      mock(() => false),
       undefined,
       true,
     );
@@ -802,13 +803,13 @@ describe("TuiInputFlow steer Draft handling", () => {
       false,
       "consumed",
       false,
-      vi.fn(() => false),
+      mock(() => false),
       undefined,
       true,
     );
 
     expect(harness.inputListener?.("\u001B[47;5u")).toEqual({ consume: true });
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.toggleSideConversation).toHaveBeenCalledOnce(),
     );
     expect(harness.returnFromSideSession).not.toHaveBeenCalled();
@@ -820,7 +821,7 @@ describe("TuiInputFlow steer Draft handling", () => {
     const harness = createHarness("", { attachments: [] }, false, false, false);
 
     expect(harness.inputListener?.("\u001B[47;5u")).toEqual({ consume: true });
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.setHint).toHaveBeenCalledWith(
         "No side conversation is open. Run /btw first; this shortcut only switches conversations.",
         "warning",
@@ -837,7 +838,7 @@ describe("TuiInputFlow steer Draft handling", () => {
       false,
       "consumed",
       false,
-      vi.fn(() => false),
+      mock(() => false),
       undefined,
       true,
     );
@@ -847,7 +848,7 @@ describe("TuiInputFlow steer Draft handling", () => {
   });
 
   it("neither advertises nor opens Edit on double Escape in an idle side session", async () => {
-    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+    const now = spyOn(Date, "now").mockReturnValue(1_000);
     try {
       const harness = createHarness(
         "",
@@ -857,7 +858,7 @@ describe("TuiInputFlow steer Draft handling", () => {
         false,
         "consumed",
         false,
-        vi.fn(() => false),
+        mock(() => false),
         undefined,
         true,
       );
@@ -889,7 +890,7 @@ describe("TuiInputFlow steer Draft handling", () => {
   });
 
   it("opens Edit when Escape is pressed twice while chat is idle", async () => {
-    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+    const now = spyOn(Date, "now").mockReturnValue(1_000);
     try {
       const harness = createHarness(
         "",
@@ -904,7 +905,7 @@ describe("TuiInputFlow steer Draft handling", () => {
 
       now.mockReturnValue(1_200);
       expect(harness.inputListener?.("\u001b")).toEqual({ consume: true });
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(harness.commandFlow.submit).toHaveBeenCalledWith("/edit"),
       );
       expect(harness.abortLiveTurn).not.toHaveBeenCalled();
@@ -914,7 +915,7 @@ describe("TuiInputFlow steer Draft handling", () => {
   });
 
   it("does not open Edit when repeated Escape is late or a draft is present", () => {
-    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+    const now = spyOn(Date, "now").mockReturnValue(1_000);
     try {
       const late = createHarness("", { attachments: [] }, false, false, false);
       late.inputListener?.("\u001b");
@@ -941,10 +942,9 @@ describe("TuiInputFlow steer Draft handling", () => {
   });
 
   it("does not reuse Escape from cancellation or interruption to open Edit", () => {
-    const now = vi.spyOn(Date, "now").mockReturnValue(1_000);
+    const now = spyOn(Date, "now").mockReturnValue(1_000);
     try {
-      const cancelSessionEdit = vi
-        .fn()
+      const cancelSessionEdit = mock()
         .mockReturnValueOnce(true)
         .mockReturnValue(false);
       const cancelling = createHarness(
@@ -1033,7 +1033,7 @@ describe("TuiInputFlow steer Draft handling", () => {
 
     expect(harness.inputListener?.("\r")).toEqual({ consume: true });
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.commandFlow.submit).toHaveBeenCalledWith(
         "focus on the failing test",
         harness.submissionSeed,
@@ -1044,7 +1044,7 @@ describe("TuiInputFlow steer Draft handling", () => {
       "focus on the failing test",
     );
     expect(harness.onSubmissionStarted).toHaveBeenCalledOnce();
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.onSubmissionSettled).toHaveBeenCalledOnce(),
     );
   });
@@ -1056,7 +1056,7 @@ describe("TuiInputFlow steer Draft handling", () => {
 
     expect(harness.inputListener?.("\x1b\r")).toEqual({ consume: true });
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.commandFlow.submit).toHaveBeenCalledWith(
         "do this after the current turn",
         harness.submissionSeed,
@@ -1072,7 +1072,7 @@ describe("TuiInputFlow steer Draft handling", () => {
 
       expect(harness.inputListener?.(key)).toEqual({ consume: true });
 
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(harness.restoreWaitingMessage).toHaveBeenCalledOnce(),
       );
       expect(harness.commandFlow.submit).not.toHaveBeenCalled();
@@ -1099,7 +1099,7 @@ describe("TuiInputFlow steer Draft handling", () => {
 
     harness.inputListener?.("\r");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.commandFlow.submit).toHaveBeenCalledOnce(),
     );
     expect(harness.onSubmissionSettled).not.toHaveBeenCalled();
@@ -1115,7 +1115,7 @@ describe("TuiInputFlow steer Draft handling", () => {
       | undefined;
     onDeleted?.("/workspace/second.png");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(harness.composerDraft.removeAttachmentById).toHaveBeenCalledWith(
         "/workspace/second.png",
       ),

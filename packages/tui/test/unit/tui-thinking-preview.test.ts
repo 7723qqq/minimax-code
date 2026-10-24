@@ -1,5 +1,7 @@
+import { waitFor } from '../../../../test/bun-test-setup.js';
+import { afterEach, describe, expect, it, jest, mock, spyOn } from 'bun:test';
 import { stripVTControlCharacters } from 'node:util';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+
 import * as textLayout from '../../src/tui/engine/utils.js';
 import { TuiTranscriptPanel } from '../../src/tui/features/transcript/panel.js';
 import { formatTuiTranscriptMarkdown } from '../../src/tui/transcript/export.js';
@@ -41,11 +43,11 @@ describe('Thinking preview', () => {
       expect(stripVTControlCharacters(rendered)).toContain('Visible text');
     },
   );
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => jest.restoreAllMocks());
 
   it('bounds colored layout work while new deltas stream into the same full cell', () => {
     const originalTheme = getTuiThemeSnapshot();
-    const wrap = vi.spyOn(textLayout, 'wrapTextWithAnsi');
+    const wrap = spyOn(textLayout, 'wrapTextWithAnsi');
     const store = thinkingStore('Original reasoning\n');
     const view = new TranscriptView(store);
     let fullContent = store.get('thinking')!.content;
@@ -106,7 +108,7 @@ describe('Thinking preview', () => {
     const view = new TranscriptView(store, {
       displayModes: { revision: 0, resolveMainDisplayMode: () => 'preview' },
     });
-    const wrap = vi.spyOn(textLayout, 'wrapTextWithAnsi');
+    const wrap = spyOn(textLayout, 'wrapTextWithAnsi');
     view.render(1_000);
     for (const [text] of wrap.mock.calls) {
       expect(text).not.toMatch(/[\uD800-\uDFFF]/u);
@@ -126,25 +128,25 @@ describe('Thinking preview', () => {
     view.toggleDetailMode();
     expect(view.render(80).join('\n')).not.toContain('Original reasoning');
 
-    const writeClipboardText = vi.fn(async (_text: string) => undefined);
+    const writeClipboardText = mock(async (_text: string) => undefined);
     const panel = new TuiTranscriptPanel({
       source: store,
-      onCancel: vi.fn(),
-      requestRender: vi.fn(),
+      onCancel: mock(),
+      requestRender: mock(),
       writeClipboardText,
     });
     panel.handleInput('/');
     panel.handleInput('Original reasoning');
     panel.handleInput('\r');
     expect(panel.render(80).join('\n')).toContain('1 match');
-    const wrap = vi.spyOn(textLayout, 'wrapTextWithAnsi');
+    const wrap = spyOn(textLayout, 'wrapTextWithAnsi');
     panel.handleInput('\u000f'); // Ctrl+O expands all blocks in the inspector.
     panel.render(80);
     expect(
       wrap.mock.calls.some(([text]) => stripVTControlCharacters(text).includes(content)),
     ).toBe(true);
     panel.handleInput('c');
-    await vi.waitFor(() => expect(writeClipboardText).toHaveBeenCalledOnce());
+    await waitFor(() => expect(writeClipboardText).toHaveBeenCalledOnce());
     expect(writeClipboardText.mock.calls[0]?.[0]).toContain(content);
     expect(store.get('thinking')?.content).toBe(content);
     // Export keeps its existing policy (thinking is not included).

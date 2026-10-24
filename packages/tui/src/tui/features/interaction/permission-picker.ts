@@ -19,6 +19,7 @@ import {
   type TuiDecisionTone,
 } from './decision-frame.js';
 import { highlightTuiShellCommand, resolveTuiShellCommand } from '../../theme/shell-command.js';
+import { interactionText, type InteractionCopyKey } from './copy.js';
 
 const DEFAULT_PERMISSION_CONTEXT_LINES = 6;
 
@@ -85,22 +86,23 @@ export class TuiPermissionPicker implements Component, Focusable {
     }> = [
       {
         value: 'allowOnce',
-        label: '1 Allow for this conversation',
+        label: interactionText('permission.decision.allowForConversation', { prefix: '1' }),
       },
       ...(request.allowAlwaysSupported === false
         ? []
         : [
             {
               value: 'allowAlways' as const,
-              label: '2 Always allow matching actions',
+              label: interactionText('permission.decision.alwaysAllowMatchingActions', {
+                prefix: '2',
+              }),
             },
           ]),
       {
         value: 'deny',
-        label:
-          request.allowAlwaysSupported === false
-            ? '2 Deny and guide MCode'
-            : '3 Deny and guide MCode',
+        label: interactionText('permission.decision.denyAndGuide', {
+          prefix: request.allowAlwaysSupported === false ? '2' : '3',
+        }),
       },
     ];
     this.decisions = decisions.map((item) => item.value);
@@ -258,7 +260,7 @@ export class TuiPermissionPicker implements Component, Focusable {
 
     if (this.submitting) {
       return {
-        title: '◌ Applying permission…',
+        title: interactionText('permission.title.applying'),
         meta: toolLabel,
         tone,
         leading: [
@@ -268,7 +270,7 @@ export class TuiPermissionPicker implements Component, Focusable {
             0,
           ).render(Math.max(1, contentWidth)),
           ...new Text(
-            chalk.hex(colors.muted)('Waiting for Runtime to commit the decision.'),
+            chalk.hex(colors.muted)(interactionText('waiting.commitDecision')),
             0,
             0,
           ).render(Math.max(1, contentWidth)),
@@ -281,22 +283,29 @@ export class TuiPermissionPicker implements Component, Focusable {
     if (this.confirmAlways) {
       const rules = renderPermissionRules(this.request, contentWidth);
       return {
-        title: '◆ Save permission rule',
+        title: interactionText('permission.title.saveRule'),
         meta: toolLabel,
         tone: 'warning',
-        leading: [chalk.bold.hex(colors.text)('Always allow matching actions?'), ''],
+        leading: [chalk.bold.hex(colors.text)(interactionText('permission.alwaysAllow.question')), ''],
         evidence: rules,
         trailing: [
           '',
           ...new Text(
-            chalk.hex(colors.muted)('Future matching actions will continue without asking.'),
+            chalk.hex(colors.muted)(interactionText('permission.alwaysAllow.description')),
             0,
             0,
           ).render(Math.max(1, contentWidth)),
         ],
         footer: buildAlwaysConfirmationFooter(contentWidth),
         statusLine: (range) =>
-          range ? buildViewportStatus('Scope', range, rules.length, contentWidth) : undefined,
+          range
+            ? buildViewportStatus(
+                interactionText('permission.scope.label'),
+                range,
+                rules.length,
+                contentWidth,
+              )
+            : undefined,
       };
     }
 
@@ -304,14 +313,14 @@ export class TuiPermissionPicker implements Component, Focusable {
       const context = renderPermissionContext(this.request, contentWidth, this.detailsExpanded);
       this.detailsExpandable = context.expandable;
       return {
-        title: '× Deny action',
+        title: interactionText('permission.title.deny'),
         meta: toolLabel,
         tone: 'warning',
-        leading: [chalk.bold.hex(colors.text)('Deny this action?'), ''],
+        leading: [chalk.bold.hex(colors.text)(interactionText('permission.deny.question')), ''],
         evidence: context.lines,
         trailing: [
           '',
-          chalk.hex(colors.muted)('Add guidance for MCode, or leave this blank.'),
+          chalk.hex(colors.muted)(interactionText('permission.deny.guidanceHint')),
           ...this.denyInput
             .render(Math.max(1, contentWidth))
             .map((line) => fitLine(line, contentWidth)),
@@ -324,7 +333,7 @@ export class TuiPermissionPicker implements Component, Focusable {
     const context = renderPermissionContext(this.request, contentWidth, this.detailsExpanded);
     this.detailsExpandable = context.expandable;
     return {
-      title: '◆ Approval required',
+      title: interactionText('permission.title.approvalRequired'),
       meta: toolLabel,
       tone,
       leading: [chalk.bold.hex(colors.text)(permissionPromptTitle(toolName)), ''],
@@ -444,7 +453,9 @@ function renderPermissionContext(
     request.reason !== request.toolDescription &&
     request.reason !== request.toolInput
   ) {
-    noteLines.push(...renderPermissionNote(`Why · ${request.reason}`, width));
+    noteLines.push(
+      ...renderPermissionNote(interactionText('permission.note.why', { reason: request.reason }), width),
+    );
   }
 
   const allLines = [...previewLines, ...noteLines];
@@ -469,17 +480,23 @@ function renderPermissionContext(
 function permissionPromptTitle(toolName: string): string {
   const normalized = toolName.toLocaleLowerCase().replaceAll('-', '_');
   if (normalized === 'bash' || normalized.includes('shell') || normalized.includes('exec')) {
-    return 'Run this command?';
+    return interactionText('permission.prompt.runCommand');
   }
-  if (normalized.includes('write') || normalized.includes('create_file')) return 'Write this file?';
-  if (normalized.includes('edit') || normalized.includes('patch')) return 'Apply these edits?';
-  if (normalized.includes('delete') || normalized.includes('remove')) return 'Delete this item?';
-  return `Allow ${toolName}?`;
+  if (normalized.includes('write') || normalized.includes('create_file')) {
+    return interactionText('permission.prompt.writeFile');
+  }
+  if (normalized.includes('edit') || normalized.includes('patch')) {
+    return interactionText('permission.prompt.applyEdits');
+  }
+  if (normalized.includes('delete') || normalized.includes('remove')) {
+    return interactionText('permission.prompt.deleteItem');
+  }
+  return interactionText('permission.prompt.tool', { tool: toolName });
 }
 
 function formatPermissionToolLabel(toolName: string): string {
   const words = toolName.replaceAll(/[-_]+/gu, ' ').trim();
-  if (!words) return 'Unknown';
+  if (!words) return interactionText('permission.tool.unknown');
   return words.replace(/^\p{Ll}/u, (letter) => letter.toLocaleUpperCase());
 }
 
@@ -489,15 +506,15 @@ function permissionDecisionTone(toolName: string): TuiDecisionTone {
 }
 
 function formatPendingPermissionDecision(decision: TuiPermissionDecision): string {
-  if (decision === 'allowAlways') return 'Saving the permission rule and allowing this action…';
-  if (decision === 'deny') return 'Denying this action…';
-  return 'Allowing for this conversation…';
+  if (decision === 'allowAlways') return interactionText('permission.status.savingRule');
+  if (decision === 'deny') return interactionText('permission.status.denying');
+  return interactionText('permission.status.allowing');
 }
 
 function permissionDecisionDetail(decision: TuiPermissionDecision): string {
-  if (decision === 'allowAlways') return 'Review the exact saved scope next';
-  if (decision === 'deny') return 'Add guidance before denying this action';
-  return 'MCode asks again in a new conversation';
+  if (decision === 'allowAlways') return interactionText('permission.detail.alwaysAllow');
+  if (decision === 'deny') return interactionText('permission.detail.deny');
+  return interactionText('permission.detail.allowOnce');
 }
 
 function permissionSelectTheme(): SelectListTheme {
@@ -517,21 +534,26 @@ function fitPermissionDecisionLabel(
   width: number,
 ): string {
   const prefix = String(Math.max(1, index));
-  const candidates =
+  const keys: readonly InteractionCopyKey[] =
     decision === 'allowOnce'
       ? [
-          `${prefix} Allow for this conversation`,
-          `${prefix} Allow this conversation`,
-          `${prefix} Allow conversation`,
-          `${prefix} Allow`,
+          'permission.decision.allowForConversation',
+          'permission.decision.allowThisConversation',
+          'permission.decision.allowConversation',
+          'permission.decision.allow',
         ]
       : decision === 'allowAlways'
         ? [
-            `${prefix} Always allow matching actions`,
-            `${prefix} Always allow matching`,
-            `${prefix} Always allow`,
+            'permission.decision.alwaysAllowMatchingActions',
+            'permission.decision.alwaysAllowMatching',
+            'permission.decision.alwaysAllow',
           ]
-        : [`${prefix} Deny and guide MCode`, `${prefix} Deny and guide`, `${prefix} Deny`];
+        : [
+            'permission.decision.denyAndGuide',
+            'permission.decision.denyAndGuideShort',
+            'permission.decision.deny',
+          ];
+  const candidates = keys.map((key) => interactionText(key, { prefix }));
   return (
     candidates.find((candidate) => visibleWidth(candidate) <= width) ??
     truncateToWidth(candidates.at(-1) ?? prefix, Math.max(1, width), '')
@@ -540,30 +562,39 @@ function fitPermissionDecisionLabel(
 
 function buildPermissionFooter(width: number): string {
   const candidates = [
-    '↑/↓ choose · Enter confirm · Esc deny · Ctrl+C stop',
-    '↑/↓ · Enter confirm · Esc deny · Ctrl+C stop',
-    'Enter confirm · Esc deny · Ctrl+C stop',
-    'Enter · Esc deny · Ctrl+C',
+    interactionText('permission.footer.choose'),
+    interactionText('permission.footer.chooseCompact'),
+    interactionText('permission.footer.confirm'),
+    interactionText('permission.footer.confirmCompact'),
   ];
-  return candidates.find((candidate) => visibleWidth(candidate) <= width) ?? 'Enter · Esc';
+  return (
+    candidates.find((candidate) => visibleWidth(candidate) <= width) ??
+    interactionText('permission.footer.minimal')
+  );
 }
 
 function buildAlwaysConfirmationFooter(width: number): string {
   const candidates = [
-    'Enter save and allow · Esc go back · Ctrl+C stop',
-    'Enter save · Esc go back · Ctrl+C stop',
-    'Enter save · Esc back',
+    interactionText('permission.footer.alwaysSave'),
+    interactionText('permission.footer.alwaysSaveCompact'),
+    interactionText('permission.footer.alwaysSaveShort'),
   ];
-  return candidates.find((candidate) => visibleWidth(candidate) <= width) ?? 'Enter · Esc';
+  return (
+    candidates.find((candidate) => visibleWidth(candidate) <= width) ??
+    interactionText('permission.footer.minimal')
+  );
 }
 
 function buildDenyFooter(width: number): string {
   const candidates = [
-    'Enter deny · Esc go back · Ctrl+C stop',
-    'Enter deny · Esc back · Ctrl+C stop',
-    'Enter deny · Esc back',
+    interactionText('permission.footer.deny'),
+    interactionText('permission.footer.denyCompact'),
+    interactionText('permission.footer.denyShort'),
   ];
-  return candidates.find((candidate) => visibleWidth(candidate) <= width) ?? 'Enter · Esc';
+  return (
+    candidates.find((candidate) => visibleWidth(candidate) <= width) ??
+    interactionText('permission.footer.minimal')
+  );
 }
 
 function createPermissionContextStatusLine(
@@ -572,30 +603,61 @@ function createPermissionContextStatusLine(
 ): (range?: PermissionViewportRange) => string | undefined {
   return (range) => {
     if (!range && !context.expandable) return undefined;
-    const detailAction = context.expanded ? 'Ctrl+E collapse' : 'Ctrl+E review all';
+    const detailAction = interactionText(
+      context.expanded ? 'permission.action.collapse' : 'permission.action.reviewAll',
+    );
     if (!range) {
-      const visible = context.lines.length;
+      const visible = String(context.lines.length);
+      const total = String(context.totalLines);
       return chooseStatusLine(
         [
-          `Details ${String(visible)} of ${String(context.totalLines)} lines · ${detailAction}`,
-          `${String(visible)}/${String(context.totalLines)} lines · ${detailAction}`,
-          `${String(visible)}/${String(context.totalLines)} · Ctrl+E`,
+          interactionText('permission.status.detailsLines', { visible, total, action: detailAction }),
+          interactionText('permission.status.detailsLinesCompact', {
+            visible,
+            total,
+            action: detailAction,
+          }),
+          interactionText('permission.status.detailsLinesTiny', { visible, total }),
         ],
         width,
       );
     }
 
     const rangeLabel = `${String(range.start)}-${String(range.end)}`;
+    const total = String(context.totalLines);
+    const visibleTotal = String(range.visibleTotal);
     const candidates =
       context.expandable && !context.expanded
         ? [
-            `Details ${rangeLabel} of ${String(range.visibleTotal)} shown · ${String(context.totalLines)} total · PgUp/PgDn scroll · ${detailAction}`,
-            `${rangeLabel}/${String(range.visibleTotal)} shown · ${String(context.totalLines)} total · PgUp/PgDn · Ctrl+E`,
-            `${rangeLabel}/${String(range.visibleTotal)} · PgUp/PgDn · Ctrl+E`,
+            interactionText('permission.status.detailsShown', {
+              range: rangeLabel,
+              n: visibleTotal,
+              total,
+              action: detailAction,
+            }),
+            interactionText('permission.status.detailsShownCompact', {
+              range: rangeLabel,
+              n: visibleTotal,
+              total,
+            }),
+            interactionText('permission.status.detailsShownTiny', {
+              range: rangeLabel,
+              n: visibleTotal,
+            }),
           ]
         : [
-            `Details ${rangeLabel} of ${String(context.totalLines)} · PgUp/PgDn scroll${context.expandable ? ` · ${detailAction}` : ''}`,
-            `${rangeLabel}/${String(context.totalLines)} · PgUp/PgDn${context.expandable ? ' · Ctrl+E' : ''}`,
+            interactionText(
+              context.expandable
+                ? 'permission.status.detailsScroll'
+                : 'permission.status.detailsScrollPlain',
+              { range: rangeLabel, total, action: detailAction },
+            ),
+            interactionText(
+              context.expandable
+                ? 'permission.status.detailsScrollCompact'
+                : 'permission.status.detailsScrollCompactPlain',
+              { range: rangeLabel, total },
+            ),
           ];
     return chooseStatusLine(candidates, width);
   };
@@ -608,11 +670,12 @@ function buildViewportStatus(
   width: number,
 ): string {
   const rangeLabel = `${String(range.start)}-${String(range.end)}`;
+  const total = String(totalLines);
   return chooseStatusLine(
     [
-      `${label} ${rangeLabel} of ${String(totalLines)} · PgUp/PgDn scroll`,
-      `${label} ${rangeLabel}/${String(totalLines)} · PgUp/PgDn`,
-      `${rangeLabel}/${String(totalLines)} · PgUp/PgDn`,
+      interactionText('permission.status.viewport', { label, range: rangeLabel, total }),
+      interactionText('permission.status.viewportCompact', { label, range: rangeLabel, total }),
+      interactionText('permission.status.viewportTiny', { range: rangeLabel, total }),
     ],
     width,
   );
@@ -654,9 +717,9 @@ function renderPermissionRules(request: TuiPendingPermission, width: number): st
   const rules =
     request.ruleContents && request.ruleContents.length > 0
       ? request.ruleContents
-      : ['Exact saved scope is unavailable.'];
+      : [interactionText('permission.scope.unavailable')];
   return renderPermissionRows(
-    'Scope',
+    interactionText('permission.scope.label'),
     rules.map((rule) => `- ${rule}`),
     width,
   );

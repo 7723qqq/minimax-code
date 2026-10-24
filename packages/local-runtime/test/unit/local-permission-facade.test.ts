@@ -1,3 +1,4 @@
+import { describe, expect, it, mock, spyOn } from 'bun:test';
 /**
  * LocalPermissionFacade end-to-end tests.
  *
@@ -36,7 +37,7 @@ import {
   readWindowsTrashExecution,
   resetPermissionHostForTesting,
 } from '@mavis/permission';
-import { describe, expect, it, vi } from 'vitest';
+
 import type {
   CloudClassifyRequest,
   CloudClassifyVerdict,
@@ -185,7 +186,7 @@ describe('LocalPermissionFacade', () => {
   });
 
   it('logs the concrete checker reason for each Bash subcommand', async () => {
-    const info = vi.spyOn(logger, 'info').mockImplementation(() => undefined);
+    const info = spyOn(logger, 'info').mockImplementation(() => undefined);
     const { facade, dataDir } = freshFacade({ policyOwner: 'core' });
     try {
       const result = await facade.checkPermission({
@@ -249,7 +250,7 @@ describe('LocalPermissionFacade', () => {
   });
 
   it('logs the command and detail for a top-level Bash safety decision', async () => {
-    const info = vi.spyOn(logger, 'info').mockImplementation(() => undefined);
+    const info = spyOn(logger, 'info').mockImplementation(() => undefined);
     const { facade, dataDir } = freshFacade({ policyOwner: 'core' });
     try {
       const command = 'echo smoke > /tmp/mavis-permission-smoke.txt';
@@ -281,7 +282,7 @@ describe('LocalPermissionFacade', () => {
   });
 
   it('logs the safety category and detail that caused a Bash deny', async () => {
-    const info = vi.spyOn(logger, 'info').mockImplementation(() => undefined);
+    const info = spyOn(logger, 'info').mockImplementation(() => undefined);
     const { facade, dataDir } = freshFacade({ policyOwner: 'core' });
     try {
       const command = 'shred /tmp/definitely-not-created.txt';
@@ -316,7 +317,7 @@ describe('LocalPermissionFacade', () => {
   });
 
   it('logs why a persisted rule allowed the tool without exposing its content', async () => {
-    const info = vi.spyOn(logger, 'info').mockImplementation(() => undefined);
+    const info = spyOn(logger, 'info').mockImplementation(() => undefined);
     const { facade, ruleStore, dataDir } = freshFacade({ policyOwner: 'core' });
     try {
       await ruleStore.applyUpdate({
@@ -358,7 +359,7 @@ describe('LocalPermissionFacade', () => {
   });
 
   it('logs the final verdict after the ask gate without command or path data', async () => {
-    const info = vi.spyOn(logger, 'info').mockImplementation(() => undefined);
+    const info = spyOn(logger, 'info').mockImplementation(() => undefined);
     const { facade, dataDir } = freshFacade({
       policyOwner: 'core',
       permissionMode: 'bypassPermissions',
@@ -1715,7 +1716,7 @@ describe('LocalPermissionFacade', () => {
         it.each(['read', 'grep', 'glob', 'list'])(
           'allows %s for global, builtin and active-agent skill resources',
           async (toolName) => {
-            const classify = vi.fn(async (): Promise<CloudClassifyVerdict> => ({
+            const classify = mock(async (): Promise<CloudClassifyVerdict> => ({
               kind: 'allow',
               reasonLocalized: 'ok',
             }));
@@ -1753,7 +1754,7 @@ describe('LocalPermissionFacade', () => {
     it.each(['default', 'auto'] as const)(
       '%s mode keeps other agents and runtime state outside skill read access',
       async (permissionMode) => {
-        const classify = vi.fn(async (): Promise<CloudClassifyVerdict> => ({
+        const classify = mock(async (): Promise<CloudClassifyVerdict> => ({
           kind: 'allow',
           reasonLocalized: 'ok',
         }));
@@ -1817,7 +1818,7 @@ describe('LocalPermissionFacade', () => {
     it.each(['read', 'grep', 'glob', 'list'])(
       'keeps private runtime %s requests out of automatic approval',
       async (toolName) => {
-        const classify = vi.fn(async (): Promise<CloudClassifyVerdict> => ({
+        const classify = mock(async (): Promise<CloudClassifyVerdict> => ({
           kind: 'allow',
           reasonLocalized: 'ok',
         }));

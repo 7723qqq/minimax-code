@@ -1,8 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { loadBetterSqlite3Module } from '../better-sqlite3-loader.js';
-import type { DatabaseConstructor, DatabaseLike } from '../db.js';
+import { FinalizingSqliteDatabase } from '@mavis/shared';
+import { Database } from 'bun:sqlite';
+
+import type { DatabaseLike } from '../db.js';
 import { resolveV2DirectoryContract } from '../layout/v2-paths.js';
 import {
   applyDirectoryAndPrimaryRename,
@@ -144,8 +146,7 @@ async function applyV2BuiltinAgentNameConflictMigrationOpenDatabase(
 function openV2RuntimeDb(dataDir: string): DatabaseLike {
   const dbPath = resolveV2DirectoryContract(dataDir).runtimeStateDb;
   if (!fs.existsSync(dbPath)) throw new Error('v2_runtime_database_missing');
-  const Database = loadBetterSqlite3Module<DatabaseConstructor>();
-  const database = new Database(dbPath);
+  const database = new FinalizingSqliteDatabase(dbPath);
   try {
     database.exec(`
       PRAGMA journal_mode = WAL;

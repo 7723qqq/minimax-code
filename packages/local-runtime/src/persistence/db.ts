@@ -2,16 +2,15 @@ import fs from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 
+import { FinalizingSqliteDatabase } from '@mavis/shared';
+import { Database } from 'bun:sqlite';
+
 import { FEATURE_MIGRATIONS } from './feature-migrations.js';
-import { loadBetterSqlite3Module } from './better-sqlite3-loader.js';
 import { resolveV2DirectoryContract } from './layout/v2-paths.js';
 
 export type DataDirInput = string | (() => string);
 
-export type DatabaseConstructor = new (
-  filename?: string | Buffer,
-  options?: Record<string, unknown>,
-) => DatabaseLike;
+export type DatabaseConstructor = typeof Database;
 
 export interface DatabaseLike {
   exec(sql: string): void;
@@ -521,8 +520,7 @@ export function openLocalRuntimeDb(dataDir: DataDirInput): DatabaseLike {
   const dbDir = path.dirname(dbPath);
   fs.mkdirSync(dbDir, { recursive: true, mode: 0o700 });
   fs.chmodSync(dbDir, 0o700);
-  const Database = loadBetterSqlite3();
-  const db = new Database(dbPath);
+  const db = new FinalizingSqliteDatabase(dbPath);
   fs.chmodSync(dbPath, 0o600);
   configureDb(db);
   ensureSchema(db);
@@ -1041,7 +1039,4 @@ function ensureIndexColumns(
 
 function resolveDataDir(dataDir: DataDirInput): string {
   return typeof dataDir === 'function' ? dataDir() : dataDir;
-}
-function loadBetterSqlite3(): DatabaseConstructor {
-  return loadBetterSqlite3Module<DatabaseConstructor>();
 }

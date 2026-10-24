@@ -33,16 +33,25 @@ mcode TUI 的配色由**具名主题**决定，每个主题同时提供深色和
 
 - 文件：`~/.minimax/tui/tui-settings.json`（即运行时数据目录下的 `tui/tui-settings.json`）。
 - 键：`theme`，值是主题 ID，或 `主题ID/light`、`主题ID/dark` 锁定外观。
+- 键：`locale`，值是 BCP 47 语言标签（如 `zh-CN`、`en`），决定界面语言。
 
 ```json
 {
   "tuiMode": "regular",
-  "theme": "midnight"
+  "theme": "midnight",
+  "locale": "zh-CN"
 }
 ```
 
-`theme` 与 `tuiMode` 写在同一份文件里，写入其中一个不会覆盖另一个；文件中的未知键也会原样保留。
+`theme`、`tuiMode` 与 `locale` 写在同一份文件里，写入其中一个不会覆盖另外两个；文件中的未知键也会原样保留。
 无法识别的 `theme` 值会回退到默认主题，不会阻断启动。
+
+`locale` 可以在 `/settings` 面板里改，也可以直接编辑这份文件。它的优先级高于所有环境变量
+（包括 Desktop 注入的 `MAVIS_ELECTRON_LOCALE` 和手动设置的 `MCODE_LOCALE`），因为它是用户在界面里
+的显式选择；未设置时仍按 `MAVIS_ELECTRON_LOCALE` → `MCODE_LOCALE` → 系统区域 → `LANG` → 英文回退。
+写入了非法的标签（形状不合法，或长度/字符超出 BCP 47 语言子标签范围）时，该键按"未设置"处理并回到
+环境变量那条链路；写入了 catalog 尚未覆盖的合法标签（例如 `fr-FR`）时按英文显示。这两种情况都不会
+阻断启动。
 
 ## 自定义主题文件
 

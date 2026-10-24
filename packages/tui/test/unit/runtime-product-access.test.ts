@@ -1,16 +1,17 @@
+import { mocked } from '../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock } from 'bun:test';
 import {
   requireTuiAgentAccess,
   requireTuiAccountLogin,
 } from "../../src/application/login-gate.js";
 import type { CliService } from "@mavis/local-runtime-v2/cli-service";
-import { describe, expect, it, vi } from "vitest";
 
 import { TuiRuntimeAdapter } from "../../src/runtime/adapter.js";
 import { buildTuiSkillCommands } from "../../src/tui/controller/run/active-run-flow.js";
 
 describe("TuiRuntimeAdapter product access", () => {
   it("forwards the shared Provider Presets and Codex OAuth capability", async () => {
-    const listProviderPresets = vi.fn(async () => [
+    const listProviderPresets = mock(async () => [
       {
         providerId: "openai",
         name: "OpenAI",
@@ -19,16 +20,16 @@ describe("TuiRuntimeAdapter product access", () => {
         models: [{ modelId: "gpt-5.6", toolCall: true }],
       },
     ]);
-    const getCodexOAuthStatus = vi.fn(async () => ({
+    const getCodexOAuthStatus = mock(async () => ({
       state: "disconnected",
       providerId: "openai-codex",
     }));
-    const startCodexOAuthLogin = vi.fn(async () => ({
+    const startCodexOAuthLogin = mock(async () => ({
       state: "pending",
       providerId: "openai-codex",
       authUrl: "https://auth.example",
     }));
-    const cancelCodexOAuthLogin = vi.fn(async () => ({
+    const cancelCodexOAuthLogin = mock(async () => ({
       state: "disconnected",
       providerId: "openai-codex",
     }));
@@ -65,10 +66,10 @@ describe("TuiRuntimeAdapter product access", () => {
 
   it("uses the Runtime startup model projection without saving a global selection", async () => {
     const service = {
-      listModels: vi.fn(async () => [
+      listModels: mock(async () => [
         { providerId: "minimax", modelId: "MiniMax-M3", selected: true },
       ]),
-      selectModel: vi.fn(async () => true),
+      selectModel: mock(async () => true),
     };
     const adapter = new TuiRuntimeAdapter(service as never);
     await expect(adapter.listModels()).resolves.toEqual([
@@ -83,9 +84,9 @@ describe("TuiRuntimeAdapter product access", () => {
       modelId: "work-model",
       selected: false,
     };
-    const selectModel = vi.fn(async () => true);
+    const selectModel = mock(async () => true);
     const adapter = new TuiRuntimeAdapter({
-      listModels: vi.fn(async () => [work]),
+      listModels: mock(async () => [work]),
       selectModel,
     } as never);
     await expect(adapter.listModels()).resolves.toEqual([work]);
@@ -100,7 +101,7 @@ describe("TuiRuntimeAdapter product access", () => {
       const legacy = { providerId, modelId: "MiniMax-M3" };
       const official = { providerId: "minimax", modelId: "MiniMax-M3" };
       const service = {
-        listModels: vi.fn(async () => [
+        listModels: mock(async () => [
           { ...official, selected: true },
           {
             providerId: "custom_provider:work",
@@ -108,9 +109,9 @@ describe("TuiRuntimeAdapter product access", () => {
             selected: false,
           },
         ]),
-        getSession: vi.fn(async () => ({ session: { model: legacy } })),
-        getMessages: vi.fn(async () => ({ messages: [] })),
-        selectModel: vi.fn(async () => true),
+        getSession: mock(async () => ({ session: { model: legacy } })),
+        getMessages: mock(async () => ({ messages: [] })),
+        selectModel: mock(async () => true),
       };
       const adapter = new TuiRuntimeAdapter(service as never);
       const models = await adapter.listModels("session-1");
@@ -131,7 +132,7 @@ describe("TuiRuntimeAdapter product access", () => {
     },
   );
   it("forwards tested provider candidates through the process-local Runtime", async () => {
-    const saveUserModelProviderCandidate = vi.fn(async () => ({
+    const saveUserModelProviderCandidate = mock(async () => ({
       success: true,
       provider: { providerId: "custom_provider:deepseek" },
     }));
@@ -164,7 +165,7 @@ describe("TuiRuntimeAdapter product access", () => {
   });
 
   it("projects the process-local model catalog with the same thinking shape as Desktop", async () => {
-    const listModels = vi.fn(async () => [
+    const listModels = mock(async () => [
       {
         providerId: "custom_provider:openai",
         modelId: "gpt-5.6",
@@ -172,7 +173,7 @@ describe("TuiRuntimeAdapter product access", () => {
         effortOptions: ["low", "high", "max"],
       },
     ]);
-    const getSession = vi.fn(async () => ({ session: { id: "session-1" } }));
+    const getSession = mock(async () => ({ session: { id: "session-1" } }));
     const adapter = new TuiRuntimeAdapter({ listModels, getSession } as never);
 
     await expect(adapter.listModels("session-1")).resolves.toEqual([
@@ -254,7 +255,7 @@ describe("TuiRuntimeAdapter product access", () => {
 
   it("derives decision-blocked active state from generated interaction contracts", async () => {
     const cliService = cliServiceFixture();
-    vi.mocked(cliService.listPendingPermissions).mockResolvedValueOnce({
+    mocked(cliService.listPendingPermissions).mockResolvedValueOnce({
       requests: [
         {
           requestId: "permission-1",
@@ -278,7 +279,7 @@ describe("TuiRuntimeAdapter product access", () => {
 
   it("does not advertise steer for a Turn owned by another Runtime", async () => {
     const cliService = cliServiceFixture();
-    vi.mocked(cliService.getActiveTurn).mockResolvedValueOnce({
+    mocked(cliService.getActiveTurn).mockResolvedValueOnce({
       turnId: "turn-foreign",
       busyReason: "turn",
       locallyOwned: false,
@@ -327,7 +328,7 @@ describe("TuiRuntimeAdapter product access", () => {
   });
 
   it("projects only verified identity fields during lightweight account hydration", async () => {
-    const tokenPlanAccountStatusGetter = vi.fn(async () => ({
+    const tokenPlanAccountStatusGetter = mock(async () => ({
       quotaState: "available" as const,
       quota: {
         fiveHour: { remainingPercent: 90, unlimited: false },
@@ -364,7 +365,7 @@ describe("TuiRuntimeAdapter product access", () => {
       tokenPlanQuota: { fiveHour: { remainingPercent: 90 } },
     });
     expect(tokenPlanAccountStatusGetter).toHaveBeenCalledOnce();
-    vi.mocked(service.getAccountStatus).mockResolvedValueOnce({
+    mocked(service.getAccountStatus).mockResolvedValueOnce({
       auth: { tokenPresent: false },
     });
     expect(
@@ -375,14 +376,14 @@ describe("TuiRuntimeAdapter product access", () => {
 
   it("keeps BYOK usable while account-only actions surface unavailable OAuth", async () => {
     const cliService = cliServiceFixture();
-    vi.mocked(cliService.getAccountStatus).mockResolvedValue({
+    mocked(cliService.getAccountStatus).mockResolvedValue({
       selection: { defaultModel: "custom/model" },
       provider: { id: "custom_provider:example", authMode: "api-key" },
       auth: { tokenPresent: false },
       warnings: [],
     });
     const failure = new TypeError("fetch failed");
-    const synchronizeAuth = vi.fn(async () => {
+    const synchronizeAuth = mock(async () => {
       throw failure;
     });
     const adapter = new TuiRuntimeAdapter(cliService, { synchronizeAuth });
@@ -396,14 +397,14 @@ describe("TuiRuntimeAdapter product access", () => {
 
   it("keeps BYOK usable while account-only actions surface unavailable OAuth", async () => {
     const cliService = cliServiceFixture();
-    vi.mocked(cliService.getAccountStatus).mockResolvedValue({
+    mocked(cliService.getAccountStatus).mockResolvedValue({
       selection: { defaultModel: "custom/model" },
       provider: { id: "custom_provider:example", authMode: "api-key" },
       auth: { tokenPresent: false },
       warnings: [],
     });
     const failure = new TypeError("fetch failed");
-    const synchronizeAuth = vi.fn(async () => {
+    const synchronizeAuth = mock(async () => {
       throw failure;
     });
     const adapter = new TuiRuntimeAdapter(cliService, { synchronizeAuth });
@@ -417,13 +418,13 @@ describe("TuiRuntimeAdapter product access", () => {
 
   it("hydrates explicit Token Plan usage for a BYOK account", async () => {
     const cliService = cliServiceFixture();
-    vi.mocked(cliService.getAccountStatus).mockResolvedValueOnce({
+    mocked(cliService.getAccountStatus).mockResolvedValueOnce({
       selection: { defaultModel: "custom/gpt-5.6" },
       provider: { id: "custom_provider:openai", authMode: "api-key" },
       auth: { tokenPresent: false },
       warnings: [],
     });
-    const tokenPlanAccountStatusGetter = vi.fn(async () => ({
+    const tokenPlanAccountStatusGetter = mock(async () => ({
       summary: { tier: "Pro Plan" },
       quotaState: "available" as const,
       quota: {
@@ -453,7 +454,7 @@ describe("TuiRuntimeAdapter product access", () => {
   });
 
   it("forwards an explicit account refresh to Token Plan hydration", async () => {
-    const tokenPlanAccountStatusGetter = vi.fn(async () => ({
+    const tokenPlanAccountStatusGetter = mock(async () => ({
       quotaState: "available" as const,
       quota: {
         fiveHour: { remainingPercent: 90, unlimited: false },
@@ -502,7 +503,7 @@ describe("TuiRuntimeAdapter product access", () => {
       sessionId: "session-1",
     });
 
-    vi.mocked(cliService.selectModel).mockClear();
+    mocked(cliService.selectModel).mockClear();
     await expect(adapter.selectModel(selection)).resolves.toBe(true);
     expect(cliService.selectModel).toHaveBeenCalledOnce();
     expect(cliService.selectModel).toHaveBeenCalledWith(defaultSelection);
@@ -531,7 +532,7 @@ describe("TuiRuntimeAdapter product access", () => {
 
   it("does not change the active Session when saving the TUI default is rejected", async () => {
     const cliService = cliServiceFixture();
-    vi.mocked(cliService.selectModel).mockResolvedValueOnce(false);
+    mocked(cliService.selectModel).mockResolvedValueOnce(false);
     const adapter = new TuiRuntimeAdapter(cliService);
     const selection = {
       providerId: "minimax",
@@ -567,7 +568,7 @@ describe("TuiRuntimeAdapter product access", () => {
 
   it("registers installed Plugin Skills from the unified Runtime roster as slash commands", async () => {
     const cliService = cliServiceFixture();
-    vi.mocked(cliService.listRuntimeSkills).mockImplementationOnce(
+    mocked(cliService.listRuntimeSkills).mockImplementationOnce(
       async (input) => {
         const skills = [{ name: "review", enabled: true }];
         if (input.includePluginSkills === true) {
@@ -596,19 +597,19 @@ describe("TuiRuntimeAdapter product access", () => {
 
 function cliServiceFixture(): CliService {
   return {
-    watchSessionUsageCommits: vi.fn(async function* watchSessionUsageCommits() {
+    watchSessionUsageCommits: mock(async function* watchSessionUsageCommits() {
       yield "session-1";
     }),
-    getSessionUsageSummary: vi.fn(async () => ({
+    getSessionUsageSummary: mock(async () => ({
       inputTokens: 10,
       cacheReadTokens: 80,
       cacheWriteTokens: 10,
     })),
-    getSessionUsage: vi.fn(async () => ({
+    getSessionUsage: mock(async () => ({
       summary: { inputTokens: 10, outputTokens: 5, totalTokens: 15, turns: 1 },
       rows: [{ model: "minimax/MiniMax-M3" }],
     })),
-    getMessages: vi.fn(async () => ({
+    getMessages: mock(async () => ({
       messages: [
         {
           msgId: "assistant-1",
@@ -626,7 +627,7 @@ function cliServiceFixture(): CliService {
         },
       ],
     })),
-    requestCompaction: vi.fn(async () => ({
+    requestCompaction: mock(async () => ({
       success: true,
       sessionId: "session-1",
       compactionId: "compaction-1",
@@ -635,7 +636,7 @@ function cliServiceFixture(): CliService {
       tokensBefore: 100,
       tokensAfter: 40,
     })),
-    getSession: vi.fn(async () => ({
+    getSession: mock(async () => ({
       session: {
         sessionId: "session-1",
         agentName: "mavis",
@@ -647,7 +648,7 @@ function cliServiceFixture(): CliService {
         },
       },
     })),
-    listModels: vi.fn(async () => [
+    listModels: mock(async () => [
       {
         providerId: "minimax",
         modelId: "MiniMax-M3",
@@ -655,41 +656,41 @@ function cliServiceFixture(): CliService {
         contextLimit: 400_000,
       },
     ]),
-    getActiveTurn: vi.fn(async () => ({
+    getActiveTurn: mock(async () => ({
       turnId: "turn-1",
       busyReason: "turn" as const,
       locallyOwned: true,
     })),
-    listPendingPermissions: vi.fn(async () => ({ requests: [] })),
-    getPendingQuestionnaire: vi.fn(async () => ({})),
-    getAccountStatus: vi.fn(async () => ({
+    listPendingPermissions: mock(async () => ({ requests: [] })),
+    getPendingQuestionnaire: mock(async () => ({})),
+    getAccountStatus: mock(async () => ({
       selection: { defaultModel: "minimax/MiniMax-M3" },
       provider: { id: "minimax", authMode: "managed-login" },
       auth: { tokenPresent: true },
       warnings: [],
     })),
-    getRuntimeDiagnostics: vi.fn(async () => ({ status: "ok" })),
-    getInstructionSources: vi.fn(async ({ workspaceDir }) => [
+    getRuntimeDiagnostics: mock(async () => ({ status: "ok" })),
+    getInstructionSources: mock(async ({ workspaceDir }) => [
       { scope: "project", path: `${workspaceDir}/AGENTS.md` },
     ]),
-    getPermissionMode: vi.fn(async () => "default"),
-    setPermissionMode: vi.fn(async ({ mode }) => mode),
-    selectModel: vi.fn(async () => true),
-    listRuntimeSkills: vi.fn(async () => ({
+    getPermissionMode: mock(async () => "default"),
+    setPermissionMode: mock(async ({ mode }) => mode),
+    selectModel: mock(async () => true),
+    listRuntimeSkills: mock(async () => ({
       skills: [{ name: "review", enabled: true }],
       refreshedAt: 123,
     })),
-    listMcpServers: vi.fn(async () => ({
+    listMcpServers: mock(async () => ({
       servers: [{ name: "browser", enabled: true, transport: "stdio" }],
     })),
   } as unknown as CliService;
 }
 
 it("forwards saved-credential discovery and revision-checked model-only updates", async () => {
-  const discoverUserModelsCandidate = vi.fn(async () => [
+  const discoverUserModelsCandidate = mock(async () => [
     { modelId: "latest" },
   ]);
-  const saveUserModelProviderCandidate = vi.fn(async () => ({ success: true }));
+  const saveUserModelProviderCandidate = mock(async () => ({ success: true }));
   const adapter = new TuiRuntimeAdapter({
     discoverUserModelsCandidate,
     saveUserModelProviderCandidate,

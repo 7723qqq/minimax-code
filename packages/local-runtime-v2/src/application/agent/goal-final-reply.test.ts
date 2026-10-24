@@ -1,5 +1,5 @@
 import { GOAL_COMPLETION_TOOL_REFUSAL, GOAL_FINAL_REPLY_RETRY_PROMPT } from '@mavis/goal';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import {
   combineLocalTurnToolPolicyGuards,

@@ -16,6 +16,9 @@ import {
   formatTelegramStepPrompt,
 } from './telegram-questionnaire.js';
 import type { TelegramSender } from './telegram-sender.js';
+import { telegramText } from './telegram-copy.js';
+import { translateRuntimeText } from '@mavis/shared/i18n';
+import { resolveLocalRuntimeLocale } from '../../../runtime/locale.js';
 import { imLogger as logger } from '../../../common/im-logger.js';
 
 type TelegramQuestionnaireSender = { sender: TelegramSender; chatId: string } | null;
@@ -90,38 +93,43 @@ export class TelegramQuestionnaireRuntime {
     const sender = await this.resolveSender(input.ctx);
     const pending = this.pendingByChat.get(input.ctx.chatId);
     if (!pending) {
-      await answerQuestionnaireCallback(sender, callbackQueryId, '这个问卷已提交或过期');
+      await answerQuestionnaireCallback(sender, callbackQueryId, telegramText('questionnaire.submittedOrExpired'));
       return { handled: true };
     }
     if (decoded.rid6 !== pending.rid6) {
-      await answerQuestionnaireCallback(sender, callbackQueryId, '这个问卷已过期');
+      await answerQuestionnaireCallback(sender, callbackQueryId, telegramText('questionnaire.expired'));
       return { handled: true };
     }
     if (pending.inFlight) {
-      await answerQuestionnaireCallback(sender, callbackQueryId, '正在提交，请稍候');
+      await answerQuestionnaireCallback(sender, callbackQueryId, telegramText('questionnaire.submitting'));
       return { handled: true };
     }
     if (decoded.stepIndex !== pending.currentStepIndex) {
-      await answerQuestionnaireCallback(sender, callbackQueryId, '请按当前题目作答');
+      await answerQuestionnaireCallback(sender, callbackQueryId, telegramText('questionnaire.answerCurrent'));
       return { handled: true };
     }
 
     const step = pending.request.steps[decoded.stepIndex];
     if (!step) {
-      await answerQuestionnaireCallback(sender, callbackQueryId, '这个选项不可用');
+      await answerQuestionnaireCallback(sender, callbackQueryId, telegramText('questionnaire.optionUnavailable'));
       return { handled: true };
     }
     if (decoded.optionIndex === null) {
       await answerQuestionnaireCallback(
         sender,
         callbackQueryId,
-        'Telegram 暂不支持 Others，请选择上方选项',
+        telegramText('questionnaire.othersUnsupported', {
+          others: translateRuntimeText(
+            resolveLocalRuntimeLocale(),
+            'questionnaire.others',
+          ),
+        }),
       );
       return { handled: true };
     }
     const option = step.options[decoded.optionIndex];
     if (!option) {
-      await answerQuestionnaireCallback(sender, callbackQueryId, '这个选项不可用');
+      await answerQuestionnaireCallback(sender, callbackQueryId, telegramText('questionnaire.optionUnavailable'));
       return { handled: true };
     }
 
@@ -136,7 +144,7 @@ export class TelegramQuestionnaireRuntime {
       // final callbacks cannot both produce a host reply.
       pending.inFlight = true;
     }
-    await answerQuestionnaireCallback(sender, callbackQueryId, `✓ 已选 ${option.label}`);
+    await answerQuestionnaireCallback(sender, callbackQueryId, telegramText('questionnaire.selected', { label: option.label }));
 
     if (nextStepIndex !== null) {
       pending.currentStepIndex = nextStepIndex;
@@ -199,7 +207,7 @@ export class TelegramQuestionnaireRuntime {
       await editQuestionnaireMessage(
         sender,
         pending,
-        submitted ? formatTelegramSubmittedText(pending) : '问卷已过期',
+        submitted ? formatTelegramSubmittedText(pending) : telegramText('questionnaire.expiredBody'),
         { inline_keyboard: [] },
       );
     } catch (err) {
@@ -265,10 +273,10 @@ function orderedAnswers(pending: TelegramQuestionnairePending): AskQuestionnaire
 }
 
 function formatTelegramSubmittedText(pending: TelegramQuestionnairePending): string {
-  const lines: string[] = ['✅ 已提交'];
+  const lines: string[] = [telegramText('questionnaire.submittedTitle')];
   if (pending.request.title) {
     lines.push('');
-    lines.push(`问卷：${pending.request.title}`);
+    lines.push(telegramText('questionnaire.titleLine', { title: pending.request.title }));
   }
   for (const [index, step] of pending.request.steps.entries()) {
     const answer = pending.answers.get(step.id);
@@ -277,7 +285,11 @@ function formatTelegramSubmittedText(pending: TelegramQuestionnairePending): str
       .filter((label): label is string => Boolean(label));
     lines.push('');
     lines.push(`${index + 1}. ${step.question}`);
-    lines.push(`已选：${labels.join(', ') || '—'}`);
+    lines.push(
+      telegramText('questionnaire.selectionLine', {
+        labels: labels.join(', ') || telegramText('questionnaire.noSelection'),
+      }),
+    );
   }
   return lines.join('\n').trim();
 }

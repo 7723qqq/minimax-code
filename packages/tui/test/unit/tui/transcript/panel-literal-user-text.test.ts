@@ -1,5 +1,5 @@
+import { describe, expect, it, mock } from 'bun:test';
 import { stripVTControlCharacters } from 'node:util';
-import { describe, expect, it, vi } from 'vitest';
 
 import { TuiTranscriptPanel } from '../../../../src/tui/features/transcript/panel.js';
 import { createTranscriptCell } from '../../../../src/tui/transcript/model.js';
@@ -23,8 +23,8 @@ describe('TuiTranscriptPanel expanded user text', () => {
     ]);
     const panel = new TuiTranscriptPanel({
       source: store,
-      onCancel: vi.fn(),
-      requestRender: vi.fn(),
+      onCancel: mock(),
+      requestRender: mock(),
     });
 
     panel.handleInput('\r');

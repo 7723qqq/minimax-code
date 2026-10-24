@@ -1,3 +1,4 @@
+import { afterEach, describe, expect, it, mock } from 'bun:test';
 import { execFileSync } from 'node:child_process';
 import { chmod, copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -9,7 +10,6 @@ import type {
   McodeToolsHostAuthSession,
   ValidatedMcodeToolsResource,
 } from '@mavis/mcode-tools-host';
-import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   activateTuiMcodeToolsHostEnvironment,
@@ -44,8 +44,8 @@ describe('TUI mcode-tools integration readiness', () => {
   );
 
   it('does no resource or broker work when the capability is not requested', async () => {
-    const validateResource = vi.fn();
-    const startBroker = vi.fn();
+    const validateResource = mock();
+    const startBroker = mock();
     const result = await prepareTuiMcodeToolsIntegration(
       {
         requested: false,
@@ -70,10 +70,10 @@ describe('TUI mcode-tools integration readiness', () => {
       PATH: ['/usr/bin', '/bin'].join(path.delimiter),
     };
     const auth = createSession({ status: 'anonymous', generation: 1 });
-    const brokerDispose = vi.fn(async () => undefined);
-    const removeRuntimeDir = vi.fn(async () => undefined);
-    const validateResource = vi.fn(() => validatedResource('/package/embedded/mcode-tools'));
-    const startBroker = vi.fn(async () => ({
+    const brokerDispose = mock(async () => undefined);
+    const removeRuntimeDir = mock(async () => undefined);
+    const validateResource = mock(() => validatedResource('/package/embedded/mcode-tools'));
+    const startBroker = mock(async () => ({
       endpoint: path.join(runtimeDir, 'broker.sock'),
       capabilityFile: path.join(runtimeDir, 'broker.cap'),
       dispose: brokerDispose,
@@ -93,7 +93,7 @@ describe('TUI mcode-tools integration readiness', () => {
       {
         validateResource,
         startBroker,
-        createRuntimeDir: vi.fn(async () => runtimeDir),
+        createRuntimeDir: mock(async () => runtimeDir),
         removeRuntimeDir,
       },
     );
@@ -151,9 +151,9 @@ describe('TUI mcode-tools integration readiness', () => {
     const sharedDataDir = await makeTemporaryDirectory();
     const firstEnvironment: Record<string, string | undefined> = { PATH: '/usr/bin' };
     const secondEnvironment: Record<string, string | undefined> = { PATH: '/usr/bin' };
-    const brokerDisposals: ReturnType<typeof vi.fn>[] = [];
-    const startBroker = vi.fn(async ({ dataDir }: { dataDir: string }) => {
-      const dispose = vi.fn(async () => undefined);
+    const brokerDisposals: ReturnType<typeof mock>[] = [];
+    const startBroker = mock(async ({ dataDir }: { dataDir: string }) => {
+      const dispose = mock(async () => undefined);
       brokerDisposals.push(dispose);
       return {
         endpoint: path.join(dataDir, 'broker.sock'),
@@ -162,7 +162,7 @@ describe('TUI mcode-tools integration readiness', () => {
       };
     });
     const dependencies = {
-      validateResource: vi.fn(() => validatedResource('/package/embedded/mcode-tools')),
+      validateResource: mock(() => validatedResource('/package/embedded/mcode-tools')),
       startBroker,
     };
     const options = {
@@ -391,17 +391,17 @@ function createSession(initialStatus: McodeToolsAuthStatusSnapshot): {
   session: McodeToolsHostAuthSession;
   status: McodeToolsAuthStatusSnapshot;
   emit(status: McodeToolsAuthStatusSnapshot): void;
-  stopWatching: ReturnType<typeof vi.fn>;
+  stopWatching: ReturnType<typeof mock>;
 } {
   let listener: ((status: McodeToolsAuthStatusSnapshot) => void) | undefined;
-  const stopWatching = vi.fn();
+  const stopWatching = mock();
   const state = {
     status: initialStatus,
     session: {
-      getStatus: vi.fn(async () => state.status),
-      getAccessToken: vi.fn(),
-      handleUnauthorized: vi.fn(),
-      watch: vi.fn((nextListener: (status: McodeToolsAuthStatusSnapshot) => void) => {
+      getStatus: mock(async () => state.status),
+      getAccessToken: mock(),
+      handleUnauthorized: mock(),
+      watch: mock((nextListener: (status: McodeToolsAuthStatusSnapshot) => void) => {
         listener = nextListener;
         return stopWatching;
       }),

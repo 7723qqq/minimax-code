@@ -1,3 +1,4 @@
+import { afterEach, describe, expect, it, jest, spyOn } from 'bun:test';
 import {
   mkdtemp,
   mkdir,
@@ -10,8 +11,6 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-
-import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   configureLocalRuntimeLogging,
@@ -41,7 +40,7 @@ const DATA_DIR_SOURCE_ENV = "__MAVIS_RUNTIME_DATA_DIR_SOURCE";
 const ORIGINAL_DATA_DIR_SOURCE = process.env[DATA_DIR_SOURCE_ENV];
 
 afterEach(async () => {
-  vi.restoreAllMocks();
+  jest.restoreAllMocks();
   for (const dispose of cleanup.splice(0).reverse()) await dispose();
   if (ORIGINAL_DATA_DIR_SOURCE === undefined)
     delete process.env[DATA_DIR_SOURCE_ENV];
@@ -910,7 +909,7 @@ describe("canonical Agent directory safety", () => {
       () => rm(parentDir, { recursive: true, force: true }),
     );
     const markdown = "---\nname: researcher\ndescription: desc\n---\nPrompt\n";
-    const warnSpy = vi.spyOn(logger, "warn");
+    const warnSpy = spyOn(logger, "warn");
 
     const minimaxRoot = join(parentDir, ".minimax-profile");
     const mavisRoot = join(parentDir, ".mavis-profile");
@@ -1111,7 +1110,7 @@ describe("canonical Agent directory safety", () => {
       "---\nname: researcher\ndescription: desc\n---\nPrompt\n",
     );
     await symlink(targetDir, join(dataDir, "agents"));
-    const warnSpy = vi.spyOn(logger, "warn");
+    const warnSpy = spyOn(logger, "warn");
     const input = {
       agentDir: join(dataDir, "agents", "researcher"),
       routeName: "researcher",
@@ -1217,7 +1216,7 @@ describe("canonical Agent directory safety", () => {
       () => rm(nonDirectoryRoot, { recursive: true, force: true }),
       () => rm(dataDir, { recursive: true, force: true }),
     );
-    const warnSpy = vi.spyOn(logger, "warn");
+    const warnSpy = spyOn(logger, "warn");
 
     await mkdir(join(dataDir, "agents"), { recursive: true });
     const missingTarget = join(dataDir, "missing-target");

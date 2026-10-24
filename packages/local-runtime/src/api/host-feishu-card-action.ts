@@ -3,6 +3,7 @@ import type { AskQuestionnaireReplyPayload } from '@mavis/shared/questionnaire';
 import { json } from './host-helpers.js';
 import { feishuClientId } from '../channels/feishu.js';
 import type { FeishuPlatformAdapter } from '../channels/adapters/feishu/feishu-adapter.js';
+import { feishuText } from '../channels/adapters/feishu/feishu-copy.js';
 import {
   buildQuestionnaireSubmittedCard,
   buildQuestionnaireExpiredCard,
@@ -213,7 +214,7 @@ async function handlePermissionAction(input: {
   return json({
     ok: true,
     requestId,
-    toast: { type: behavior === 'deny' ? 'info' : 'success', content: '已处理' },
+    toast: { type: behavior === 'deny' ? 'info' : 'success', content: feishuText('toast.handled') },
     card: { type: 'raw', data: resolvedCard },
   });
 }
@@ -294,7 +295,7 @@ async function handleFormSubmit(input: {
       ok: false,
       requestId,
       error: err instanceof Error ? err.message : String(err),
-      toast: { type: 'error', content: '提交失败，请稍后再试' },
+      toast: { type: 'error', content: feishuText('toast.submitFailed') },
     });
   }
   const agentName = pending.request.requester?.agentName ?? input.agentName;
@@ -321,7 +322,7 @@ async function handleFormSubmit(input: {
         ok: false,
         requestId,
         error: outcome.code ?? 'QUESTIONNAIRE_REPLY_RETRYABLE',
-        toast: { type: 'error', content: '提交失败，请稍后再试' },
+        toast: { type: 'error', content: feishuText('toast.submitFailed') },
       });
     }
     // Accepted and terminal outcomes consume the pending entry before the
@@ -342,7 +343,9 @@ async function handleFormSubmit(input: {
       ...(terminal ? { terminal: true, error: terminalCode ?? 'QUESTIONNAIRE_TERMINAL' } : {}),
       toast: {
         type: terminal ? 'info' : 'success',
-        content: terminal ? '该问卷已处理或已过期' : '已提交',
+        content: feishuText(
+          terminal ? 'toast.questionnaireTerminal' : 'toast.questionnaireSubmitted',
+        ),
       },
       card: { type: 'raw', data: terminalCard },
     });
@@ -356,7 +359,7 @@ async function handleFormSubmit(input: {
       ok: false,
       requestId,
       error: err instanceof Error ? err.message : String(err),
-      toast: { type: 'error', content: '提交失败，请稍后再试' },
+      toast: { type: 'error', content: feishuText('toast.submitFailed') },
     });
   }
 }

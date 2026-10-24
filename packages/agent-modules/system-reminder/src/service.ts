@@ -9,7 +9,6 @@
  * registry resolves which providers to run based on the session's framework.
  */
 
-import { performance } from 'node:perf_hooks';
 import type { SystemReminderRegistry } from './registry.js';
 import type { MemoryDirSnapshot, SessionInfo, MessageRequest } from './types.js';
 import type {

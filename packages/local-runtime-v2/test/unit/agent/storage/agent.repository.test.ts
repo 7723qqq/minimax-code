@@ -17,7 +17,7 @@ import {
   type CreatedLocalRuntimeHost,
 } from "@mavis/local-runtime";
 import { DeferredRuntimeConversation } from "@mavis/conversation-contract";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterAll, afterEach, describe, expect, it, mock, spyOn } from "bun:test";
 import { formatDefaultAgentAvatarMarker } from "@mavis/shared/agent-avatar";
 import { serializeAgentReference } from "@mavis/shared/agent-mention";
 
@@ -40,7 +40,20 @@ import { encryptIdentityField } from "../../../../src/service/agent/storage/iden
 import { projectLocalAgentReferencesForModel } from "../../../../src/service/turn-system/agent-host/preparation/agent-prompt-surface.js";
 import type { AgentSystemFactCallbacks } from "../../../../src/service/agent/contracts.js";
 
-vi.mock("../../../../src/compat/v1/cron.js", () => ({
+// `bun test` runs every file of a suite in one process, and `mock.module()`
+// replaces the module for that whole process. Snapshot the real modules before
+// replacing them and put them back in `afterAll`, so a replacement never leaks
+// into the files that run after this one.
+const actualV1Cron = { ...(await import("../../../../src/compat/v1/cron.js")) };
+const actualV1AgentHost = {
+  ...(await import("../../../../src/compat/v1/agent-host.js")),
+};
+const actualV1Session = {
+  ...(await import("../../../../src/compat/v1/session.js")),
+};
+
+mock.module("../../../../src/compat/v1/cron.js", () => ({
+  ...actualV1Cron,
   createV1MavisCronAdapterBridge: () => ({
     adapter: {},
     bindHandleRequest: () => undefined,
@@ -51,15 +64,23 @@ vi.mock("../../../../src/compat/v1/cron.js", () => ({
   }),
 }));
 
-vi.mock("../../../../src/compat/v1/agent-host.js", () => ({
+mock.module("../../../../src/compat/v1/agent-host.js", () => ({
+  ...actualV1AgentHost,
   createV1AttachmentRegistration: () => ({}),
   createV1AgentHostProductCapabilities: () => ({}),
   createV1ChannelProductCapabilities: () => ({}),
 }));
 
-vi.mock("../../../../src/compat/v1/session.js", () => ({
+mock.module("../../../../src/compat/v1/session.js", () => ({
+  ...actualV1Session,
   createV1SessionCompatibility: () => ({}),
 }));
+
+afterAll(() => {
+  mock.module("../../../../src/compat/v1/cron.js", () => actualV1Cron);
+  mock.module("../../../../src/compat/v1/agent-host.js", () => actualV1AgentHost);
+  mock.module("../../../../src/compat/v1/session.js", () => actualV1Session);
+});
 
 const cleanup: Array<() => Promise<void> | void> = [];
 const PNG_BYTES = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
@@ -103,10 +124,10 @@ function createAgentReferenceCompatibility(agentResolver: LocalAgentService) {
           nowMs: Date.now,
           primaryAgentName: "mavis",
           configGetter: () => ({}),
-          getSessionById: vi.fn(),
-          startUserMessageTurn: vi.fn(),
-          emitBusEvent: vi.fn(),
-          publishGlobalEvent: vi.fn(),
+          getSessionById: mock(),
+          startUserMessageTurn: mock(),
+          emitBusEvent: mock(),
+          publishGlobalEvent: mock(),
         }),
         threadGoal: {},
         isReadOnlyLegacySession: async () => false,
@@ -220,17 +241,17 @@ describe("Frozen Session deletion continuity", () => {
       agentBindings: sessions,
       metadata: {} as never,
       agents: {
-        getDefaults: vi.fn(async () => {
+        getDefaults: mock(async () => {
           throw new Error("live defaults must not be read");
         }),
       },
-      runLocation: { resolve: vi.fn(async () => undefined) },
-      titlePolicy: { blocks: vi.fn(async () => false) },
-      facts: { handle: vi.fn() },
+      runLocation: { resolve: mock(async () => undefined) },
+      titlePolicy: { blocks: mock(async () => false) },
+      facts: { handle: mock() },
     });
     const source = createV2AgentExecutionSource(
       agentService,
-      { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      { info: mock(), warn: mock(), error: mock() },
       records,
     );
     const profileSource = createV2AgentProfileSource(
@@ -494,7 +515,7 @@ function registerImportedDefinitionRecoveryTests(): void {
     const application = new AgentApplication({
       service,
       root: {
-        getRootSessionByAgent: vi.fn(async () => {
+        getRootSessionByAgent: mock(async () => {
           throw new Error("Import definitions must not create a Root Session.");
         }),
       },
@@ -504,7 +525,7 @@ function registerImportedDefinitionRecoveryTests(): void {
     const preview = new AgentImportService().preview("claude-code", content);
     const originalPut = service.putConfigDocument.bind(service);
     let createdOwnerInstanceId: string | undefined;
-    vi.spyOn(service, "putConfigDocument").mockImplementationOnce(
+    spyOn(service, "putConfigDocument").mockImplementationOnce(
       async (input) => {
         createdOwnerInstanceId = input.expectedOwnerInstanceId;
         await service.delete("agent:imported-writer");
@@ -543,12 +564,12 @@ function registerImportedDefinitionRecoveryTests(): void {
     const service = createTestAgentService({ repository, nowMs: () => 10 });
     const application = new AgentApplication({
       service,
-      root: { getRootSessionByAgent: vi.fn() },
+      root: { getRootSessionByAgent: mock() },
     });
     const content =
       "---\nname: imported-reader\ndescription: Imported\n---\nRead clearly.\n";
     const preview = new AgentImportService().preview("claude-code", content);
-    vi.spyOn(service, "getConfigDocument").mockRejectedValueOnce(
+    spyOn(service, "getConfigDocument").mockRejectedValueOnce(
       new Error("Config read failed"),
     );
 
@@ -578,7 +599,7 @@ function registerImportedDefinitionRecoveryTests(): void {
     const service = createTestAgentService({ repository, nowMs: () => 10 });
     const application = new AgentApplication({
       service,
-      root: { getRootSessionByAgent: vi.fn() },
+      root: { getRootSessionByAgent: mock() },
     });
     await service.create({
       name: "existing-agent",
@@ -815,7 +836,7 @@ function registerConfigDocumentPublicationTests(): void {
   it("returns full Config documents and fences a stale Custom editor after same-name recreation", async () => {
     const { repository } = await createRepository();
     const service = createTestAgentService({ repository, nowMs: () => 10 });
-    const resolveEffective = vi.fn(
+    const resolveEffective = mock(
       async ({ profile, configuredModelSelection }) => {
         if (!configuredModelSelection.model) return undefined;
         expect(profile.configSelection).toMatchObject({
@@ -1119,7 +1140,7 @@ function registerBuiltinCanonicalPublicationTests(): void {
       contextWindow: 16_000,
       maxOutputTokens: 1_024,
     } as const;
-    const resolveModelGroup = vi.fn(async (input) => {
+    const resolveModelGroup = mock(async (input) => {
       if (input.previous?.model === "provider/model") {
         return {
           model: "minimax/MiniMax-M3",
@@ -1485,14 +1506,12 @@ describe("DrizzleAgentRepository Desktop Agent directory safety", () => {
 describe("DrizzleAgentRepository canonical publication and runtime-state repair", () => {
   it("keeps a published Custom file when SQLite state insertion fails, then retries state only", async () => {
     const { repository, database } = await createRepository();
-    const insertIndexRow = vi
-      .spyOn(
-        repository as unknown as { insertIndexRow(): void },
-        "insertIndexRow",
-      )
-      .mockImplementationOnce(() => {
-        throw new Error("SQLite temporarily unavailable");
-      });
+    const insertIndexRow = spyOn(
+      repository as unknown as { insertIndexRow(): void },
+      "insertIndexRow",
+    ).mockImplementationOnce(() => {
+      throw new Error("SQLite temporarily unavailable");
+    });
     const service = createTestAgentService({ repository, nowMs: () => 10 });
 
     await expect(
@@ -1581,7 +1600,7 @@ function registerAtomicDefinitionPublicationTests(): void {
     const observed: Promise<
       Awaited<ReturnType<typeof service.getConfigDocument>>
     >[] = [];
-    const published = vi.fn(
+    const published = mock(
       (event: { readonly type: string; readonly payload: unknown }) => {
         if (event.type === "agent.created") {
           observed.push(
@@ -1594,7 +1613,7 @@ function registerAtomicDefinitionPublicationTests(): void {
     );
     const application = new AgentApplication({
       service,
-      root: { getRootSessionByAgent: vi.fn() },
+      root: { getRootSessionByAgent: mock() },
       publish: published,
     });
     const description = "  Writes complete reviews  ";
@@ -1681,7 +1700,7 @@ function registerAtomicDefinitionCreationTests(): void {
     const observed: Promise<
       Awaited<ReturnType<typeof service.getConfigDocument>>
     >[] = [];
-    const published = vi.fn(
+    const published = mock(
       (event: { readonly type: string; readonly payload: unknown }) => {
         if (event.type === "agent.created") {
           observed.push(
@@ -1694,7 +1713,7 @@ function registerAtomicDefinitionCreationTests(): void {
     );
     const application = new AgentApplication({
       service,
-      root: { getRootSessionByAgent: vi.fn() },
+      root: { getRootSessionByAgent: mock() },
       publish: published,
     });
     const systemPrompt = "第一行。\n\n保留换行。\n";
@@ -1754,7 +1773,7 @@ function registerAtomicDefinitionCreationTests(): void {
     const service = createTestAgentService({ repository, nowMs: () => 10 });
     const application = new AgentApplication({
       service,
-      root: { getRootSessionByAgent: vi.fn() },
+      root: { getRootSessionByAgent: mock() },
     });
     const input = {
       name: "desktop-writer",
@@ -1826,19 +1845,17 @@ function registerAtomicDefinitionFailureTests(): void {
 
   it("removes every visible create artifact and suppresses agent.created on initial persistence failure", async () => {
     const { repository, database } = await createRepository();
-    const insertIndexRow = vi
-      .spyOn(
-        repository as unknown as { insertIndexRow(): void },
-        "insertIndexRow",
-      )
-      .mockImplementationOnce(() => {
-        throw new Error("SQLite temporarily unavailable");
-      });
+    const insertIndexRow = spyOn(
+      repository as unknown as { insertIndexRow(): void },
+      "insertIndexRow",
+    ).mockImplementationOnce(() => {
+      throw new Error("SQLite temporarily unavailable");
+    });
     const service = createTestAgentService({ repository, nowMs: () => 10 });
-    const published = vi.fn();
+    const published = mock();
     const application = new AgentApplication({
       service,
-      root: { getRootSessionByAgent: vi.fn() },
+      root: { getRootSessionByAgent: mock() },
       publish: published,
     });
     const name = "atomic-failure";
@@ -1884,7 +1901,7 @@ function registerAtomicDefinitionFailureTests(): void {
     const { repository, database } = await createRepository();
     const service = createTestAgentService({ repository, nowMs: () => 10 });
     const name = "invalid-initial";
-    const preparedAvatar = vi.spyOn(
+    const preparedAvatar = spyOn(
       AgentFiles.prototype,
       "prepareCustomCreateAvatar",
     );
@@ -2062,7 +2079,7 @@ describe("DrizzleAgentRepository legacy canonical materialization safety", () =>
 describe("DrizzleAgentRepository primary family provenance recovery", () => {
   it("avoids a write transaction when primary rows are absent or already normalized", async () => {
     const { repository, database } = await createRepository();
-    const transaction = vi.spyOn(database.db, "transaction");
+    const transaction = spyOn(database.db, "transaction");
 
     await expect(repository.normalizePrimaryFamilyRows()).resolves.toBe(0);
     expect(transaction).not.toHaveBeenCalled();
@@ -2489,7 +2506,7 @@ function registerCanonicalSourceCutoverTests(): void {
       const filePath = join(agentDir, "agent.md");
       await writeFile(filePath, `${header}  ${lineEnding}`, "utf8");
       await repository.completeLegacyCustomIdentityReconciliation();
-      const report = vi.fn();
+      const report = mock();
       const service = createTestAgentService({
         repository,
         reportLegacyCustomMaterialization: report,
@@ -3228,7 +3245,7 @@ describe("DrizzleAgentRepository.updateAssets", () => {
 
 describe("DrizzleAgentRepository role observation", () => {
   it("reports an unsupported stored role once per Agent and still returns the read", async () => {
-    const onAgentRoleObservation = vi.fn();
+    const onAgentRoleObservation = mock();
     const { repository, database } = await createRepository({
       onAgentRoleObservation,
     });
@@ -3253,7 +3270,7 @@ describe("DrizzleAgentRepository role observation", () => {
   });
 
   it("reports a missing stored role and falls back to worker", async () => {
-    const onAgentRoleObservation = vi.fn();
+    const onAgentRoleObservation = mock();
     const { repository, database } = await createRepository({
       onAgentRoleObservation,
     });
@@ -3271,7 +3288,7 @@ describe("DrizzleAgentRepository role observation", () => {
   });
 
   it("never lets an observation failure break the read", async () => {
-    const onAgentRoleObservation = vi.fn(() => {
+    const onAgentRoleObservation = mock(() => {
       throw new Error("telemetry sink is down");
     });
     const { repository, database } = await createRepository({
@@ -3289,7 +3306,7 @@ describe("DrizzleAgentRepository role observation", () => {
   });
 
   it("stays silent for canonical stored roles", async () => {
-    const onAgentRoleObservation = vi.fn();
+    const onAgentRoleObservation = mock();
     const { repository } = await createRepository({ onAgentRoleObservation });
     await seed(repository);
 

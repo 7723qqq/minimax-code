@@ -1,4 +1,5 @@
 import { MINIMAX_MODELS } from "./minimax-model-catalog.js";
+import { configText } from "./copy.js";
 import {
   resolveRunawayGuardConfig,
   type RunawayGuardSettings,
@@ -1445,12 +1446,24 @@ export function detectGitPortInfo(): GitPortInfo {
   return defaults;
 }
 
+/**
+ * Directory of this module.
+ *
+ * Bun exposes `import.meta.dir` directly, so an ESM build no longer has to
+ * recover its own location by parsing an `Error` stack. The stack walk stays as
+ * the fallback: the bundled output is ESM, but a CommonJS consumer of this
+ * package still takes the `__dirname` branch, and the stack path covers any
+ * runtime where neither exists.
+ */
 function currentModuleDir(): string | undefined {
   try {
     if (typeof __dirname === "string") return __dirname;
   } catch {
-    /* ESM has no __dirname */
+    /* CommonJS defines __dirname as a binding; ESM access throws */
   }
+
+  const moduleDir = (import.meta as ImportMeta & { dir?: unknown }).dir;
+  if (typeof moduleDir === "string" && moduleDir.length > 0) return moduleDir;
 
   const stack = new Error().stack ?? "";
   for (const line of stack.split("\n")) {
@@ -1580,7 +1593,7 @@ function shouldEnforceManagedProviderProtection(): boolean {
 }
 
 function syncManagedPresetBaseUrl(configPath: string): void {
-  if (!isManagedRuntime() || !fs.existsSync(configPath)) {
+  if (!isManagedRuntime() || !pathExists(configPath)) {
     return;
   }
 
@@ -1789,10 +1802,10 @@ const DEFAULTS: Omit<
 function ensureConfigFile(): void {
   const configPath = getConfigPath();
   const dir = path.dirname(configPath);
-  if (!fs.existsSync(dir)) {
+  if (!pathExists(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  if (fs.existsSync(configPath)) {
+  if (pathExists(configPath)) {
     prepareConfigFileForRead(configPath);
     return;
   }
@@ -1810,7 +1823,7 @@ function ensureConfigFile(): void {
   if (!isManagedRuntime()) {
     const defaultDataDir = resolveDataDir({ homeDir: os.homedir() });
     const defaultConfigPath = path.join(defaultDataDir, "config.yaml");
-    if (configPath !== defaultConfigPath && fs.existsSync(defaultConfigPath)) {
+    if (configPath !== defaultConfigPath && pathExists(defaultConfigPath)) {
       restrictConfigFileSync(defaultConfigPath);
       writePrivateConfigFileSync(configPath, fs.readFileSync(defaultConfigPath), true);
     }
@@ -2326,7 +2339,7 @@ function parseSkillEvolveConfig(
   const archiveThresholdDays = parsePositiveDays(lc.archiveThresholdDays, defaults.lifecycle.archiveThresholdDays); // prettier-ignore
   if (!(staleThresholdDays < archiveThresholdDays)) {
     throw new Error(
-      `Invalid skillEvolve.lifecycle config: staleThresholdDays (${staleThresholdDays}) must be strictly less than archiveThresholdDays (${archiveThresholdDays}).`,
+      configText('skillEvolve.lifecycle.invalid', { staleThresholdDays, archiveThresholdDays }),
     );
   }
 
@@ -2642,4 +2655,22 @@ export function getOpenCodePort(runtimePort = resolvePort()): number {
   throw new Error(
     `Cannot allocate an OpenCode sidecar port for runtime port ${String(runtimePort)}; choose a runtime port <= ${String(MAX_TCP_PORT - OPENCODE_FALLBACK_OFFSET)}.`,
   );
+}
+
+/**
+ * Whether `target` exists.
+ *
+ * A `statSync` inside a `try` answers the same question as `existsSync` for a
+ * file, a directory, a missing entry and an unreadable path, at a fraction of the
+ * per-call cost: `existsSync` is the Node compatibility surface and measures
+ * roughly an order of magnitude slower in this runtime. This module is
+ * synchronous, so `Bun.file()` does not apply.
+ */
+function pathExists(target: string): boolean {
+  try {
+    fs.statSync(target);
+    return true;
+  } catch {
+    return false;
+  }
 }

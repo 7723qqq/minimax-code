@@ -43,6 +43,8 @@ export interface CreateTuiAppOptions extends TuiUpdateOptions {
   /** Saved theme selection, e.g. `aurora` or `aurora/dark`. */
   theme?: string;
   persistTheme?: (theme: string) => void;
+  /** Persist the interface language chosen in `/settings`, as a BCP 47 tag. */
+  persistLocale?: (locale: string) => void;
   runtimeLogDirectory?: string;
   resolveAttachment?: (
     reference: string,

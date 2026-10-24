@@ -1,22 +1,32 @@
 import { TuiFailure } from '../failure.js';
+import { EN_APPLICATION_COPY } from './copy.en.js';
+import { applicationText } from './copy.js';
 import type {
   TuiAccountStatus,
   TuiAccountStatusOptions,
   TuiConfigurationPort,
 } from '../runtime/port.js';
 
-export const MINIMAX_CODE_TUI_LOGIN_REQUIRED_MESSAGE =
-  'Sign in to MiniMax to use Agent features. Run /login, then retry.';
+/**
+ * English text of the interactive login notice.
+ *
+ * Kept as an exported constant because callers and tests already import it; the
+ * English catalog is the one place the sentence is written, and production paths
+ * resolve the same key through `applicationText` so the rendered notice follows
+ * the active locale.
+ */
+export const MINIMAX_CODE_TUI_LOGIN_REQUIRED_MESSAGE: string =
+  EN_APPLICATION_COPY['application.login.required'];
 
-export const MINIMAX_CODE_HEADLESS_LOGIN_REQUIRED_MESSAGE =
-  'Sign in to MiniMax to use Agent features. Run `mcode login`, then retry.';
+export const MINIMAX_CODE_HEADLESS_LOGIN_REQUIRED_MESSAGE: string =
+  EN_APPLICATION_COPY['application.login.requiredHeadless'];
 
 type TuiLoginStatusPort = Pick<TuiConfigurationPort, 'getAccountStatus'>;
 
 export class TuiLoginRequiredError extends TuiFailure {
   constructor(
     readonly account: TuiAccountStatus,
-    message = MINIMAX_CODE_HEADLESS_LOGIN_REQUIRED_MESSAGE,
+    message = applicationText('application.login.requiredHeadless'),
   ) {
     super('config', message, {
       code: 'auth.login_required',
@@ -57,7 +67,7 @@ async function readTuiAccount(
 export async function requireTuiAgentAccess(
   runtime: TuiLoginStatusPort,
   sessionId?: string,
-  message = MINIMAX_CODE_HEADLESS_LOGIN_REQUIRED_MESSAGE,
+  message = applicationText('application.login.requiredHeadless'),
   onAccount?: (account: TuiAccountStatus) => void,
   options?: TuiAccountStatusOptions,
 ): Promise<TuiAccountStatus> {
@@ -71,7 +81,7 @@ export async function requireTuiAgentAccess(
 export async function requireTuiAccountLogin(
   runtime: TuiLoginStatusPort,
   sessionId?: string,
-  message = MINIMAX_CODE_HEADLESS_LOGIN_REQUIRED_MESSAGE,
+  message = applicationText('application.login.requiredHeadless'),
   onAccount?: (account: TuiAccountStatus) => void,
 ): Promise<TuiAccountStatus> {
   const account = await readTuiAccount(runtime, sessionId, onAccount, { requireManagedAuth: true });
@@ -91,7 +101,7 @@ export async function requireTuiInteractiveAgentAccess(
   await requireTuiAgentAccess(
     { getAccountStatus: getAccountStatus.bind(runtime) },
     sessionId,
-    MINIMAX_CODE_TUI_LOGIN_REQUIRED_MESSAGE,
+    applicationText('application.login.required'),
     onAccount,
   );
 }
@@ -106,7 +116,7 @@ export async function requireTuiInteractiveAccountLogin(
   await requireTuiAccountLogin(
     { getAccountStatus: getAccountStatus.bind(runtime) },
     sessionId,
-    MINIMAX_CODE_TUI_LOGIN_REQUIRED_MESSAGE,
+    applicationText('application.login.required'),
     onAccount,
   );
 }

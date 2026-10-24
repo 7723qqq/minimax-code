@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 
 import {
   createMcodeBusinessTelemetry,
@@ -49,7 +49,7 @@ describe('business telemetry privacy', () => {
       version: '0.4.12',
       now: () => 123,
       randomId: () => ids.shift()!,
-      fetch: vi.fn(async (_url, init) => {
+      fetch: mock(async (_url, init) => {
         requests.push(init!);
         return new Response(null, { status: 204 });
       }),
@@ -103,7 +103,7 @@ describe('business telemetry privacy', () => {
   });
 
   it('previews the decoded request without sending it', () => {
-    const fetchRequest = vi.fn();
+    const fetchRequest = mock();
     const preview = createMcodeBusinessTelemetryPreview(
       'tui_launch',
       { launch_type: 'cold' },
@@ -131,8 +131,8 @@ describe('business telemetry privacy', () => {
   });
 
   it('does not create a TUI telemetry client without effective opt-in', () => {
-    const telemetry = { track: vi.fn(), flush: vi.fn(async () => undefined) };
-    const createTelemetry = vi.fn(() => telemetry);
+    const telemetry = { track: mock(), flush: mock(async () => undefined) };
+    const createTelemetry = mock(() => telemetry);
     const telemetryOptions = {
       region: 'en' as const,
       buildEnv: 'prod' as const,
@@ -221,15 +221,15 @@ describe('business telemetry privacy', () => {
       },
     });
 
-    const runTelemetry = vi.fn(async () => undefined);
+    const runTelemetry = mock(async () => undefined);
     for (const action of ['status', 'preview'] as const) {
       const program = createTuiProgram({
         version: '0.4.12',
-        launchTui: vi.fn(async () => undefined),
-        runExec: vi.fn(async () => undefined),
-        runLogin: vi.fn(async () => undefined),
-        runLogout: vi.fn(async () => undefined),
-        runUpdate: vi.fn(async () => undefined),
+        launchTui: mock(async () => undefined),
+        runExec: mock(async () => undefined),
+        runLogin: mock(async () => undefined),
+        runLogout: mock(async () => undefined),
+        runUpdate: mock(async () => undefined),
         runTelemetry,
       });
       await program.parseAsync(['node', 'mcode', 'telemetry', action]);

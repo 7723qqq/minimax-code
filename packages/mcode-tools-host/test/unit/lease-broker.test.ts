@@ -1,9 +1,9 @@
+import { afterEach, describe, expect, it, mock } from 'bun:test';
 import { mkdtemp, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 
 import { createNodeAuthLeaseClient } from '@mavis/oauth-lease-protocol';
-import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { startMcodeToolsAuthLeaseBroker } from '../../src/lease-broker.js';
 
@@ -16,7 +16,7 @@ afterEach(async () => {
 describe('mcode-tools auth lease broker', () => {
   it('serves fixed leases and removes the private capability on dispose', async () => {
     const dataDir = await mkdtemp(path.join(tmpdir(), 'mtb-'));
-    const stopWatching = vi.fn();
+    const stopWatching = mock();
     const broker = await startMcodeToolsAuthLeaseBroker({
       dataDir,
       session: {

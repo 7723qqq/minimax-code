@@ -1,3 +1,5 @@
+import { applicationText } from './copy.js';
+
 export type TuiThreadGoalCommandIntent =
   | { kind: 'help' }
   | { kind: 'view' }
@@ -148,7 +150,7 @@ export function parseTuiThreadGoalCommand(rawArgs: string): TuiThreadGoalCommand
     if (parsed === 'invalid') {
       return {
         kind: 'error',
-        message: `Bad budget value: use a positive integer, K/M suffix, or 'clear' (got "${rawBudget}").`,
+        message: applicationText('application.goal.badBudgetValue', { rawBudget }),
       };
     }
     return { kind: 'budget', tokenBudget: parsed };
@@ -187,7 +189,7 @@ export function parseTuiThreadGoalCommand(rawArgs: string): TuiThreadGoalCommand
       if (extraction.kind === 'double') {
         return {
           kind: 'error',
-          message: 'budget= is specified more than once: keep a single budget=<value>.',
+          message: applicationText('application.goal.duplicateBudget', { value: '<value>' }),
         };
       }
       if (extraction.kind === 'value') {

@@ -9,6 +9,7 @@ import type {
 } from '../plugin/contract.js';
 import { prepareTuiDataDir } from '../runtime/data-dir.js';
 import { createTuiRuntime, shutdownTuiRuntime } from '../runtime/lifecycle.js';
+import { cliText } from './copy.js';
 
 interface McodePluginCommandApplication {
   catalog(input: {
@@ -58,7 +59,9 @@ export async function runMcodePluginCommand(
     if (request.action === 'marketplace-upgrade') {
       await context.application.refresh();
       const result = { marketplace: 'all', refreshed: true };
-      return request.json ? JSON.stringify(result, null, 2) : 'Refreshed all Plugin sources.';
+      return request.json
+        ? JSON.stringify(result, null, 2)
+        : cliText('cli.plugin.sourcesRefreshed');
     }
     if (request.action !== 'list') {
       const { name, marketplace } = parseSelector(request.selector, request.marketplace);

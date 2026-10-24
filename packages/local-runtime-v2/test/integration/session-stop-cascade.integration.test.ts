@@ -18,8 +18,9 @@ import {
   type CreatedLocalRuntimeHost,
   type LocalRuntimeConfig,
 } from '@mavis/local-runtime';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, mock } from 'bun:test';
 
+import { waitFor } from '../../../../test/bun-test-setup.js';
 import { closeLocalRuntimeDb } from '../../../local-runtime/src/persistence/db.js';
 import { createLocalRuntimeHostV2ForTest } from '../../src/runtime.js';
 
@@ -56,7 +57,7 @@ interface ScriptedTurnInput {
  * everything a "model" would have seen so assertions can inspect the assembled
  * context of a later Turn.
  */
-const harness = vi.hoisted(() => ({
+const harness = {
   /** Turn scripts run in order; a missing script just completes the Turn. */
   scripts: [] as ((input: ScriptedTurnInput) => Promise<void>)[],
   invocations: 0,
@@ -66,58 +67,67 @@ const harness = vi.hoisted(() => ({
   observedContexts: [] as { turnId: string; messages: readonly unknown[] }[],
   /** Messages the production before-LLM hooks inject into the provider request. */
   injectedMessages: [] as { turnId: string; content: string }[],
+};
+
+// `bun test` runs every file of a suite in one process, and `mock.module()`
+// replaces the module for that whole process. Snapshot the real module before
+// replacing it and put it back in `afterAll`, so the replacement never leaks
+// into the files that run after this one.
+const actualPiTurnRunner = { ...(await import('@mavis/agent-core/pi-turn-runner')) };
+
+// `mock.module()` evaluates its factory lazily, so the plain `const` harness is
+// picked up as-is.
+mock.module('@mavis/agent-core/pi-turn-runner', () => ({
+  ...actualPiTurnRunner,
+  PiTurnRunner: class {
+    async runTurn(input: ScriptedTurnInput): Promise<void> {
+      const index = harness.invocations;
+      harness.invocations += 1;
+      harness.startedTurns.push({ sessionId: input.sessionId, turnId: input.turnId });
+      harness.observedContexts.push({
+        turnId: input.turnId,
+        messages: [...(input.canonicalMessages ?? [])],
+      });
+      // The production reminder is injected by a before-LLM hook, not by the
+      // durable history. Run the real hooks exactly as PiTurnRunner would and
+      // record every message they would have added to the provider request.
+      for (const hook of input.hooks?.beforeLlmCallHook ?? []) {
+        const decision = await hook({
+          sessionId: input.sessionId,
+          turnId: input.turnId,
+          phase: 'initial',
+          messages: [],
+          canonicalMessages: [],
+          // Shape required by the reminder's context-budget admission check
+          // (provider/api/id build the usage-anchor key; the limits gate size).
+          model: {
+            id: 'model',
+            provider: 'test',
+            api: 'openai-completions',
+            contextWindow: 200_000,
+            maxTokens: 8_192,
+          },
+          systemPrompt: '',
+          tools: [],
+          thinkingLevel: 'off',
+        });
+        const message =
+          decision && typeof decision === 'object' ? Reflect.get(decision, 'message') : undefined;
+        const content =
+          message && typeof message === 'object' ? Reflect.get(message, 'content') : undefined;
+        if (typeof content === 'string') {
+          harness.injectedMessages.push({ turnId: input.turnId, content });
+        }
+      }
+      const script = harness.scripts[index];
+      if (script) await script(input);
+      await input.eventWriter.pushRuntime(terminalEvent(input, 6, 1, 'completed'));
+    }
+  },
 }));
 
-vi.mock('@mavis/agent-core/pi-turn-runner', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@mavis/agent-core/pi-turn-runner')>();
-  return {
-    ...actual,
-    PiTurnRunner: class {
-      async runTurn(input: ScriptedTurnInput): Promise<void> {
-        const index = harness.invocations;
-        harness.invocations += 1;
-        harness.startedTurns.push({ sessionId: input.sessionId, turnId: input.turnId });
-        harness.observedContexts.push({
-          turnId: input.turnId,
-          messages: [...(input.canonicalMessages ?? [])],
-        });
-        // The production reminder is injected by a before-LLM hook, not by the
-        // durable history. Run the real hooks exactly as PiTurnRunner would and
-        // record every message they would have added to the provider request.
-        for (const hook of input.hooks?.beforeLlmCallHook ?? []) {
-          const decision = await hook({
-            sessionId: input.sessionId,
-            turnId: input.turnId,
-            phase: 'initial',
-            messages: [],
-            canonicalMessages: [],
-            // Shape required by the reminder's context-budget admission check
-            // (provider/api/id build the usage-anchor key; the limits gate size).
-            model: {
-              id: 'model',
-              provider: 'test',
-              api: 'openai-completions',
-              contextWindow: 200_000,
-              maxTokens: 8_192,
-            },
-            systemPrompt: '',
-            tools: [],
-            thinkingLevel: 'off',
-          });
-          const message =
-            decision && typeof decision === 'object' ? Reflect.get(decision, 'message') : undefined;
-          const content =
-            message && typeof message === 'object' ? Reflect.get(message, 'content') : undefined;
-          if (typeof content === 'string') {
-            harness.injectedMessages.push({ turnId: input.turnId, content });
-          }
-        }
-        const script = harness.scripts[index];
-        if (script) await script(input);
-        await input.eventWriter.pushRuntime(terminalEvent(input, 6, 1, 'completed'));
-      }
-    },
-  };
+afterAll(() => {
+  mock.module('@mavis/agent-core/pi-turn-runner', () => actualPiTurnRunner);
 });
 
 function terminalEvent(
@@ -265,7 +275,7 @@ describe('session stop cascade over the production V2 host', () => {
       const subagentId = await subagentTaskId.promise;
 
       // The bash task must own a real, live OS process before we stop it.
-      const pid = await vi.waitFor(() => readPidFile(pidFile), {
+      const pid = await waitFor(() => readPidFile(pidFile), {
         timeout: 20_000,
         interval: 100,
       });
@@ -281,7 +291,7 @@ describe('session stop cascade over the production V2 host', () => {
       expect(stopDurationMs).toBeLessThan(5_000);
 
       await expectTasksCanceled(host, [bashId, subagentId]);
-      await vi.waitFor(() => expect(isProcessAlive(pid)).toBe(false), {
+      await waitFor(() => expect(isProcessAlive(pid)).toBe(false), {
         timeout: 15_000,
         interval: 100,
       });
@@ -302,7 +312,7 @@ describe('session stop cascade over the production V2 host', () => {
       });
       // Assert on what the model is actually handed, not on Turn completion: the
       // reminder is produced by the before-LLM hooks when the request is built.
-      const reminder = await vi.waitFor(
+      const reminder = await waitFor(
         () => {
           const found = harness.injectedMessages
             .map((entry) => entry.content)
@@ -386,7 +396,7 @@ describe('session stop cascade boundary', () => {
         allowQueue: false,
         message: { content: 'And the background work?', attachments: [] },
       });
-      const reminder = await vi.waitFor(
+      const reminder = await waitFor(
         () => {
           const found = harness.injectedMessages
             .map((entry) => entry.content)
@@ -448,7 +458,7 @@ describe('session stop cascade identity', () => {
       });
       const bashId = await bashTaskId.promise;
       const turnB = harness.startedTurns[1]!.turnId;
-      const pid = await vi.waitFor(() => readPidFile(pidFile), { timeout: 20_000, interval: 100 });
+      const pid = await waitFor(() => readPidFile(pidFile), { timeout: 20_000, interval: 100 });
 
       // Stale stop: rejected by identity (false == turn-mismatch on this seam).
       await expect(conversation.ingress.abort(owner.sessionId, 'user_stop', turnA)).resolves.toBe(
@@ -465,7 +475,7 @@ describe('session stop cascade identity', () => {
       await conversation.ingress.abort(owner.sessionId, 'user_stop', turnB);
       await running.completion.catch(() => undefined);
       await expectTasksCanceled(host, [bashId]);
-      await vi.waitFor(() => expect(isProcessAlive(pid)).toBe(false), {
+      await waitFor(() => expect(isProcessAlive(pid)).toBe(false), {
         timeout: 15_000,
         interval: 100,
       });
@@ -505,7 +515,7 @@ describe('session stop cascade must not change unrelated behaviour', () => {
       const bashId = await bashTaskId.promise;
 
       // Delivery starts its own Turn and tells the model the task finished.
-      await vi.waitFor(
+      await waitFor(
         () => {
           const deliveryTurn = harness.startedTurns.find((turn) =>
             turn.turnId.startsWith('turn_task_delivery'),
@@ -558,7 +568,7 @@ describe('session stop cascade must not change unrelated behaviour', () => {
       const slowId = await stoppedId.promise;
 
       await conversation.ingress.abort(owner.sessionId, 'user_stop');
-      await vi.waitFor(
+      await waitFor(
         async () => {
           await expect(host!.apiHost.backgroundTaskService.get(slowId)).resolves.toMatchObject({
             status: 'canceled',
@@ -578,7 +588,7 @@ describe('session stop cascade must not change unrelated behaviour', () => {
       const newId = await freshId.promise;
 
       // The suppression is per task, not per Session: new work notifies again.
-      await vi.waitFor(
+      await waitFor(
         () => {
           const deliveryTurn = harness.startedTurns.find((turn) =>
             turn.turnId.startsWith('turn_task_delivery'),
@@ -634,7 +644,7 @@ describe('session stop cascade scope', () => {
       await conversation.ingress.abort(owner.sessionId, 'session_leave');
 
       // Not a stop: the task runs to its own completion and still notifies.
-      await vi.waitFor(
+      await waitFor(
         async () => {
           await expect(host!.apiHost.backgroundTaskService.get(bashId)).resolves.toMatchObject({
             status: 'succeeded',
@@ -642,7 +652,7 @@ describe('session stop cascade scope', () => {
         },
         { timeout: 20_000, interval: 100 },
       );
-      await vi.waitFor(
+      await waitFor(
         () => {
           const deliveryTurn = harness.startedTurns.find((turn) =>
             turn.turnId.startsWith('turn_task_delivery'),
@@ -698,7 +708,7 @@ describe('session stop cascade scope', () => {
       // A stop aimed at the child Session must not cascade into the owner.
       await conversation.ingress.abort(String(childSessionId), 'user_stop');
 
-      await vi.waitFor(
+      await waitFor(
         async () => {
           await expect(host!.apiHost.backgroundTaskService.get(bashId)).resolves.toMatchObject({
             status: 'succeeded',
@@ -727,7 +737,7 @@ async function expectTasksCanceled(
   liveHost: CreatedLocalRuntimeHost,
   taskIds: readonly string[],
 ): Promise<void> {
-  await vi.waitFor(
+  await waitFor(
     async () => {
       for (const taskId of taskIds) {
         await expect(liveHost.apiHost.backgroundTaskService.get(taskId)).resolves.toMatchObject({

@@ -40,10 +40,11 @@ import {
   getShellPermissionCheckSurface,
 } from './bash-safety-scan.js';
 import { commandHasIoRedirect, evaluateWriteTarget } from './bash-write-target.js';
-import { pureReadFirstWord, formatHardBlockedBashReason } from './bash-fast-allow.js';
+import { pureReadFirstWord, hardBlockedBashReasonBody } from './bash-fast-allow.js';
 import { detectSlowCommand } from './slow-command-scan.js';
 import { parseWindowsNativeDelete } from './windows-native-delete.js';
 import { resolvePermissionPath } from '../path-resolver.js';
+import { safetyCheckReason } from '../reason-format.js';
 
 // ---------------------------------------------------------------------------
 // Rule parsing
@@ -798,11 +799,14 @@ export function evaluateBashStatic(
     const reasons = new Map<string, SubcommandResult>();
     reasons.set(trimmedLower, {
       behavior: 'deny',
-      reason: {
-        type: 'safetyCheck',
-        description: `Blocked: catastrophic command has no recoverable safe use case. Command: ${trimmedLower}`,
-        category: 'catastrophic-standalone',
-      },
+      reason: safetyCheckReason(
+        {
+          key: 'body.bash.catastrophicCommand',
+          values: { command: trimmedLower },
+          action: 'deny',
+        },
+        { category: 'catastrophic-standalone', hardBlocked: true },
+      ),
     });
     return { verdict: 'deny', reason: { type: 'subcommandResults', reasons } };
   }
@@ -834,15 +838,10 @@ export function evaluateBashStatic(
     const reasons = new Map<string, SubcommandResult>();
     reasons.set(wholeCommandKey, {
       behavior: 'deny',
-      reason: {
-        type: 'safetyCheck',
-        description: formatHardBlockedBashReason(
-          command.trim(),
-          hardHit.category,
-          hardHit.description,
-        ),
-        category: hardHit.category,
-      },
+      reason: safetyCheckReason(
+        hardBlockedBashReasonBody(command.trim(), hardHit.category, hardHit.description),
+        { category: hardHit.category, hardBlocked: true },
+      ),
     });
     return { verdict: 'deny', reason: { type: 'subcommandResults', reasons } };
   }
@@ -960,7 +959,7 @@ export function evaluateBashStatic(
       const reasons = new Map<string, SubcommandResult>();
       reasons.set(wholeCommandKey, {
         behavior: 'ask',
-        reason: { type: 'safetyCheck', description: 'pipe to shell' },
+        reason: safetyCheckReason({ key: 'body.bash.pipeToShell' }),
       });
       return {
         verdict,
@@ -1009,11 +1008,10 @@ export function evaluateBashStatic(
       const reasons = new Map<string, SubcommandResult>();
       reasons.set(trimmed, {
         behavior: 'allow',
-        reason: {
-          type: 'safetyCheck',
-          description: `Help/version flag fast-allow: \`${firstWord} <help-flag>\` has no side effects.`,
-          category: 'helpFlagFastAllow',
-        },
+        reason: safetyCheckReason(
+          { key: 'body.bash.helpFlagFastAllow', values: { command: firstWord } },
+          { category: 'helpFlagFastAllow' },
+        ),
       });
       return {
         verdict: 'allow',
@@ -1180,11 +1178,10 @@ function evaluateSingleSubcommand(
     if (hardHit && hardBlockedCategoryIsFinalDeny(hardHit.category)) {
       return logLayer('hard-final-deny', {
         verdict: 'deny',
-        reason: {
-          type: 'safetyCheck',
-          description: formatHardBlockedBashReason(command, hardHit.category, hardHit.description),
-          category: hardHit.category,
-        },
+        reason: safetyCheckReason(
+          hardBlockedBashReasonBody(command, hardHit.category, hardHit.description),
+          { category: hardHit.category, hardBlocked: true },
+        ),
       });
     }
   }
@@ -1269,22 +1266,21 @@ function evaluateSingleSubcommand(
     ) {
       return logLayer('bypass-delete-sniff-deny', {
         verdict: 'deny',
-        reason: {
-          type: 'safetyCheck',
-          description:
-            'bypass mode does not auto-run delete-like commands. ' +
-            'Use `mavis-trash <path>` for recoverable removal, or drop bypass for this call.',
-          category: 'bypassDeleteSniff',
-        },
+        reason: safetyCheckReason(
+          {
+            key: 'body.bash.bypassDeleteSniff',
+            suffix: { key: 'body.bash.recoverableRemovalHint' },
+          },
+          { category: 'bypassDeleteSniff' },
+        ),
       });
     }
     return logLayer('bypass-allow', {
       verdict: 'allow',
-      reason: {
-        type: 'safetyCheck',
-        description: 'bypass mode: passed user deny + user ask + HARD final-deny common layer',
-        category: 'bypassAllow',
-      },
+      reason: safetyCheckReason(
+        { key: 'body.bash.bypassAllow' },
+        { category: 'bypassAllow' },
+      ),
     });
   }
 
@@ -1301,11 +1297,10 @@ function evaluateSingleSubcommand(
     // final-deny already handled in step 3; non-final-deny falls here.
     return logLayer('hard-sensitive-read', {
       verdict: mode === 'auto' ? 'undecided' : 'ask',
-      reason: {
-        type: 'safetyCheck',
-        description: formatHardBlockedBashReason(command, hardHit.category, hardHit.description),
-        category: hardHit.category,
-      },
+      reason: safetyCheckReason(
+        hardBlockedBashReasonBody(command, hardHit.category, hardHit.description),
+        { category: hardHit.category, hardBlocked: true },
+      ),
     });
   }
 
@@ -1329,12 +1324,10 @@ function evaluateSingleSubcommand(
   if (writeTargetVerdict === 'allow') {
     return logLayer('write-target-authorized', {
       verdict: 'allow',
-      reason: {
-        type: 'safetyCheck',
-        description:
-          'Write target is inside a write-authorized location (workspace / allowed working path).',
-        category: 'writeAuthorizedTarget',
-      },
+      reason: safetyCheckReason(
+        { key: 'body.bash.writeAuthorizedTarget' },
+        { category: 'writeAuthorizedTarget' },
+      ),
     });
   }
 
@@ -1343,11 +1336,10 @@ function evaluateSingleSubcommand(
     if (pattern.test(command)) {
       return logLayer('subcommand-dangerous', {
         verdict: mode === 'auto' ? 'undecided' : 'ask',
-        reason: {
-          type: 'safetyCheck',
-          description: `Subcommand-graded danger: ${category}`,
-          category,
-        },
+        reason: safetyCheckReason(
+          { key: 'body.bash.subcommandGradedDanger', values: { category } },
+          { category },
+        ),
       });
     }
   }
@@ -1362,11 +1354,10 @@ function evaluateSingleSubcommand(
     if (secretReadCategory) {
       return logLayer('secret-read-form', {
         verdict: mode === 'auto' ? 'undecided' : 'ask',
-        reason: {
-          type: 'safetyCheck',
-          description: `Environment secret read: ${secretReadCategory}`,
-          category: 'secret-read',
-        },
+        reason: safetyCheckReason(
+          { key: 'body.bash.environmentSecretRead', values: { category: secretReadCategory } },
+          { category: 'secret-read' },
+        ),
       });
     }
   }
@@ -1391,11 +1382,10 @@ function evaluateSingleSubcommand(
   if (sourceTarget && isAllowableLocalScript(sourceTarget, bashCtx)) {
     return logLayer('source-local-allow', {
       verdict: 'allow',
-      reason: {
-        type: 'safetyCheck',
-        description: `Sourcing local file: ${sourceTarget} (temp/workspace/written)`,
-        category: 'sourceLocalAllow',
-      },
+      reason: safetyCheckReason(
+        { key: 'body.bash.sourcingLocalFile', values: { target: sourceTarget } },
+        { category: 'sourceLocalAllow' },
+      ),
     });
   }
 
@@ -1457,11 +1447,10 @@ function evaluateSingleSubcommand(
       'fast-allow-first-word',
       {
         verdict: 'allow',
-        reason: {
-          type: 'safetyCheck',
-          description: `Default fast-allow: first word "${firstWord}" is non-deletion.`,
-          category: 'pureReadFastAllow',
-        },
+        reason: safetyCheckReason(
+          { key: 'body.bash.defaultFastAllow', values: { word: firstWord } },
+          { category: 'pureReadFastAllow' },
+        ),
       },
       { firstWord },
     );
@@ -1470,11 +1459,10 @@ function evaluateSingleSubcommand(
   // -------- TAIL --------
   return logLayer('tail', {
     verdict: mode === 'auto' ? 'undecided' : 'ask',
-    reason: {
-      type: 'safetyCheck',
-      description: `No matching permission rule for command: ${command}`,
-      category: 'noMatchingPermissionRule',
-    },
+    reason: safetyCheckReason(
+      { key: 'body.bash.noMatchingPermissionRule', values: { command } },
+      { category: 'noMatchingPermissionRule' },
+    ),
   });
 }
 
@@ -1515,6 +1503,6 @@ export {
   evaluateWriteTarget,
   isWriteAuthorizedTarget,
 } from './bash-write-target.js';
-export { pureReadFirstWord, formatHardBlockedBashReason } from './bash-fast-allow.js';
+export { pureReadFirstWord, hardBlockedBashReasonBody } from './bash-fast-allow.js';
 export { consumeShellWrapperPrefix } from './bash-wrapper-unwrap.js';
 export { unwrapCommandWrappers };

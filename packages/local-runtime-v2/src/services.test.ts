@@ -1,5 +1,23 @@
-import { createRequire } from "node:module";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Database } from "bun:sqlite";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  mock,
+  spyOn,
+} from "bun:test";
+// The `mocked` helper is aliased: the mock harness below owns the `mocked`
+// name, so the setup module's narrowing helper is imported under a distinct
+// local name.
+import {
+  mocked as mockFn,
+  stubEnv,
+  unstubAllEnvs,
+  waitFor,
+} from "../../../test/bun-test-setup.js";
 import type {
   LLMRetryEvent,
   RunTurnInput,
@@ -8,10 +26,7 @@ import { createAgentRuntime, type AgentExtension } from "@mavis/agent-runtime";
 import { baseCtx } from "../../agent-runtime/src/testing/fixtures.js";
 import type { RuntimeTool } from "@mavis/agent-core/tools";
 import { LocalSkillToolDef } from "@mavis/agent-tools/desktop";
-import type {
-  DatabaseLike,
-  QuestionnaireOwnedActionHandler,
-} from "@mavis/local-runtime";
+import type { QuestionnaireOwnedActionHandler } from "@mavis/local-runtime";
 import type {
   GlobalEvent,
   GlobalEventInput,
@@ -61,18 +76,20 @@ type QueryCollapseStartInput = {
   readonly currentTurnId: string;
 };
 
-const queryCollapseMocked = vi.hoisted(() => ({
+// `mock.module()` evaluates its factory lazily, so this plain `const` is picked
+// up as-is.
+const queryCollapseMocked = {
   keyResolverOptions: undefined as Record<string, unknown> | undefined,
   deliveryOptions: undefined as Record<string, unknown> | undefined,
   keys: {
-    queryKeyForTurn: vi.fn(
+    queryKeyForTurn: mock(
       async (_sessionId: string, turnId: string) => `turn:${turnId}`,
     ),
-    queryKeyForContinuation: vi.fn(
+    queryKeyForContinuation: mock(
       async (_sessionId: string, turnId: string) => `turn:${turnId}`,
     ),
   },
-}));
+};
 
 const runtimeOwnerIdentity: CreateRuntimeServicesOptions["runtimeOwnerIdentity"] =
   {
@@ -84,10 +101,6 @@ const runtimeOwnerIdentity: CreateRuntimeServicesOptions["runtimeOwnerIdentity"]
     onCompromised: () => () => undefined,
     close: async () => undefined,
   };
-const require = createRequire(import.meta.url);
-const Database = require("better-sqlite3") as new (
-  filename: string,
-) => DatabaseLike;
 
 function createRuntimeServices(
   options: Omit<CreateRuntimeServicesOptions, "runtimeOwnerIdentity">,
@@ -98,15 +111,15 @@ function createRuntimeServices(
   });
 }
 
-function createAgentServiceMock(vitest: Pick<typeof vi, "fn">) {
+function createAgentServiceMock(bunMock: typeof mock) {
   return {
-    ensureBuiltinRows: vitest.fn(async () => []),
-    list: vitest.fn(async () => []),
-    get: vitest.fn(async () => undefined as never),
-    create: vitest.fn(async () => undefined as never),
-    update: vitest.fn(async () => undefined as never),
-    delete: vitest.fn(async () => undefined),
-    resolveAgentReadScope: vitest.fn(async (requestedName: string) => ({
+    ensureBuiltinRows: bunMock(async () => []),
+    list: bunMock(async () => []),
+    get: bunMock(async () => undefined as never),
+    create: bunMock(async () => undefined as never),
+    update: bunMock(async () => undefined as never),
+    delete: bunMock(async () => undefined),
+    resolveAgentReadScope: bunMock(async (requestedName: string) => ({
       requestedName,
       canonicalName: requestedName,
       primaryName: "mavis",
@@ -115,18 +128,18 @@ function createAgentServiceMock(vitest: Pick<typeof vi, "fn">) {
       source: "stable_name" as const,
       exactOwnerName: requestedName,
     })),
-    resolveAgentWriteTarget: vitest.fn(
+    resolveAgentWriteTarget: bunMock(
       async (requestedName: string) => requestedName,
     ),
-    resolveAgentExecutionTarget: vitest.fn(
+    resolveAgentExecutionTarget: bunMock(
       async (exactOwnerName: string) => exactOwnerName,
     ),
-    requireExactAgentKey: vitest.fn(async (name: string) =>
+    requireExactAgentKey: bunMock(async (name: string) =>
       name.replace(/^agent:/u, ""),
     ),
-    clearRootSession: vi.fn(async () => true),
-    setRootSession: vitest.fn(async () => true),
-    getPersistedOwner: vitest.fn(
+    clearRootSession: mock(async () => true),
+    setRootSession: bunMock(async () => true),
+    getPersistedOwner: bunMock(
       async (_exactOwnerName: string) =>
         undefined as
           | {
@@ -140,7 +153,7 @@ function createAgentServiceMock(vitest: Pick<typeof vi, "fn">) {
             }
           | undefined,
     ),
-    getPersistedOwnerForFrozenTask: vitest.fn(
+    getPersistedOwnerForFrozenTask: bunMock(
       async (_exactOwnerName: string) =>
         undefined as
           | {
@@ -154,7 +167,7 @@ function createAgentServiceMock(vitest: Pick<typeof vi, "fn">) {
             }
           | undefined,
     ),
-    resolvePrimaryExecutionIdentity: vitest.fn(
+    resolvePrimaryExecutionIdentity: bunMock(
       async (_storageOwnerName: string) =>
         undefined as
           | {
@@ -164,62 +177,62 @@ function createAgentServiceMock(vitest: Pick<typeof vi, "fn">) {
             }
           | undefined,
     ),
-    setRootSessionByExactOwner: vitest.fn(async () => true),
-    renderProfile: vitest.fn(
+    setRootSessionByExactOwner: bunMock(async () => true),
+    renderProfile: bunMock(
       async (_input: {
         readonly exactOwnerName: string;
         readonly surface?: string;
       }) => undefined as never,
     ),
-    listBuiltinDefinitions: vitest.fn(async () => []),
-    listLegacyPinnedAgentRefs: vitest.fn(async () => []),
-    getGreetingState: vitest.fn(async () => undefined),
-    markGreetingSent: vitest.fn(async () => true),
-    buildGreetingReminder: vitest.fn(async () => ""),
-    bindBuiltinModelGroupResolver: vitest.fn(),
-    bindPromptConfig: vitest.fn(),
-    bindConfigPreviewDiagnostics: vitest.fn(),
-    bindEffectiveConfigResolver: vitest.fn(),
-    bindCandidateModelValidator: vitest.fn(),
-    close: vitest.fn(),
+    listBuiltinDefinitions: bunMock(async () => []),
+    listLegacyPinnedAgentRefs: bunMock(async () => []),
+    getGreetingState: bunMock(async () => undefined),
+    markGreetingSent: bunMock(async () => true),
+    buildGreetingReminder: bunMock(async () => ""),
+    bindBuiltinModelGroupResolver: bunMock(),
+    bindPromptConfig: bunMock(),
+    bindConfigPreviewDiagnostics: bunMock(),
+    bindEffectiveConfigResolver: bunMock(),
+    bindCandidateModelValidator: bunMock(),
+    close: bunMock(),
   };
 }
 
 function createSessionAndTurnSystemMocks(
-  vitest: Pick<typeof vi, "fn">,
+  bunMock: typeof mock,
   events: string[],
 ) {
   return {
     sessionSystem: {
       repositories: {
-        sessions: { get: vitest.fn(), list: vitest.fn(), update: vitest.fn() },
+        sessions: { get: bunMock(), list: bunMock(), update: bunMock() },
         projects: {
-          listPage: vitest.fn(async () => ({ projects: [], hasMore: false })),
-          setPinned: vitest.fn(),
-          putOrder: vitest.fn(),
+          listPage: bunMock(async () => ({ projects: [], hasMore: false })),
+          setPinned: bunMock(),
+          putOrder: bunMock(),
         },
       },
-      projects: { service: { resolve: vitest.fn() } },
+      projects: { service: { resolve: bunMock() } },
       sessions: {
-        repository: { get: vitest.fn(), has: vitest.fn() },
-        query: { find: vitest.fn() },
+        repository: { get: bunMock(), has: bunMock() },
+        query: { find: bunMock() },
         records: {
-          ensureSessionAgentDefinition: vitest.fn(),
-          createInternalSession: vitest.fn(),
-          bindTaskAgentBindingCapture: vitest.fn(),
-          backfillAllSessionAgentDefinitions: vitest.fn(async () => undefined),
+          ensureSessionAgentDefinition: bunMock(),
+          createInternalSession: bunMock(),
+          bindTaskAgentBindingCapture: bunMock(),
+          backfillAllSessionAgentDefinitions: bunMock(async () => undefined),
         },
         interactionMode: {
-          get: vitest.fn(async () => "default" as const),
-          setPlan: vitest.fn(async () => "updated" as const),
-          ensureDefault: vitest.fn(async () => "updated" as const),
+          get: bunMock(async () => "default" as const),
+          setPlan: bunMock(async () => "updated" as const),
+          ensureDefault: bunMock(async () => "updated" as const),
         },
       },
       messages: {
         query: {},
-        repository: { get: vitest.fn(), listTurn: vitest.fn() },
+        repository: { get: bunMock(), listTurn: bunMock() },
         userMessages: {
-          commit: vitest.fn(
+          commit: bunMock(
             async (input: {
               sessionId: string;
               turnId: string;
@@ -242,107 +255,107 @@ function createSessionAndTurnSystemMocks(
         },
       },
       titles: {
-        generate: vitest.fn(),
-        generateAfterAcceptedUserMessage: vitest.fn(),
+        generate: bunMock(),
+        generateAfterAcceptedUserMessage: bunMock(),
       },
       queue: {
         committed: {
-          listPendingSessionIds: vitest.fn(async () => []),
-          list: vitest.fn(async () => []),
-          requireMutableSession: vitest.fn(),
-          findByClientRequestId: vitest.fn(),
-          enqueue: vitest.fn(),
+          listPendingSessionIds: bunMock(async () => []),
+          list: bunMock(async () => []),
+          requireMutableSession: bunMock(),
+          findByClientRequestId: bunMock(),
+          enqueue: bunMock(),
         },
       },
       planDocuments: {
-        resolveAndEnsure: vitest.fn(async () => ({
+        resolveAndEnsure: bunMock(async () => ({
           canonicalPath: "/history/session-1/artifacts/plan.md",
         })),
-        prepareNewDraft: vitest.fn(),
-        readFrozenSnapshot: vitest.fn(),
-        copyForFork: vitest.fn(async () => ({
+        prepareNewDraft: bunMock(),
+        readFrozenSnapshot: bunMock(),
+        copyForFork: bunMock(async () => ({
           canonicalPath: "/history/child/artifacts/plan.md",
           copied: true,
         })),
-        reconcilePreparedDrafts: vitest.fn(async () => {
+        reconcilePreparedDrafts: bunMock(async () => {
           events.push("plan-documents:reconcile");
         }),
       },
       files: {},
       usage: { repository: {} },
-      canonicalHistory: { inspectActive: vitest.fn() },
+      canonicalHistory: { inspectActive: bunMock() },
       fork: {
         sessionDataVersion: 4,
-        boundary: { resolve: vitest.fn() },
+        boundary: { resolve: bunMock() },
         sessions: {
-          get: vitest.fn(),
-          create: vitest.fn(),
-          update: vitest.fn(),
-          delete: vitest.fn(),
+          get: bunMock(),
+          create: bunMock(),
+          update: bunMock(),
+          delete: bunMock(),
         },
         display: {
-          list: vitest.fn(),
-          probePrefix: vitest.fn(),
-          copyPrefix: vitest.fn(),
-          copyPrefixAndAppendForkOrigin: vitest.fn(),
-          appendForkOrigin: vitest.fn(),
-          latestRevision: vitest.fn(),
-          deleteSession: vitest.fn(),
+          list: bunMock(),
+          probePrefix: bunMock(),
+          copyPrefix: bunMock(),
+          copyPrefixAndAppendForkOrigin: bunMock(),
+          appendForkOrigin: bunMock(),
+          latestRevision: bunMock(),
+          deleteSession: bunMock(),
         },
         assets: {
-          copyPrefix: vitest.fn(),
-          probe: vitest.fn(),
-          compensate: vitest.fn(),
+          copyPrefix: bunMock(),
+          probe: bunMock(),
+          compensate: bunMock(),
         },
       },
       conversationMutationState: {
-        isActive: vitest.fn(() => false),
-        readPlanState: vitest.fn(async () => ({
+        isActive: bunMock(() => false),
+        readPlanState: bunMock(async () => ({
           active: false,
           interactionMode: "default" as const,
           lifecycleActive: false,
         })),
-        bindPlanStateReader: vitest.fn(),
+        bindPlanStateReader: bunMock(),
       },
       stream: {
-        resume: vitest.fn(),
-        write: vitest.fn(),
-        deleteSession: vitest.fn(),
+        resume: bunMock(),
+        write: bunMock(),
+        deleteSession: bunMock(),
       },
       queryCollapse: {
         state: {
-          start: vitest.fn(async (input: QueryCollapseStartInput) => ({
+          start: bunMock(async (input: QueryCollapseStartInput) => ({
             ...input,
             forceExpanded: false,
             processingStartedAtMs: 1,
             updatedAtMs: 1,
           })),
-          finish: vitest.fn(),
-          findByCurrentTurn: vitest.fn(),
-          findProcessingByCurrentTurn: vitest.fn(),
-          findByKey: vitest.fn(),
+          finish: bunMock(),
+          findByCurrentTurn: bunMock(),
+          findProcessingByCurrentTurn: bunMock(),
+          findByKey: bunMock(),
         },
       },
-      ready: vitest.fn(async () => {
+      ready: bunMock(async () => {
         events.push("session:ready");
       }),
-      runStorageMaintenance: vitest.fn(async () => undefined),
-      close: vitest.fn(async () => {
+      runStorageMaintenance: bunMock(async () => undefined),
+      close: bunMock(async () => {
         events.push("session:close");
       }),
     },
     turnSystem: {
       turns: {
-        submit: vitest.fn(),
-        steer: vitest.fn(),
-        abort: vitest.fn(),
-        requestCompaction: vitest.fn(),
-        dispatchQueue: vitest.fn(),
-        sessionDeletion: vitest.fn(),
+        submit: bunMock(),
+        steer: bunMock(),
+        abort: bunMock(),
+        requestCompaction: bunMock(),
+        dispatchQueue: bunMock(),
+        sessionDeletion: bunMock(),
       },
       sessionLifecycle: {
-        runExclusive: vitest.fn((_sessionId, operation) => operation()),
-        tryRunExclusive: vitest.fn(
+        runExclusive: bunMock((_sessionId, operation) => operation()),
+        tryRunExclusive: bunMock(
           async (
             _sessionId,
             operation: (signal?: AbortSignal) => Promise<unknown>,
@@ -353,187 +366,190 @@ function createSessionAndTurnSystemMocks(
         ),
       },
       pluginHookSessionOwnership: {
-        latest: vitest.fn(async () => ({
+        latest: bunMock(async () => ({
           ownershipClaimId: "owner-turn-1",
           turnId: "turn-owner",
           claimedAtMs: 100,
         })),
-        tryClaimSessionEnd: vitest.fn(async () => ({
+        tryClaimSessionEnd: bunMock(async () => ({
           status: "claimed" as const,
         })),
-        completeSessionEnd: vitest.fn(async () => true),
+        completeSessionEnd: bunMock(async () => true),
       },
       inspection: {
-        activeTurnId: vitest.fn(),
-        activeTurn: vitest.fn(async () => undefined),
-        latestTurnActivity: vitest.fn(async () => undefined),
+        activeTurnId: bunMock(),
+        activeTurn: bunMock(async () => undefined),
+        latestTurnActivity: bunMock(async () => undefined),
       },
-      queueSteer: { pause: vitest.fn() },
+      queueSteer: { pause: bunMock() },
       maintenance: {
-        tryAcquireSessionMaintenance: vitest.fn(),
-        renewSessionMaintenance: vitest.fn(),
-        releaseSessionMaintenance: vitest.fn(),
+        tryAcquireSessionMaintenance: bunMock(),
+        renewSessionMaintenance: bunMock(),
+        releaseSessionMaintenance: bunMock(),
       },
-      receipts: { findReceipt: vitest.fn() },
-      ready: vitest.fn(async () => {
+      receipts: { findReceipt: bunMock() },
+      ready: bunMock(async () => {
         events.push("turn:ready");
       }),
-      close: vitest.fn(async () => {
+      close: bunMock(async () => {
         events.push("turn:close");
       }),
     },
   };
 }
 
-const mocked = vi.hoisted(() => {
-  const events: string[] = [];
-  return {
-    events,
-    cronOptions: undefined as Record<string, unknown> | undefined,
-    channelOptions: undefined as Record<string, unknown> | undefined,
-    agentHostOptions: undefined as Record<string, unknown> | undefined,
-    sessionTitleOptions: undefined as Record<string, unknown> | undefined,
-    sessionOptions: undefined as Record<string, unknown> | undefined,
-    sessionApplicationOptions: undefined as Record<string, unknown> | undefined,
-    conversationApplicationOptions: undefined as
-      | Record<string, unknown>
-      | undefined,
-    turnOptions: undefined as CapturedTurnOptions | undefined,
-    initializedSessionApplicationSystem: {
-      marker: "session-application-system",
-      session: { lifecycle: { marker: "session-lifecycle" } },
+const events: string[] = [];
+
+// `mock.module()` evaluates its factory lazily, so this plain `const` is picked
+// up as-is.
+const mocked = {
+  events,
+  cronOptions: undefined as Record<string, unknown> | undefined,
+  channelOptions: undefined as Record<string, unknown> | undefined,
+  agentHostOptions: undefined as Record<string, unknown> | undefined,
+  sessionTitleOptions: undefined as Record<string, unknown> | undefined,
+  sessionOptions: undefined as Record<string, unknown> | undefined,
+  sessionApplicationOptions: undefined as Record<string, unknown> | undefined,
+  conversationApplicationOptions: undefined as
+    | Record<string, unknown>
+    | undefined,
+  turnOptions: undefined as CapturedTurnOptions | undefined,
+  initializedSessionApplicationSystem: {
+    marker: "session-application-system",
+    session: { lifecycle: { marker: "session-lifecycle" } },
+  },
+  applicationOptions: undefined as Record<string, unknown> | undefined,
+  processLocalApplicationOptions: undefined as
+    | Record<string, unknown>
+    | undefined,
+  conversationApplication: { marker: "conversation-application" },
+  applicationFactOptions: undefined as Record<string, unknown> | undefined,
+  runtimeRegion: "cn" as "cn" | "en",
+  applicationFactPorts: {
+    session: { handle: mock() },
+    queue: { handle: mock() },
+    archiveTitle: { observe: mock() },
+  },
+  runtimeApplications: {
+    marker: "runtime-applications",
+    session: {
+      lifecycle: { deleteSessionById: mock(async () => undefined) },
+      root: { replaceRootSessionWithResult: mock() },
     },
-    applicationOptions: undefined as Record<string, unknown> | undefined,
-    processLocalApplicationOptions: undefined as
-      | Record<string, unknown>
-      | undefined,
-    conversationApplication: { marker: "conversation-application" },
-    applicationFactOptions: undefined as Record<string, unknown> | undefined,
-    runtimeRegion: "cn" as "cn" | "en",
-    applicationFactPorts: {
-      session: { handle: vi.fn() },
-      queue: { handle: vi.fn() },
-      archiveTitle: { observe: vi.fn() },
-    },
-    runtimeApplications: {
-      marker: "runtime-applications",
-      session: {
-        lifecycle: { deleteSessionById: vi.fn(async () => undefined) },
-        root: { replaceRootSessionWithResult: vi.fn() },
-      },
-    },
-    processLocalApplication: { marker: "process-local-application" },
-    service: { marker: "cron-service" },
-    cleanupServices: [] as unknown[],
-    defaultDelivery: { deliver: async () => ({ delivered: true as const }) },
-    readyError: undefined as Error | undefined,
-    closeError: undefined as Error | undefined,
-    turnInitializationError: undefined as Error | undefined,
-    conversationBindings: [] as unknown[],
-    conversationShutdowns: [] as unknown[],
-    conversationOptions: undefined as Record<string, unknown> | undefined,
-    attachmentMaterializerOptions: undefined as
-      | Record<string, unknown>
-      | undefined,
-    conversationService: { marker: "v1-conversation-compatibility" },
-    attachmentMaterializer: { materialize: vi.fn() },
-    questionnaireActionBindings: [] as unknown[],
-    questionnaireService: {
-      beginOwned: vi.fn(),
-      reconcileOwnedActions: vi.fn(async (dispatch: boolean) => {
-        events.push(`questionnaire:plan-reconcile:${String(dispatch)}`);
-        return 0;
-      }),
-      recoverOnStartup: vi.fn(async () => {
-        events.push("questionnaire:recover");
-        return { expired: 0, reinjected: 0, reemitted: 0 };
-      }),
-    },
-    v1Submission: { submit: vi.fn() },
-    sessionTitleModel: { summarize: vi.fn() },
-    archiveTitleOptions: undefined as Record<string, unknown> | undefined,
-    agentPreparationOptions: undefined as Record<string, unknown> | undefined,
-    agentPreparation: {
-      marker: "shared-agent-preparation",
-      bindSessionModelRepair: vi.fn(),
-      bindTaskSessionBindings: vi.fn(),
-    },
-    createSessionModelRepair: vi.fn(() => ({ repairSessionModel: vi.fn() })),
-    agentService: createAgentServiceMock(vi),
-    agentRuntimeLifecycle: { disposeSession: vi.fn(async () => undefined) },
-    channelSystem: {
-      terminalReplies: { observeRuntimeEvent: vi.fn() },
-      turnLifecycle: { beforeExecution: vi.fn(), end: vi.fn() },
-    },
-    ...createSessionAndTurnSystemMocks(vi, events),
-    plugin: { marker: "plugin-service" },
-    hostConnectorGateway: { marker: "host-connector-gateway" },
-    mcp: {
-      marker: "mcp-service",
-      disposeSession: vi.fn(async () => undefined),
-    },
-    mcpSettings: { marker: "mcp-settings-service" },
-    skill: { marker: "skill-service" },
-    runtimeSkillApplication: {
-      listRuntimeSkills: vi.fn(),
-      setSkillEnabled: vi.fn(),
-    },
-    pluginTurnCapabilities: undefined as unknown,
-    pluginHookSessionEndFence: undefined as
-      | { run(input: Record<string, unknown>): Promise<unknown> }
-      | undefined,
-    hostPluginHookSessionOwnership: undefined as unknown,
-    miniAppOptions: undefined as Record<string, unknown> | undefined,
-    materializeMiniAppRuntimePackage: vi.fn(async () => undefined),
-    miniAppSupervisor: {
-      ready: vi.fn(async () => {
-        events.push("miniapp:ready");
-      }),
-      close: vi.fn(async () => {
-        events.push("miniapp:close");
-      }),
-    },
-    modelConfig: {
-      provider: {},
-      dataDir: "/data",
-      custom_provider: { "openai-work": {} },
-    },
-  };
-});
+  },
+  processLocalApplication: { marker: "process-local-application" },
+  service: { marker: "cron-service" },
+  cleanupServices: [] as unknown[],
+  defaultDelivery: { deliver: async () => ({ delivered: true as const }) },
+  readyError: undefined as Error | undefined,
+  closeError: undefined as Error | undefined,
+  turnInitializationError: undefined as Error | undefined,
+  conversationBindings: [] as unknown[],
+  conversationShutdowns: [] as unknown[],
+  conversationOptions: undefined as Record<string, unknown> | undefined,
+  attachmentMaterializerOptions: undefined as
+    | Record<string, unknown>
+    | undefined,
+  conversationService: { marker: "v1-conversation-compatibility" },
+  attachmentMaterializer: { materialize: mock() },
+  questionnaireActionBindings: [] as unknown[],
+  questionnaireService: {
+    beginOwned: mock(),
+    reconcileOwnedActions: mock(async (dispatch: boolean) => {
+      events.push(`questionnaire:plan-reconcile:${String(dispatch)}`);
+      return 0;
+    }),
+    recoverOnStartup: mock(async () => {
+      events.push("questionnaire:recover");
+      return { expired: 0, reinjected: 0, reemitted: 0 };
+    }),
+  },
+  v1Submission: { submit: mock() },
+  sessionTitleModel: { summarize: mock() },
+  archiveTitleOptions: undefined as Record<string, unknown> | undefined,
+  agentPreparationOptions: undefined as Record<string, unknown> | undefined,
+  agentPreparation: {
+    marker: "shared-agent-preparation",
+    bindSessionModelRepair: mock(),
+    bindTaskSessionBindings: mock(),
+  },
+  createSessionModelRepair: mock(() => ({ repairSessionModel: mock() })),
+  agentService: createAgentServiceMock(mock),
+  agentRuntimeLifecycle: { disposeSession: mock(async () => undefined) },
+  channelSystem: {
+    terminalReplies: { observeRuntimeEvent: mock() },
+    turnLifecycle: { beforeExecution: mock(), end: mock() },
+  },
+  ...createSessionAndTurnSystemMocks(mock, events),
+  plugin: { marker: "plugin-service" },
+  hostConnectorGateway: { marker: "host-connector-gateway" },
+  mcp: {
+    marker: "mcp-service",
+    disposeSession: mock(async () => undefined),
+  },
+  mcpSettings: { marker: "mcp-settings-service" },
+  skill: { marker: "skill-service" },
+  runtimeSkillApplication: {
+    listRuntimeSkills: mock(),
+    setSkillEnabled: mock(),
+  },
+  pluginTurnCapabilities: undefined as unknown,
+  pluginHookSessionEndFence: undefined as
+    | { run(input: Record<string, unknown>): Promise<unknown> }
+    | undefined,
+  hostPluginHookSessionOwnership: undefined as unknown,
+  miniAppOptions: undefined as Record<string, unknown> | undefined,
+  materializeMiniAppRuntimePackage: mock(async () => undefined),
+  miniAppSupervisor: {
+    ready: mock(async () => {
+      events.push("miniapp:ready");
+    }),
+    close: mock(async () => {
+      events.push("miniapp:close");
+    }),
+  },
+  modelConfig: {
+    provider: {},
+    dataDir: "/data",
+    custom_provider: { "openai-work": {} },
+  },
+};
 
 const localAgentService = mocked.agentService as unknown as LocalAgentService;
 
-vi.mock("./service/cron/index.js", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("./service/cron/index.js")>();
-  return {
-    ...actual,
-    createHostCronSessionCreation: (host: unknown) => ({
-      create: vi.fn(),
-      host,
-    }),
-    initializeCronService: (options: Record<string, unknown>) => {
-      mocked.events.push("cron:create");
-      mocked.cronOptions = options;
-      return {
-        service: mocked.service,
-        ready: async () => {
-          mocked.events.push("cron:ready");
-          if (mocked.readyError) throw mocked.readyError;
-        },
-        close: async () => {
-          mocked.events.push("cron:close");
-          if (mocked.closeError) throw mocked.closeError;
-        },
-      };
-    },
-  };
-});
+// `bun test` runs every file of a suite in one process, and `mock.module()`
+// replaces the module for that whole process. Snapshot the real module before
+// replacing it and put it back in `afterAll`, so a replacement never leaks
+// into the files that run after this one.
+const actualCron = { ...(await import("./service/cron/index.js")) };
+mock.module("./service/cron/index.js", () => ({
+  ...actualCron,
+  createHostCronSessionCreation: (host: unknown) => ({
+    create: mock(),
+    host,
+  }),
+  initializeCronService: (options: Record<string, unknown>) => {
+    mocked.events.push("cron:create");
+    mocked.cronOptions = options;
+    return {
+      service: mocked.service,
+      ready: async () => {
+        mocked.events.push("cron:ready");
+        if (mocked.readyError) throw mocked.readyError;
+      },
+      close: async () => {
+        mocked.events.push("cron:close");
+        if (mocked.closeError) throw mocked.closeError;
+      },
+    };
+  },
+}));
 
-vi.mock("./service/channel-system/index.js", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("./service/channel-system/index.js")
-  >()),
+const actualChannelSystem = {
+  ...(await import("./service/channel-system/index.js")),
+};
+mock.module("./service/channel-system/index.js", () => ({
+  ...actualChannelSystem,
   initializeOptionalChannelSystem: (
     enabled: boolean,
     options: Record<string, unknown>,
@@ -544,10 +560,12 @@ vi.mock("./service/channel-system/index.js", async (importOriginal) => ({
     return mocked.channelSystem;
   },
 }));
-vi.mock("./service/plugin-system/index.js", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("./service/plugin-system/index.js")
-  >()),
+
+const actualPluginSystem = {
+  ...(await import("./service/plugin-system/index.js")),
+};
+mock.module("./service/plugin-system/index.js", () => ({
+  ...actualPluginSystem,
   initializePluginService: (
     options: Record<string, unknown>,
     turnCapabilities: unknown,
@@ -581,7 +599,8 @@ vi.mock("./service/plugin-system/index.js", async (importOriginal) => ({
   },
 }));
 
-vi.mock("./service/mcp/index.js", () => ({
+const actualMcp = { ...(await import("./service/mcp/index.js")) };
+mock.module("./service/mcp/index.js", () => ({
   initializeMcpService: (options: Record<string, unknown>) => {
     mocked.events.push("mcp:create");
     return {
@@ -595,18 +614,17 @@ vi.mock("./service/mcp/index.js", () => ({
   },
 }));
 
-vi.mock("./service/miniapp/initialize.js", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("./service/miniapp/initialize.js")>();
-  return {
-    ...actual,
-    initializeMiniAppSupervisor: (options: Record<string, unknown>) => {
-      mocked.events.push("miniapp:create");
-      mocked.miniAppOptions = options;
-      return mocked.miniAppSupervisor;
-    },
-  };
-});
+const actualMiniAppInitialize = {
+  ...(await import("./service/miniapp/initialize.js")),
+};
+mock.module("./service/miniapp/initialize.js", () => ({
+  ...actualMiniAppInitialize,
+  initializeMiniAppSupervisor: (options: Record<string, unknown>) => {
+    mocked.events.push("miniapp:create");
+    mocked.miniAppOptions = options;
+    return mocked.miniAppSupervisor;
+  },
+}));
 
 const noopLogger = {
   info: () => undefined,
@@ -614,64 +632,74 @@ const noopLogger = {
   error: () => undefined,
 };
 
-vi.mock("./service/session-system/index.js", async (importOriginal) => {
-  const actual =
-    await importOriginal<typeof import("./service/session-system/index.js")>();
-  return {
-    isCurrentSessionAgentDefinition: actual.isCurrentSessionAgentDefinition,
-    isTaskSession: actual.isTaskSession,
-    ComposerSendBehaviorPreference: actual.ComposerSendBehaviorPreference,
-    retryUserMessageCommit: <T>(operation: () => Promise<T>) => operation(),
-    createCanonicalRecoveryLoggerAdapter:
-      (logger: {
-        info(fields: Record<string, unknown>, message: string): void;
-      }) =>
-      (event: Record<string, unknown>) =>
-        logger.info(
-          { ...event },
-          "[local-runtime-v2] legacy Session canonical recovery",
-        ),
-    initializeSessionSystem: (options: Record<string, unknown>) => {
-      mocked.events.push("session:create");
-      mocked.sessionOptions = options;
-      return mocked.sessionSystem;
-    },
-    initializeSessionApplicationSystem: (options: Record<string, unknown>) => {
-      mocked.events.push("session-applications:create");
-      mocked.sessionApplicationOptions = options;
-      return mocked.initializedSessionApplicationSystem;
-    },
-  };
-});
+const actualSessionSystem = {
+  ...(await import("./service/session-system/index.js")),
+};
+mock.module("./service/session-system/index.js", () => ({
+  isCurrentSessionAgentDefinition:
+    actualSessionSystem.isCurrentSessionAgentDefinition,
+  isTaskSession: actualSessionSystem.isTaskSession,
+  ComposerSendBehaviorPreference:
+    actualSessionSystem.ComposerSendBehaviorPreference,
+  retryUserMessageCommit: <T>(operation: () => Promise<T>) => operation(),
+  createCanonicalRecoveryLoggerAdapter:
+    (logger: {
+      info(fields: Record<string, unknown>, message: string): void;
+    }) =>
+    (event: Record<string, unknown>) =>
+      logger.info(
+        { ...event },
+        "[local-runtime-v2] legacy Session canonical recovery",
+      ),
+  initializeSessionSystem: (options: Record<string, unknown>) => {
+    mocked.events.push("session:create");
+    mocked.sessionOptions = options;
+    return mocked.sessionSystem;
+  },
+  initializeSessionApplicationSystem: (options: Record<string, unknown>) => {
+    mocked.events.push("session-applications:create");
+    mocked.sessionApplicationOptions = options;
+    return mocked.initializedSessionApplicationSystem;
+  },
+}));
 
-vi.mock("@mavis/config", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@mavis/config")>()),
+const actualConfig = { ...(await import("@mavis/config")) };
+mock.module("@mavis/config", () => ({
+  ...actualConfig,
   allowsManagedMinimaxProviderOverride: () => false,
   getRuntimeRegion: () => mocked.runtimeRegion,
 }));
 
-vi.mock("./service/model-system/index.js", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./service/model-system/index.js")>()),
+const actualModelSystem = {
+  ...(await import("./service/model-system/index.js")),
+};
+mock.module("./service/model-system/index.js", () => ({
+  ...actualModelSystem,
   createLocalModelSystemConfigPort: () => ({
     read: () => mocked.modelConfig,
-    updateByok: vi.fn(async () => undefined),
-    compareAndSetModelContext: vi.fn(async () => true),
-    setDefaultModel: vi.fn(async () => undefined),
-    removeProvider: vi.fn(async () => undefined),
+    updateByok: mock(async () => undefined),
+    compareAndSetModelContext: mock(async () => true),
+    setDefaultModel: mock(async () => undefined),
+    removeProvider: mock(async () => undefined),
   }),
 }));
 
-vi.mock("./application/session/fact-ports.js", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("./application/session/fact-ports.js")
-  >()),
+// The suite used to register this module twice with the same override. A
+// second `mock.module()` for the same path only replaces the first one, so a
+// single registration keeps the same behaviour.
+const actualApplicationFactPorts = {
+  ...(await import("./application/session/fact-ports.js")),
+};
+mock.module("./application/session/fact-ports.js", () => ({
+  ...actualApplicationFactPorts,
   createApplicationFactPorts: (options: Record<string, unknown>) => {
     mocked.applicationFactOptions = options;
     return mocked.applicationFactPorts;
   },
 }));
 
-vi.mock("./application/index.js", async (importOriginal) => {
+const actualApplication = { ...(await import("./application/index.js")) };
+mock.module("./application/index.js", () => {
   class TestAgentApplication {
     constructor(
       private readonly options: { service: typeof mocked.agentService },
@@ -696,7 +724,7 @@ vi.mock("./application/index.js", async (importOriginal) => {
       this.options.service.close();
     }
 
-    notifyGreetingTurnTerminal = vi.fn(async () => undefined);
+    notifyGreetingTurnTerminal = mock(async () => undefined);
 
     resolveAgentWriteTarget(requestRef: string) {
       return this.options.service.resolveAgentWriteTarget(requestRef);
@@ -704,16 +732,16 @@ vi.mock("./application/index.js", async (importOriginal) => {
   }
 
   return {
-    ...(await importOriginal<typeof import("./application/index.js")>()),
+    ...actualApplication,
     AgentApplication: TestAgentApplication,
     createRuntimeAgentApplication: (input: {
       agentService: typeof mocked.agentService;
     }) => new TestAgentApplication({ service: input.agentService }),
     createAgentSessionPorts: () => ({
-      directory: { get: vi.fn() },
-      clearRootSession: vi.fn(async () => true),
-      roots: { get: vi.fn(), setRootSession: vi.fn() },
-      resolveWriteTarget: vi.fn(async (requestRef: string) => requestRef),
+      directory: { get: mock() },
+      clearRootSession: mock(async () => true),
+      roots: { get: mock(), setRootSession: mock() },
+      resolveWriteTarget: mock(async (requestRef: string) => requestRef),
     }),
     initializeApplications: (options: Record<string, unknown>) => {
       mocked.events.push("applications:create");
@@ -728,51 +756,51 @@ vi.mock("./application/index.js", async (importOriginal) => {
   };
 });
 
-vi.mock("./application/conversation/index.js", async (importOriginal) => {
-  const original =
-    await importOriginal<
-      typeof import("./application/conversation/index.js")
-    >();
-  return {
-    ...original,
-    createQueryCollapseKeyResolver: (options: Record<string, unknown>) => {
-      queryCollapseMocked.keyResolverOptions = options;
-      return queryCollapseMocked.keys;
-    },
-    UserMessageTurnDeliveryService: class extends original.UserMessageTurnDeliveryService {
-      constructor(
-        options: ConstructorParameters<
-          typeof original.UserMessageTurnDeliveryService
-        >[0],
-      ) {
-        queryCollapseMocked.deliveryOptions = options as unknown as Record<
-          string,
-          unknown
-        >;
-        super(options);
-      }
-    },
-    createConversationApplication: (options: Record<string, unknown>) => {
-      mocked.conversationApplicationOptions = options;
-      return mocked.conversationApplication;
-    },
-  };
-});
+const actualConversation = {
+  ...(await import("./application/conversation/index.js")),
+};
+mock.module("./application/conversation/index.js", () => ({
+  ...actualConversation,
+  createQueryCollapseKeyResolver: (options: Record<string, unknown>) => {
+    queryCollapseMocked.keyResolverOptions = options;
+    return queryCollapseMocked.keys;
+  },
+  UserMessageTurnDeliveryService: class extends actualConversation.UserMessageTurnDeliveryService {
+    constructor(
+      options: ConstructorParameters<
+        typeof actualConversation.UserMessageTurnDeliveryService
+      >[0],
+    ) {
+      queryCollapseMocked.deliveryOptions = options as unknown as Record<
+        string,
+        unknown
+      >;
+      super(options);
+    }
+  },
+  createConversationApplication: (options: Record<string, unknown>) => {
+    mocked.conversationApplicationOptions = options;
+    return mocked.conversationApplication;
+  },
+}));
 
-vi.mock("./service/turn-system/index.js", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./service/turn-system/index.js")>()),
+const actualTurnSystem = {
+  ...(await import("./service/turn-system/index.js")),
+};
+mock.module("./service/turn-system/index.js", () => ({
+  ...actualTurnSystem,
   AgentHostTurnCapabilityLifecycle: class AgentHostTurnCapabilityLifecycle {},
   composeTurnAdmissionPolicies: (...policies: unknown[]) => ({ policies }),
-  configureLocalPluginHookEnabledResolver: vi.fn(),
-  configureLocalPluginHookSessionEndFence: vi.fn((fence: unknown) => {
+  configureLocalPluginHookEnabledResolver: mock(),
+  configureLocalPluginHookSessionEndFence: mock((fence: unknown) => {
     mocked.pluginHookSessionEndFence =
       fence as typeof mocked.pluginHookSessionEndFence;
   }),
-  configureLocalPluginHookObservability: vi.fn(),
-  deactivateLocalPluginHooks: vi.fn(),
-  disposeLocalPluginHookSessions: vi.fn(),
-  endAllLocalPluginHookSessionsForLogout: vi.fn(async () => undefined),
-  endLocalPluginHookSession: vi.fn(async () => undefined),
+  configureLocalPluginHookObservability: mock(),
+  deactivateLocalPluginHooks: mock(),
+  disposeLocalPluginHookSessions: mock(),
+  endAllLocalPluginHookSessionsForLogout: mock(async () => undefined),
+  endLocalPluginHookSession: mock(async () => undefined),
   isUserSteeringProducer: (producerId: string) =>
     producerId === "queue-immediate-send" ||
     producerId === "composer-steer" ||
@@ -838,8 +866,8 @@ vi.mock("./service/turn-system/index.js", async (importOriginal) => ({
         : {}),
     };
     const pluginHookSessionOwnership = {
-      prepare: vi.fn(async () => undefined),
-      activate: vi.fn(async () => undefined),
+      prepare: mock(async () => undefined),
+      activate: mock(async () => undefined),
     };
     mocked.hostPluginHookSessionOwnership = pluginHookSessionOwnership;
     await options.createHost({
@@ -849,14 +877,14 @@ vi.mock("./service/turn-system/index.js", async (importOriginal) => ({
     });
     return mocked.turnSystem;
   },
-  createProductionAgentPreparation: vi.fn(
+  createProductionAgentPreparation: mock(
     (options: Record<string, unknown>) => {
       mocked.agentPreparationOptions = options;
       return mocked.agentPreparation;
     },
   ),
   createSessionModelRepair: mocked.createSessionModelRepair,
-  combineAgentEventObservers: vi.fn((...observers: unknown[]) => ({
+  combineAgentEventObservers: mock((...observers: unknown[]) => ({
     observers,
   })),
   createSessionLLMRetryEventObserver:
@@ -868,58 +896,61 @@ vi.mock("./service/turn-system/index.js", async (importOriginal) => ({
         payload: { schemaVersion: 1, ...event },
       });
     },
-  createLocalAgentHost: vi.fn(async (options: Record<string, unknown>) => {
+  createLocalAgentHost: mock(async (options: Record<string, unknown>) => {
     mocked.agentHostOptions = options;
     return {
       host: {},
       lifecycle: mocked.agentRuntimeLifecycle,
     };
   }),
-  createProductionSessionTitleModel: vi.fn(
+  createProductionSessionTitleModel: mock(
     (options: Record<string, unknown>) => {
       mocked.sessionTitleOptions = options;
       return mocked.sessionTitleModel;
     },
   ),
-  createProductionRootArchiveTitleModel: vi.fn(
+  createProductionRootArchiveTitleModel: mock(
     (options: Record<string, unknown>) => {
       mocked.archiveTitleOptions = options;
       return {
-        summarize: vi.fn(async () => null),
+        summarize: mock(async () => null),
       };
     },
   ),
 }));
 
-vi.mock("./application/session/fact-ports.js", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("./application/session/fact-ports.js")
-  >()),
-  createApplicationFactPorts: (options: Record<string, unknown>) => {
-    mocked.applicationFactOptions = options;
-    return mocked.applicationFactPorts;
-  },
-}));
-
 // The composition root now assembles the v1 Conversation surface through the
 // real `composeV1Conversation`, so the leaf factories are what gets stubbed —
 // the assertions below still observe exactly what that composition hands over.
-vi.mock("./service/v1-conversation-compat/attachments/index.js", () => ({
-  createV1ConversationAttachmentMaterializer: vi.fn(
+const actualV1ConversationAttachments = {
+  ...(await import("./service/v1-conversation-compat/attachments/index.js")),
+};
+mock.module("./service/v1-conversation-compat/attachments/index.js", () => ({
+  createV1ConversationAttachmentMaterializer: mock(
     (options: Record<string, unknown>) => {
       mocked.attachmentMaterializerOptions = options;
       return mocked.attachmentMaterializer;
     },
   ),
 }));
-vi.mock(
+
+const actualV1CompatibleTurnSubmission = {
+  ...(await import(
+    "./service/v1-conversation-compat/v1-compatible-turn-submission.service.js"
+  )),
+};
+mock.module(
   "./service/v1-conversation-compat/v1-compatible-turn-submission.service.js",
   () => ({
-    createV1CompatibleTurnSubmission: vi.fn(() => mocked.v1Submission),
+    createV1CompatibleTurnSubmission: mock(() => mocked.v1Submission),
   }),
 );
-vi.mock("./service/v1-conversation-compat/initialize.js", () => ({
-  createV1ConversationCompatibility: vi.fn(
+
+const actualV1ConversationCompatibility = {
+  ...(await import("./service/v1-conversation-compat/initialize.js")),
+};
+mock.module("./service/v1-conversation-compat/initialize.js", () => ({
+  createV1ConversationCompatibility: mock(
     (options: Record<string, unknown>) => {
       mocked.conversationOptions = options;
       return mocked.conversationService;
@@ -927,7 +958,39 @@ vi.mock("./service/v1-conversation-compat/initialize.js", () => ({
   ),
 }));
 
-afterEach(() => vi.unstubAllEnvs());
+// Put every replaced module back, so a replacement never leaks into the files
+// that run after this one in the same `bun test` process.
+afterAll(() => {
+  mock.module("./service/cron/index.js", () => actualCron);
+  mock.module("./service/channel-system/index.js", () => actualChannelSystem);
+  mock.module("./service/plugin-system/index.js", () => actualPluginSystem);
+  mock.module("./service/mcp/index.js", () => actualMcp);
+  mock.module("./service/miniapp/initialize.js", () => actualMiniAppInitialize);
+  mock.module("./service/session-system/index.js", () => actualSessionSystem);
+  mock.module("@mavis/config", () => actualConfig);
+  mock.module("./service/model-system/index.js", () => actualModelSystem);
+  mock.module(
+    "./application/session/fact-ports.js",
+    () => actualApplicationFactPorts,
+  );
+  mock.module("./application/index.js", () => actualApplication);
+  mock.module("./application/conversation/index.js", () => actualConversation);
+  mock.module("./service/turn-system/index.js", () => actualTurnSystem);
+  mock.module(
+    "./service/v1-conversation-compat/attachments/index.js",
+    () => actualV1ConversationAttachments,
+  );
+  mock.module(
+    "./service/v1-conversation-compat/v1-compatible-turn-submission.service.js",
+    () => actualV1CompatibleTurnSubmission,
+  );
+  mock.module(
+    "./service/v1-conversation-compat/initialize.js",
+    () => actualV1ConversationCompatibility,
+  );
+});
+
+afterEach(() => unstubAllEnvs());
 
 beforeEach(() => {
   mocked.agentRuntimeLifecycle.disposeSession.mockReset();
@@ -1065,7 +1128,7 @@ async function assertInputReviewTitlePolicy(
     userInput: "blocked input",
     rejected: true,
   });
-  await vi.waitFor(() =>
+  await waitFor(() =>
     expect(mocked.sessionSystem.titles.generate).toHaveBeenCalledOnce(),
   );
   expect(
@@ -1088,7 +1151,7 @@ async function assertInputReviewTitlePolicy(
     userInput: "approved input",
     rejected: false,
   });
-  await vi.waitFor(() =>
+  await waitFor(() =>
     expect(reportFailure).toHaveBeenCalledWith(
       "session-1",
       "session_title_source_resolution_failed:message read unavailable",
@@ -1099,7 +1162,7 @@ async function assertInputReviewTitlePolicy(
 
 async function assertSessionCompositionPolicies(input: {
   readonly compatibility: V1ServiceCompatibility;
-  readonly metricsCounter: ReturnType<typeof vi.fn>;
+  readonly metricsCounter: ReturnType<typeof mock>;
   readonly projectedEvents: readonly GlobalEvent[];
 }): Promise<void> {
   const reportFailure = input.compatibility.agentHost.executor.reportFailure;
@@ -1123,7 +1186,7 @@ async function assertSessionCompositionPolicies(input: {
     }) => void;
   };
   title.onOutcome("success");
-  const warn = vi.spyOn(noopLogger, "warn");
+  const warn = spyOn(noopLogger, "warn");
   title.onFailure({
     stage: "model",
     sessionId: "session-1",
@@ -1242,8 +1305,8 @@ async function assertMiniAppStartupFailureCleanup(): Promise<void> {
 
 async function assertGoalQueueReadsPlanFence(): Promise<void> {
   const compatibility = defaultCompatibility();
-  const getPending = vi.fn(async () => undefined as never);
-  const classifyGoalItem = vi.mocked(
+  const getPending = mock(async () => undefined as never);
+  const classifyGoalItem = mockFn(
     compatibility.sessionV2.goals.classifyQueuedItem,
   );
   const planFenceReads: string[] = [];
@@ -1310,7 +1373,7 @@ async function assertGoalQueueYieldsToUserWork(): Promise<void> {
   });
   const yields = mocked.turnOptions?.shouldYieldFifoPosition;
   if (!yields) throw new Error("Queue FIFO yield policy was not composed");
-  const list = vi.mocked(mocked.sessionSystem.queue.committed.list);
+  const list = mockFn(mocked.sessionSystem.queue.committed.list);
   const queueItem = (source: string) => ({
     itemId: `item-${source}`,
     sessionId: "session-1",
@@ -1342,11 +1405,10 @@ async function assertGoalQueueYieldsToUserWork(): Promise<void> {
 
 async function assertAskUserGateDefersQueueClassification(): Promise<void> {
   const compatibility = defaultCompatibility();
-  const getPending = vi
-    .fn()
+  const getPending = mock()
     .mockResolvedValueOnce({ id: "question-1" } as never)
     .mockResolvedValueOnce(undefined as never);
-  const classifyGoalItem = vi.mocked(
+  const classifyGoalItem = mockFn(
     compatibility.sessionV2.goals.classifyQueuedItem,
   );
   const services = await createRuntimeServices({
@@ -1394,8 +1456,8 @@ async function assertAskUserGateDefersQueueClassification(): Promise<void> {
 
 async function assertQuestionnaireReplyBypassesAskUserGates(): Promise<void> {
   const compatibility = defaultCompatibility();
-  const getPending = vi.fn(async () => ({ id: "question-1" }) as never);
-  const classifyGoalItem = vi.mocked(
+  const getPending = mock(async () => ({ id: "question-1" }) as never);
+  const classifyGoalItem = mockFn(
     compatibility.sessionV2.goals.classifyQueuedItem,
   );
   const services = await createRuntimeServices({
@@ -1474,7 +1536,7 @@ async function assertImportedSessionPinBinding(): Promise<void> {
 }
 
 async function assertCanonicalSessionRecoveryLogging(): Promise<void> {
-  const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+  const logger = { info: mock(), warn: mock(), error: mock() };
   await createRuntimeServices({
     db: {} as AppDb,
     dataDir: "/data",
@@ -1505,8 +1567,8 @@ describe("runtime services composition", () => {
   it.each([false, true])(
     "keeps source hooks and projection disabled for every build identity (internal=%s)",
     async (internal) => {
-      vi.stubEnv("__MAVIS_BUILD_INTERNAL", String(internal));
-      vi.stubEnv("__MAVIS_BUILD_INSIDE", "false");
+      stubEnv("__MAVIS_BUILD_INTERNAL", String(internal));
+      stubEnv("__MAVIS_BUILD_INSIDE", "false");
       const services = await createRuntimeServices({
         db: {} as AppDb,
         dataDir: "/data",
@@ -1560,13 +1622,19 @@ describe("runtime services composition", () => {
 
     expect(services.miniApp).toBe(mocked.miniAppSupervisor);
     assertProcessLocalMiniAppComposition();
-    expect(mocked.miniAppOptions).toMatchObject({
-      db: {},
-      connectorGateway: mocked.hostConnectorGateway,
-      verifyCandidate: expect.any(Function),
-      materializePackage: expect.any(Function),
-      resolvePluginDataDir: expect.any(Function),
-    });
+    // `toEqual` with `objectContaining` is the non-mutating form of
+    // `toMatchObject`: `bun:test`'s `toMatchObject` rewrites the received
+    // object with the matcher instances it matched against, which would
+    // replace the composed callbacks with matcher objects.
+    expect(mocked.miniAppOptions).toEqual(
+      expect.objectContaining({
+        db: expect.objectContaining({}),
+        connectorGateway: mocked.hostConnectorGateway,
+        verifyCandidate: expect.any(Function),
+        materializePackage: expect.any(Function),
+        resolvePluginDataDir: expect.any(Function),
+      }),
+    );
     expect(mocked.events).toContain("plugin:attach-miniapp");
     expect(mocked.events.indexOf("plugin:attach-miniapp")).toBeLessThan(
       mocked.events.indexOf("turn:create"),
@@ -1657,7 +1725,7 @@ describe("runtime services composition", () => {
       userInput: "approved input",
       rejected: false,
     });
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(mocked.sessionSystem.titles.generate).toHaveBeenCalledOnce(),
     );
     await services.close();
@@ -1719,7 +1787,7 @@ describe("runtime services Goal queue composition", () => {
 async function assertRuntimeServicesComposition() {
   const db = {} as AppDb;
   const scheduler = {} as SchedulerClient;
-  const metrics = { counter: vi.fn(), histogram: vi.fn() };
+  const metrics = { counter: mock(), histogram: mock() };
   const eventBus = new EventBus<GlobalEvent>();
   const compatibility = defaultCompatibility();
   const nowMs = () => 1_700_000_000_000;
@@ -1754,19 +1822,25 @@ async function assertRuntimeServicesComposition() {
     sessions: mocked.sessionSystem.sessions.repository,
     product: compatibility.channel,
   });
-  expect(mocked.agentHostOptions).toMatchObject({
-    preparation: mocked.agentPreparation,
-    sessions: mocked.sessionSystem,
-    safety: services.safety,
-    turnCapabilities: mocked.pluginTurnCapabilities,
-    onInputReviewResolved: expect.any(Function),
-    eventObserver: {
-      observers: [
-        mocked.channelSystem.terminalReplies,
-        expect.objectContaining({ observeRuntimeEvent: expect.any(Function) }),
-      ],
-    },
-  });
+  // `toEqual` with `objectContaining` is the non-mutating form of
+  // `toMatchObject`: `bun:test`'s `toMatchObject` rewrites the received
+  // object with the matcher instances it matched against, which would
+  // replace the composed callbacks with matcher objects.
+  expect(mocked.agentHostOptions).toEqual(
+    expect.objectContaining({
+      preparation: mocked.agentPreparation,
+      sessions: mocked.sessionSystem,
+      safety: services.safety,
+      turnCapabilities: mocked.pluginTurnCapabilities,
+      onInputReviewResolved: expect.any(Function),
+      eventObserver: expect.objectContaining({
+        observers: [
+          mocked.channelSystem.terminalReplies,
+          expect.objectContaining({ observeRuntimeEvent: expect.any(Function) }),
+        ],
+      }),
+    }),
+  );
   expect(mocked.agentHostOptions).not.toHaveProperty("contentReviewEnabled");
   expect(mocked.agentHostOptions).not.toHaveProperty("tuiProductPolicy");
   expect(mocked.agentHostOptions).not.toHaveProperty("cliProductPolicy");
@@ -1795,14 +1869,20 @@ async function assertRuntimeServicesComposition() {
     messages: mocked.sessionSystem.messages.repository,
     getGoalBySession: compatibility.sessionV2.goals.getBySession,
   });
-  expect(queryCollapseMocked.deliveryOptions).toMatchObject({
-    messages: mocked.sessionSystem.messages.userMessages,
-    stream: mocked.sessionSystem.stream,
-    queryCollapse: {
-      resolveQueryKey: expect.any(Function),
-      start: expect.any(Function),
-    },
-  });
+  // `toEqual` with `objectContaining` is the non-mutating form of
+  // `toMatchObject`: `bun:test`'s `toMatchObject` rewrites the received
+  // object with the matcher instances it matched against, which would
+  // replace the composed callbacks with matcher objects.
+  expect(queryCollapseMocked.deliveryOptions).toEqual(
+    expect.objectContaining({
+      messages: mocked.sessionSystem.messages.userMessages,
+      stream: mocked.sessionSystem.stream,
+      queryCollapse: expect.objectContaining({
+        resolveQueryKey: expect.any(Function),
+        start: expect.any(Function),
+      }),
+    }),
+  );
   const queryCollapse = queryCollapseMocked.deliveryOptions?.[
     "queryCollapse"
   ] as {
@@ -1860,16 +1940,24 @@ async function assertRuntimeServicesComposition() {
     nowMs,
     recoverPendingRuns: true,
   });
-  expect(mocked.sessionOptions).toMatchObject({
-    facts: mocked.applicationFactPorts.session,
-    queueFacts: mocked.applicationFactPorts.queue,
-    compactionFacts: { handle: expect.any(Function) },
-    title: {
-      model: mocked.sessionTitleModel,
-      onOutcome: expect.any(Function),
-      onFailure: expect.any(Function),
-    },
-  });
+  // `toEqual` with `objectContaining` is the non-mutating form of
+  // `toMatchObject`: `bun:test`'s `toMatchObject` rewrites the received
+  // object with the matcher instances it matched against, which would
+  // replace the composed callbacks with matcher objects.
+  expect(mocked.sessionOptions).toEqual(
+    expect.objectContaining({
+      facts: mocked.applicationFactPorts.session,
+      queueFacts: mocked.applicationFactPorts.queue,
+      compactionFacts: expect.objectContaining({
+        handle: expect.any(Function),
+      }),
+      title: expect.objectContaining({
+        model: mocked.sessionTitleModel,
+        onOutcome: expect.any(Function),
+        onFailure: expect.any(Function),
+      }),
+    }),
+  );
   expect(mocked.applicationOptions).toMatchObject({
     metrics,
     attachmentRegistration: compatibility.attachmentRegistration,
@@ -1954,13 +2042,19 @@ async function assertModelProviderComposition(
 }
 
 function assertProcessLocalMiniAppComposition(): void {
-  expect(mocked.processLocalApplicationOptions).toMatchObject({
-    miniApps: {
-      list: expect.any(Function),
-      open: expect.any(Function),
-      stop: expect.any(Function),
-    },
-  });
+  // `toEqual` with `objectContaining` is the non-mutating form of
+  // `toMatchObject`: `bun:test`'s `toMatchObject` rewrites the received
+  // object with the matcher instances it matched against, which would
+  // replace the composed callbacks with matcher objects.
+  expect(mocked.processLocalApplicationOptions).toEqual(
+    expect.objectContaining({
+      miniApps: expect.objectContaining({
+        list: expect.any(Function),
+        open: expect.any(Function),
+        stop: expect.any(Function),
+      }),
+    }),
+  );
 }
 describe("runtime services CLI composition", () => {
   it.each([true, false])(
@@ -2065,7 +2159,7 @@ describe("runtime services CLI composition", () => {
    */
   it("composes without a model resolver and captures through the global transport", async () => {
     const compatibility = defaultCompatibility();
-    const globalFetch = vi.fn(async () => new Response("{}"));
+    const globalFetch = mock(async () => new Response("{}"));
     const originalFetch = globalThis.fetch;
     globalThis.fetch = globalFetch as unknown as typeof fetch;
 
@@ -2097,8 +2191,7 @@ describe("runtime services CLI composition", () => {
       await composedFetch?.("https://example.invalid/v1/messages");
       // Verify provider capture independently of the disabled prompt control plane.
       expect(
-        vi
-          .mocked(globalThis.fetch)
+        mockFn(globalThis.fetch)
           .mock.calls.filter(
             ([request]) => request === "https://example.invalid/v1/messages",
           ),
@@ -2110,7 +2203,7 @@ describe("runtime services CLI composition", () => {
 
   it("decorates the host transport for capture rather than replacing it", async () => {
     const compatibility = defaultCompatibility();
-    const hostFetch = vi.fn(async () => new Response("{}"));
+    const hostFetch = mock(async () => new Response("{}"));
     (
       compatibility.agentHost.preparation as unknown as {
         modelResolver: { fetchImpl: typeof hostFetch };
@@ -2151,7 +2244,7 @@ describe("runtime services CLI composition", () => {
    */
   it("captures TUI requests even though the host composes no transport", async () => {
     const compatibility = defaultCompatibility();
-    const globalFetch = vi.fn(async () => new Response("{}"));
+    const globalFetch = mock(async () => new Response("{}"));
     const originalFetch = globalThis.fetch;
     const originalOptIn = process.env.MAVIS_TUI_LLM_CONTEXT_INSPECTOR;
     globalThis.fetch = globalFetch as unknown as typeof fetch;
@@ -2359,7 +2452,7 @@ describe("runtime services agent profile composition", () => {
 describe("production Session title policy wiring", () => {
   it("skips the signed-out gateway only for the selected BYOK Session", async () => {
     const compatibility = defaultCompatibility();
-    const review = vi.mocked(compatibility.safety.review);
+    const review = mockFn(compatibility.safety.review);
     review.mockResolvedValue({ pass: false, errorKind: "auth_error" });
     await createRuntimeServices({
       db: {} as AppDb, dataDir: "/data", logger: noopLogger,
@@ -2596,7 +2689,7 @@ describe("runtime services Plugin Hook durable fence composition", () => {
     expect(mocked.agentHostOptions?.["pluginHookSessionOwnership"]).toBe(
       mocked.hostPluginHookSessionOwnership,
     );
-    const operation = vi.fn(async (signal?: AbortSignal) => ({ signal }));
+    const operation = mock(async (signal?: AbortSignal) => ({ signal }));
     await expect(
       fence.run({
         sessionId: "session-1",
@@ -2623,7 +2716,7 @@ describe("runtime services Plugin Hook durable fence composition", () => {
         status: "already-claimed",
       } as never,
     );
-    const duplicate = vi.fn(async () => undefined);
+    const duplicate = mock(async () => undefined);
     await expect(
       fence.run({
         sessionId: "session-1",
@@ -2643,7 +2736,7 @@ describe("runtime services Plugin Hook durable fence composition", () => {
     sessionLifecycle.tryRunExclusive = undefined;
     try {
       const fence = await configureFence();
-      const operation = vi.fn(async () => "completed");
+      const operation = mock(async () => "completed");
 
       await expect(
         fence.run({
@@ -2664,7 +2757,7 @@ describe("runtime services Plugin Hook durable fence composition", () => {
 
   it("supersedes SessionEnd when the durable ownership claim is absent or stale", async () => {
     const fence = await configureFence();
-    const operation = vi.fn(async () => undefined);
+    const operation = mock(async () => undefined);
     mocked.turnSystem.pluginHookSessionOwnership.latest
       .mockResolvedValueOnce(undefined as never)
       .mockResolvedValueOnce({ ownershipClaimId: "owner-turn-2" } as never);
@@ -2688,7 +2781,7 @@ describe("runtime services Plugin Hook durable fence composition", () => {
 
   it("defers a stale idle sweep but executes after activity remains at the observed boundary", async () => {
     const fence = await configureFence();
-    const operation = vi.fn(async () => "completed");
+    const operation = mock(async () => "completed");
     mocked.turnSystem.inspection.latestTurnActivity
       .mockResolvedValueOnce({ activityAtMs: 201 } as never)
       .mockResolvedValueOnce({ activityAtMs: 200 } as never);
@@ -3011,7 +3104,7 @@ describe("runtime persisted-state recovery policy", () => {
 describe("Goal verifier service binding", () => {
   it("binds both backends, immutable transcript capture, and the readonly child extension", async () => {
     const bindVerifier =
-      vi.fn<
+      mock<
         NonNullable<
           V1ServiceCompatibility["sessionV2"]["goals"]["bindVerifier"]
         >
@@ -3062,7 +3155,7 @@ describe("Goal verifier service binding", () => {
 
   it("captures only the newest bounded Goal verifier transcript and reports truncation", async () => {
     const bindVerifier =
-      vi.fn<
+      mock<
         NonNullable<
           V1ServiceCompatibility["sessionV2"]["goals"]["bindVerifier"]
         >
@@ -3126,7 +3219,7 @@ describe("runtime Browser services lifecycle", () => {
       scheduler: {} as SchedulerClient,
       eventBus: new EventBus<GlobalEvent>(),
       compatibility,
-      browserUse: { adapter: { execute: vi.fn() } },
+      browserUse: { adapter: { execute: mock() } },
       agentService: localAgentService,
     });
 
@@ -3158,7 +3251,7 @@ describe("runtime Browser services lifecycle", () => {
       scheduler: {} as SchedulerClient,
       eventBus: new EventBus<GlobalEvent>(),
       compatibility,
-      browserUse: { adapter: { execute: vi.fn() } },
+      browserUse: { adapter: { execute: mock() } },
       agentService: localAgentService,
       runtimeOwnerKind: "cli",
     });
@@ -3167,7 +3260,7 @@ describe("runtime Browser services lifecycle", () => {
     ) => void;
     const baseSkill = {
       def: LocalSkillToolDef,
-      impl: { execute: vi.fn(async () => ({ content: [] })) },
+      impl: { execute: mock(async () => ({ content: [] })) },
     } as unknown as RuntimeTool;
     const browserCapability = services.browserUse.resolveTurnCapability({
       sessionId: "assembly-session",
@@ -3319,8 +3412,8 @@ describe("runtime services lifecycle", () => {
     let publish:
       | Parameters<V1ServiceCompatibility["events"]["bindPublisher"]>[0]
       | undefined;
-    const unbind = vi.fn();
-    const bindPublisher = vi.fn<
+    const unbind = mock();
+    const bindPublisher = mock<
       V1ServiceCompatibility["events"]["bindPublisher"]
     >((publisher) => {
       publish = publisher;
@@ -3398,7 +3491,7 @@ describe("runtime services readiness and shutdown", () => {
     let publish:
       | Parameters<V1ServiceCompatibility["events"]["bindPublisher"]>[0]
       | undefined;
-    const bindPublisher = vi.fn<
+    const bindPublisher = mock<
       V1ServiceCompatibility["events"]["bindPublisher"]
     >((publisher) => {
       publish = publisher;
@@ -3417,7 +3510,7 @@ describe("runtime services readiness and shutdown", () => {
     });
     await services.ready();
 
-    const notification = vi.mocked(services.agent.notifyGreetingTurnTerminal);
+    const notification = mockFn(services.agent.notifyGreetingTurnTerminal);
     notification.mockRejectedValueOnce(
       new Error("greeting state write failed"),
     );
@@ -3493,7 +3586,7 @@ describe("runtime services ready and close", () => {
     });
 
     await expect(services.ready()).resolves.toBeUndefined();
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(mocked.events).toContain("questionnaire:plan-reconcile:true");
     });
 
@@ -3529,7 +3622,7 @@ describe("runtime services ready and close", () => {
   });
 
   it("shares close, closes Cron once, and cannot become ready afterwards", async () => {
-    const bindPublisher = vi.fn(() => () => undefined);
+    const bindPublisher = mock(() => () => undefined);
     const services = await createRuntimeServices({
       db: {} as AppDb,
       dataDir: "/data",
@@ -3541,7 +3634,7 @@ describe("runtime services ready and close", () => {
     });
     mocked.events.length = 0;
 
-    const closePreview = vi.spyOn(services.workspace.htmlPreview, "close");
+    const closePreview = spyOn(services.workspace.htmlPreview, "close");
     const first = services.close();
     const second = services.close();
 
@@ -3578,7 +3671,7 @@ describe("runtime services ready and close", () => {
     await services.ready();
     mocked.events.length = 0;
 
-    const closePreview = vi.spyOn(services.workspace.htmlPreview, "close");
+    const closePreview = spyOn(services.workspace.htmlPreview, "close");
     await expect(services.close()).rejects.toBe(failure);
     expect(closePreview).toHaveBeenCalledTimes(1);
 
@@ -3597,7 +3690,7 @@ describe("runtime services greeting terminal timing", () => {
     let publish:
       | Parameters<V1ServiceCompatibility["events"]["bindPublisher"]>[0]
       | undefined;
-    const bindPublisher = vi.fn<
+    const bindPublisher = mock<
       V1ServiceCompatibility["events"]["bindPublisher"]
     >((publisher) => {
       publish = publisher;
@@ -3617,7 +3710,7 @@ describe("runtime services greeting terminal timing", () => {
     });
     await services.ready();
 
-    const notification = vi.mocked(services.agent.notifyGreetingTurnTerminal);
+    const notification = mockFn(services.agent.notifyGreetingTurnTerminal);
     notification.mockImplementationOnce(() => {
       order.push("notify");
       return Promise.resolve();
@@ -3640,7 +3733,7 @@ describe("runtime services greeting terminal timing", () => {
     let publish:
       | Parameters<V1ServiceCompatibility["events"]["bindPublisher"]>[0]
       | undefined;
-    const bindPublisher = vi.fn<
+    const bindPublisher = mock<
       V1ServiceCompatibility["events"]["bindPublisher"]
     >((publisher) => {
       publish = publisher;
@@ -3657,7 +3750,7 @@ describe("runtime services greeting terminal timing", () => {
     });
     await services.ready();
 
-    const notification = vi.mocked(services.agent.notifyGreetingTurnTerminal);
+    const notification = mockFn(services.agent.notifyGreetingTurnTerminal);
     notification.mockImplementationOnce(() => {
       throw new Error("synchronous greeting observer failure");
     });
@@ -3733,7 +3826,7 @@ describe("runtime Plan lifecycle recovery", () => {
     });
 
     await services.ready();
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(mocked.events).toContain("queue:dispatch:session-plan-review");
     });
 
@@ -3810,29 +3903,29 @@ function defaultCompatibility(
   generatedAssets: Partial<V1ServiceCompatibility["generatedAssets"]> = {},
 ): V1ServiceCompatibility {
   return {
-    sandbox: { writeConfig: vi.fn(async () => undefined) },
-    modelProvider: { refreshOfficialModels: vi.fn(async () => undefined) },
+    sandbox: { writeConfig: mock(async () => undefined) },
+    modelProvider: { refreshOfficialModels: mock(async () => undefined) },
     peripherals: {} as never,
     skills: {
-      listSkills: vi.fn(async () => ({ skills: [], hasMore: false })),
+      listSkills: mock(async () => ({ skills: [], hasMore: false })),
     } as never,
     managedWorktrees: {
-      list: vi.fn(async () => ({ success: true, worktrees: [] })),
-      remove: vi.fn(async () => ({ status: 200, body: { success: true } })),
-      removeBatch: vi.fn(async () => ({
+      list: mock(async () => ({ success: true, worktrees: [] })),
+      remove: mock(async () => ({ status: 200, body: { success: true } })),
+      removeBatch: mock(async () => ({
         success: true,
         removedPaths: [],
         failedItems: [],
       })),
     },
     agentReferences: {
-      resolveDelegatable: vi.fn(
+      resolveDelegatable: mock(
         async (): Promise<"authorized"> => "authorized",
       ),
     },
     cron: {
       bindAgentCleanup: (service) => mocked.cleanupServices.push(service),
-      deleteAgentTasks: vi.fn(async () => undefined),
+      deleteAgentTasks: mock(async () => undefined),
     },
     agentHost: {
       preparation: {
@@ -3843,16 +3936,16 @@ function defaultCompatibility(
             custom_provider: { "openai-work": {} },
           }),
           skills: {
-            listRuntimeSkills: vi.fn(async () => ({
+            listRuntimeSkills: mock(async () => ({
               skills: [],
               refreshedAt: 0,
             })),
-            renderCatalog: vi.fn(async () => ""),
+            renderCatalog: mock(async () => ""),
           },
         },
       },
       toolSources: {
-        resolve: vi.fn(async () => ({
+        resolve: mock(async () => ({
           nativeTools: [],
           mcpEntries: [],
           threadGoalTools: [],
@@ -3861,106 +3954,106 @@ function defaultCompatibility(
       },
       inputPreparation: {
         reminders: {
-          buildSystem: vi.fn(async () => ({ content: "" })),
+          buildSystem: mock(async () => ({ content: "" })),
         },
       },
       runner: {},
-      executor: { reportFailure: vi.fn() },
+      executor: { reportFailure: mock() },
     } as never,
     generatedAssets: {
-      compressModelImage: vi.fn(() => undefined),
-      registerGeneratedAsset: vi.fn(),
+      compressModelImage: mock(() => undefined),
+      registerGeneratedAsset: mock(),
       ...generatedAssets,
     },
     promptConfig: { autoUpdate: true },
     promptSnapshots: {
-      bind: vi.fn(),
+      bind: mock(),
     },
     internalTurnPromptReads: {
-      bind: vi.fn(),
+      bind: mock(),
     },
     attachmentRegistration: {
-      register: vi.fn(async ({ attachments }) => attachments),
-      discard: vi.fn(async () => undefined),
-      resolveSource: vi.fn(() => undefined),
+      register: mock(async ({ attachments }) => attachments),
+      discard: mock(async () => undefined),
+      resolveSource: mock(() => undefined),
     },
     channel: {
-      finalReplies: { deliver: vi.fn() },
-      typing: { start: vi.fn(), end: vi.fn() },
+      finalReplies: { deliver: mock() },
+      typing: { start: mock(), end: mock() },
     },
     backgroundTasks: {
-      bindRuntimeOwner: vi.fn(),
-      recover: vi.fn(async () => undefined),
-      pollRecovery: vi.fn(async () => false),
+      bindRuntimeOwner: mock(),
+      recover: mock(async () => undefined),
+      pollRecovery: mock(async () => false),
       // No cascade in this fixture: `begin` declining keeps today's stop behaviour.
-      userStop: { begin: vi.fn(async () => undefined) },
+      userStop: { begin: mock(async () => undefined) },
     },
     conversation: {
       bind: async (service) => {
         mocked.conversationBindings.push(service);
         mocked.events.push("conversation:bind");
       },
-      fail: vi.fn(),
+      fail: mock(),
       shutdown: (error) => mocked.conversationShutdowns.push(error),
     },
     events,
     safety: {
-      review: vi.fn(async () => ({ pass: true })),
+      review: mock(async () => ({ pass: true })),
     },
     greeting: {
-      canSend: vi.fn(() => false),
-      sendSystemReminder: vi.fn(),
+      canSend: mock(() => false),
+      sendSystemReminder: mock(),
     },
     questionnaires: {
-      resolveLocale: vi.fn(() => "en-US"),
+      resolveLocale: mock(() => "en-US"),
       createService: () => mocked.questionnaireService as never,
       bindOwnedAction: (handler, onFailure) => {
         mocked.questionnaireActionBindings.push({ handler, onFailure });
       },
-      bindRequestAdmission: vi.fn(),
+      bindRequestAdmission: mock(),
     },
     sessionV2: {
-      bindSessionPinReader: vi.fn(),
+      bindSessionPinReader: mock(),
       legacyMigration: {
         primaryAgentName: "mavis",
         assets: {
-          register: vi.fn(),
+          register: mock(),
         },
       },
       canvasAssets: {
-        importDeliverable: vi.fn(async () => undefined),
-        importExternal: vi.fn(async () => undefined),
-        resolve: vi.fn(async () => undefined),
+        importDeliverable: mock(async () => undefined),
+        importExternal: mock(async () => undefined),
+        resolve: mock(async () => undefined),
       },
       diff: {
         capability: {} as never,
         rewind: {} as never,
         inputNavigation: {
-          listSessionDiffs: vi.fn(async () => []),
+          listSessionDiffs: mock(async () => []),
         },
-        pruneExpired: vi.fn(async () => undefined),
-        deleteSession: vi.fn(async () => undefined),
+        pruneExpired: mock(async () => undefined),
+        deleteSession: mock(async () => undefined),
       },
       communication: {
-        deleteSession: vi.fn(async () => undefined),
+        deleteSession: mock(async () => undefined),
       },
       channelBindings: {
-        listSessionIds: vi.fn(async () => []),
-        deleteSession: vi.fn(async () => undefined),
+        listSessionIds: mock(async () => []),
+        deleteSession: mock(async () => undefined),
       },
       questionnaires: {
-        copyPendingForFork: vi.fn(async () => undefined),
-        deleteSession: vi.fn(async () => undefined),
+        copyPendingForFork: mock(async () => undefined),
+        deleteSession: mock(async () => undefined),
       },
       permissions: {
-        copyForFork: vi.fn(async () => undefined),
-        deleteSession: vi.fn(async () => undefined),
+        copyForFork: mock(async () => undefined),
+        deleteSession: mock(async () => undefined),
       },
       goals: {
-        deleteSession: vi.fn(async () => undefined),
-        getBySession: vi.fn(async () => undefined),
-        classifyQueuedItem: vi.fn(async () => "ready" as const),
-        pauseActiveForAbort: vi.fn(async () => undefined),
+        deleteSession: mock(async () => undefined),
+        getBySession: mock(async () => undefined),
+        classifyQueuedItem: mock(async () => "ready" as const),
+        pauseActiveForAbort: mock(async () => undefined),
       },
       workspace: {
         defaultDirectory: () => "/workspace",
@@ -4039,7 +4132,7 @@ describe("runtime services Agent reference projection", () => {
 
   it("reads a trusted display name only after authorization", async () => {
     const compatibility = defaultCompatibility();
-    const resolveDelegatable = vi.mocked(
+    const resolveDelegatable = mockFn(
       compatibility.agentReferences.resolveDelegatable,
     );
     const order: string[] = [];
@@ -4070,7 +4163,7 @@ describe("runtime services Agent reference projection", () => {
 
   it("does not read an Agent when delegation is denied", async () => {
     const compatibility = defaultCompatibility();
-    vi.mocked(
+    mockFn(
       compatibility.agentReferences.resolveDelegatable,
     ).mockResolvedValue("unauthorized");
     const { services, resolve } =
@@ -4239,7 +4332,7 @@ describe("runtime services primary family execution identity", () => {
 
   it("keeps the main storage owner while sourcing identity from canonical mavis", async () => {
     primaryFamilyViews("Mavis Canonical");
-    const info = vi.fn();
+    const info = mock();
     const sources = await composeAgentSources({ ...noopLogger, info });
 
     await expect(
@@ -4319,7 +4412,7 @@ describe("runtime services primary family execution identity", () => {
       async (name) =>
         name === "explore" ? view("explore", "Explore", "explore") : undefined,
     );
-    const info = vi.fn();
+    const info = mock();
     const sources = await composeAgentSources({ ...noopLogger, info });
 
     await expect(

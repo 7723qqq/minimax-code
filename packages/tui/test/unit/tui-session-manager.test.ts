@@ -1,5 +1,7 @@
+import { waitFor } from '../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock } from 'bun:test';
 import { stripVTControlCharacters } from 'node:util';
-import { describe, expect, it, vi } from 'vitest';
+
 import { visibleWidth } from '../../src/tui/rendering/text.js';
 import { TuiSessionManager } from '../../src/tui/features/session/manager.js';
 import type { TuiSession } from '../../src/runtime/port.js';
@@ -50,15 +52,15 @@ function createManager(
   overrides: Partial<ConstructorParameters<typeof TuiSessionManager>[0]> = {},
 ) {
   const callbacks = {
-    onSelect: vi.fn(async () => undefined),
-    onNew: vi.fn(async () => undefined),
-    onRename: vi.fn(async (sessionId: string, title: string) => {
+    onSelect: mock(async () => undefined),
+    onNew: mock(async () => undefined),
+    onRename: mock(async (sessionId: string, title: string) => {
       const session = sessions.find((item) => item.sessionId === sessionId);
       return { ...(session ?? { sessionId }), title };
     }),
-    onSetArchived: vi.fn(async () => undefined),
-    onCancel: vi.fn(),
-    requestRender: vi.fn(),
+    onSetArchived: mock(async () => undefined),
+    onCancel: mock(),
+    requestRender: mock(),
   };
   const manager = new TuiSessionManager({
     sessions,
@@ -165,7 +167,7 @@ describe('TuiSessionManager', () => {
     expect(renderPlain(manager)).not.toContain('Refactor the runtime');
 
     manager.handleInput('\r');
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(callbacks.onSelect).toHaveBeenCalledWith('session-current', false),
     );
     await flushActions();
@@ -239,7 +241,7 @@ describe('TuiSessionManager', () => {
     manager.setSessions([inserted, first, selected]);
     manager.handleInput('\r');
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(callbacks.onSelect).toHaveBeenCalledWith(selected.sessionId, false),
     );
   });
@@ -253,7 +255,7 @@ describe('TuiSessionManager', () => {
   });
 
   it('keeps Pi cursor and forward-delete commands inside an active search Input', () => {
-    const onScopeChange = vi.fn(async () => ({ sessions, hasMore: false }));
+    const onScopeChange = mock(async () => ({ sessions, hasMore: false }));
     const { callbacks, manager } = createManager({
       initialQuery: 'login',
       onScopeChange,
@@ -268,7 +270,7 @@ describe('TuiSessionManager', () => {
   });
 
   it('loads every remaining page while a search is active', async () => {
-    const onLoadMore = vi.fn(async () => ({
+    const onLoadMore = mock(async () => ({
       sessions: [
         {
           sessionId: 'session-later-page',
@@ -287,8 +289,8 @@ describe('TuiSessionManager', () => {
     });
 
     expect(renderPlain(manager)).toContain('Searching saved sessions');
-    await vi.waitFor(() => expect(onLoadMore).toHaveBeenCalledOnce());
-    await vi.waitFor(() => expect(renderPlain(manager)).toContain('Investigate the search index'));
+    await waitFor(() => expect(onLoadMore).toHaveBeenCalledOnce());
+    await waitFor(() => expect(renderPlain(manager)).toContain('Investigate the search index'));
     expect(renderPlain(manager)).not.toContain('No matching sessions');
   });
 
@@ -301,7 +303,7 @@ describe('TuiSessionManager', () => {
     manager.handleInput('\x15');
     manager.handleInput('Renamed from CLI');
     manager.handleInput('\r');
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(callbacks.onRename).toHaveBeenCalledWith('session-current', 'Renamed from CLI'),
     );
     await flushActions();
@@ -314,7 +316,7 @@ describe('TuiSessionManager', () => {
     manager.handleInput('\x04');
     expect(renderPlain(manager)).toContain('Archive session?');
     manager.handleInput('\r');
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(callbacks.onSetArchived).toHaveBeenCalledWith('session-current', true),
     );
     await flushActions();
@@ -322,7 +324,7 @@ describe('TuiSessionManager', () => {
     manager.handleInput('\t');
     expect(renderPlain(manager)).toContain('Renamed from CLI');
     manager.handleInput('\x04');
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(callbacks.onSetArchived).toHaveBeenCalledWith('session-current', false),
     );
   });
@@ -380,7 +382,7 @@ describe('TuiSessionManager', () => {
     manager.handleInput('Updated ');
     manager.handleInput('\r');
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(callbacks.onRename).toHaveBeenCalledWith('session-current', `Updated ${title}`),
     );
   });
@@ -392,7 +394,7 @@ describe('TuiSessionManager', () => {
   });
 
   it('keeps the rename editor open when Runtime rejects the new title', async () => {
-    const onRename = vi.fn(async () => {
+    const onRename = mock(async () => {
       throw new Error('Runtime rejected the title');
     });
     const { manager } = createManager({ onRename });
@@ -401,7 +403,7 @@ describe('TuiSessionManager', () => {
     manager.handleInput('\x15');
     manager.handleInput('Retry this title');
     manager.handleInput('\r');
-    await vi.waitFor(() => expect(onRename).toHaveBeenCalledOnce());
+    await waitFor(() => expect(onRename).toHaveBeenCalledOnce());
     await flushActions();
 
     expect(renderPlain(manager)).toContain('Sessions / Rename session');
@@ -418,7 +420,7 @@ describe('TuiSessionManager', () => {
     expect(stripVTControlCharacters(lines.join('\n'))).toMatch(/╰─+╯/);
 
     manager.handleInput('\r');
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(callbacks.onSelect).toHaveBeenCalledWith('session-archived', true),
     );
   });
@@ -494,7 +496,7 @@ describe('TuiSessionManager', () => {
   });
 
   it('loads and de-duplicates the next Runtime-owned session page', async () => {
-    const onLoadMore = vi.fn(async () => ({
+    const onLoadMore = mock(async () => ({
       sessions: [
         sessionById('session-current'),
         {
@@ -515,7 +517,7 @@ describe('TuiSessionManager', () => {
     expect(renderPlain(manager)).toContain('More sessions available');
     manager.handleInput('\x0c');
 
-    await vi.waitFor(() => expect(onLoadMore).toHaveBeenCalledOnce());
+    await waitFor(() => expect(onLoadMore).toHaveBeenCalledOnce());
     await flushActions();
     expect(renderPlain(manager)).toContain('Loaded from next page');
     expect(renderPlain(manager)).toContain('2 active · 0 archived');
@@ -523,7 +525,7 @@ describe('TuiSessionManager', () => {
   });
 
   it('reloads the catalog with an independent backend scope when Ctrl+A is pressed', async () => {
-    const onScopeChange = vi.fn(async (scope: 'workspace' | 'all') => ({
+    const onScopeChange = mock(async (scope: 'workspace' | 'all') => ({
       sessions:
         scope === 'workspace'
           ? [sessionById('session-current')]
@@ -533,7 +535,7 @@ describe('TuiSessionManager', () => {
     const { manager } = createManager({
       sessions: [sessionById('session-current')],
       hasMore: false,
-      onLoadMore: vi.fn(async () => ({ sessions: [], hasMore: false })),
+      onLoadMore: mock(async () => ({ sessions: [], hasMore: false })),
       onScopeChange,
       maxRows: 18,
     });
@@ -542,7 +544,7 @@ describe('TuiSessionManager', () => {
     expect(initial).toContain('Ctrl+A all');
 
     manager.handleInput('\x01');
-    await vi.waitFor(() => expect(onScopeChange).toHaveBeenCalledWith('all'));
+    await waitFor(() => expect(onScopeChange).toHaveBeenCalledWith('all'));
     await flushActions();
 
     const all = renderPlain(manager);
@@ -552,7 +554,7 @@ describe('TuiSessionManager', () => {
     expect(all).toContain('Ctrl+L more');
 
     manager.handleInput('\x01');
-    await vi.waitFor(() => expect(onScopeChange).toHaveBeenCalledWith('workspace'));
+    await waitFor(() => expect(onScopeChange).toHaveBeenCalledWith('workspace'));
     await flushActions();
     expect(renderPlain(manager)).toContain('Recent · This workspace');
     expect(renderPlain(manager)).toContain('1 active · 0 archived');
@@ -561,14 +563,14 @@ describe('TuiSessionManager', () => {
   it('keeps the current workspace catalog when a scope reload fails', async () => {
     const { manager } = createManager({
       sessions: [sessionById('session-current')],
-      onScopeChange: vi.fn(async () => {
+      onScopeChange: mock(async () => {
         throw new Error('Catalog unavailable');
       }),
     });
 
     manager.handleInput('\x01');
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(renderPlain(manager)).toContain(
         "Couldn't change the session scope: Catalog unavailable. Retry.",
       ),
@@ -581,14 +583,14 @@ describe('TuiSessionManager', () => {
     const { manager } = createManager({
       sessions: [sessionById('session-current')],
       hasMore: true,
-      onLoadMore: vi.fn(async () => {
+      onLoadMore: mock(async () => {
         throw new Error('Runtime page unavailable');
       }),
     });
 
     manager.handleInput('\x0c');
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(renderPlain(manager)).toContain(
         "Couldn't load more sessions: Runtime page unavailable. Retry.",
       ),
@@ -604,11 +606,11 @@ describe('TuiSessionManager', () => {
     const page = new Promise<{ sessions: readonly TuiSession[]; hasMore: boolean }>((resolve) => {
       resolvePage = resolve;
     });
-    const requestRender = vi.fn();
+    const requestRender = mock();
     const { manager } = createManager({
       sessions: [sessionById('session-current')],
       hasMore: true,
-      onLoadMore: vi.fn(() => page),
+      onLoadMore: mock(() => page),
       requestRender,
     });
     manager.handleInput('\x0c');

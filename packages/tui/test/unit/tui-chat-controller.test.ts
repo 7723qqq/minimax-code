@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { waitFor } from '../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock } from 'bun:test';
+
 import type { CliSendMessageReq, SendMessageReq } from '@mavis/local-runtime-v2/cli-service';
 import { TuiFailure } from '../../src/failure.js';
 import {
@@ -44,8 +46,8 @@ describe('TuiChatController', () => {
       const displayContent = '@Codex 插件 这个插件可以干什么';
       let turn = 0;
       const runtime = {
-        createSession: vi.fn(async () => ({ sessionId: 'plugin-session' })),
-        sendMessage: vi.fn(async function* (
+        createSession: mock(async () => ({ sessionId: 'plugin-session' })),
+        sendMessage: mock(async function* (
           request: SendMessageReq,
         ): AsyncGenerator<TuiStreamEvent> {
           expect(request).toMatchObject({ content, displayContent });
@@ -59,7 +61,7 @@ describe('TuiChatController', () => {
           yield { type: 'message', message };
           yield { type: 'done', turnId: request.turnId };
         }),
-        abortSession: vi.fn(async () => true),
+        abortSession: mock(async () => true),
       };
       const transcript = new TranscriptStore();
       const controller = new ProductionTuiChatController({
@@ -95,8 +97,8 @@ describe('TuiChatController', () => {
       releaseResponse = resolve;
     });
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-live-output-rate' })),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      createSession: mock(async () => ({ sessionId: 'session-live-output-rate' })),
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield {
           type: 'delta',
           turnId: 'turn-live-output-rate',
@@ -132,7 +134,7 @@ describe('TuiChatController', () => {
         };
         yield { type: 'done', turnId: 'turn-live-output-rate' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new ProductionTuiChatController({
@@ -144,7 +146,7 @@ describe('TuiChatController', () => {
     });
 
     const submission = controller.submit('Say hello');
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(controller.snapshot()).toMatchObject({
         activeTurnId: 'turn-live-output-rate',
         outputTokensPerSecond: undefined,
@@ -176,8 +178,8 @@ describe('TuiChatController', () => {
 
   it('keeps provider-calibrated output throughput visible after a text-only turn settles', async () => {
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-output-rate' })),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      createSession: mock(async () => ({ sessionId: 'session-output-rate' })),
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield {
           type: 'delta',
           turnId: 'turn-output-rate',
@@ -204,7 +206,7 @@ describe('TuiChatController', () => {
         };
         yield { type: 'done', turnId: 'turn-output-rate' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new ProductionTuiChatController({
@@ -260,7 +262,7 @@ describe('TuiChatController', () => {
 
   it('publishes one state change when a stream event updates throughput and Transcript', () => {
     let nowMs = 0;
-    const onChange = vi.fn();
+    const onChange = mock();
     const controller = new ProductionTuiChatController({
       runtime: {} as never,
       transcript: new TranscriptStore(),
@@ -296,7 +298,7 @@ describe('TuiChatController', () => {
       | ((account: { status: 'ready'; managedTokenPresent: true; warnings: never[] }) => void)
       | undefined;
     const runtime = {
-      getAccountStatus: vi.fn(
+      getAccountStatus: mock(
         () =>
           new Promise<{
             status: 'ready';
@@ -306,18 +308,18 @@ describe('TuiChatController', () => {
             resolveAccount = resolve;
           }),
       ),
-      createSession: vi.fn(async () => ({
+      createSession: mock(async () => ({
         sessionId: 'session-optimistic',
         workspaceDir: '/workspace',
       })),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield { type: 'done', turnId: 'turn-optimistic' };
       }),
-      abortSession: vi.fn(async () => true),
-      steer: vi.fn(),
+      abortSession: mock(async () => true),
+      steer: mock(),
     };
     const transcript = new TranscriptStore();
-    const onUserSubmissionProjected = vi.fn();
+    const onUserSubmissionProjected = mock();
     const controller = new ProductionTuiChatController({
       runtime: runtime as never,
       transcript,
@@ -458,20 +460,20 @@ describe('TuiChatController', () => {
   it('detaches the foreground observer when switching Sessions without aborting the Runtime turn', async () => {
     let releaseTurn: (() => void) | undefined;
     const runtime = {
-      createSession: vi.fn(),
-      getSession: vi.fn(async (sessionId: string) => ({
+      createSession: mock(),
+      getSession: mock(async (sessionId: string) => ({
         sessionId,
         workspaceDir: '/workspace',
       })),
-      getMessages: vi.fn(async () => []),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      getMessages: mock(async () => []),
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         await new Promise<void>((resolve) => {
           releaseTurn = resolve;
         });
         yield { type: 'delta', text: 'late answer from A' };
         yield { type: 'done' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
@@ -483,7 +485,7 @@ describe('TuiChatController', () => {
     });
     await controller.loadSessionProjection('session-a');
     const running = controller.submit('keep running in A');
-    await vi.waitFor(() => expect(releaseTurn).toBeTypeOf('function'));
+    await waitFor(() => expect(releaseTurn).toBeTypeOf('function'));
 
     await controller.loadSessionProjection('session-b');
 
@@ -499,20 +501,20 @@ describe('TuiChatController', () => {
 
   it('requires MiniMax login before starting a managed-model Turn', async () => {
     const runtime = {
-      getAccountStatus: vi.fn(async () => ({
+      getAccountStatus: mock(async () => ({
         status: 'needs-login' as const,
         authMode: 'managed-login',
         modelSource: 'token-plan' as const,
         managedTokenPresent: false,
         warnings: [],
       })),
-      createSession: vi.fn(async () => ({
+      createSession: mock(async () => ({
         sessionId: 'session-login-required',
         workspaceDir: '/workspace',
       })),
-      sendMessage: vi.fn(),
-      abortSession: vi.fn(async () => true),
-      steer: vi.fn(),
+      sendMessage: mock(),
+      abortSession: mock(async () => true),
+      steer: mock(),
     };
     const transcript = new TranscriptStore();
     const controller = new ProductionTuiChatController({
@@ -542,22 +544,22 @@ describe('TuiChatController', () => {
   it('defers owner history reconciliation until the active Turn has settled', async () => {
     let releaseTurn: (() => void) | undefined;
     const runtime = {
-      createSession: vi.fn(async () => ({
+      createSession: mock(async () => ({
         sessionId: 'session-history-deferred',
         workspaceDir: '/workspace',
       })),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         await new Promise<void>((resolve) => {
           releaseTurn = resolve;
         });
         yield { type: 'done', turnId: 'turn-history-deferred' };
       }),
-      abortSession: vi.fn(async () => true),
-      getSession: vi.fn(async () => ({
+      abortSession: mock(async () => true),
+      getSession: mock(async () => ({
         sessionId: 'session-history-deferred',
         workspaceDir: '/workspace',
       })),
-      getMessages: vi.fn(async () => []),
+      getMessages: mock(async () => []),
     };
     const controller = new TuiChatController({
       runtime,
@@ -568,10 +570,10 @@ describe('TuiChatController', () => {
     });
 
     const submission = controller.submit('Keep the Turn active');
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(controller.snapshot().activeTurnId).toBe('turn-history-deferred'),
     );
-    await vi.waitFor(() => expect(releaseTurn).toBeTypeOf('function'));
+    await waitFor(() => expect(releaseTurn).toBeTypeOf('function'));
 
     await expect(controller.reconcileOwnerHistory(false)).resolves.toBe(false);
     expect(runtime.getMessages).not.toHaveBeenCalled();
@@ -579,7 +581,7 @@ describe('TuiChatController', () => {
     releaseTurn?.();
     await submission;
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.getMessages).toHaveBeenCalledWith('session-history-deferred'),
     );
   });
@@ -587,16 +589,16 @@ describe('TuiChatController', () => {
   it('shares in-flight session creation with runtime-owned follow-up submission', async () => {
     let resolveSession: ((session: { sessionId: string }) => void) | undefined;
     const runtime = {
-      createSession: vi.fn(
+      createSession: mock(
         () =>
           new Promise<{ sessionId: string }>((resolve) => {
             resolveSession = resolve;
           }),
       ),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield { type: 'done' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const controller = new TuiChatController({
       runtime,
@@ -605,7 +607,7 @@ describe('TuiChatController', () => {
     });
 
     const submitting = controller.submit('First turn');
-    await vi.waitFor(() => expect(resolveSession).toBeTypeOf('function'));
+    await waitFor(() => expect(resolveSession).toBeTypeOf('function'));
     const waitingForSession = controller.waitForCurrentSession();
     resolveSession?.({ sessionId: 'session-1' });
 
@@ -616,17 +618,17 @@ describe('TuiChatController', () => {
 
   it('creates a session lazily and updates one assistant cell in place while streaming', async () => {
     const runtime = {
-      createSession: vi.fn(async () => ({
+      createSession: mock(async () => ({
         sessionId: 'session-1',
         title: 'New session',
         workspaceDir: '/workspace',
       })),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield { type: 'delta', turnId: 'turn-1', role: 'assistant', content: 'Hel' };
         yield { type: 'delta', turnId: 'turn-1', role: 'assistant', content: 'lo' };
         yield { type: 'done', turnId: 'turn-1' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
@@ -674,19 +676,19 @@ describe('TuiChatController', () => {
 
   it('refreshes the authoritative interaction mode after an accepted direct Turn', async () => {
     const runtime = {
-      createSession: vi.fn(async () => ({
+      createSession: mock(async () => ({
         sessionId: 'session-plan-sync',
         workspaceDir: '/workspace',
       })),
-      getSession: vi.fn(async () => ({
+      getSession: mock(async () => ({
         sessionId: 'session-plan-sync',
         workspaceDir: '/workspace',
         interactionMode: 'plan' as const,
       })),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield { type: 'done', turnId: 'turn-plan-sync' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const controller = new TuiChatController({
       runtime,
@@ -705,8 +707,8 @@ describe('TuiChatController', () => {
 
   it('records content review rewind as failed even after assistant output', async () => {
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-blocked' })),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      createSession: mock(async () => ({ sessionId: 'session-blocked' })),
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield {
           type: 'message',
           message: {
@@ -722,7 +724,7 @@ describe('TuiChatController', () => {
           data: {},
         } as TuiStreamEvent;
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const controller = new TuiChatController({
       runtime,
@@ -741,7 +743,7 @@ describe('TuiChatController', () => {
 
   it('records every Runtime-owned terminal outcome against its current Session', async () => {
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-runtime-owned' })),
+      createSession: mock(async () => ({ sessionId: 'session-runtime-owned' })),
     };
     const controller = new TuiChatController({
       runtime,
@@ -775,7 +777,7 @@ describe('TuiChatController', () => {
 
   it('writes a Runtime-owned result before publishing its terminal outcome', async () => {
     const delivered = Promise.withResolvers<void>();
-    const writeAutomationResult = vi.fn(async () => delivered.promise);
+    const writeAutomationResult = mock(async () => delivered.promise);
     const transcript = new TranscriptStore();
     transcript.upsert({
       id: 'assistant:turn-previous',
@@ -788,7 +790,7 @@ describe('TuiChatController', () => {
     });
     const controller = new TuiChatController({
       runtime: {
-        createSession: vi.fn(async () => ({ sessionId: 'session-runtime-result' })),
+        createSession: mock(async () => ({ sessionId: 'session-runtime-result' })),
       },
       transcript,
       workspaceDir: '/workspace',
@@ -815,7 +817,7 @@ describe('TuiChatController', () => {
     if (!settledTurn) throw new Error('Expected a Runtime-owned settled turn.');
 
     const publishing = controller.runtimeTurnSettlement.publish(settledTurn, 20);
-    await vi.waitFor(() => expect(writeAutomationResult).toHaveBeenCalledOnce());
+    await waitFor(() => expect(writeAutomationResult).toHaveBeenCalledOnce());
     expect(writeAutomationResult).toHaveBeenCalledWith(
       expect.objectContaining({
         sessionId: 'session-runtime-result',
@@ -842,15 +844,15 @@ describe('TuiChatController', () => {
       const sessionId = 'session-pending-question';
       const turnId = 'turn-pending-question';
       let pending = pendingQuestionnaire(sessionId, turnId, mode);
-      const writeAutomationResult = vi.fn();
+      const writeAutomationResult = mock();
       const runtime = {
-        createSession: vi.fn(async () => ({ sessionId })),
-        getPendingQuestionnaire: vi.fn(async () => pending),
-        sendMessage: vi.fn(async function* (): AsyncGenerator<TuiStreamEvent> {
+        createSession: mock(async () => ({ sessionId })),
+        getPendingQuestionnaire: mock(async () => pending),
+        sendMessage: mock(async function* (): AsyncGenerator<TuiStreamEvent> {
           // Real ask_user stops the stream without an action-required frame.
           yield { type: 'done' };
         }),
-        abortSession: vi.fn(async () => true),
+        abortSession: mock(async () => true),
       };
       const controller = new TuiChatController({
         runtime, transcript: new TranscriptStore(), workspaceDir: '/workspace',
@@ -896,15 +898,15 @@ describe('TuiChatController', () => {
     ['unknown owner', pendingQuestionnaire('session-empty', undefined)],
     ['no request', undefined],
   ])('does not hide EMPTY_RESPONSE behind %s', async (_name, pending) => {
-    const writeAutomationResult = vi.fn();
+    const writeAutomationResult = mock();
     const controller = new TuiChatController({
       runtime: {
-        createSession: vi.fn(async () => ({ sessionId: 'session-empty' })),
-        getPendingQuestionnaire: vi.fn(async () => pending),
-        sendMessage: vi.fn(async function* (): AsyncGenerator<TuiStreamEvent> {
+        createSession: mock(async () => ({ sessionId: 'session-empty' })),
+        getPendingQuestionnaire: mock(async () => pending),
+        sendMessage: mock(async function* (): AsyncGenerator<TuiStreamEvent> {
           yield { type: 'done' };
         }),
-        abortSession: vi.fn(async () => true),
+        abortSession: mock(async () => true),
       },
       transcript: new TranscriptStore(), workspaceDir: '/workspace',
       createTurnId: () => 'turn-empty', writeAutomationResult,
@@ -916,15 +918,15 @@ describe('TuiChatController', () => {
   });
 
   it('preserves a real Runtime failure even when its questionnaire is pending', async () => {
-    const writeAutomationResult = vi.fn();
+    const writeAutomationResult = mock();
     const controller = new TuiChatController({
       runtime: {
-        createSession: vi.fn(async () => ({ sessionId: 'session-failed' })),
-        getPendingQuestionnaire: vi.fn(async () => pendingQuestionnaire('session-failed', 'turn-failed')),
-        sendMessage: vi.fn(async function* (): AsyncGenerator<TuiStreamEvent> {
+        createSession: mock(async () => ({ sessionId: 'session-failed' })),
+        getPendingQuestionnaire: mock(async () => pendingQuestionnaire('session-failed', 'turn-failed')),
+        sendMessage: mock(async function* (): AsyncGenerator<TuiStreamEvent> {
           yield { type: 'error', message: 'Real upstream failure' };
         }),
-        abortSession: vi.fn(async () => true),
+        abortSession: mock(async () => true),
       },
       transcript: new TranscriptStore(), workspaceDir: '/workspace',
       createTurnId: () => 'turn-failed', writeAutomationResult,
@@ -938,12 +940,12 @@ describe('TuiChatController', () => {
   });
 
   it('does not publish an already answered Runtime questionnaire as an empty response', async () => {
-    const writeAutomationResult = vi.fn();
+    const writeAutomationResult = mock();
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
       runtime: {
-        createSession: vi.fn(async () => ({ sessionId: 'session-fast-reply' })),
-        getPendingQuestionnaire: vi.fn(async () => undefined),
+        createSession: mock(async () => ({ sessionId: 'session-fast-reply' })),
+        getPendingQuestionnaire: mock(async () => undefined),
       }, transcript, workspaceDir: '/workspace', writeAutomationResult,
     });
     await controller.ensureSession();
@@ -959,12 +961,12 @@ describe('TuiChatController', () => {
   });
 
   it.each([false, true])('publishes the reply Turn after questionnaire history hydration (known requester: %s)', async (knownRequester) => {
-    const writeAutomationResult = vi.fn();
+    const writeAutomationResult = mock();
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
       runtime: {
-        createSession: vi.fn(async () => ({ sessionId: 'session-answer' })),
-        getPendingQuestionnaire: vi.fn(async () => undefined),
+        createSession: mock(async () => ({ sessionId: 'session-answer' })),
+        getPendingQuestionnaire: mock(async () => undefined),
       }, transcript, workspaceDir: '/workspace', writeAutomationResult,
     });
     await controller.ensureSession();
@@ -990,10 +992,10 @@ describe('TuiChatController', () => {
   });
 
   it('fails a Runtime-owned automation turn that has no final assistant answer', async () => {
-    const writeAutomationResult = vi.fn();
+    const writeAutomationResult = mock();
     const controller = new TuiChatController({
       runtime: {
-        createSession: vi.fn(async () => ({ sessionId: 'session-runtime-empty' })),
+        createSession: mock(async () => ({ sessionId: 'session-runtime-empty' })),
       },
       transcript: new TranscriptStore(),
       workspaceDir: '/workspace',
@@ -1027,18 +1029,18 @@ describe('TuiChatController', () => {
 
   it('does not publish a terminal turn before the enabled automation result is written', async () => {
     const delivered = Promise.withResolvers<void>();
-    const writeAutomationResult = vi.fn(async () => delivered.promise);
-    const onAutomationResultPublished = vi.fn();
+    const writeAutomationResult = mock(async () => delivered.promise);
+    const onAutomationResultPublished = mock();
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-automation-result' })),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      createSession: mock(async () => ({ sessionId: 'session-automation-result' })),
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield {
           type: 'message',
           message: { role: 'assistant', content: 'structured answer' },
         };
         yield { type: 'done' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const controller = new TuiChatController({
       runtime,
@@ -1050,7 +1052,7 @@ describe('TuiChatController', () => {
     });
 
     const submission = controller.submit('Answer');
-    await vi.waitFor(() => expect(writeAutomationResult).toHaveBeenCalledOnce());
+    await waitFor(() => expect(writeAutomationResult).toHaveBeenCalledOnce());
     expect(onAutomationResultPublished).not.toHaveBeenCalled();
     expect(controller.snapshot()).toMatchObject({
       status: 'running',
@@ -1079,17 +1081,17 @@ describe('TuiChatController', () => {
     ['local_session_compacting', 'queue-required'],
     ['local_session_queue_paused', 'draft-kept'],
   ] as const)('does not publish unaccepted %s as a terminal result', async (code, status) => {
-    const writeAutomationResult = vi.fn();
+    const writeAutomationResult = mock();
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-queue-fallback' })),
-      sendMessage: vi.fn(async function* rejectedAdmission(): AsyncGenerator<TuiStreamEvent> {
+      createSession: mock(async () => ({ sessionId: 'session-queue-fallback' })),
+      sendMessage: mock(async function* rejectedAdmission(): AsyncGenerator<TuiStreamEvent> {
         yield* [];
         throw new TuiFailure('runtime', 'Session is busy', {
           code,
           retryable: false,
         });
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const controller = new TuiChatController({
       runtime,
@@ -1112,15 +1114,15 @@ describe('TuiChatController', () => {
 
   it('retains a rejected paused recovery instead of silently enqueuing the new instruction', async () => {
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-recovery-race' })),
-      sendMessage: vi.fn<TuiRunRuntime['sendMessage']>(async function* (_request, _signal, options) {
+      createSession: mock(async () => ({ sessionId: 'session-recovery-race' })),
+      sendMessage: mock<TuiRunRuntime['sendMessage']>(async function* (_request, _signal, options) {
         yield* [];
         throw new TuiFailure('runtime', 'Admission rejected', {
           code: options ? 'local_session_busy' : 'local_session_queue_paused',
           retryable: false,
         });
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const controller = new TuiChatController({ runtime, transcript: new TranscriptStore(), workspaceDir: '/workspace' });
 
@@ -1134,17 +1136,17 @@ describe('TuiChatController', () => {
   it('keeps submission serialized until authoritative Session metadata is refreshed', async () => {
     let resolveMetadata: ((session: { sessionId: string }) => void) | undefined;
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-metadata-fence' })),
-      getSession: vi.fn(
+      createSession: mock(async () => ({ sessionId: 'session-metadata-fence' })),
+      getSession: mock(
         async () =>
           await new Promise<{ sessionId: string }>((resolve) => {
             resolveMetadata = resolve;
           }),
       ),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield { type: 'done', turnId: 'turn-metadata-fence' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const controller = new TuiChatController({
       runtime,
@@ -1154,7 +1156,7 @@ describe('TuiChatController', () => {
     });
 
     const first = controller.submit('First');
-    await vi.waitFor(() => expect(resolveMetadata).toBeTypeOf('function'));
+    await waitFor(() => expect(resolveMetadata).toBeTypeOf('function'));
 
     await expect(controller.submit('Second')).rejects.toThrow('already running');
     resolveMetadata?.({ sessionId: 'session-metadata-fence' });
@@ -1167,8 +1169,8 @@ describe('TuiChatController', () => {
       releaseFirstEvent = resolve;
     });
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-thinking-placeholder' })),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      createSession: mock(async () => ({ sessionId: 'session-thinking-placeholder' })),
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         await firstEventGate;
         yield {
           type: 'delta',
@@ -1177,7 +1179,7 @@ describe('TuiChatController', () => {
         };
         yield { type: 'done', turnId: 'turn-thinking-placeholder' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
@@ -1189,7 +1191,7 @@ describe('TuiChatController', () => {
     });
 
     const submission = controller.submit('Answer directly');
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(transcript.snapshot()).toEqual([
         expect.objectContaining({ kind: 'user', content: 'Answer directly' }),
       ]),
@@ -1216,8 +1218,8 @@ describe('TuiChatController', () => {
 
   it('preserves thinking, preamble, tool, and final-answer chronology across one turn', async () => {
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-segmented' })),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      createSession: mock(async () => ({ sessionId: 'session-segmented' })),
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield { type: 'delta', turnId: 'turn-segmented', thinking: 'Plan the inspection' };
         yield {
           type: 'delta',
@@ -1259,7 +1261,7 @@ describe('TuiChatController', () => {
         };
         yield { type: 'done', turnId: 'turn-segmented' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
@@ -1322,8 +1324,8 @@ describe('TuiChatController', () => {
 
   it('does not reactivate an earlier preamble when its completed message arrives after a tool', async () => {
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-delayed-completion' })),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      createSession: mock(async () => ({ sessionId: 'session-delayed-completion' })),
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield {
           type: 'delta',
           turnId: 'turn-delayed-completion',
@@ -1352,7 +1354,7 @@ describe('TuiChatController', () => {
         };
         yield { type: 'done', turnId: 'turn-delayed-completion' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
@@ -1385,8 +1387,8 @@ describe('TuiChatController', () => {
 
   it('uses authoritative Thinking duration from the completed message lifecycle', async () => {
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-thinking-duration' })),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      createSession: mock(async () => ({ sessionId: 'session-thinking-duration' })),
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield {
           type: 'delta',
           turnId: 'turn-thinking-duration',
@@ -1407,7 +1409,7 @@ describe('TuiChatController', () => {
         };
         yield { type: 'done', turnId: 'turn-thinking-duration' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
@@ -1429,8 +1431,8 @@ describe('TuiChatController', () => {
 
   it('restores aggregate Thinking before text when its empty start placeholder was removed', async () => {
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-late-thinking-snapshot' })),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      createSession: mock(async () => ({ sessionId: 'session-late-thinking-snapshot' })),
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield {
           type: 'delta',
           turnId: 'turn-late-thinking-snapshot',
@@ -1457,7 +1459,7 @@ describe('TuiChatController', () => {
         };
         yield { type: 'done', turnId: 'turn-late-thinking-snapshot' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
@@ -1484,8 +1486,8 @@ describe('TuiChatController', () => {
 
   it('opens a new ordered Thinking segment when a real delta follows direct text', async () => {
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-late-thinking-delta' })),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      createSession: mock(async () => ({ sessionId: 'session-late-thinking-delta' })),
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield {
           type: 'delta',
           turnId: 'turn-late-thinking-delta',
@@ -1512,7 +1514,7 @@ describe('TuiChatController', () => {
         };
         yield { type: 'done', turnId: 'turn-late-thinking-delta' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
@@ -1535,8 +1537,8 @@ describe('TuiChatController', () => {
 
   it('appends partial tool updates without duplicating cumulative snapshots', async () => {
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-tool-progress' })),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      createSession: mock(async () => ({ sessionId: 'session-tool-progress' })),
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield {
           type: 'delta',
           turnId: 'turn-tool-progress',
@@ -1580,7 +1582,7 @@ describe('TuiChatController', () => {
         };
         yield { type: 'done', turnId: 'turn-tool-progress' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
@@ -1603,8 +1605,8 @@ describe('TuiChatController', () => {
   it('places a final reply after tool activity when tool events arrive first', async () => {
     let releaseReply: (() => void) | undefined;
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-ordered' })),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      createSession: mock(async () => ({ sessionId: 'session-ordered' })),
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield {
           type: 'delta',
           turnId: 'turn-ordered',
@@ -1630,7 +1632,7 @@ describe('TuiChatController', () => {
         yield { type: 'delta', turnId: 'turn-ordered', content: 'Finished.' };
         yield { type: 'done', turnId: 'turn-ordered' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
@@ -1642,7 +1644,7 @@ describe('TuiChatController', () => {
     });
 
     const submission = controller.submit('Inspect');
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(transcript.snapshot().map((cell) => cell.kind)).toEqual([
         'user',
         'thinking',
@@ -1670,11 +1672,11 @@ describe('TuiChatController', () => {
 
   it('does not create an empty assistant row for a successful turn with no text', async () => {
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-no-text' })),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      createSession: mock(async () => ({ sessionId: 'session-no-text' })),
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield { type: 'done', turnId: 'turn-no-text' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
@@ -1692,8 +1694,8 @@ describe('TuiChatController', () => {
 
   it('does not create a thinking row for whitespace-only runtime deltas or history', async () => {
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-empty-thinking' })),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      createSession: mock(async () => ({ sessionId: 'session-empty-thinking' })),
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield { type: 'delta', turnId: 'turn-empty-thinking', thinking: ' \n\t' };
         yield {
           type: 'message',
@@ -1705,7 +1707,7 @@ describe('TuiChatController', () => {
         };
         yield { type: 'done', turnId: 'turn-empty-thinking' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
@@ -1723,11 +1725,11 @@ describe('TuiChatController', () => {
 
   it('submits attachment-only turns and keeps attachment metadata in the user transcript', async () => {
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-attachment' })),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      createSession: mock(async () => ({ sessionId: 'session-attachment' })),
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield { type: 'done' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
@@ -1784,8 +1786,8 @@ describe('TuiChatController', () => {
 
   it('reconciles a pasted image with a Runtime echo that omits its local size', async () => {
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-image-echo' })),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      createSession: mock(async () => ({ sessionId: 'session-image-echo' })),
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield {
           type: 'message',
           message: {
@@ -1804,7 +1806,7 @@ describe('TuiChatController', () => {
         };
         yield { type: 'done', turnId: 'turn-image-echo' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
@@ -1829,12 +1831,16 @@ describe('TuiChatController', () => {
 
     const userCells = transcript.snapshot().filter((cell) => cell.kind === 'user');
     expect(userCells).toHaveLength(1);
+    // `toMatchObject` writes the matcher instance into the value it asserts
+    // on, so the attachment is matched on its own instead of through a nested
+    // asymmetric matcher.
+    const attachment = userCells[0]?.attachments?.[0];
     expect(userCells[0]).toMatchObject({
       id: 'user:turn-image-echo',
       sourceMessageId: 'message-image-echo',
       status: 'succeeded',
-      attachments: [expect.objectContaining({ sizeBytes: 2_048 })],
     });
+    expect(attachment?.sizeBytes).toBe(2_048);
     const rendered = new TranscriptView(() => transcript.snapshot()).render(80).join('\n');
     expect(rendered.match(/Image {2}clipboard\.png/gu)).toHaveLength(1);
     expect(rendered.match(/2 KB/gu)).toHaveLength(1);
@@ -1843,8 +1849,8 @@ describe('TuiChatController', () => {
 
   it('renders thinking, tools, and a useful runtime error without losing partial output', async () => {
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-2' })),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      createSession: mock(async () => ({ sessionId: 'session-2' })),
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield { type: 'delta', turnId: 'turn-2', thinking: 'Inspecting files' };
         yield {
           type: 'delta',
@@ -1854,7 +1860,7 @@ describe('TuiChatController', () => {
         };
         yield { type: 'error', turnId: 'turn-2', message: 'provider unavailable' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
@@ -1902,11 +1908,11 @@ describe('TuiChatController', () => {
 
   it('preserves the submitted message and renders an error when session creation fails', async () => {
     const runtime = {
-      createSession: vi.fn(async () => {
+      createSession: mock(async () => {
         throw new Error('authentication required');
       }),
-      sendMessage: vi.fn(),
-      abortSession: vi.fn(async () => true),
+      sendMessage: mock(),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
@@ -1948,12 +1954,12 @@ describe('TuiChatController', () => {
 
   it('does not suggest retry when local-runtime marks a failure as non-retryable', async () => {
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-non-retryable' })),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      createSession: mock(async () => ({ sessionId: 'session-non-retryable' })),
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield* [] as TuiStreamEvent[];
         throw Object.assign(new Error('provider unavailable'), { retryable: false });
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
@@ -1976,8 +1982,8 @@ describe('TuiChatController', () => {
 
   it('maps local-runtime numeric tool statuses to terminal states', async () => {
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-tools' })),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      createSession: mock(async () => ({ sessionId: 'session-tools' })),
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield {
           type: 'delta',
           toolCalls: [
@@ -1987,7 +1993,7 @@ describe('TuiChatController', () => {
         };
         yield { type: 'done' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
@@ -2010,8 +2016,8 @@ describe('TuiChatController', () => {
 
   it('routes stop through local-runtime and marks the turn cancelled', async () => {
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-3' })),
-      sendMessage: vi.fn(async function* sendMessage(
+      createSession: mock(async () => ({ sessionId: 'session-3' })),
+      sendMessage: mock(async function* sendMessage(
         _req: SendMessageReq,
         signal?: AbortSignal,
       ): AsyncGenerator<TuiStreamEvent> {
@@ -2020,7 +2026,7 @@ describe('TuiChatController', () => {
         });
         yield { type: 'done', turnId: 'turn-3' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
@@ -2032,7 +2038,7 @@ describe('TuiChatController', () => {
     });
 
     const submitting = controller.submit('Wait');
-    await vi.waitFor(() => expect(controller.snapshot().status).toBe('running'));
+    await waitFor(() => expect(controller.snapshot().status).toBe('running'));
     await expect(controller.abort()).resolves.toBe(true);
     await submitting;
 
@@ -2050,16 +2056,16 @@ describe('TuiChatController', () => {
       | ((session: { sessionId: string; workspaceDir: string }) => void)
       | undefined;
     const runtime = {
-      createSession: vi.fn(
+      createSession: mock(
         async () =>
           await new Promise<{ sessionId: string; workspaceDir: string }>((resolve) => {
             finishSessionCreation = resolve;
           }),
       ),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield { type: 'done' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
@@ -2071,7 +2077,7 @@ describe('TuiChatController', () => {
     });
 
     const submitting = controller.submit('Wait for the session');
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(controller.snapshot()).toMatchObject({
         status: 'starting',
         activeTurnId: 'turn-creating-session',
@@ -2096,16 +2102,16 @@ describe('TuiChatController', () => {
   it('retries Session creation after cancellation and ignores the stale result', async () => {
     const resolvers: Array<(session: { sessionId: string; workspaceDir: string }) => void> = [];
     const runtime = {
-      createSession: vi.fn(
+      createSession: mock(
         async () =>
           await new Promise<{ sessionId: string; workspaceDir: string }>((resolve) => {
             resolvers.push(resolve);
           }),
       ),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield { type: 'done' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     let turnSequence = 0;
     const controller = new TuiChatController({
@@ -2117,12 +2123,12 @@ describe('TuiChatController', () => {
     });
 
     const first = controller.submit('First attempt');
-    await vi.waitFor(() => expect(resolvers).toHaveLength(1));
+    await waitFor(() => expect(resolvers).toHaveLength(1));
     await expect(controller.abort()).resolves.toBe(true);
     await expect(first).resolves.toBe('cancelled');
 
     const second = controller.submit('Second attempt');
-    await vi.waitFor(() => expect(resolvers).toHaveLength(2));
+    await waitFor(() => expect(resolvers).toHaveLength(2));
     resolvers[1]?.({ sessionId: 'session-current', workspaceDir: '/workspace' });
     await expect(second).resolves.toBe('succeeded');
 
@@ -2143,8 +2149,8 @@ describe('TuiChatController', () => {
 
   it('stops the local stream even when the remote abort request fails', async () => {
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-4' })),
-      sendMessage: vi.fn(async function* sendMessage(
+      createSession: mock(async () => ({ sessionId: 'session-4' })),
+      sendMessage: mock(async function* sendMessage(
         _req: SendMessageReq,
         signal?: AbortSignal,
       ): AsyncGenerator<TuiStreamEvent> {
@@ -2153,7 +2159,7 @@ describe('TuiChatController', () => {
         });
         yield { type: 'done', turnId: 'turn-4' };
       }),
-      abortSession: vi.fn(async () => {
+      abortSession: mock(async () => {
         throw new Error('abort endpoint unavailable');
       }),
     };
@@ -2167,7 +2173,7 @@ describe('TuiChatController', () => {
     });
 
     const submitting = controller.submit('Wait');
-    await vi.waitFor(() => expect(controller.snapshot().status).toBe('running'));
+    await waitFor(() => expect(controller.snapshot().status).toBe('running'));
     await expect(controller.abort()).resolves.toBe(false);
     await submitting;
 
@@ -2179,8 +2185,8 @@ describe('TuiChatController', () => {
     let sequence = 0;
     let releaseCancelledStream: (() => void) | undefined;
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-hung-cancel' })),
-      sendMessage: vi.fn(async function* sendMessage(
+      createSession: mock(async () => ({ sessionId: 'session-hung-cancel' })),
+      sendMessage: mock(async function* sendMessage(
         req: SendMessageReq,
         signal?: AbortSignal,
       ): AsyncGenerator<TuiStreamEvent> {
@@ -2195,8 +2201,8 @@ describe('TuiChatController', () => {
         yield { type: 'delta', content: 'Recovered' };
         yield { type: 'done' };
       }),
-      abortSession: vi.fn(async () => true),
-      steer: vi.fn(),
+      abortSession: mock(async () => true),
+      steer: mock(),
     };
     const transcript = new TranscriptStore();
     const controller = new ProductionTuiChatController({
@@ -2211,7 +2217,7 @@ describe('TuiChatController', () => {
     });
 
     void controller.submit('First');
-    await vi.waitFor(() => expect(controller.snapshot().status).toBe('running'));
+    await waitFor(() => expect(controller.snapshot().status).toBe('running'));
     await expect(controller.abort()).resolves.toBe(true);
 
     expect(controller.snapshot()).toMatchObject({
@@ -2224,7 +2230,7 @@ describe('TuiChatController', () => {
       'The previous run is still stopping.',
     );
 
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(controller.snapshot()).toMatchObject({
         status: 'error',
         retiringTurnId: 'turn-1',
@@ -2233,7 +2239,7 @@ describe('TuiChatController', () => {
     });
 
     releaseCancelledStream?.();
-    await vi.waitFor(() => expect(controller.snapshot().retiringTurnId).toBeUndefined());
+    await waitFor(() => expect(controller.snapshot().retiringTurnId).toBeUndefined());
     expect(controller.snapshot()).toMatchObject({ status: 'idle', error: undefined });
     await expect(controller.submit('Second')).resolves.toBe('succeeded');
     expect(runtime.sendMessage).toHaveBeenCalledTimes(2);
@@ -2245,10 +2251,10 @@ describe('TuiChatController', () => {
 
   it('defers an automation cancel terminal until a slow result write retires', async () => {
     const resultWritten = Promise.withResolvers<void>();
-    const writeAutomationResult = vi.fn(async () => resultWritten.promise);
+    const writeAutomationResult = mock(async () => resultWritten.promise);
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-slow-result-cancel' })),
-      sendMessage: vi.fn(async function* sendMessage(
+      createSession: mock(async () => ({ sessionId: 'session-slow-result-cancel' })),
+      sendMessage: mock(async function* sendMessage(
         _req: SendMessageReq,
         signal?: AbortSignal,
       ): AsyncGenerator<TuiStreamEvent> {
@@ -2257,7 +2263,7 @@ describe('TuiChatController', () => {
         });
         yield { type: 'done' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const controller = new TuiChatController({
       runtime,
@@ -2271,9 +2277,9 @@ describe('TuiChatController', () => {
     });
 
     const submitting = controller.submit('Wait');
-    await vi.waitFor(() => expect(controller.snapshot().status).toBe('running'));
+    await waitFor(() => expect(controller.snapshot().status).toBe('running'));
     await expect(controller.abort()).resolves.toBe(true);
-    await vi.waitFor(() => expect(writeAutomationResult).toHaveBeenCalledOnce());
+    await waitFor(() => expect(writeAutomationResult).toHaveBeenCalledOnce());
     expect(controller.snapshot()).toMatchObject({
       retiringTurnId: 'turn-slow-result-cancel',
       lastSettledTurn: undefined,
@@ -2281,7 +2287,7 @@ describe('TuiChatController', () => {
 
     resultWritten.resolve();
     await submitting;
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(controller.snapshot().lastSettledTurn).toEqual({
         sessionId: 'session-slow-result-cancel',
         turnId: 'turn-slow-result-cancel',
@@ -2292,13 +2298,13 @@ describe('TuiChatController', () => {
 
   it('loads Desktop sessions, hydrates history, and supports rename and archive', async () => {
     const runtime = {
-      createSession: vi.fn(async (input: { parentSessionId?: string; title?: string }) => ({
+      createSession: mock(async (input: { parentSessionId?: string; title?: string }) => ({
         sessionId: 'session-fork',
         parentSessionId: input.parentSessionId,
         title: input.title,
         workspaceDir: '/workspace',
       })),
-      listSessions: vi.fn(async () => [
+      listSessions: mock(async () => [
         {
           sessionId: 'session-1',
           title: 'Existing',
@@ -2306,12 +2312,12 @@ describe('TuiChatController', () => {
           updatedAt: 200,
         },
       ]),
-      getSession: vi.fn(async () => ({
+      getSession: mock(async () => ({
         sessionId: 'session-1',
         title: 'Existing',
         workspaceDir: '/workspace',
       })),
-      getMessages: vi.fn(async () => [
+      getMessages: mock(async () => [
         {
           id: 'message-user',
           turnId: 'turn-history',
@@ -2336,13 +2342,13 @@ describe('TuiChatController', () => {
           timestamp: 101,
         },
       ]),
-      renameSession: vi.fn(async (_sessionId: string, title: string) => ({
+      renameSession: mock(async (_sessionId: string, title: string) => ({
         sessionId: 'session-1',
         title,
         workspaceDir: '/workspace',
       })),
-      archiveSession: vi.fn(async () => undefined),
-      getAccountStatus: vi.fn(async () => ({
+      archiveSession: mock(async () => undefined),
+      getAccountStatus: mock(async () => ({
         status: 'ready' as const,
         defaultModel: 'minimax/MiniMax-M2.7',
         providerId: 'minimax',
@@ -2350,8 +2356,8 @@ describe('TuiChatController', () => {
         managedTokenPresent: true,
         warnings: [],
       })),
-      sendMessage: vi.fn(),
-      abortSession: vi.fn(async () => true),
+      sendMessage: mock(),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
@@ -2414,9 +2420,9 @@ describe('TuiChatController', () => {
       | ((messages: Array<{ id: string; role: 'user'; content: string }>) => void)
       | undefined;
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-created' })),
-      getSession: vi.fn(async (sessionId: string) => ({ sessionId, title: sessionId })),
-      getMessages: vi.fn(async (sessionId: string) => {
+      createSession: mock(async () => ({ sessionId: 'session-created' })),
+      getSession: mock(async (sessionId: string) => ({ sessionId, title: sessionId })),
+      getMessages: mock(async (sessionId: string) => {
         if (sessionId === 'session-a') {
           return await new Promise<Array<{ id: string; role: 'user'; content: string }>>(
             (resolve) => {
@@ -2426,9 +2432,9 @@ describe('TuiChatController', () => {
         }
         return [{ id: 'message-b', role: 'user' as const, content: 'History B' }];
       }),
-      sendMessage: vi.fn(),
-      abortSession: vi.fn(async () => true),
-      steer: vi.fn(),
+      sendMessage: mock(),
+      abortSession: mock(async () => true),
+      steer: mock(),
     };
     const transcript = new TranscriptStore();
     const controller = new ProductionTuiChatController({
@@ -2438,7 +2444,7 @@ describe('TuiChatController', () => {
     });
 
     const firstResume = controller.loadSessionProjection('session-a');
-    await vi.waitFor(() => expect(resolveFirstMessages).toBeTypeOf('function'));
+    await waitFor(() => expect(resolveFirstMessages).toBeTypeOf('function'));
     await controller.loadSessionProjection('session-b');
     resolveFirstMessages?.([{ id: 'message-a', role: 'user', content: 'History A' }]);
     await firstResume;
@@ -2456,7 +2462,7 @@ describe('TuiChatController', () => {
     const sessionResolvers: Array<(sessions: Array<{ sessionId: string; title: string }>) => void> =
       [];
     const runtime = {
-      listSessions: vi.fn(
+      listSessions: mock(
         async () =>
           await new Promise<Array<{ sessionId: string; title: string }>>((resolve) => {
             sessionResolvers.push(resolve);
@@ -2471,7 +2477,7 @@ describe('TuiChatController', () => {
 
     const olderRefresh = controller.refreshSessionList();
     const newerRefresh = controller.refreshSessionList();
-    await vi.waitFor(() => expect(sessionResolvers).toHaveLength(2));
+    await waitFor(() => expect(sessionResolvers).toHaveLength(2));
     sessionResolvers[1]?.([{ sessionId: 'session-new', title: 'New catalog' }]);
     await newerRefresh;
     sessionResolvers[0]?.([{ sessionId: 'session-old', title: 'Old catalog' }]);
@@ -2484,9 +2490,9 @@ describe('TuiChatController', () => {
 
   it('refreshes account quota after a completed turn', async () => {
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-meters' })),
-      listSessions: vi.fn(async () => []),
-      getAccountStatus: vi.fn(async (_sessionId, options) => ({
+      createSession: mock(async () => ({ sessionId: 'session-meters' })),
+      listSessions: mock(async () => []),
+      getAccountStatus: mock(async (_sessionId, options) => ({
         status: 'ready' as const,
         defaultModel: 'minimax/MiniMax-M2.7',
         providerId: 'minimax',
@@ -2504,11 +2510,11 @@ describe('TuiChatController', () => {
           : {}),
         warnings: [],
       })),
-      sendMessage: vi.fn(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
+      sendMessage: mock(async function* sendMessage(): AsyncGenerator<TuiStreamEvent> {
         yield { type: 'delta', content: 'Done' };
         yield { type: 'done' };
       }),
-      abortSession: vi.fn(async () => true),
+      abortSession: mock(async () => true),
     };
     const controller = new TuiChatController({
       runtime,
@@ -2519,7 +2525,7 @@ describe('TuiChatController', () => {
     await controller.initialize();
     await controller.submit('Measure this turn');
 
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(controller.snapshot()).toMatchObject({
         account: {
           modelSource: 'token-plan',
@@ -2536,7 +2542,7 @@ describe('TuiChatController', () => {
     expect(runtime.getAccountStatus).toHaveBeenCalledWith('session-meters', {
       includeMembership: false,
     });
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.getAccountStatus).toHaveBeenCalledWith('session-meters', {
         includeMembership: true,
       }),
@@ -2553,8 +2559,8 @@ describe('TuiChatController', () => {
       },
     ];
     const runtime = {
-      getSession: vi.fn(async (sessionId: string) => ({ sessionId })),
-      getMessages: vi.fn(async () => messages),
+      getSession: mock(async (sessionId: string) => ({ sessionId })),
+      getMessages: mock(async () => messages),
     };
     const transcript = new TranscriptStore();
     const controller = new ProductionTuiChatController({
@@ -2600,11 +2606,11 @@ describe('TuiChatController', () => {
   });
 
   it('restores thinking, tool evidence and Tasks while filtering durable protocol rows', async () => {
-    const onTodoChange = vi.fn();
+    const onTodoChange = mock();
     const runtime = {
-      createSession: vi.fn(),
-      getSession: vi.fn(async () => ({ sessionId: 'session-resume' })),
-      getMessages: vi.fn(async () => [
+      createSession: mock(),
+      getSession: mock(async () => ({ sessionId: 'session-resume' })),
+      getMessages: mock(async () => [
         {
           id: 'assistant-tool',
           turnId: 'turn-resume',
@@ -2637,8 +2643,8 @@ describe('TuiChatController', () => {
           toolCalls: [{ id: 'todo-write', name: 'functions.TodoWrite', status: 'completed' }],
         },
       ]),
-      sendMessage: vi.fn(),
-      abortSession: vi.fn(async () => true),
+      sendMessage: mock(),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
@@ -2682,10 +2688,10 @@ describe('TuiChatController', () => {
 
   it('hydrates ordered message parts without flattening text and tools', async () => {
     const runtime = {
-      createSession: vi.fn(),
-      listSessions: vi.fn(async () => []),
-      getSession: vi.fn(async () => ({ sessionId: 'session-parts' })),
-      getMessages: vi.fn(async () => [
+      createSession: mock(),
+      listSessions: mock(async () => []),
+      getSession: mock(async () => ({ sessionId: 'session-parts' })),
+      getMessages: mock(async () => [
         {
           id: 'message-parts',
           turnId: 'turn-parts',
@@ -2708,8 +2714,8 @@ describe('TuiChatController', () => {
           ],
         },
       ]),
-      sendMessage: vi.fn(),
-      abortSession: vi.fn(async () => true),
+      sendMessage: mock(),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
@@ -2737,9 +2743,9 @@ describe('TuiChatController', () => {
 
   it('keeps distinct durable assistant messages when one turn repeats the same text', async () => {
     const runtime = {
-      createSession: vi.fn(),
-      getSession: vi.fn(async () => ({ sessionId: 'session-repeated-text' })),
-      getMessages: vi.fn(async () => [
+      createSession: mock(),
+      getSession: mock(async () => ({ sessionId: 'session-repeated-text' })),
+      getMessages: mock(async () => [
         {
           id: 'assistant-first',
           turnId: 'turn-repeated-text',
@@ -2775,10 +2781,10 @@ describe('TuiChatController', () => {
 
   it('projects questionnaire history as a readable receipt and hides internal Ask User protocol', async () => {
     const runtime = {
-      createSession: vi.fn(async () => ({ sessionId: 'session-questionnaire' })),
-      listSessions: vi.fn(async () => []),
-      getSession: vi.fn(async () => ({ sessionId: 'session-questionnaire' })),
-      getMessages: vi.fn(async () => [
+      createSession: mock(async () => ({ sessionId: 'session-questionnaire' })),
+      listSessions: mock(async () => []),
+      getSession: mock(async () => ({ sessionId: 'session-questionnaire' })),
+      getMessages: mock(async () => [
         {
           id: 'ask-preamble',
           turnId: 'turn-ask',
@@ -2814,8 +2820,8 @@ describe('TuiChatController', () => {
           content: 'Continuing with Stable.',
         },
       ]),
-      sendMessage: vi.fn(),
-      abortSession: vi.fn(async () => true),
+      sendMessage: mock(),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
@@ -2854,9 +2860,9 @@ describe('TuiChatController', () => {
 
   it('replays the durable continuation reply after a resolved questionnaire', async () => {
     const runtime = {
-      createSession: vi.fn(),
-      getSession: vi.fn(async () => ({ sessionId: 'session-questionnaire-continuation' })),
-      getMessages: vi.fn(async () => [
+      createSession: mock(),
+      getSession: mock(async () => ({ sessionId: 'session-questionnaire-continuation' })),
+      getMessages: mock(async () => [
         {
           id: 'ask-user-turn',
           turnId: 'turn-ask-user',
@@ -2888,8 +2894,8 @@ describe('TuiChatController', () => {
           timestamp: 300,
         },
       ]),
-      sendMessage: vi.fn(),
-      abortSession: vi.fn(async () => true),
+      sendMessage: mock(),
+      abortSession: mock(async () => true),
     };
     const transcript = new TranscriptStore();
     const controller = new TuiChatController({
@@ -2912,17 +2918,17 @@ describe('TuiChatController', () => {
   it('restores an archived Session before making it the active projection', async () => {
     let archived = true;
     const runtime = {
-      getSession: vi.fn(async () => ({
+      getSession: mock(async () => ({
         sessionId: 'session-archived',
         workspaceDir: '/workspace',
         archived,
       })),
-      getMessages: vi.fn(async () => []),
-      archiveSession: vi.fn(async (_sessionId: string, value: boolean) => {
+      getMessages: mock(async () => []),
+      archiveSession: mock(async (_sessionId: string, value: boolean) => {
         archived = value;
       }),
-      sendMessage: vi.fn(),
-      abortSession: vi.fn(async () => true),
+      sendMessage: mock(),
+      abortSession: mock(async () => true),
     };
     const controller = new TuiChatController({
       runtime,
@@ -2942,7 +2948,7 @@ describe('TuiChatController', () => {
   it('manages a selected Desktop session without requiring it to be active first', async () => {
     let archived = false;
     const runtime = {
-      createSession: vi.fn(
+      createSession: mock(
         async (input: { parentSessionId?: string; title?: string; workspaceDir: string }) => ({
           sessionId: 'session-fork',
           parentSessionId: input.parentSessionId,
@@ -2950,7 +2956,7 @@ describe('TuiChatController', () => {
           workspaceDir: input.workspaceDir,
         }),
       ),
-      listSessions: vi.fn(async () => [
+      listSessions: mock(async () => [
         {
           sessionId: 'session-1',
           title: 'First',
@@ -2964,27 +2970,27 @@ describe('TuiChatController', () => {
           updatedAt: 100,
         },
       ]),
-      getSession: vi.fn(async (sessionId: string) => ({
+      getSession: mock(async (sessionId: string) => ({
         sessionId,
         title: sessionId === 'session-2' ? 'Renamed second' : 'First',
         workspaceDir: sessionId === 'session-2' ? '/other' : '/workspace',
         archived,
       })),
-      getMessages: vi.fn(async () => []),
-      renameSession: vi.fn(async (sessionId: string, title: string) => ({
+      getMessages: mock(async () => []),
+      renameSession: mock(async (sessionId: string, title: string) => ({
         sessionId,
         title,
         workspaceDir: '/other',
       })),
-      archiveSession: vi.fn(async (_sessionId: string, value: boolean) => {
+      archiveSession: mock(async (_sessionId: string, value: boolean) => {
         archived = value;
       }),
-      getAccountStatus: vi.fn(async () => ({
+      getAccountStatus: mock(async () => ({
         status: 'ready' as const,
         warnings: [],
       })),
-      sendMessage: vi.fn(),
-      abortSession: vi.fn(async () => true),
+      sendMessage: mock(),
+      abortSession: mock(async () => true),
     };
     const controller = new TuiChatController({
       runtime,
@@ -3028,9 +3034,9 @@ describe('TuiChatController', () => {
   it.each([false, true])(
     'rebuilds todos from rewound history with earlier todos=%s',
     async (keepEarlier) => {
-      const onTodoChange = vi.fn();
+      const onTodoChange = mock();
       const earlierTodo = { content: 'Earlier task', status: 'pending' };
-      const getMessages = vi.fn(async () =>
+      const getMessages = mock(async () =>
         keepEarlier
           ? [
               {
@@ -3044,7 +3050,7 @@ describe('TuiChatController', () => {
       );
       const controller = new ProductionTuiChatController({
         runtime: {
-          getSession: vi.fn(async () => ({ sessionId: 'rewound-session' })),
+          getSession: mock(async () => ({ sessionId: 'rewound-session' })),
           getMessages,
         } as never,
         transcript: new TranscriptStore(),
@@ -3069,7 +3075,7 @@ describe('TuiChatController', () => {
   );
 
   it('clears input-adjacent tasks when starting a new session', () => {
-    const onTodoChange = vi.fn();
+    const onTodoChange = mock();
     const controller = new ProductionTuiChatController({
       runtime: {} as never,
       transcript: new TranscriptStore(),
@@ -3093,10 +3099,10 @@ describe('TuiChatController', () => {
   });
 
   it('carries the clear source from /new to the lazily-created session', async () => {
-    const onSessionLifecycle = vi.fn();
+    const onSessionLifecycle = mock();
     const controller = new ProductionTuiChatController({
       runtime: {
-        createSession: vi.fn(async () => ({ sessionId: 'session-after-clear' })),
+        createSession: mock(async () => ({ sessionId: 'session-after-clear' })),
       } as never,
       transcript: new TranscriptStore(),
       workspaceDir: '/workspace',

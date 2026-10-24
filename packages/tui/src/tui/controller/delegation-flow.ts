@@ -21,6 +21,7 @@ import { TuiTranscriptPanel } from '../features/transcript/panel.js';
 import type { TuiFeatureScreenHandle, TuiSurfaceHost } from '../shell/surface-host.js';
 import { TranscriptStore } from '../transcript/store.js';
 import { TuiTurnProjection } from './projection/turn-projection.js';
+import { controllerText } from './copy.js';
 
 const MAX_PARENT_DEPTH = 32;
 const CHILD_HISTORY_LIMIT = 200;
@@ -415,12 +416,20 @@ export class TuiDelegationFlow {
     }
     if (!event.sessionId || !this.memberIds.has(event.sessionId)) return;
     if (event.type === 'permission.ask') {
-      this.projection.markWaiting(event.sessionId, 'Waiting for approval', event.timestampMs);
+      this.projection.markWaiting(
+        event.sessionId,
+        controllerText('delegation.waitingForApproval'),
+        event.timestampMs,
+      );
       this.publishProjection();
       return;
     }
     if (event.type === 'questionnaire.ask') {
-      this.projection.markWaiting(event.sessionId, 'Waiting for answers', event.timestampMs);
+      this.projection.markWaiting(
+        event.sessionId,
+        controllerText('delegation.waitingForAnswers'),
+        event.timestampMs,
+      );
       this.publishProjection();
       return;
     }

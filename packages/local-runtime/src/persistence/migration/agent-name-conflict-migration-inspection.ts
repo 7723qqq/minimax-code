@@ -1,9 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { FinalizingSqliteDatabase } from '@mavis/shared';
+import { Database } from 'bun:sqlite';
+
 import { resolveAgentDbPath } from '../../agent/db.js';
-import { loadBetterSqlite3Module } from '../better-sqlite3-loader.js';
-import type { DatabaseConstructor, DatabaseLike } from '../db.js';
+import type { DatabaseLike } from '../db.js';
 import { openLocalRuntimeDb } from '../db.js';
 import {
   CANONICAL_AGENT_NAMES,
@@ -24,8 +26,7 @@ export function inspectCanonicalAgentNameConflict(dataDir: string): {
   if (!fs.existsSync(dbPath)) {
     return { hasConflict: false, sourceRowCount: 0, conflictCount: 0, skipCode: 'source_missing' };
   }
-  const Database = loadBetterSqlite3Module<DatabaseConstructor>();
-  const db = new Database(dbPath, { readonly: true, fileMustExist: true });
+  const db = new FinalizingSqliteDatabase(dbPath, { readonly: true, create: false });
   try {
     if (!tableExists(db, 'agents')) {
       return { hasConflict: false, sourceRowCount: 0, conflictCount: 0, skipCode: 'table_missing' };

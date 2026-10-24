@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { TuiAcpUpdateProjector } from '../../src/acp/updates.js';
 import { buildTuiToolPreview } from '../../src/runtime/tool-preview.js';
 

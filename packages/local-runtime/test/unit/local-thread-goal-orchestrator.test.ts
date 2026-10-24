@@ -1,3 +1,4 @@
+import { beforeEach, describe, expect, it, mock } from 'bun:test';
 /**
  * Tests for the Thread Goal continuation orchestrator.
  *
@@ -9,8 +10,6 @@
  *   (e) safety retraction pauses the goal and short-circuits,
  *   (f) abort signal short-circuits.
  */
-
-import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   ThreadGoalAlreadyExistsError,
@@ -122,7 +121,7 @@ describe("ThreadGoalContinuationOrchestrator", () => {
   });
 
   it("runs exactly one turn when no goal exists", async () => {
-    const runOneTurn = vi.fn(async () => "finished" as ThreadGoalTurnStatus);
+    const runOneTurn = mock(async () => "finished" as ThreadGoalTurnStatus);
     const orchestrator = createThreadGoalContinuationOrchestrator(store);
     const outcome = await orchestrator.run({
       sessionId: SESSION_ID,
@@ -142,7 +141,7 @@ describe("ThreadGoalContinuationOrchestrator", () => {
   it("continues turns while the goal is active, then stops on complete", async () => {
     await store.create({ sessionId: SESSION_ID, objective: "x" });
 
-    const runOneTurn = vi.fn(async (input) => {
+    const runOneTurn = mock(async (input) => {
       // On the SECOND turn the model "calls update_goal complete".
       if (input.turnId === "turn_1") {
         const g = await store.getBySession(SESSION_ID);
@@ -177,7 +176,7 @@ describe("ThreadGoalContinuationOrchestrator", () => {
   it("uses the provided renderContinuation override for continuation turns (objective edit pivot)", async () => {
     await store.create({ sessionId: SESSION_ID, objective: "x" });
 
-    const runOneTurn = vi.fn(async (input) => {
+    const runOneTurn = mock(async (input) => {
       // Stop after the continuation turn so the loop is bounded.
       if (input.isContinuation) {
         const g = await store.getBySession(SESSION_ID);
@@ -208,7 +207,7 @@ describe("ThreadGoalContinuationOrchestrator", () => {
   it("stops when goal status flips to paused mid-loop (user paused)", async () => {
     const goal = await store.create({ sessionId: SESSION_ID, objective: "x" });
 
-    const runOneTurn = vi.fn(async () => {
+    const runOneTurn = mock(async () => {
       // Simulate the user pausing via UI: store flips status, the
       // orchestrator notices on the next iteration.
       await store.patch(goal.goalId, { status: "paused" });
@@ -232,7 +231,7 @@ describe("ThreadGoalContinuationOrchestrator", () => {
 
   it("stops without blocking when the turn is waiting for the user", async () => {
     await store.create({ sessionId: SESSION_ID, objective: "x" });
-    const runOneTurn = vi.fn(
+    const runOneTurn = mock(
       async () => "waiting_for_user" as ThreadGoalTurnStatus,
     );
 
@@ -255,11 +254,11 @@ describe("ThreadGoalContinuationOrchestrator", () => {
       sessionId: SESSION_ID,
       objective: "x",
     });
-    const onTurnRetracted = vi.fn(async (sessionId: string) => {
+    const onTurnRetracted = mock(async (sessionId: string) => {
       expect(sessionId).toBe(SESSION_ID);
       return store.patch(active.goalId, { status: "paused" });
     });
-    const runOneTurn = vi.fn(async () => "retracted" as ThreadGoalTurnStatus);
+    const runOneTurn = mock(async () => "retracted" as ThreadGoalTurnStatus);
 
     const orchestrator = createThreadGoalContinuationOrchestrator(
       store,
@@ -287,7 +286,7 @@ describe("ThreadGoalContinuationOrchestrator", () => {
 
   it("pauses the goal as retryable when the legacy loop sees an unclassified error", async () => {
     await store.create({ sessionId: SESSION_ID, objective: "x" });
-    const runOneTurn = vi.fn(async () => "error" as ThreadGoalTurnStatus);
+    const runOneTurn = mock(async () => "error" as ThreadGoalTurnStatus);
 
     const orchestrator = createThreadGoalContinuationOrchestrator(store);
     const outcome = await orchestrator.run({
@@ -309,7 +308,7 @@ describe("ThreadGoalContinuationOrchestrator", () => {
     const goal = await store.create({ sessionId: SESSION_ID, objective: "x" });
 
     const abort = new AbortController();
-    const runOneTurn = vi.fn(async () => {
+    const runOneTurn = mock(async () => {
       // Trip the abort signal during the first turn; the orchestrator
       // should detect it before scheduling a continuation.
       abort.abort();
@@ -336,7 +335,7 @@ describe("ThreadGoalContinuationOrchestrator", () => {
 
   it("does NOT block the goal when a turn returns aborted (user cancel or objective-edit restart)", async () => {
     await store.create({ sessionId: SESSION_ID, objective: "x" });
-    const runOneTurn = vi.fn(async () => "aborted" as ThreadGoalTurnStatus);
+    const runOneTurn = mock(async () => "aborted" as ThreadGoalTurnStatus);
 
     const orchestrator = createThreadGoalContinuationOrchestrator(store);
     const outcome = await orchestrator.run({
@@ -355,7 +354,7 @@ describe("ThreadGoalContinuationOrchestrator", () => {
   it("does not loop when goal status is already terminal at turn #1", async () => {
     const goal = await store.create({ sessionId: SESSION_ID, objective: "x" });
     await store.patch(goal.goalId, { status: "complete" });
-    const runOneTurn = vi.fn(async () => "finished" as ThreadGoalTurnStatus);
+    const runOneTurn = mock(async () => "finished" as ThreadGoalTurnStatus);
 
     const orchestrator = createThreadGoalContinuationOrchestrator(store);
     const outcome = await orchestrator.run({

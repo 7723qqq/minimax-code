@@ -25,6 +25,7 @@ import {
   type HeadlessChromeLaunchOptions,
   type HeadlessChromePage,
 } from './headless-chrome-transport.js';
+import { tuiRuntimeText } from '../copy.js';
 
 const HEADLESS_ACTIONS = [
   'inspect',
@@ -268,7 +269,7 @@ export class HeadlessChromeBrowserProvider implements LocalBrowserAdapter {
       success: true,
       returnedToPreviousTab: true,
       preservedTabs: history.length,
-      recovery: 'Inspect the restored tab before continuing so its current page state is explicit.',
+      recovery: tuiRuntimeText('runtime.browser.restoredTabRecovery'),
     };
   }
 
@@ -287,8 +288,8 @@ export class HeadlessChromeBrowserProvider implements LocalBrowserAdapter {
         ...(isRecord(actionResult) ? actionResult : {}),
         success: false,
         code: 'ACTION_TIMEOUT',
-        error: 'The click did not open the expected related Browser page.',
-        recovery: 'Inspect the current page before deciding whether to retry.',
+        error: tuiRuntimeText('runtime.browser.relatedPageMissing'),
+        recovery: tuiRuntimeText('runtime.browser.relatedPageRecovery'),
       };
     }
     const history = this.tabHistory.get(sessionId) ?? [];
@@ -298,7 +299,9 @@ export class HeadlessChromeBrowserProvider implements LocalBrowserAdapter {
         ...(isRecord(actionResult) ? actionResult : {}),
         success: false,
         code: 'TAB_LIMIT_REACHED',
-        error: `Headless Browser preserves at most ${MAX_PRESERVED_TABS_PER_SESSION} previous tabs per session; the related popup was closed`,
+        error: tuiRuntimeText('runtime.browser.tabLimit', {
+          n: MAX_PRESERVED_TABS_PER_SESSION,
+        }),
       };
     }
     let nextSession: BrowserCoreSession | undefined;

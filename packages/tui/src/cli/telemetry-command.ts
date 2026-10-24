@@ -4,6 +4,7 @@ import {
   resolveMcodeBusinessTelemetryPolicy,
 } from '../analytics/business-telemetry.js';
 import { resolveMcodeAuthEnvironment, type McodeAuthEnvironment } from '../auth/environment.js';
+import { cliText } from './copy.js';
 
 export type McodeTelemetryCliAction = 'status' | 'preview';
 
@@ -45,7 +46,7 @@ export function runMcodeTelemetryCommand(
       {
         ...status,
         request: null,
-        message: 'Usage telemetry is disabled. No business telemetry request will be sent.',
+        message: cliText('cli.telemetry.disabled'),
       },
       null,
       2,

@@ -1,8 +1,10 @@
+import { stubEnv, unstubAllEnvs } from '../../../test/bun-test-setup.js';
+import { afterEach, beforeEach, describe, expect, it, jest, spyOn } from 'bun:test';
 import fs from "node:fs";
 import os from "node:os";
 import { join } from "node:path";
 import yaml from "js-yaml";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import {
   getConfig,
   resetConfig,
@@ -26,11 +28,11 @@ let file: string;
 beforeEach(() => {
   root = fs.mkdtempSync(join(os.tmpdir(), "managed-preset-sync-"));
   file = join(root, "config.yaml");
-  vi.stubEnv("__MAVIS_RUNTIME_MANAGED", "1");
-  vi.stubEnv("__MAVIS_RUNTIME_DATA_DIR", root);
-  vi.stubEnv("MINIMAX_DATA_DIR", root);
-  vi.stubEnv("MAVIS_REGION", "en");
-  vi.stubEnv("MAVIS_BUILD_ENV", "staging");
+  stubEnv("__MAVIS_RUNTIME_MANAGED", "1");
+  stubEnv("__MAVIS_RUNTIME_DATA_DIR", root);
+  stubEnv("MINIMAX_DATA_DIR", root);
+  stubEnv("MAVIS_REGION", "en");
+  stubEnv("MAVIS_BUILD_ENV", "staging");
   setLegacyByokProviderMigrationEnabled(false);
   setManagedPresetBaseUrlSyncEnabled(true);
   resetConfig();
@@ -38,8 +40,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  vi.restoreAllMocks();
-  vi.unstubAllEnvs();
+  jest.restoreAllMocks();
+  unstubAllEnvs();
   resetConfig();
   setLegacyByokProviderMigrationEnabled(true);
   setManagedPresetBaseUrlSyncEnabled(true);
@@ -72,7 +74,7 @@ describe.each([
       const failure = Object.assign(new Error(secret), { code: "EPERM" });
       if (operation === "openSync") {
         const open = fs.openSync;
-        vi.spyOn(fs, "openSync").mockImplementation((path, flags, mode) => {
+        spyOn(fs, "openSync").mockImplementation((path, flags, mode) => {
           if (
             flags === "a" ||
             (typeof flags === "number" && flags & fs.constants.O_WRONLY)
@@ -82,11 +84,11 @@ describe.each([
           return open(path, flags, mode);
         });
       } else {
-        vi.spyOn(fs, operation).mockImplementation(() => {
+        spyOn(fs, operation).mockImplementation(() => {
           throw failure;
         });
       }
-      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      const warn = spyOn(console, "warn").mockImplementation(() => {});
       const config = load();
       expect(config.logLevel).toBe("debug");
       expect(config.provider.minimax?.options).toMatchObject({
@@ -104,10 +106,10 @@ describe.each([
 
   it("does not hide a failure after the original file has been truncated", () => {
     const failure = new Error("synthetic write failure");
-    vi.spyOn(fs, "writeFileSync").mockImplementation(() => {
+    spyOn(fs, "writeFileSync").mockImplementation(() => {
       throw failure;
     });
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const warn = spyOn(console, "warn").mockImplementation(() => {});
     expect(() => load()).toThrow(failure);
     expect(warn).not.toHaveBeenCalled();
     expect(fs.readFileSync(file, "utf8")).toBe("");
@@ -116,12 +118,12 @@ describe.each([
   it("preserves the write error when the original file cannot be verified", () => {
     const failure = new Error("synthetic truncate failure");
     let failed = false;
-    vi.spyOn(fs, "ftruncateSync").mockImplementation(() => {
+    spyOn(fs, "ftruncateSync").mockImplementation(() => {
       failed = true;
       throw failure;
     });
     const read = fs.readFileSync;
-    vi.spyOn(fs, "readFileSync").mockImplementation((...args) => {
+    spyOn(fs, "readFileSync").mockImplementation((...args) => {
       if (failed && args[0] === file) throw new Error("synthetic read failure");
       return read(...args);
     });
@@ -131,7 +133,7 @@ describe.each([
 
 it("honors the disabled preset synchronization policy", () => {
   setManagedPresetBaseUrlSyncEnabled(false);
-  const truncate = vi.spyOn(fs, "ftruncateSync");
+  const truncate = spyOn(fs, "ftruncateSync");
   expect(getConfig().provider.minimax?.options?.baseURL).toBe(presetBaseURL);
   expect(truncate).not.toHaveBeenCalled();
   expect(fs.readFileSync(file, "utf8")).toBe(original);
@@ -143,13 +145,13 @@ it.each([
 ] as const)(
   "preserves %s provider policy after a safe sync failure",
   (buildEnv, expectedBaseURL) => {
-    vi.stubEnv("MAVIS_BUILD_ENV", buildEnv);
+    stubEnv("MAVIS_BUILD_ENV", buildEnv);
     // A staging endpoint needs syncing in both prod and test builds.
     fs.writeFileSync(file, original.replace(oldBaseURL, presetBaseURL));
-    vi.spyOn(fs, "ftruncateSync").mockImplementation(() => {
+    spyOn(fs, "ftruncateSync").mockImplementation(() => {
       throw new Error("synthetic failure");
     });
-    vi.spyOn(console, "warn").mockImplementation(() => {});
+    spyOn(console, "warn").mockImplementation(() => {});
     const config = getConfig();
     expect(config.provider.minimax?.options?.baseURL).toBe(expectedBaseURL);
     expect(config.provider.minimax?.options?.apiKey).toBe(secret);
@@ -161,7 +163,7 @@ it("still reports failure when creating the required initial config", () => {
   const failure = Object.assign(new Error("synthetic create failure"), {
     code: "EPERM",
   });
-  vi.spyOn(fs, "openSync").mockImplementation(() => {
+  spyOn(fs, "openSync").mockImplementation(() => {
     throw failure;
   });
   expect(() => getConfig()).toThrow(failure);

@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { waitFor } from '../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock } from 'bun:test';
+
 import type { TuiSessionInputSummary } from '../../src/runtime/port.js';
 import { TuiAgentTeamPanel } from '../../src/tui/agent-team/panel.js';
 import type { TuiAgentTeamSnapshot } from '../../src/tui/agent-team/model.js';
@@ -49,7 +51,7 @@ const factories: Record<string, Factory> = {
       agentTeam: () => team(count),
       backgroundTasks: () => [],
       activeSessionId: () => 'root',
-      onOpenAgent: vi.fn(),
+      onOpenAgent: mock(),
       onCancel,
       requestRender,
     }),
@@ -57,7 +59,7 @@ const factories: Record<string, Factory> = {
     new TuiAgentTeamPanel({
       snapshot: () => team(count),
       activeSessionId: () => 'root',
-      onSelect: vi.fn(),
+      onSelect: mock(),
       onCancel,
       requestRender,
     }),
@@ -102,7 +104,7 @@ const factories: Record<string, Factory> = {
     new TuiSessionHistoryExplorer({
       summaries: summaries(count),
       mutationAvailable: true,
-      onAction: vi.fn(),
+      onAction: mock(),
       onCancel,
       requestRender,
     }),
@@ -110,7 +112,7 @@ const factories: Record<string, Factory> = {
     new TuiSessionMutationHistoryPicker({
       summaries: summaries(count),
       mode: 'rewind',
-      onSelect: vi.fn(),
+      onSelect: mock(),
       onCancel,
       requestRender,
     }),
@@ -128,13 +130,13 @@ const factories: Record<string, Factory> = {
           },
         ],
       },
-      onContinue: vi.fn(),
+      onContinue: mock(),
       onCancel,
       requestRender,
     }),
   'rewind-scope': (_count, onCancel, requestRender) =>
     new TuiSessionMutationScopePicker({
-      onSelect: vi.fn(),
+      onSelect: mock(),
       onCancel,
       requestRender,
     }),
@@ -142,7 +144,7 @@ const factories: Record<string, Factory> = {
     new TuiSessionMutationForkConfirmation({
       summary: summaries(1)[0]!,
       options: { canFork: true, worktreeEligible: false, worktreeVisible: false },
-      onConfirm: vi.fn(),
+      onConfirm: mock(),
       onCancel,
       requestRender,
     }),
@@ -217,7 +219,7 @@ describe.each(Object.entries(factories))('%s regular viewport lifecycle', (_name
         // Some panels first clear a search/filter on Esc; close their surface handle here.
         handle.close();
         tui.renderNow();
-        await vi.waitFor(async () => {
+        await waitFor(async () => {
           await terminal.flush();
           const expected = [...chat(), ...Array(Math.max(0, rows - chat().length)).fill('')];
           expect(terminal.getViewport()).toEqual(expected.slice(-rows));

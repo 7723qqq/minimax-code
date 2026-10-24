@@ -3,6 +3,8 @@ import { visibleWidth, wrapTextWithAnsi } from '../rendering/text.js';
 import { sanitizeTerminalText } from '../rendering/terminal-text.js';
 import { tuiChalk as chalk, tuiColors as colors } from '../theme/runtime.js';
 import { renderCapacityBar, remainingCapacityTone } from './capacity-meter.js';
+import { inspectionLabelId, inspectionReportLabel } from '../features/inspection/copy.js';
+import { transcriptText } from '../features/transcript/copy.js';
 import type {
   TranscriptInspectionReport,
   TranscriptInspectionRow,
@@ -52,7 +54,10 @@ export class StatusVisualization implements Component {
     if (warnings.length) {
       lines.push(
         '',
-        ...wrapTextWithAnsi(chalk.bold.hex(colors.warning)('! Needs attention'), width),
+        ...wrapTextWithAnsi(
+          chalk.bold.hex(colors.warning)(transcriptText('status.needsAttention')),
+          width,
+        ),
       );
       for (const warning of warnings) {
         lines.push(...wrapTextWithAnsi(chalk.hex(colors.warning)(`! ${warning}`), width));
@@ -78,12 +83,14 @@ function statusRows(sections: readonly TranscriptInspectionSection[]): Transcrip
     if (title === 'Model') {
       const model = find('Model');
       if (!model) return [...rows];
-      const effort = find('Think effort');
+      const effort = find(inspectionLabelId('label.thinkEffort'));
       const thinking = find('Thinking');
       const detail = effort
-        ? `${effort.value} effort`
+        ? transcriptText('status.effortDetail', { value: effort.value })
         : thinking
-          ? `Thinking ${thinking.value.toLocaleLowerCase('en-US')}`
+          ? transcriptText('status.thinkingDetail', {
+              value: thinking.value.toLocaleLowerCase('en-US'),
+            })
           : undefined;
       return [{ ...model, value: `${model.value}${detail ? ` (${detail})` : ''}` }];
     }
@@ -116,7 +123,7 @@ function renderRow(
   labelWidth: number,
   renderedValue = paintTone(flatten(row.value), row.tone ?? 'neutral'),
 ): string[] {
-  const label = flatten(row.label);
+  const label = flatten(inspectionReportLabel(row.label));
   const paintedLabel = chalk.hex(colors.muted)(`${label}:`);
   if (width < labelWidth + 18) {
     return [...wrapTextWithAnsi(paintedLabel, width), ...wrapTextWithAnsi(renderedValue, width)];

@@ -7,6 +7,7 @@ import type { TuiTurnProjection } from '../projection/turn-projection.js';
 import { createTuiSettledTurn, settleTuiRuntimeTurnProjection } from './turn-settlement.js';
 import { pendingQuestionnaireForTurn } from '../../../application/pending-questionnaire.js';
 import type { TuiInteractionPort } from '../../../runtime/port.js';
+import { controllerText } from '../copy.js';
 
 export interface TuiRuntimeTurnSettlementOptions {
   readonly turnProjection: TuiTurnProjection;
@@ -102,7 +103,7 @@ export class TuiRuntimeTurnSettlement {
     if (status === 'failed') {
       this.options.turnProjection.failTurn(
         settledTurn.turnId,
-        result.error?.message ?? 'Runtime turn failed.',
+        result.error?.message ?? controllerText('run.settlement.turnFailed'),
       );
       this.options.turnProjection.clearTurn(settledTurn.turnId);
     }
@@ -120,7 +121,7 @@ export class TuiRuntimeTurnSettlement {
   }
 
   private publishDeliveryFailure(settledTurn: TuiSettledTurn): void {
-    const message = 'Could not publish the TUI automation result.';
+    const message = controllerText('run.settlement.publishFailed');
     this.options.turnProjection.failTurn(settledTurn.turnId, message);
     this.options.turnProjection.clearTurn(settledTurn.turnId);
     this.options.updateState({

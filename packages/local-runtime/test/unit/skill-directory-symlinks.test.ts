@@ -1,9 +1,10 @@
+import { waitFor } from '../../../../test/bun-test-setup.js';
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_SKILLS_CONFIG } from '@mavis/config';
 import { createSkillRegistry, type SkillRegistryWatcher } from '@mavis/skills';
 import { readConfiguredSkillRoots } from '../../src/skills/roots.js';
@@ -149,12 +150,12 @@ describe('configured workspace skill directory links', () => {
     await linkDirectory(target, join(workspace, '.agents', 'skills', 'linked'));
     const registry = await createSkillRegistry(workspaceRoots());
     expect(registry.getAvailableSkills()).toEqual([]);
-    const onChange = vi.fn();
+    const onChange = mock();
     watcher = registry.watch({ onChange });
 
     // Native watchers may finish arming after watch() returns. Observe a real
     // event in the linked target before making the one-shot SKILL.md write.
-    await vi.waitFor(
+    await waitFor(
       async () => {
         if (onChange.mock.calls.length === 0) {
           await writeFile(join(target, '.watch-ready'), String(Date.now()));
@@ -166,7 +167,7 @@ describe('configured workspace skill directory links', () => {
     expect(registry.getAvailableSkills()).toEqual([]);
     onChange.mockClear();
     await writeSkill(target);
-    await vi.waitFor(
+    await waitFor(
       () => {
         expect(onChange).toHaveBeenCalled();
         expect(registry.getAvailableSkills()[0]?.content).toContain('Initial instructions');
@@ -175,7 +176,7 @@ describe('configured workspace skill directory links', () => {
     );
     onChange.mockClear();
     await writeSkill(target, 'linked', 'Updated instructions');
-    await vi.waitFor(
+    await waitFor(
       () => {
         expect(onChange).toHaveBeenCalled();
         expect(registry.getAvailableSkills()[0]?.content).toContain('Updated instructions');

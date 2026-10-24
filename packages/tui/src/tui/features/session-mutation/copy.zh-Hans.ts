@@ -1,5 +1,11 @@
 import type { SessionHistoryCopyKey, SessionMutationCopyKey } from './copy.en.js';
 
+/**
+ * Simplified Chinese copy for the Session history browser.
+ *
+ * The `satisfies` clause is the completeness check: a key present in the
+ * English catalog but absent here fails `pnpm typecheck`.
+ */
 export const ZH_HANS_SESSION_HISTORY_COPY = {
   title: '历史',
   helper: '搜索之前的提示词，检查影响并选择安全操作。',
@@ -36,6 +42,12 @@ export const ZH_HANS_SESSION_HISTORY_COPY = {
   commandUnavailable: '请先开始或恢复一个会话，再浏览历史。',
 } as const satisfies Readonly<Record<SessionHistoryCopyKey, string>>;
 
+/**
+ * Simplified Chinese copy for the Session mutation surfaces: fork, edit and rewind.
+ *
+ * The `satisfies` clause is the completeness check: a key present in the
+ * English catalog but absent here fails `pnpm typecheck`.
+ */
 export const ZH_HANS_SESSION_MUTATION_COPY = {
   'sessionMutation.history.fork.title': '从历史消息创建分支',
   'sessionMutation.history.fork.helper': '选择一条用户消息作为新会话的分支点。',
@@ -56,6 +68,7 @@ export const ZH_HANS_SESSION_MUTATION_COPY = {
   'sessionMutation.scope.both.label': '会话和文件',
   'sessionMutation.scope.both.description': '移除目标之后的消息，并还原该 turn 的文件改动。',
   'sessionMutation.scope.hint': '↑↓ 选择 · Enter 确认 · Esc 取消',
+  'sessionMutation.scope.preparing': '正在准备回退确认…',
   'sessionMutation.preview.heading': '回退预览',
   'sessionMutation.preview.editHeading': '编辑预览',
   'sessionMutation.preview.empty': '该 turn 没有待回退的文件改动。',

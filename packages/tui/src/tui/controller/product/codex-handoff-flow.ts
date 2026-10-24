@@ -5,6 +5,7 @@ import {
 import type { CreateTuiAppOptions } from '../../../types/tui-app.js';
 import type { TuiComposerDraft } from '../../features/composer/draft.js';
 import { formatTuiKeybinding } from '../../shell/keybindings.js';
+import { shellText } from '../../shell/copy.js';
 import type { TranscriptStore } from '../../transcript/store.js';
 import type { Editor } from '../../widgets/editor/editor.js';
 import type { TuiChatController } from '../chat-controller.js';
@@ -88,8 +89,8 @@ export class TuiCodexHandoffFlow {
     this.options.chrome()?.setWelcomeTip({
       id: 'codex-handoff',
       command: 'resume-codex',
-      text: `Tip: ${resumeKey} resumes your recent Codex session`,
-      shortText: `Tip: ${resumeKey} resumes Codex`,
+      text: shellText('tip.codexResume.text', { key: resumeKey }),
+      shortText: shellText('tip.codexResume.short', { key: resumeKey }),
     });
     this.options.onChanged();
   }

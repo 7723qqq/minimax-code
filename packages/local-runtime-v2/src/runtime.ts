@@ -56,9 +56,6 @@ const V2_LAYOUT_MIGRATION_RECEIPT_CARRIER = Symbol.for(
 
 /** @internal Component-scoped overrides used by runtime tests and parity probes. */
 export interface LocalRuntimeV2TestOverrides {
-  readonly database?: {
-    readonly sqlite3ModulePath?: string;
-  };
   readonly services?: RuntimeServicesTestOverrides;
 }
 
@@ -180,12 +177,7 @@ async function createLocalRuntimeHostV2Internal(
     database = measureStage(
       "db_open_ms",
       () =>
-        new DatabaseClient({
-          dataDir: options.dataDir,
-          ...(overrides.database?.sqlite3ModulePath
-            ? { sqlite3ModulePath: overrides.database.sqlite3ModulePath }
-            : {}),
-        }),
+        new DatabaseClient({ dataDir: options.dataDir }),
     );
     const resolvedDatabase = database;
     const initialization = await measureStageAsync("db_initialize_ms", () =>

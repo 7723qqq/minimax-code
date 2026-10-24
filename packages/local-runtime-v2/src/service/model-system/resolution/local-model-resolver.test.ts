@@ -1,10 +1,11 @@
+import { stubGlobal, unstubAllGlobals } from '../../../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock } from 'bun:test';
 import {
   ThinkingLevel,
   ThinkingMode,
   type IAgentConfig,
   type IModelCapabilities,
 } from '@mavis/protocol';
-import { describe, expect, it, vi } from 'vitest';
 
 import { streamSimple } from '@earendil-works/pi-ai';
 
@@ -79,7 +80,7 @@ describe('LocalModelResolver', () => {
   );
 
   it('resolves API-key providers with normalized limits and runtime identity headers', async () => {
-    const fetchImpl = vi.fn<typeof fetch>();
+    const fetchImpl = mock<typeof fetch>();
     const resolver = new LocalModelResolver({
       defaultApi: 'openai-completions',
       fetchImpl,
@@ -179,7 +180,7 @@ describe('LocalModelResolver dynamic output strategy', () => {
 
 describe('LocalModelResolver', () => {
   it('uses current managed auth facts for a recognized managed endpoint', async () => {
-    const authContextGetter = vi.fn(() => ({
+    const authContextGetter = mock(() => ({
       accessToken: 'managed-token',
       realUserID: 'user-managed',
     }));
@@ -233,21 +234,21 @@ describe('LocalModelResolver', () => {
     };
     let acceptedVersion = 1;
     const seenAuthorization: Array<string | null> = [];
-    const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => {
+    const fetchImpl = mock<typeof fetch>(async (_input, init) => {
       const authorization = new Headers(init?.headers).get('Authorization');
       seenAuthorization.push(authorization);
       return new Response(null, {
         status: authorization === `Bearer managed-token-v${acceptedVersion}` ? 200 : 401,
       });
     });
-    const authContextInvalidator = vi.fn(async () => {
+    const authContextInvalidator = mock(async () => {
       authContext = {
         accessToken: `managed-token-v${acceptedVersion}`,
         loginEpoch: 'login-A',
         realUserID: 'user-managed',
       };
     });
-    vi.stubGlobal('fetch', fetchImpl);
+    stubGlobal('fetch', fetchImpl);
     try {
       const resolver = new LocalModelResolver({
         authContextGetter: () => authContext,
@@ -297,7 +298,7 @@ describe('LocalModelResolver', () => {
       expect(seenAuthorization).toEqual(expectedAuthorization);
       expect(resolved.headers?.Authorization).toBe('Bearer managed-token-v1');
     } finally {
-      vi.unstubAllGlobals();
+      unstubAllGlobals();
     }
   });
 });
@@ -310,7 +311,7 @@ describe('LocalModelResolver managed auth continuity', () => {
         accessToken: 'managed-token-v1',
         loginEpoch: 'login-A',
       };
-      const fetchImpl = vi.fn<typeof fetch>(async () => new Response(null, { status: 200 }));
+      const fetchImpl = mock<typeof fetch>(async () => new Response(null, { status: 200 }));
       const resolver = new LocalModelResolver({
         fetchImpl,
         authContextGetter: () => authContext,
@@ -464,7 +465,7 @@ describe('LocalModelResolver request-body byte authority', () => {
 
 describe('LocalModelResolver BYOK routing and fallback', () => {
   it('honors the MiniMax BYOK source switch and the injected stream implementation', async () => {
-    const streamFn = vi.fn();
+    const streamFn = mock();
     const resolver = new LocalModelResolver({
       streamFn: streamFn as never,
       providerConfig: {
@@ -648,7 +649,7 @@ describe('LocalModelResolver custom-provider endpoint normalization', () => {
 
 describe('LocalModelResolver BYOK fallback', () => {
   it('falls back from dangling BYOK references to the first managed model', async () => {
-    const warn = vi.fn();
+    const warn = mock();
     const resolver = new LocalModelResolver({
       providerConfig: {
         minimax: {
@@ -678,7 +679,7 @@ describe('LocalModelResolver BYOK fallback', () => {
           },
         },
       }),
-      logger: { info: vi.fn(), warn },
+      logger: { info: mock(), warn },
     });
 
     const staleCapabilities = capabilitiesFromModelConfig({
@@ -982,10 +983,10 @@ describe('LocalModelResolver BYOK thinking', () => {
 describe('LocalModelResolver credentials and thinking', () => {
   it('uses OAuth credentials only for the openai-codex provider', async () => {
     const logicalCaps: Array<number | undefined> = [];
-    const providerAuthGetter = vi.fn(async (provider: string) =>
+    const providerAuthGetter = mock(async (provider: string) =>
       provider === 'openai-codex' ? 'codex-token' : undefined,
     );
-    const logger = { info: vi.fn(), warn: vi.fn() };
+    const logger = { info: mock(), warn: mock() };
     const resolver = new LocalModelResolver({
       providerAuthGetter,
       providerConfig: {
@@ -1196,7 +1197,7 @@ describe('Codex OAuth discovered models', () => {
   it.each(['high', 'xhigh', 'max', 'ultra'])(
     'resolves an unregistered model with user limits and effort %s',
     async (effort) => {
-      const providerAuthGetter = vi.fn(async () => 'codex-token');
+      const providerAuthGetter = mock(async () => 'codex-token');
       const modelConfig: LocalModelConfig = {
         name: 'GPT-6 Astra',
         limit: { context: 800_000, output: 60_000 },

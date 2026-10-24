@@ -104,6 +104,10 @@
       "types": "./src/runtime-i18n/index.ts",
       "import": "./dist/runtime-i18n/index.js"
     },
+    "./i18n": {
+      "types": "./src/i18n/index.ts",
+      "import": "./dist/i18n/index.js"
+    },
     "./product-time": {
       "types": "./src/product-time.ts",
       "import": "./dist/product-time.js"
@@ -203,6 +207,14 @@
     "./memory-limits": {
       "types": "./src/memory-limits.ts",
       "import": "./dist/memory-limits.js"
+    },
+    "./bundled-assets": {
+      "types": "./src/bundled-assets.ts",
+      "import": "./dist/bundled-assets.js"
+    },
+    "./native-addons": {
+      "types": "./src/native-addons.ts",
+      "import": "./dist/native-addons.js"
     }
   },
   "types": "./src/index.ts",
@@ -276,6 +288,9 @@
       ],
       "runtime-i18n": [
         "src/runtime-i18n/index.ts"
+      ],
+      "i18n": [
+        "src/i18n/index.ts"
       ],
       "product-time": [
         "src/product-time.ts"

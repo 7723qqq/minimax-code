@@ -11,6 +11,7 @@ import {
   tuiColors as colors,
 } from '../../theme/runtime.js';
 import { TuiSelectionScrollView } from '../../widgets/selection-scroll-view.js';
+import { pluginText } from './copy.js';
 
 type PluginTab = 'all' | 'installed' | 'official' | 'local';
 const TABS: readonly PluginTab[] = ['all', 'installed', 'official', 'local'];
@@ -142,7 +143,10 @@ export class TuiPluginManager implements TuiFeatureScreen, Component, Focusable 
     return [
       chalk.bold.hex(colors.signal)('Plugins'),
       chalk.hex(colors.muted)(
-        `Browse MiniMax Official and Local plugins · Installed ${installedCount} of ${this.plugins.length}`,
+        pluginText('browsePlugins', {
+          installed: installedCount,
+          total: this.plugins.length,
+        }),
       ),
       renderTabs(this.tab, installedCount),
       searchLine,
@@ -156,7 +160,7 @@ export class TuiPluginManager implements TuiFeatureScreen, Component, Focusable 
     const rows = this.visiblePlugins();
     this.selectedIndex = rows.length ? Math.min(this.selectedIndex, rows.length - 1) : 0;
     this.bodyViewport.setActiveRow(this.selectedIndex);
-    if (rows.length === 0) return [chalk.hex(colors.muted)('No matching plugins')];
+    if (rows.length === 0) return [chalk.hex(colors.muted)(pluginText('noMatchingPlugins'))];
     return rows.map((plugin, index) =>
       truncateToWidth(
         renderPluginRow(plugin, index === this.selectedIndex, safeWidth),
@@ -172,9 +176,7 @@ export class TuiPluginManager implements TuiFeatureScreen, Component, Focusable 
     return [
       this.status
         ? chalk.hex(colors.accent)(this.status)
-        : renderTuiActionHint(
-            'Enter install · Space enable/disable · Delete remove · Ctrl+R refresh',
-          ),
+        : renderTuiActionHint(pluginText('footerActions')),
       renderTuiActionHint(
         '↑↓ select · PgUp/PgDn scroll · Tab source · ←→ edit search · Esc clear/close',
       ),
@@ -239,8 +241,8 @@ export class TuiPluginManager implements TuiFeatureScreen, Component, Focusable 
       this.status = formatTuiActionFailure(error, {
         summary: `Couldn't update ${plugin.displayName}.`,
         nextStep: isPluginAuthRequired(error)
-          ? 'Run /login, then retry.'
-          : 'Retry or run mcode plugin for details.',
+          ? pluginText('authRequiredNextStep')
+          : pluginText('detailsNextStep'),
       });
     } finally {
       if (!this.disposed) {
@@ -252,19 +254,19 @@ export class TuiPluginManager implements TuiFeatureScreen, Component, Focusable 
 
   private async refresh(): Promise<void> {
     this.busy = true;
-    this.status = 'Refreshing Plugin catalogs…';
+    this.status = pluginText('refreshingCatalogs');
     this.requestRender();
     try {
       const plugins = await this.options.onRefresh();
       if (this.disposed) return;
       this.plugins = [...plugins];
       this.resetSelection();
-      this.status = 'Plugin catalogs refreshed.';
+      this.status = pluginText('catalogsRefreshed');
     } catch (error) {
       if (this.disposed) return;
       this.status = formatTuiActionFailure(error, {
         summary: "Couldn't refresh Plugins.",
-        nextStep: 'Retry or run mcode plugin marketplace upgrade.',
+        nextStep: pluginText('upgradeNextStep'),
       });
     } finally {
       if (!this.disposed) {

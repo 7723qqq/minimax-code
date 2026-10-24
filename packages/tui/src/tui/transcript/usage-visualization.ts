@@ -2,6 +2,7 @@ import type { Component } from '../rendering/component.js';
 import { truncateToWidth, visibleWidth } from '../rendering/text.js';
 import { sanitizeTerminalText } from '../rendering/terminal-text.js';
 import { tuiChalk as chalk, tuiColors as colors } from '../theme/runtime.js';
+import { transcriptText } from '../features/transcript/copy.js';
 import {
   capacityBarWidth,
   remainingCapacityTone,
@@ -30,7 +31,7 @@ export class UsageVisualization implements Component {
   render(rawWidth: number): string[] {
     const width = Math.min(MAX_CONTENT_WIDTH, Math.max(0, Math.floor(rawWidth)));
     if (width === 0) return [];
-    if (width < 8) return [truncateToWidth('Usage', width, '…')];
+    if (width < 8) return [truncateToWidth(transcriptText('usage.title'), width, '…')];
 
     const lines = [this.header(width), chalk.hex(colors.dim)(safeInline(this.data.model)), ''];
     lines.push(...this.sessionSummary(width));
@@ -45,24 +46,24 @@ export class UsageVisualization implements Component {
   }
 
   private header(width: number): string {
-    const title = chalk.bold.hex(colors.text)('Usage');
+    const title = chalk.bold.hex(colors.text)(transcriptText('usage.title'));
     const summary =
       this.data.sessionRecorded === false
-        ? chalk.hex(colors.dim)('Account only')
+        ? chalk.hex(colors.dim)(transcriptText('usage.header.accountOnly'))
         : chalk.bold.hex(colors.signal)(`${formatCompact(this.data.totalTokens)} total`);
     return composeEdges(title, summary, width);
   }
 
   private sessionSummary(width: number): string[] {
-    const heading = sectionHeading('This session');
+    const heading = sectionHeading(transcriptText('usage.section.session'));
     if (this.data.sessionRecorded === false) {
-      return [heading, chalk.hex(colors.dim)('No token activity yet.')];
+      return [heading, chalk.hex(colors.dim)(transcriptText('usage.empty.noTokenActivity'))];
     }
 
     const metrics = [
-      metric('Input', formatCompact(this.data.inputTokens)),
-      metric('Output', formatCompact(this.data.outputTokens)),
-      metric('Total', formatCompact(this.data.totalTokens)),
+      metric(transcriptText('usage.metric.input'), formatCompact(this.data.inputTokens)),
+      metric(transcriptText('usage.metric.output'), formatCompact(this.data.outputTokens)),
+      metric(transcriptText('usage.metric.total'), formatCompact(this.data.totalTokens)),
     ];
     if (width >= INLINE_METRICS_MIN_WIDTH) return [heading, metrics.join('     ')];
     if (width >= 26) return [heading, metrics.slice(0, 2).join('   '), metrics[2] ?? ''];
@@ -76,14 +77,14 @@ function renderCacheSummary(
 ): string[] {
   const ratio = clampRatio(cache.cacheReadRatio);
   const heading = composeEdges(
-    sectionHeading('Cache'),
+    sectionHeading(transcriptText('usage.section.cache')),
     chalk.bold.hex(colors.signal)(`Read ${Math.round(ratio * 100)}%`),
     width,
   );
   const metrics = [
-    metric('Read', formatCompact(cache.cacheReadTokens)),
-    metric('Fresh', formatCompact(cache.freshInputTokens)),
-    metric('Write', formatCompact(cache.cacheWriteTokens)),
+    metric(transcriptText('usage.metric.read'), formatCompact(cache.cacheReadTokens)),
+    metric(transcriptText('usage.metric.fresh'), formatCompact(cache.freshInputTokens)),
+    metric(transcriptText('usage.metric.write'), formatCompact(cache.cacheWriteTokens)),
   ];
   if (width >= INLINE_METRICS_MIN_WIDTH) return [heading, metrics.join('     ')];
   if (width >= 26) return [heading, metrics.slice(0, 2).join('   '), metrics[2] ?? ''];
@@ -95,13 +96,16 @@ function renderContextSummary(
   width: number,
 ): string[] {
   if (!context || !Number.isFinite(context.windowTokens) || context.windowTokens <= 0) {
-    return [sectionHeading('Context'), chalk.hex(colors.dim)('Waiting for a context snapshot.')];
+    return [
+      sectionHeading(transcriptText('context.title')),
+      chalk.hex(colors.dim)(transcriptText('usage.empty.waitingForSnapshot')),
+    ];
   }
 
   const utilization = clampRatio(context.utilization);
   const health = contextHealth(utilization);
   const heading = composeEdges(
-    sectionHeading('Context'),
+    sectionHeading(transcriptText('context.title')),
     chalk.bold.hex(health.color)(health.label),
     width,
   );
@@ -111,7 +115,10 @@ function renderContextSummary(
     tone: usedCapacityTone(utilization),
   });
   const usedPercent = Math.round(utilization * 100);
-  const capacity = `${usedPercent}% used · ${100 - usedPercent}% free`;
+  const capacity = transcriptText('usage.capacity.usedAndFree', {
+    used: usedPercent,
+    free: 100 - usedPercent,
+  });
   const tokens = `${formatCompact(context.usedTokens)} / ${formatCompact(context.windowTokens)}`;
   const detail = `${capacity} · ${tokens}`;
   if (capacityBarWidth(barWidth) + 3 + visibleWidth(detail) <= width) {
@@ -125,7 +132,7 @@ function renderAccountSummary(
   width: number,
 ): string[] {
   return [
-    sectionHeading('Account'),
+    sectionHeading(transcriptText('usage.section.account')),
     ...accountRows.flatMap((item) => renderAccountRow(item, width)),
   ];
 }
@@ -169,11 +176,15 @@ function composeEdges(left: string, right: string, width: number): string {
 }
 
 function contextHealth(utilization: number): { label: string; color: string } {
-  if (utilization >= 0.95) return { label: 'Nearly full', color: colors.error };
-  if (utilization >= 0.85) return { label: 'Running low', color: colors.error };
-  if (utilization >= 0.7) return { label: 'Keep an eye on it', color: colors.warning };
-  if (utilization >= 0.45) return { label: 'Comfortable', color: colors.signal };
-  return { label: 'Plenty of room', color: colors.success };
+  if (utilization >= 0.95)
+    return { label: transcriptText('context.health.nearlyFull'), color: colors.error };
+  if (utilization >= 0.85)
+    return { label: transcriptText('context.health.runningLow'), color: colors.error };
+  if (utilization >= 0.7)
+    return { label: transcriptText('context.health.keepAnEyeOnIt'), color: colors.warning };
+  if (utilization >= 0.45)
+    return { label: transcriptText('context.health.comfortable'), color: colors.signal };
+  return { label: transcriptText('context.health.plentyOfRoom'), color: colors.success };
 }
 
 function paintTone(value: string, tone: TranscriptInspectionTone): string {

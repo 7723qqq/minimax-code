@@ -72,6 +72,7 @@ import type { MetricsClient } from '../common/metrics.js';
 import { logger } from '../common/logger.js';
 import { readLocalPermissionMode } from '../api/host-helpers.js';
 import { applyAskGate } from './ask-gate.js';
+import { permissionReasonText } from './copy.js';
 import { selectMatchingRule } from './rule-match.js';
 import {
   hasWindowsWriteOrDeleteCommand,
@@ -538,7 +539,20 @@ export class LocalPermissionFacade {
     let workingDirectory: string | undefined;
 
     const command = readCommand(params.input);
-    const windowsHardSafety = await this.evaluateWindowsHardSafety(params, platform, command);
+
+    // Coarse user-locale hint so the rendered reason matches the user's
+    // language: sniff inline messages first, fall back to the session's
+    // recent messages. We use the inline hints only here; the cloud-classifier
+    // path below already loads recent messages for conversation_context and
+    // re-uses them.
+    const localeHint = this.resolveInlineLocaleHint(params);
+
+    const windowsHardSafety = await this.evaluateWindowsHardSafety(
+      params,
+      platform,
+      command,
+      localeHint,
+    );
     if (windowsHardSafety.denial) return windowsHardSafety.denial;
     const { recoverableNativeDelete } = windowsHardSafety;
     workingDirectory = windowsHardSafety.workingDirectory;
@@ -556,7 +570,7 @@ export class LocalPermissionFacade {
     if (rawMode === 'off' && !windowsDeleteNeedsRewrite && !posixDeleteNeedsRewrite) {
       return {
         behavior: 'allow',
-        reason: 'Allowed: permission mode is off; permission review was skipped.',
+        reason: formatDecisionReason({ type: 'mode', mode: 'off' }, 'allow', localeHint),
       };
     }
 
@@ -565,13 +579,6 @@ export class LocalPermissionFacade {
     const mode: PermissionMode =
       rawMode === 'acceptEdits' ? 'default' : rawMode === 'off' ? 'bypassPermissions' : rawMode;
     const askPolicy = modeToAskPolicy(mode);
-
-    // Coarse user-locale hint so the rendered reason matches the user's
-    // language: sniff inline messages first, fall back to the session's
-    // recent messages. We use the inline hints only here; the cloud-classifier
-    // path below already loads recent messages for conversation_context and
-    // re-uses them.
-    const localeHint = this.resolveInlineLocaleHint(params);
 
     // Snapshot rules + build the ToolPermissionContext.
     let rules: PermissionRule[];
@@ -650,6 +657,7 @@ export class LocalPermissionFacade {
       input: params.input,
       workspaceDir: workingDirectory,
       platform,
+      locale: localeHint,
     });
     if (
       localHardCheck?.behavior === 'deny' &&
@@ -1088,6 +1096,7 @@ export class LocalPermissionFacade {
     params: LocalPermissionCheckParams,
     platform: NodeJS.Platform,
     command: string | undefined,
+    locale?: UserLocaleHint,
   ): Promise<WindowsHardSafetyResult> {
     if (platform !== 'win32') return {};
 
@@ -1131,7 +1140,14 @@ export class LocalPermissionFacade {
           return {
             denial: {
               behavior: 'deny',
-              reason: `Local hard safety policy blocked deletion: the Windows mavis-trash launcher is unavailable (${trash.reason ?? 'health check failed'}). The agent must not fall back to a permanent delete command. ${unavailableTrashInstruction}`,
+              reason: permissionReasonText(
+                'deletion.trashUnavailable',
+                {
+                  reason: trash.reason ?? 'health check failed',
+                  instruction: unavailableTrashInstruction,
+                },
+                locale,
+              ),
               denySource: 'safety-immune',
             },
           };
@@ -1141,7 +1157,11 @@ export class LocalPermissionFacade {
           return {
             denial: {
               behavior: 'deny',
-              reason: `Local hard safety policy blocked deletion: bare or non-canonical mavis-trash is untrusted because PATH/CWD may select a different executable. The target was not deleted. Retry with one top-level rm command; the runtime will use the trusted launcher at "${launcherPath}". Do not bypass this with a permanent delete command, wrapper, script, or filesystem API.`,
+              reason: permissionReasonText(
+                'deletion.untrustedTrashLauncher',
+                { launcherPath },
+                locale,
+              ),
               denySource: 'safety-immune',
             },
           };

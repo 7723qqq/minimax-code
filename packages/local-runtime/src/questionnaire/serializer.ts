@@ -4,7 +4,7 @@ import type {
   AskQuestionnaireReplyPayload,
   AskQuestionnaireRequest,
 } from '@mavis/shared/questionnaire';
-import { translateRuntimeText } from '@mavis/shared/runtime-i18n';
+import { translateRuntimeText } from '@mavis/shared/i18n';
 
 export function serializeQuestionnaireAsk(request: AskQuestionnaireRequest): string {
   const lines = [

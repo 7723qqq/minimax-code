@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { mocked, stubEnv, unstubAllEnvs, waitFor } from '../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock, spyOn } from 'bun:test';
+
 import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -118,13 +120,13 @@ function planEntryEventRequest(id: string) {
 
 function createObservability(): TuiObservability {
   return {
-    recordStartup: vi.fn(),
-    recordAccess: vi.fn(),
-    recordEventStream: vi.fn(),
-    recordTerminal: vi.fn(),
-    recordProcessStop: vi.fn(),
-    observeRender: vi.fn(),
-    snapshot: vi.fn(() => ({
+    recordStartup: mock(),
+    recordAccess: mock(),
+    recordEventStream: mock(),
+    recordTerminal: mock(),
+    recordProcessStop: mock(),
+    observeRender: mock(),
+    snapshot: mock(() => ({
       filePath: "/tmp/mcode-observability.jsonl",
       eventCounts: {
         startup: 0,
@@ -141,7 +143,7 @@ function createObservability(): TuiObservability {
         p95DurationMs: 0,
       },
     })),
-    flush: vi.fn(async () => undefined),
+    flush: mock(async () => undefined),
   };
 }
 
@@ -226,7 +228,7 @@ function renderTerminalViewport(
 }
 
 function createRuntime(): TuiRuntime {
-  const abortSession = vi.fn(async () => true);
+  const abortSession = mock(async () => true);
   let currentGoal: Awaited<ReturnType<TuiRuntime["getGoal"]>>;
   let createdSession:
     | {
@@ -237,7 +239,7 @@ function createRuntime(): TuiRuntime {
       }
     | undefined;
   const runtime: TuiRuntime = {
-    createSession: vi.fn(async () => {
+    createSession: mock(async () => {
       createdSession = {
         sessionId: "session-1",
         title: "New session",
@@ -245,12 +247,12 @@ function createRuntime(): TuiRuntime {
       };
       return { ...createdSession };
     }),
-    listSessions: vi.fn(async () => []),
-    listSessionPage: vi.fn(async () => ({
+    listSessions: mock(async () => []),
+    listSessionPage: mock(async () => ({
       sessions: [],
       hasMore: false,
     })),
-    getSession: vi.fn(async (sessionId: string) =>
+    getSession: mock(async (sessionId: string) =>
       createdSession?.sessionId === sessionId
         ? { ...createdSession }
         : {
@@ -259,14 +261,14 @@ function createRuntime(): TuiRuntime {
             workspaceDir: "/workspace",
           },
     ),
-    getMessages: vi.fn(async () => []),
-    listMessagePage: vi.fn(async () => ({ messages: [], hasMore: false })),
-    getSessionForkOptions: vi.fn(async () => ({
+    getMessages: mock(async () => []),
+    listMessagePage: mock(async () => ({ messages: [], hasMore: false })),
+    getSessionForkOptions: mock(async () => ({
       canFork: true,
       worktreeVisible: false,
       worktreeEligible: false,
     })),
-    forkSession: vi.fn(async () => ({
+    forkSession: mock(async () => ({
       session: {
         sessionId: "session-fork",
         parentSessionId: "session-1",
@@ -274,29 +276,29 @@ function createRuntime(): TuiRuntime {
         workspaceDir: "/workspace",
       },
     })),
-    getWorkspaceGitMetadata: vi.fn(async () => ({
+    getWorkspaceGitMetadata: mock(async () => ({
       isGitRepo: false,
       branch: "",
       detached: false,
       isWorktree: false,
     })),
-    renameSession: vi.fn(async (sessionId: string, title: string) => ({
+    renameSession: mock(async (sessionId: string, title: string) => ({
       sessionId,
       title,
       workspaceDir: "/workspace",
     })),
-    archiveSession: vi.fn(async () => undefined),
-    listSessionInputSummaries: vi.fn(async () => []),
-    getSessionRewindPreview: vi.fn(async () => ({ turns: [] })),
-    rewindSession: vi.fn(async () => ({ rewound: true })),
-    editSessionMessage: vi.fn(async () => ({
+    archiveSession: mock(async () => undefined),
+    listSessionInputSummaries: mock(async () => []),
+    getSessionRewindPreview: mock(async () => ({ turns: [] })),
+    rewindSession: mock(async () => ({ rewound: true })),
+    editSessionMessage: mock(async () => ({
       rewound: true,
       turnId: "turn-edit-1",
       userMessageId: "msg-user-v1-edited",
     })),
-    isGoalEnabled: vi.fn(() => true),
-    getGoal: vi.fn(async () => currentGoal),
-    createGoal: vi.fn(async ({ sessionId, objective, attachments }) => {
+    isGoalEnabled: mock(() => true),
+    getGoal: mock(async () => currentGoal),
+    createGoal: mock(async ({ sessionId, objective, attachments }) => {
       currentGoal = {
         goalId: "goal-1",
         sessionId,
@@ -313,7 +315,7 @@ function createRuntime(): TuiRuntime {
       };
       return currentGoal;
     }),
-    patchGoal: vi.fn(async (_sessionId, patch) => {
+    patchGoal: mock(async (_sessionId, patch) => {
       if (!currentGoal) throw new Error("Goal not found");
       currentGoal = {
         ...currentGoal,
@@ -322,13 +324,13 @@ function createRuntime(): TuiRuntime {
       };
       return currentGoal;
     }),
-    clearGoal: vi.fn(async () => {
+    clearGoal: mock(async () => {
       const existed = Boolean(currentGoal);
       currentGoal = undefined;
       return existed;
     }),
-    getInstructionSources: vi.fn(async () => []),
-    getRuntimeDiagnostics: vi.fn(async () => ({
+    getInstructionSources: mock(async () => []),
+    getRuntimeDiagnostics: mock(async () => ({
       status: "ok",
       surface: "cli-standalone",
       runtimeMode: "clean",
@@ -348,7 +350,7 @@ function createRuntime(): TuiRuntime {
       customProviderCount: 0,
       warnings: [],
     })),
-    prepareFeedback: vi.fn(async ({ description, sessionId }) => ({
+    prepareFeedback: mock(async ({ description, sessionId }) => ({
       schemaVersion: 1 as const,
       draftId: "feedback-draft-1",
       description,
@@ -361,14 +363,14 @@ function createRuntime(): TuiRuntime {
       excluded: ["credentials and tokens", "conversation prompts and messages"],
       expiresAtMs: Date.now() + 60_000,
     })),
-    submitFeedback: vi.fn(async () => ({
+    submitFeedback: mock(async () => ({
       schemaVersion: 1 as const,
       ticketId: "ticket-1",
       status: "processing" as const,
       createdAtMs: Date.now(),
     })),
-    cancelFeedback: vi.fn(async () => true),
-    runDailyCheckin: vi.fn(async () => ({
+    cancelFeedback: mock(async () => true),
+    runDailyCheckin: mock(async () => ({
       status: "claimed" as const,
       dayNo: 2,
       points: 20,
@@ -383,7 +385,7 @@ function createRuntime(): TuiRuntime {
         })),
       },
     })),
-    getAccountStatus: vi.fn(async () => ({
+    getAccountStatus: mock(async () => ({
       status: "ready",
       defaultModel: "minimax/MiniMax-M2.7",
       providerId: "minimax",
@@ -392,25 +394,25 @@ function createRuntime(): TuiRuntime {
       managedTokenPresent: true,
       warnings: [],
     })),
-    listProviderPresets: vi.fn(async () => []),
-    getCodexOAuthStatus: vi.fn(async () => ({
+    listProviderPresets: mock(async () => []),
+    getCodexOAuthStatus: mock(async () => ({
       state: "hidden" as const,
       providerId: "openai-codex" as const,
     })),
-    startCodexOAuthLogin: vi.fn(async () => ({
+    startCodexOAuthLogin: mock(async () => ({
       state: "hidden" as const,
       providerId: "openai-codex" as const,
     })),
-    getPermissionMode: vi.fn(async () => "auto" as const),
-    setPermissionMode: vi.fn(async (mode) => mode),
-    getPlanModeCapabilities: vi.fn(async () => ({ entryEnabled: true })),
-    getPendingQuestionnaire: vi.fn(async () => undefined),
-    getLatestPlanReview: vi.fn(async () => undefined),
-    replyQuestionnaire: vi.fn(async () => true),
-    dismissQuestionnaire: vi.fn(async () => true),
-    listPendingPermissions: vi.fn(async () => []),
-    replyPermission: vi.fn(async () => true),
-    listModels: vi.fn(async () => [
+    getPermissionMode: mock(async () => "auto" as const),
+    setPermissionMode: mock(async (mode) => mode),
+    getPlanModeCapabilities: mock(async () => ({ entryEnabled: true })),
+    getPendingQuestionnaire: mock(async () => undefined),
+    getLatestPlanReview: mock(async () => undefined),
+    replyQuestionnaire: mock(async () => true),
+    dismissQuestionnaire: mock(async () => true),
+    listPendingPermissions: mock(async () => []),
+    replyPermission: mock(async () => true),
+    listModels: mock(async () => [
       {
         providerId: "minimax",
         modelId: "MiniMax-M2.7",
@@ -419,8 +421,8 @@ function createRuntime(): TuiRuntime {
         selected: true,
       },
     ]),
-    selectModel: vi.fn(async () => true),
-    getSessionUsage: vi.fn(async () => ({
+    selectModel: mock(async () => true),
+    getSessionUsage: mock(async () => ({
       summary: {
         inputTokens: 100,
         outputTokens: 20,
@@ -429,7 +431,7 @@ function createRuntime(): TuiRuntime {
       },
       rows: [],
     })),
-    requestCompaction: vi.fn(async () => ({
+    requestCompaction: mock(async () => ({
       success: true,
       sessionId: "session-1",
       compactionId: "compact-1",
@@ -438,19 +440,19 @@ function createRuntime(): TuiRuntime {
       tokensBefore: 4000,
       tokensAfter: 1200,
     })),
-    getContextSnapshot: vi.fn(async () => ({ status: "empty" as const })),
-    getActiveRun: vi.fn(async (sessionId: string) => ({
+    getContextSnapshot: mock(async () => ({ status: "empty" as const })),
+    getActiveRun: mock(async (sessionId: string) => ({
       schemaVersion: 1 as const,
       sessionId,
       state: "idle" as const,
       actions: { steer: false },
     })),
-    getDelegationSnapshot: vi.fn(async (rootSessionId: string) => ({
+    getDelegationSnapshot: mock(async (rootSessionId: string) => ({
       schemaVersion: 1 as const,
       rootSessionId,
       members: [],
     })),
-    stopDelegation: vi.fn(async (rootSessionId: string) => ({
+    stopDelegation: mock(async (rootSessionId: string) => ({
       schemaVersion: 1 as const,
       rootSessionId,
       rootStopped: await abortSession({ id: rootSessionId }),
@@ -458,7 +460,7 @@ function createRuntime(): TuiRuntime {
       activeSessionIds: [],
       failedSessionIds: [],
     })),
-    steer: vi.fn(async (input) => ({
+    steer: mock(async (input) => ({
       turnId: input.requestedTurnId ?? "turn-steer",
       mode: input.requestedTurnId
         ? ("steered" as const)
@@ -472,7 +474,7 @@ function createRuntime(): TuiRuntime {
               })(),
           }),
     })),
-    listSkills: vi.fn(async () => ({
+    listSkills: mock(async () => ({
       skills: [
         {
           name: "docs",
@@ -484,8 +486,8 @@ function createRuntime(): TuiRuntime {
       ],
       hasMore: false,
     })),
-    inspectProjectMcp: vi.fn(async () => undefined),
-    listMcpServers: vi.fn(async () => [
+    inspectProjectMcp: mock(async () => undefined),
+    listMcpServers: mock(async () => [
       {
         name: "browser",
         enabled: true,
@@ -494,8 +496,8 @@ function createRuntime(): TuiRuntime {
         configJson: '{"env":{"TOKEN":"hidden"}}',
       },
     ]),
-    listQueuedMessages: vi.fn(async () => []),
-    getQueueSnapshot: vi.fn(async (sessionId: string) => {
+    listQueuedMessages: mock(async () => []),
+    getQueueSnapshot: mock(async (sessionId: string) => {
       const items = await runtime.listQueuedMessages(sessionId);
       return {
         items,
@@ -503,26 +505,26 @@ function createRuntime(): TuiRuntime {
         pendingCount: items.length,
       };
     }),
-    continueQueue: vi.fn(async () => undefined),
-    steerQueuedMessage: vi.fn(async (_sessionId: string, itemId: string) => ({
+    continueQueue: mock(async () => undefined),
+    steerQueuedMessage: mock(async (_sessionId: string, itemId: string) => ({
       queueItemId: itemId,
       turnId: "turn-steered-queue",
     })),
-    enqueueMessage: vi.fn(async () => ({
+    enqueueMessage: mock(async () => ({
       itemId: "queue-1",
       status: "queued",
       position: 1,
     })),
-    updateQueuedMessageContent: vi.fn(async () => undefined),
-    deleteQueuedMessage: vi.fn(async () => undefined),
-    watchEvents: vi.fn(async function* watchEvents(signal) {
+    updateQueuedMessageContent: mock(async () => undefined),
+    deleteQueuedMessage: mock(async () => undefined),
+    watchEvents: mock(async function* watchEvents(signal) {
       await new Promise<void>((resolve) => {
         signal.addEventListener("abort", resolve, { once: true });
       });
       for (const event of [] as TuiRuntimeEvent[]) yield event;
     }),
-    watchSessionTurn: vi.fn(async function* watchSessionTurn() {}),
-    sendMessage: vi.fn(
+    watchSessionTurn: mock(async function* watchSessionTurn() {}),
+    sendMessage: mock(
       async function* sendMessage(request): AsyncGenerator<TuiStreamEvent> {
         if (createdSession?.sessionId === request.id) {
           if (request.clientIntent === "plan-entry")
@@ -541,7 +543,7 @@ function createRuntime(): TuiRuntime {
 
 describe("createTuiApp", () => {
   it("force-follows user submissions, /new, and Session transitions", async () => {
-    const forceFollowBottom = vi.spyOn(TuiChatLayout.prototype, "forceFollowBottom");
+    const forceFollowBottom = spyOn(TuiChatLayout.prototype, "forceFollowBottom");
     const app = createTuiApp({
       runtime: createRuntime(),
       terminal: new FakeTerminal(),
@@ -556,7 +558,7 @@ describe("createTuiApp", () => {
 
       forceFollowBottom.mockClear();
       await app.submit("Continue with the next step");
-      await vi.waitFor(() => expect(forceFollowBottom).toHaveBeenCalled());
+      await waitFor(() => expect(forceFollowBottom).toHaveBeenCalled());
 
       forceFollowBottom.mockClear();
       await app.submit("/new");
@@ -577,7 +579,7 @@ describe("createTuiApp", () => {
       releaseRun = resolve;
     });
     const runtime = createRuntime();
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* pendingRun() {
         yield {
           type: "delta",
@@ -589,7 +591,7 @@ describe("createTuiApp", () => {
         yield { type: "done", turnId: "turn-pending" };
       },
     );
-    const forceFollowBottom = vi.spyOn(TuiChatLayout.prototype, "forceFollowBottom");
+    const forceFollowBottom = spyOn(TuiChatLayout.prototype, "forceFollowBottom");
     const app = createTuiApp({
       runtime,
       terminal: new FakeTerminal(),
@@ -602,7 +604,7 @@ describe("createTuiApp", () => {
     try {
       await app.ready;
       const firstSubmission = app.submit("Start the live run");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.controller.snapshot().status).toBe("running"),
       );
 
@@ -630,7 +632,7 @@ describe("createTuiApp", () => {
     async (tuiMode) => {
       const terminal = new FakeTerminal();
       const runtime = createRuntime();
-      const persistStatusLineItems = vi.fn(async () => undefined);
+      const persistStatusLineItems = mock(async () => undefined);
       const app = createTuiApp({
         runtime,
         terminal,
@@ -645,17 +647,17 @@ describe("createTuiApp", () => {
         await app.ready;
         app.editor.setText("/statusline");
         terminal.input?.("\r");
-        await vi.waitFor(() => expect(app.interaction.isActive()).toBe(true));
+        await waitFor(() => expect(app.interaction.isActive()).toBe(true));
         expect(stripAnsi(app.interaction.render(80).join("\n"))).toContain(
           "[x] current-dir",
         );
         terminal.input?.(" ");
         terminal.input?.("\r");
-        await vi.waitFor(() => expect(app.interaction.isActive()).toBe(false));
+        await waitFor(() => expect(app.interaction.isActive()).toBe(false));
         expect(persistStatusLineItems).toHaveBeenCalledWith([]);
         app.editor.setText("/statusline");
         terminal.input?.("\r");
-        await vi.waitFor(() => expect(app.interaction.isActive()).toBe(true));
+        await waitFor(() => expect(app.interaction.isActive()).toBe(true));
         expect(stripAnsi(app.interaction.render(80).join("\n"))).toContain(
           "[ ] current-dir",
         );
@@ -699,7 +701,7 @@ describe("createTuiApp", () => {
         );
         if (pressTab) {
           terminal.input?.("\t");
-          await vi.waitFor(() =>
+          await waitFor(() =>
             expect(stripAnsi(app.editor.render(100).join("\n"))).toContain(
               "aaa-directory/",
             ),
@@ -707,7 +709,7 @@ describe("createTuiApp", () => {
         }
         expect(app.editor.getText()).toBe("!ls ");
         terminal.input?.("\r");
-        await vi.waitFor(
+        await waitFor(
           () =>
             expect(
               app.transcript.snapshot().find((cell) => cell.kind === "shell")
@@ -759,7 +761,7 @@ describe("createTuiApp", () => {
           process.platform === "win32" ? "!Get-Content rep" : "!cat rep",
         );
         terminal.input?.("\t");
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(app.editor.getText()).toBe(
             process.platform === "win32"
               ? "!Get-Content report` file.txt "
@@ -772,7 +774,7 @@ describe("createTuiApp", () => {
             .some((cell) => cell.id.startsWith("local:bash:")),
         ).toBe(false);
         terminal.input?.("\r");
-        await vi.waitFor(
+        await waitFor(
           () =>
             expect(
               app.transcript
@@ -797,8 +799,8 @@ describe("createTuiApp", () => {
   it("runs an editor ! command locally and carries its result into the next model message", async () => {
     const directory = await mkdtemp(join(tmpdir(), "tui-bash-app-"));
     const runtime = createRuntime();
-    const followBottom = vi.spyOn(TuiChatLayout.prototype, "followBottom");
-    const forceFollowBottom = vi.spyOn(
+    const followBottom = spyOn(TuiChatLayout.prototype, "followBottom");
+    const forceFollowBottom = spyOn(
       TuiChatLayout.prototype,
       "forceFollowBottom",
     );
@@ -818,7 +820,7 @@ describe("createTuiApp", () => {
           : "!printf shell-result",
       );
       app.editor.submit();
-      await vi.waitFor(
+      await waitFor(
         () =>
           expect(
             app.transcript
@@ -872,7 +874,7 @@ describe("createTuiApp", () => {
           ? "!Write-Output streamed-result; Start-Sleep -Seconds 30"
           : "!printf streamed-result; sleep 30",
       );
-      await vi.waitFor(
+      await waitFor(
         () =>
           expect(
             app.transcript
@@ -905,7 +907,7 @@ describe("createTuiApp", () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
     let paused = true;
-    vi.mocked(runtime.listQueuedMessages).mockImplementation(async () => [
+    mocked(runtime.listQueuedMessages).mockImplementation(async () => [
       {
         itemId: "paused-follow-up",
         sessionId: "session-1",
@@ -913,7 +915,7 @@ describe("createTuiApp", () => {
         content: "Existing queued work",
       },
     ]);
-    vi.mocked(runtime.continueQueue).mockImplementation(async () => {
+    mocked(runtime.continueQueue).mockImplementation(async () => {
       paused = false;
     });
     const app = createTuiApp({
@@ -930,10 +932,10 @@ describe("createTuiApp", () => {
       await app.submit("/queue");
       expect(app.tui.render(120).join("\n")).toContain("c continue queue");
       terminal.input?.("c");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(runtime.continueQueue).toHaveBeenCalledWith("session-1"),
       );
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.tui.render(120).join("\n")).toContain("Queue continued."),
       );
       expect(runtime.sendMessage).not.toHaveBeenCalled();
@@ -960,7 +962,7 @@ describe("createTuiApp", () => {
       let emitQueueChange:
         | ((event: TuiRuntimeEvent | undefined) => void)
         | undefined;
-      vi.mocked(runtime.watchEvents).mockImplementation(
+      mocked(runtime.watchEvents).mockImplementation(
         async function* (signal) {
           const event = await new Promise<TuiRuntimeEvent | undefined>(
             (resolve) => {
@@ -979,10 +981,10 @@ describe("createTuiApp", () => {
           }
         },
       );
-      vi.mocked(runtime.listQueuedMessages).mockImplementation(async () => [
+      mocked(runtime.listQueuedMessages).mockImplementation(async () => [
         ...items,
       ]);
-      vi.mocked(runtime.sendMessage).mockImplementation(
+      mocked(runtime.sendMessage).mockImplementation(
         async function* (request, _signal, options) {
           if (!options?.pausedQueueAction) {
             throw new TuiFailure("runtime", "Queue paused", {
@@ -1015,15 +1017,15 @@ describe("createTuiApp", () => {
       try {
         await app.ready;
         await app.openSession("session-1");
-        await vi.waitFor(() => expect(emitQueueChange).toBeTypeOf("function"));
-        await vi.waitFor(() =>
+        await waitFor(() => expect(emitQueueChange).toBeTypeOf("function"));
+        await waitFor(() =>
           expect(app.tui.render(120).join("\n")).toContain(
             "Existing queued work",
           ),
         );
         terminal.input?.("Resume safely");
         terminal.input?.("\r");
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(app.tui.render(120).join("\n")).toContain("Keep my draft"),
         );
         const cancelled = decision.startsWith("cancel");
@@ -1036,12 +1038,12 @@ describe("createTuiApp", () => {
           }
           terminal.input?.("\r");
         }
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(app.controller.snapshot().activeTurnId).toBeUndefined(),
         );
         expect(runtime.enqueueMessage).not.toHaveBeenCalled();
         if (cancelled) {
-          await vi.waitFor(() =>
+          await waitFor(() =>
             expect(app.editor.getText()).toBe("Resume safely"),
           );
           expect(runtime.sendMessage).toHaveBeenCalledOnce();
@@ -1055,7 +1057,7 @@ describe("createTuiApp", () => {
           ).toEqual([]);
           expect(app.tui.render(120).join("\n")).toContain("Queue paused");
           expect(app.tui.render(120).join("\n")).not.toContain("Keep my draft");
-          await vi.waitFor(async () => {
+          await waitFor(async () => {
             const recovered = await new TuiDraftRecovery({
               dataDir,
               workspaceDir: "/workspace",
@@ -1070,30 +1072,30 @@ describe("createTuiApp", () => {
           app.start();
           await app.ready;
           await app.openSession("session-1");
-          await vi.waitFor(() =>
+          await waitFor(() =>
             expect(app.editor.getText()).toBe("Edited draft"),
           );
           expect(runtime.sendMessage).toHaveBeenCalledOnce();
           terminal.input?.("\r");
-          await vi.waitFor(() =>
+          await waitFor(() =>
             expect(app.tui.render(120).join("\n")).toContain("Keep my draft"),
           );
           terminal.input?.("\r");
-          await vi.waitFor(() =>
+          await waitFor(() =>
             expect(runtime.sendMessage).toHaveBeenCalledTimes(3),
           );
-          await vi.waitFor(() =>
+          await waitFor(() =>
             expect(app.controller.snapshot().activeTurnId).toBeUndefined(),
           );
           expect(
-            vi.mocked(runtime.sendMessage).mock.calls[2]?.[0],
+            mocked(runtime.sendMessage).mock.calls[2]?.[0],
           ).toMatchObject({
             content: "Edited draft",
           });
-          expect(vi.mocked(runtime.sendMessage).mock.calls[2]?.[2]).toEqual({
+          expect(mocked(runtime.sendMessage).mock.calls[2]?.[2]).toEqual({
             pausedQueueAction: "keep",
           });
-          await vi.waitFor(() =>
+          await waitFor(() =>
             expect(app.tui.render(120).join("\n")).not.toContain(
               "Queue paused",
             ),
@@ -1105,14 +1107,14 @@ describe("createTuiApp", () => {
         } else {
           expect(runtime.sendMessage).toHaveBeenCalledTimes(2);
           expect(
-            vi.mocked(runtime.sendMessage).mock.calls[1]?.[0],
+            mocked(runtime.sendMessage).mock.calls[1]?.[0],
           ).toMatchObject({
             content: "Resume safely",
           });
-          expect(vi.mocked(runtime.sendMessage).mock.calls[1]?.[2]).toEqual({
+          expect(mocked(runtime.sendMessage).mock.calls[1]?.[2]).toEqual({
             pausedQueueAction: decision,
           });
-          await vi.waitFor(() =>
+          await waitFor(() =>
             expect(app.tui.render(120).join("\n")).not.toContain(
               "Queue paused",
             ),
@@ -1145,11 +1147,11 @@ describe("createTuiApp", () => {
       let interactionMode: "plan" | undefined =
         clientIntent === "plan-exit" ? "plan" : undefined;
       let rejectRecovery = decision === "busy";
-      vi.mocked(runtime.getSession).mockImplementation(async () => ({
+      mocked(runtime.getSession).mockImplementation(async () => ({
         sessionId: "session-1",
         interactionMode,
       }));
-      vi.mocked(runtime.listQueuedMessages).mockResolvedValue([
+      mocked(runtime.listQueuedMessages).mockResolvedValue([
         {
           itemId: "paused-work",
           sessionId: "session-1",
@@ -1157,7 +1159,7 @@ describe("createTuiApp", () => {
           content: "Existing work",
         },
       ]);
-      vi.mocked(runtime.sendMessage).mockImplementation(
+      mocked(runtime.sendMessage).mockImplementation(
         async function* (request, _signal, options) {
           if (!options?.pausedQueueAction || rejectRecovery) {
             throw new TuiFailure("runtime", "Admission rejected", {
@@ -1187,31 +1189,31 @@ describe("createTuiApp", () => {
         );
         terminal.input?.("Change mode and continue");
         terminal.input?.("\r");
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(app.tui.render(120).join("\n")).toContain("Keep my draft"),
         );
         if (decision === "clear" || decision === "cancel")
           terminal.input?.("\u001b[B");
         if (decision === "cancel") terminal.input?.("\u001b[B");
         terminal.input?.("\r");
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(app.controller.snapshot().activeTurnId).toBeUndefined(),
         );
         expect(runtime.enqueueMessage).not.toHaveBeenCalled();
 
         if (decision === "cancel" || decision === "busy") {
-          await vi.waitFor(() =>
+          await waitFor(() =>
             expect(app.editor.getText()).toBe("Change mode and continue"),
           );
           expect(interactionMode === "plan").toBe(clientIntent === "plan-exit");
           rejectRecovery = false;
           app.editor.setText("Edited mode instruction");
           terminal.input?.("\r");
-          await vi.waitFor(() =>
+          await waitFor(() =>
             expect(app.tui.render(120).join("\n")).toContain("Keep my draft"),
           );
           terminal.input?.("\r");
-          await vi.waitFor(() =>
+          await waitFor(() =>
             expect(app.controller.snapshot().activeTurnId).toBeUndefined(),
           );
         }
@@ -1256,8 +1258,8 @@ describe("createTuiApp", () => {
   });
 
   it("copies the last Assistant reply to the client clipboard over SSH", async () => {
-    vi.stubEnv("SSH_CONNECTION", "10.0.0.1 50100 10.0.0.2 22");
-    vi.stubEnv("SSH_TTY", "/dev/pts/1");
+    stubEnv("SSH_CONNECTION", "10.0.0.1 50100 10.0.0.2 22");
+    stubEnv("SSH_TTY", "/dev/pts/1");
     Object.defineProperty(process.stdin, "isTTY", {
       configurable: true,
       value: true,
@@ -1288,7 +1290,7 @@ describe("createTuiApp", () => {
       await app?.stop();
       Reflect.deleteProperty(process.stdin, "isTTY");
       Reflect.deleteProperty(process.stdout, "isTTY");
-      vi.unstubAllEnvs();
+      unstubAllEnvs();
     }
   });
 
@@ -1345,7 +1347,7 @@ describe("createTuiApp", () => {
     await app.submit("First prompt");
     await app.submit("Second prompt");
     for (const character of "/he") app.editor.handleInput(character);
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(
         events.some((item) => item.event === "slash_command_menu_view"),
       ).toBe(true),
@@ -1383,8 +1385,8 @@ describe("createTuiApp", () => {
   it("releases the terminal on suspend and reconciles Runtime state after resume", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    const requestProcessSuspend = vi.fn();
-    vi.mocked(runtime.watchEvents).mockImplementation(
+    const requestProcessSuspend = mock();
+    mocked(runtime.watchEvents).mockImplementation(
       async function* watchEvents(signal) {
         await new Promise<void>((resolve) => {
           signal.addEventListener("abort", resolve, { once: true });
@@ -1403,7 +1405,7 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     await app.openSession("session-1");
-    await vi.waitFor(() => expect(runtime.watchEvents).toHaveBeenCalledOnce());
+    await waitFor(() => expect(runtime.watchEvents).toHaveBeenCalledOnce());
 
     terminal.input?.("\x1a");
     expect(requestProcessSuspend).toHaveBeenCalledOnce();
@@ -1414,7 +1416,7 @@ describe("createTuiApp", () => {
 
     await app.resume();
     expect(terminal.startCount).toBe(2);
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.watchEvents).toHaveBeenCalledTimes(2),
     );
     expect(runtime.getActiveRun).toHaveBeenCalled();
@@ -1426,9 +1428,9 @@ describe("createTuiApp", () => {
     "restores %s Composer input after Ctrl+G returns from the external editor",
     async (tuiMode) => {
       const terminal = new FakeTerminal();
-      const stopTerminal = vi.spyOn(terminal, "stop");
-      const startTerminal = vi.spyOn(terminal, "start");
-      const editDraftInExternalEditor = vi.fn(
+      const stopTerminal = spyOn(terminal, "stop");
+      const startTerminal = spyOn(terminal, "start");
+      const editDraftInExternalEditor = mock(
         async () => "edited in the external editor",
       );
       const app = createTuiApp({
@@ -1452,7 +1454,7 @@ describe("createTuiApp", () => {
 
       terminal.input?.("\x07");
 
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(editDraftInExternalEditor).toHaveBeenCalledOnce(),
       );
       expect(editDraftInExternalEditor).toHaveBeenCalledWith({
@@ -1460,7 +1462,7 @@ describe("createTuiApp", () => {
         draft: longPaste,
         cwd: "/workspace",
       });
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.editor.getText()).toBe("edited in the external editor"),
       );
       expect(stopTerminal).toHaveBeenCalledOnce();
@@ -1474,7 +1476,7 @@ describe("createTuiApp", () => {
 
   it("loads Runtime-owned Git context into the status rail without blocking startup", async () => {
     const runtime = createRuntime();
-    vi.mocked(runtime.getWorkspaceGitMetadata).mockResolvedValue({
+    mocked(runtime.getWorkspaceGitMetadata).mockResolvedValue({
       isGitRepo: true,
       branch: "feat/status-context",
       detached: false,
@@ -1489,7 +1491,7 @@ describe("createTuiApp", () => {
     });
 
     await app.ready;
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(runtime.getWorkspaceGitMetadata).toHaveBeenCalledWith(
         "/Users/dev/github/agent-archon",
       );
@@ -1515,8 +1517,8 @@ describe("createTuiApp", () => {
 
   it("drains Pi terminal input before restoring the terminal on shutdown", async () => {
     const terminal = new FakeTerminal();
-    const drainInput = vi.spyOn(terminal, "drainInput");
-    const stopTerminal = vi.spyOn(terminal, "stop");
+    const drainInput = spyOn(terminal, "drainInput");
+    const stopTerminal = spyOn(terminal, "stop");
     const app = createTuiApp({
       runtime: createRuntime(),
       terminal,
@@ -1538,14 +1540,14 @@ describe("createTuiApp", () => {
   it.each(["stop", "suspend"] as const)("waits for output cleanup before %s completes", async (operation) => {
     let release: () => void = () => {};
     const flushed = new Promise<void>((resolve) => { release = resolve; });
-    const drainOutput = vi.fn(() => flushed);
+    const drainOutput = mock(() => flushed);
     const terminal = Object.assign(new FakeTerminal(), { drainOutput });
     const app = createTuiApp({ runtime: createRuntime(), terminal, version: "0.1.0", workspaceDir: "/workspace" });
     app.start();
     await app.ready;
     let finished = false;
     const result = app[operation]().then(() => { finished = true; });
-    await vi.waitFor(() => expect(drainOutput).toHaveBeenCalledOnce());
+    await waitFor(() => expect(drainOutput).toHaveBeenCalledOnce());
     expect(finished).toBe(false);
     expect(terminal.stopped).toBe(true);
     release();
@@ -1556,7 +1558,7 @@ describe("createTuiApp", () => {
 
   it("shows the Runtime initialization error text when the Session catalog is unavailable", async () => {
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessions).mockRejectedValue(
+    mocked(runtime.listSessions).mockRejectedValue(
       new Error("Unable to connect to the Runtime on port 1234"),
     );
     const app = createTuiApp({
@@ -1582,7 +1584,7 @@ describe("createTuiApp", () => {
 
   it("shows an available update as a dedicated startup notice", async () => {
     const terminal = new FakeTerminal();
-    const checkForUpdate = vi.fn(async () => ({ latestVersion: "1.2.4" }));
+    const checkForUpdate = mock(async () => ({ latestVersion: "1.2.4" }));
     const app = createTuiApp({
       runtime: createRuntime(),
       terminal,
@@ -1593,7 +1595,7 @@ describe("createTuiApp", () => {
 
     app.start();
     await app.ready;
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(terminal.writes.join("")).toContain(
         "A new version of MCode is available",
       );
@@ -1620,7 +1622,7 @@ describe("createTuiApp", () => {
   it("keeps the Welcome handoff out of the primary hint and submits it on Ctrl+U", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSkills).mockResolvedValue({
+    mocked(runtime.listSkills).mockResolvedValue({
       skills: [
         {
           name: "resume-codex",
@@ -1633,7 +1635,7 @@ describe("createTuiApp", () => {
       hasMore: false,
     });
     const sessionId = "01a02373-25ae-76a1-880c-9253ba939cdc";
-    const findRecentCodexSession = vi.fn(async () => ({
+    const findRecentCodexSession = mock(async () => ({
       sessionId,
       updatedAtMs: Date.now() - 60_000,
       source: "cli" as const,
@@ -1648,7 +1650,7 @@ describe("createTuiApp", () => {
 
     app.start();
     await app.ready;
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(findRecentCodexSession).toHaveBeenCalledOnce(),
     );
 
@@ -1658,7 +1660,7 @@ describe("createTuiApp", () => {
 
     terminal.input?.("\x15");
 
-    await vi.waitFor(() => expect(runtime.sendMessage).toHaveBeenCalledOnce());
+    await waitFor(() => expect(runtime.sendMessage).toHaveBeenCalledOnce());
     expect(runtime.sendMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "session-1",
@@ -1673,7 +1675,7 @@ describe("createTuiApp", () => {
   it("invalidates an in-flight Codex handoff scan after the user starts typing", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSkills).mockResolvedValue({
+    mocked(runtime.listSkills).mockResolvedValue({
       skills: [
         {
           name: "resume-codex",
@@ -1692,7 +1694,7 @@ describe("createTuiApp", () => {
           source: "cli";
         }) => void)
       | undefined;
-    const findRecentCodexSession = vi.fn(
+    const findRecentCodexSession = mock(
       async () =>
         await new Promise<{
           sessionId: string;
@@ -1712,7 +1714,7 @@ describe("createTuiApp", () => {
 
     app.start();
     terminal.input?.("x");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(findRecentCodexSession).toHaveBeenCalledOnce(),
     );
     resolveRecent?.({
@@ -1730,7 +1732,7 @@ describe("createTuiApp", () => {
 
   it("does not inspect Codex storage when the resume Skill is unavailable", async () => {
     const runtime = createRuntime();
-    const findRecentCodexSession = vi.fn(async () => ({
+    const findRecentCodexSession = mock(async () => ({
       sessionId: "01a02373-25ae-76a1-880c-9253ba939cdc",
       updatedAtMs: Date.now(),
       source: "cli" as const,
@@ -1745,7 +1747,7 @@ describe("createTuiApp", () => {
 
     app.start();
     await app.ready;
-    await vi.waitFor(() => expect(runtime.listSkills).toHaveBeenCalledOnce());
+    await waitFor(() => expect(runtime.listSkills).toHaveBeenCalledOnce());
     await Promise.resolve();
 
     expect(findRecentCodexSession).not.toHaveBeenCalled();
@@ -1757,7 +1759,7 @@ describe("createTuiApp", () => {
     "keeps a %s startup update result out of the notice and transcript",
     async (scenario) => {
       const terminal = new FakeTerminal();
-      const checkForUpdate = vi.fn(async () => {
+      const checkForUpdate = mock(async () => {
         if (scenario === "rejected check")
           throw new Error("registry unavailable");
         if (scenario === "unsupported result") return undefined;
@@ -1773,7 +1775,7 @@ describe("createTuiApp", () => {
 
       app.start();
       await app.ready;
-      await vi.waitFor(() => expect(checkForUpdate).toHaveBeenCalledOnce());
+      await waitFor(() => expect(checkForUpdate).toHaveBeenCalledOnce());
       await app.stop();
 
       expect(terminal.writes.join("")).not.toContain(
@@ -1793,8 +1795,8 @@ describe("createTuiApp", () => {
       latestVersion: "1.2.4",
       channel: "stable" as const,
     };
-    const inspectUpdate = vi.fn(async () => plan);
-    const applyUpdate = vi.fn(async () => ({
+    const inspectUpdate = mock(async () => plan);
+    const applyUpdate = mock(async () => ({
       applied: true,
       message:
         "MCode 1.2.4 is installed. Restart running MCode sessions to use it.",
@@ -1816,7 +1818,7 @@ describe("createTuiApp", () => {
       "MCode update",
     );
     app.interaction.current()?.handleInput?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(applyUpdate).toHaveBeenCalledWith(
         plan,
         expect.objectContaining({
@@ -1824,7 +1826,7 @@ describe("createTuiApp", () => {
         }),
       ),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(
         app.transcript
           .snapshot()
@@ -1847,7 +1849,7 @@ describe("createTuiApp", () => {
         display: "npm install",
       },
     };
-    const requestRestart = vi.fn();
+    const requestRestart = mock();
     const app = createTuiApp({
       runtime: createRuntime(),
       terminal: new FakeTerminal(),
@@ -1867,13 +1869,13 @@ describe("createTuiApp", () => {
     await app.submit("/update");
     app.interaction.current()?.handleInput?.("\r");
 
-    await vi.waitFor(() => expect(requestRestart).toHaveBeenCalledOnce());
+    await waitFor(() => expect(requestRestart).toHaveBeenCalledOnce());
     await app.stopped;
   });
 
   it("rechecks local and Runtime work before applying an update", async () => {
     const runtime = createRuntime();
-    const applyUpdate = vi.fn(async () => ({
+    const applyUpdate = mock(async () => ({
       applied: true,
       message: "updated",
     }));
@@ -1893,7 +1895,7 @@ describe("createTuiApp", () => {
     });
     await app.ready;
     await app.openSession("session-1");
-    vi.mocked(runtime.getActiveRun).mockResolvedValue({
+    mocked(runtime.getActiveRun).mockResolvedValue({
       schemaVersion: 1,
       sessionId: "session-1",
       state: "running",
@@ -1904,7 +1906,7 @@ describe("createTuiApp", () => {
     await app.submit("/update");
     app.interaction.current()?.handleInput?.("\r");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(
         app.transcript
           .snapshot()
@@ -1921,7 +1923,7 @@ describe("createTuiApp", () => {
 
   it("fails the update gate closed when Runtime state cannot be verified", async () => {
     const runtime = createRuntime();
-    const applyUpdate = vi.fn(async () => ({
+    const applyUpdate = mock(async () => ({
       applied: true,
       message: "updated",
     }));
@@ -1941,14 +1943,14 @@ describe("createTuiApp", () => {
     });
     await app.ready;
     await app.openSession("session-1");
-    vi.mocked(runtime.getActiveRun).mockRejectedValue(
+    mocked(runtime.getActiveRun).mockRejectedValue(
       new Error("Runtime unavailable"),
     );
 
     await app.submit("/update");
     app.interaction.current()?.handleInput?.("\r");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(
         app.transcript
           .snapshot()
@@ -1965,7 +1967,7 @@ describe("createTuiApp", () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
     let releaseSessions: (() => void) | undefined;
-    vi.mocked(runtime.listSessions).mockImplementation(
+    mocked(runtime.listSessions).mockImplementation(
       async () =>
         await new Promise((resolve) => {
           releaseSessions = () => resolve([]);
@@ -1997,7 +1999,7 @@ describe("createTuiApp", () => {
   it("renders server startup in the welcome composer header until hydration settles", async () => {
     const runtime = createRuntime();
     let releaseSessions: (() => void) | undefined;
-    vi.mocked(runtime.listSessions).mockImplementation(
+    mocked(runtime.listSessions).mockImplementation(
       async () =>
         await new Promise((resolve) => {
           releaseSessions = () => resolve([]);
@@ -2037,7 +2039,7 @@ describe("createTuiApp", () => {
     let resolveAccount!: (
       account: Awaited<ReturnType<typeof runtime.getAccountStatus>>,
     ) => void;
-    vi.mocked(runtime.getAccountStatus).mockReturnValue(
+    mocked(runtime.getAccountStatus).mockReturnValue(
       new Promise((resolve) => {
         resolveAccount = resolve;
       }),
@@ -2116,7 +2118,7 @@ describe("createTuiApp", () => {
       },
     };
     let resolveMembership!: (account: typeof hydratedAccount) => void;
-    vi.mocked(runtime.getAccountStatus).mockImplementation(
+    mocked(runtime.getAccountStatus).mockImplementation(
       async (_sessionId, options) => {
         if (options?.includeMembership === true) {
           return await new Promise((resolve) => {
@@ -2144,7 +2146,7 @@ describe("createTuiApp", () => {
       expect(app.controller.snapshot().account).toMatchObject(baseAccount);
 
       resolveMembership(hydratedAccount);
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.controller.snapshot().account).toMatchObject({
           tokenPlanQuotaState: "available",
         }),
@@ -2158,7 +2160,7 @@ describe("createTuiApp", () => {
   it("waits for permission mode hydration before reporting App readiness", async () => {
     const runtime = createRuntime();
     let resolvePermissionMode!: (mode: "auto") => void;
-    vi.mocked(runtime.getPermissionMode).mockReturnValue(
+    mocked(runtime.getPermissionMode).mockReturnValue(
       new Promise((resolve) => {
         resolvePermissionMode = resolve;
       }),
@@ -2185,10 +2187,10 @@ describe("createTuiApp", () => {
 
   it("accepts modeled account and optional permission degradation at the ready boundary", async () => {
     const runtime = createRuntime();
-    vi.mocked(runtime.getAccountStatus).mockRejectedValue(
+    mocked(runtime.getAccountStatus).mockRejectedValue(
       new Error("account offline"),
     );
-    vi.mocked(runtime.getPermissionMode).mockRejectedValue(
+    mocked(runtime.getPermissionMode).mockRejectedValue(
       new Error("config unavailable"),
     );
     const app = createTuiApp({
@@ -2211,7 +2213,7 @@ describe("createTuiApp", () => {
     async (managedTokenPresent) => {
       const terminal = new FakeTerminal();
       const runtime = createRuntime();
-      vi.mocked(runtime.getAccountStatus).mockResolvedValue({
+      mocked(runtime.getAccountStatus).mockResolvedValue({
         status: "ready",
         defaultModel: "custom_provider:innerTest/MiniMax-M3",
         providerId: "custom_provider:innerTest",
@@ -2221,7 +2223,7 @@ describe("createTuiApp", () => {
         modelSource: "byok",
         warnings: [],
       });
-      vi.mocked(runtime.listModels).mockResolvedValue([
+      mocked(runtime.listModels).mockResolvedValue([
         {
           providerId: "custom_provider:innerTest",
           modelId: "MiniMax-M3",
@@ -2239,7 +2241,7 @@ describe("createTuiApp", () => {
       app.start();
       await app.ready;
 
-      await vi.waitFor(() => expect(app.tui.render(120).join("\n")).toContain("✦ m3.05"));
+      await waitFor(() => expect(app.tui.render(120).join("\n")).toContain("✦ m3.05"));
       const welcome = stripAnsi(app.tui.render(120).join("\n"));
       expect(welcome).toContain("● Ready");
       expect(welcome).not.toContain("Login required");
@@ -2251,7 +2253,7 @@ describe("createTuiApp", () => {
   it("restores a managed-login failure to the Composer", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.getAccountStatus).mockResolvedValue({
+    mocked(runtime.getAccountStatus).mockResolvedValue({
       status: "ready",
       defaultModel: "minimax/MiniMax-M2.7",
       authMode: "managed-login",
@@ -2268,13 +2270,13 @@ describe("createTuiApp", () => {
 
     app.start();
     await app.ready;
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.tui.render(80).join("\n")).toContain("Sign in with /login"),
     );
     terminal.input?.("Keep this until login");
     terminal.input?.("\r");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.editor.getText()).toBe("Keep this until login"),
     );
     expect(app.tui.render(80).join("\n")).toContain("Keep this until login");
@@ -2309,7 +2311,7 @@ describe("createTuiApp", () => {
           account: Awaited<ReturnType<typeof runtime.getAccountStatus>>,
         ) => void)
       | undefined;
-    vi.mocked(runtime.getAccountStatus).mockImplementationOnce(
+    mocked(runtime.getAccountStatus).mockImplementationOnce(
       () =>
         new Promise((resolve) => {
           resolveAccount = resolve;
@@ -2329,13 +2331,13 @@ describe("createTuiApp", () => {
         content: "Show this immediately",
       }),
     ]);
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(terminal.writes.length).toBeGreaterThan(writesBeforeSubmission),
     );
     expect(runtime.createSession).not.toHaveBeenCalled();
     expect(runtime.sendMessage).not.toHaveBeenCalled();
 
-    await vi.waitFor(() => expect(resolveAccount).toBeTypeOf("function"));
+    await waitFor(() => expect(resolveAccount).toBeTypeOf("function"));
     resolveAccount?.({
       status: "ready",
       defaultModel: "minimax/MiniMax-M2.7",
@@ -2345,7 +2347,7 @@ describe("createTuiApp", () => {
       managedTokenPresent: true,
       warnings: [],
     });
-    await vi.waitFor(() => expect(runtime.sendMessage).toHaveBeenCalledOnce());
+    await waitFor(() => expect(runtime.sendMessage).toHaveBeenCalledOnce());
     await app.stop();
   });
 
@@ -2353,7 +2355,7 @@ describe("createTuiApp", () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
     let authenticated = false;
-    vi.mocked(runtime.getAccountStatus).mockImplementation(async () =>
+    mocked(runtime.getAccountStatus).mockImplementation(async () =>
       authenticated
         ? {
             status: "ready",
@@ -2374,14 +2376,14 @@ describe("createTuiApp", () => {
           },
     );
     const auth = {
-      login: vi.fn(async () => {
+      login: mock(async () => {
         authenticated = true;
         return {
           state: "authenticated" as const,
           message: "Signed in with MiniMax.",
         };
       }),
-      logout: vi.fn(async () => ({
+      logout: mock(async () => ({
         state: "signed-out" as const,
         message: "Signed out of MiniMax.",
       })),
@@ -2398,7 +2400,7 @@ describe("createTuiApp", () => {
     await app.ready;
     terminal.input?.("Send this after login");
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.editor.getText()).toBe("Send this after login"),
     );
 
@@ -2407,7 +2409,7 @@ describe("createTuiApp", () => {
 
     expect(runtime.sendMessage).not.toHaveBeenCalled();
     app.editor.handleInput("\r");
-    await vi.waitFor(() => expect(runtime.sendMessage).toHaveBeenCalledOnce());
+    await waitFor(() => expect(runtime.sendMessage).toHaveBeenCalledOnce());
     expect(runtime.sendMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "session-1",
@@ -2456,7 +2458,7 @@ describe("createTuiApp", () => {
 
   it("shows a generic /checkin failure without backend details", async () => {
     const runtime = createRuntime();
-    vi.mocked(runtime.runDailyCheckin).mockRejectedValue(
+    mocked(runtime.runDailyCheckin).mockRejectedValue(
       new Error("internal signin shard rejected request"),
     );
     const app = createTuiApp({
@@ -2482,8 +2484,8 @@ describe("createTuiApp", () => {
   it("does not open login when /checkin cannot verify account status", async () => {
     const runtime = createRuntime();
     const auth = {
-      login: vi.fn(),
-      logout: vi.fn(async () => ({
+      login: mock(),
+      logout: mock(async () => ({
         state: "signed-out" as const,
         message: "Signed out of MiniMax.",
       })),
@@ -2498,7 +2500,7 @@ describe("createTuiApp", () => {
 
     app.start();
     await app.ready;
-    vi.mocked(runtime.getAccountStatus).mockRejectedValue(
+    mocked(runtime.getAccountStatus).mockRejectedValue(
       new Error("status unavailable"),
     );
     await app.submit("/checkin");
@@ -2512,7 +2514,7 @@ describe("createTuiApp", () => {
   it("starts MiniMax login and resumes /checkin once after authentication", async () => {
     const runtime = createRuntime();
     let authenticated = false;
-    vi.mocked(runtime.getAccountStatus).mockImplementation(async () => ({
+    mocked(runtime.getAccountStatus).mockImplementation(async () => ({
       status: authenticated ? "ready" : "needs-login",
       authMode: "managed-login",
       modelSource: "byok",
@@ -2520,14 +2522,14 @@ describe("createTuiApp", () => {
       warnings: [],
     }));
     const auth = {
-      login: vi.fn(async () => {
+      login: mock(async () => {
         authenticated = true;
         return {
           state: "authenticated" as const,
           message: "Signed in with MiniMax.",
         };
       }),
-      logout: vi.fn(async () => ({
+      logout: mock(async () => ({
         state: "signed-out" as const,
         message: "Signed out of MiniMax.",
       })),
@@ -2547,7 +2549,7 @@ describe("createTuiApp", () => {
 
     app.interaction.current()?.handleInput("\r");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.runDailyCheckin).toHaveBeenCalledOnce(),
     );
     expect(auth.login).toHaveBeenCalledWith(expect.any(Function), "cn");
@@ -2556,7 +2558,7 @@ describe("createTuiApp", () => {
 
   it("does not resume /checkin when the login picker is cancelled", async () => {
     const runtime = createRuntime();
-    vi.mocked(runtime.getAccountStatus).mockResolvedValue({
+    mocked(runtime.getAccountStatus).mockResolvedValue({
       status: "needs-login",
       authMode: "managed-login",
       modelSource: "byok",
@@ -2564,8 +2566,8 @@ describe("createTuiApp", () => {
       warnings: [],
     });
     const auth = {
-      login: vi.fn(),
-      logout: vi.fn(async () => ({
+      login: mock(),
+      logout: mock(async () => ({
         state: "signed-out" as const,
         message: "Signed out of MiniMax.",
       })),
@@ -2590,16 +2592,16 @@ describe("createTuiApp", () => {
 
   it("does not resume /checkin when browser login fails", async () => {
     const runtime = createRuntime();
-    vi.mocked(runtime.getAccountStatus).mockResolvedValue({
+    mocked(runtime.getAccountStatus).mockResolvedValue({
       status: "needs-login",
       managedTokenPresent: false,
       warnings: [],
     });
     const auth = {
-      login: vi.fn(async () => {
+      login: mock(async () => {
         throw new Error("browser login failed");
       }),
-      logout: vi.fn(async () => ({
+      logout: mock(async () => ({
         state: "signed-out" as const,
         message: "Signed out of MiniMax.",
       })),
@@ -2617,26 +2619,26 @@ describe("createTuiApp", () => {
     await app.submit("/checkin");
     app.interaction.current()?.handleInput("\r");
 
-    await vi.waitFor(() => expect(auth.login).toHaveBeenCalledOnce());
+    await waitFor(() => expect(auth.login).toHaveBeenCalledOnce());
     expect(runtime.runDailyCheckin).not.toHaveBeenCalled();
     await app.stop();
   });
 
   it("carries /checkin through a cross-region login restart", async () => {
     const runtime = createRuntime();
-    const requestRestart = vi.fn();
-    vi.mocked(runtime.getAccountStatus).mockResolvedValue({
+    const requestRestart = mock();
+    mocked(runtime.getAccountStatus).mockResolvedValue({
       status: "needs-login",
       managedTokenPresent: false,
       warnings: [],
     });
     const auth = {
-      login: vi.fn(async () => ({
+      login: mock(async () => ({
         state: "authenticated" as const,
         restartRequired: true,
         message: "Signed in with MiniMax Global.",
       })),
-      logout: vi.fn(async () => ({
+      logout: mock(async () => ({
         state: "signed-out" as const,
         message: "Signed out of MiniMax.",
       })),
@@ -2656,7 +2658,7 @@ describe("createTuiApp", () => {
     app.interaction.current()?.handleInput("\u001b[B");
     app.interaction.current()?.handleInput("\r");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(requestRestart).toHaveBeenCalledWith("en", "/checkin"),
     );
     expect(runtime.runDailyCheckin).not.toHaveBeenCalled();
@@ -2666,9 +2668,9 @@ describe("createTuiApp", () => {
   it("restarts after cross-region login while keeping the blocked submission", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    const requestRestart = vi.fn();
-    const notifyAuthContextChanged = vi.fn(async () => undefined);
-    vi.mocked(runtime.getAccountStatus).mockResolvedValue({
+    const requestRestart = mock();
+    const notifyAuthContextChanged = mock(async () => undefined);
+    mocked(runtime.getAccountStatus).mockResolvedValue({
       status: "needs-login",
       authMode: "managed-login",
       modelSource: "token-plan",
@@ -2676,12 +2678,12 @@ describe("createTuiApp", () => {
       warnings: [],
     });
     const auth = {
-      login: vi.fn(async () => ({
+      login: mock(async () => ({
         state: "authenticated" as const,
         restartRequired: true,
         message: "Signed in with MiniMax Global.",
       })),
-      logout: vi.fn(async () => ({
+      logout: mock(async () => ({
         state: "signed-out" as const,
         message: "Signed out of MiniMax.",
       })),
@@ -2700,7 +2702,7 @@ describe("createTuiApp", () => {
     await app.ready;
     terminal.input?.("Keep this through restart");
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.editor.getText()).toBe("Keep this through restart"),
     );
 
@@ -2708,10 +2710,10 @@ describe("createTuiApp", () => {
     app.interaction.current()?.handleInput("\u001b[B");
     app.interaction.current()?.handleInput("\r");
 
-    await vi.waitFor(() => expect(auth.login).toHaveBeenCalledOnce());
+    await waitFor(() => expect(auth.login).toHaveBeenCalledOnce());
     expect(auth.login).toHaveBeenCalledWith(expect.any(Function), "en");
     expect(runtime.sendMessage).not.toHaveBeenCalled();
-    await vi.waitFor(() => expect(requestRestart).toHaveBeenCalledOnce());
+    await waitFor(() => expect(requestRestart).toHaveBeenCalledOnce());
     expect(requestRestart).toHaveBeenCalledWith("en");
     expect(notifyAuthContextChanged).not.toHaveBeenCalled();
     await app.stopped;
@@ -2720,7 +2722,7 @@ describe("createTuiApp", () => {
 
   it("shows ready and runs an unauthenticated builtin BYOK Turn", async () => {
     const runtime = createRuntime();
-    vi.mocked(runtime.getAccountStatus).mockResolvedValue({
+    mocked(runtime.getAccountStatus).mockResolvedValue({
       status: "ready",
       defaultModel: "minimax/MiniMax-M3",
       providerId: "minimax",
@@ -2813,14 +2815,14 @@ describe("createTuiApp", () => {
     const runtime = createRuntime();
     let sessionTitle = "New session";
     let emitEvent: ((event: TuiRuntimeEvent) => void) | undefined;
-    vi.mocked(runtime.listSessions).mockImplementation(async () => [
+    mocked(runtime.listSessions).mockImplementation(async () => [
       {
         sessionId: "session-1",
         title: sessionTitle,
         workspaceDir: "/workspace",
       },
     ]);
-    vi.mocked(runtime.watchEvents).mockImplementation(
+    mocked(runtime.watchEvents).mockImplementation(
       async function* watchEvents(signal) {
         const event = await new Promise<TuiRuntimeEvent | undefined>(
           (resolve) => {
@@ -2848,7 +2850,7 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     await app.submit("Review uncommitted work");
-    await vi.waitFor(() => expect(emitEvent).toBeTypeOf("function"));
+    await waitFor(() => expect(emitEvent).toBeTypeOf("function"));
 
     sessionTitle = "Review uncommitted work";
     emitEvent?.(
@@ -2863,7 +2865,7 @@ describe("createTuiApp", () => {
       }),
     );
 
-    await vi.waitFor(() => expect(terminal.title).toBe(sessionTitle));
+    await waitFor(() => expect(terminal.title).toBe(sessionTitle));
     const titleWrites = terminal.titleUpdates.length;
     await app.submit("/status");
     expect(terminal.titleUpdates).toHaveLength(titleWrites);
@@ -2896,7 +2898,7 @@ describe("createTuiApp", () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
     let handled = false;
-    vi.mocked(runtime.listQueuedMessages).mockResolvedValue(
+    mocked(runtime.listQueuedMessages).mockResolvedValue(
       queued
         ? [{
             itemId: "queued-1",
@@ -2906,7 +2908,7 @@ describe("createTuiApp", () => {
           }]
         : [],
     );
-    vi.mocked(runtime.watchEvents).mockImplementation(async function* (signal) {
+    mocked(runtime.watchEvents).mockImplementation(async function* (signal) {
       const event = runtimeEvent({
         type,
         timestamp: Date.now(),
@@ -2936,7 +2938,7 @@ describe("createTuiApp", () => {
       await app.ready;
       await app.openSession("session-1");
       app.start();
-      await vi.waitFor(() => expect(handled).toBe(true));
+      await waitFor(() => expect(handled).toBe(true));
       const notifications = terminal.writes.filter((value) => value.startsWith("\u001b]9;"));
       expect(notifications).toHaveLength(count);
       if (count) expect(notifications[0]).toContain("Existing session: Response");
@@ -2955,7 +2957,7 @@ describe("createTuiApp", () => {
       version: "0.1.0",
       workspaceDir: "/workspace",
     });
-    const featureInput = vi.fn();
+    const featureInput = mock();
     const featureContent = {
       render: () => ["feature-header", "feature-body"],
       invalidate: () => undefined,
@@ -3014,7 +3016,7 @@ describe("createTuiApp", () => {
 
   it("switches /settings through explicit choices and closes after applying", async () => {
     const terminal = new FakeTerminal();
-    const persistTuiMode = vi.fn();
+    const persistTuiMode = mock();
     const app = createTuiApp({
       runtime: createRuntime(),
       terminal,
@@ -3046,7 +3048,7 @@ describe("createTuiApp", () => {
     expect(app.editor.focused).toBe(true);
 
     terminal.input?.("/");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.editor.render(60).join("\n")).toContain(
         "Show available commands",
       ),
@@ -3088,7 +3090,7 @@ describe("createTuiApp", () => {
     const writesBefore = terminal.writes.length;
     terminal.input?.("/");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.editor.render(60).join("\n")).toContain(
         "Show available commands",
       ),
@@ -3128,14 +3130,14 @@ describe("createTuiApp", () => {
     flushWrites();
 
     terminal.input?.("/");
-    await vi.waitFor(() => {
+    await waitFor(() => {
       flushWrites();
       expect(screen.viewportText()).toContain("Show available commands");
     });
     expect(screen.viewportText()).toContain("/");
 
     terminal.input?.("m");
-    await vi.waitFor(() => {
+    await waitFor(() => {
       flushWrites();
       expect(screen.viewportText()).toContain("Choose a model");
     });
@@ -3173,14 +3175,14 @@ describe("createTuiApp", () => {
         await terminal.flush();
 
         terminal.sendInput("/");
-        await vi.waitFor(async () => {
+        await waitFor(async () => {
           app.tui.renderNow();
           await terminal.flush();
           expect(terminal.getViewport().join("\n")).toContain("Show available commands");
         });
         const menuRows = app.editor.render(78).length;
         terminal.sendInput(input);
-        await vi.waitFor(async () => {
+        await waitFor(async () => {
           app.tui.renderNow();
           await terminal.flush();
           expect(app.editor.getText()).toBe(draft);
@@ -3201,12 +3203,12 @@ describe("createTuiApp", () => {
   it("dismisses autocomplete in a short document without clearing native history", async () => {
     const terminal = new VirtualTerminal(80, 100);
     const app = createTuiApp({ runtime: createRuntime(), terminal, version: "0.2.0", workspaceDir: "/workspace" });
-    const write = vi.spyOn(terminal, "write");
+    const write = spyOn(terminal, "write");
     app.start();
     try {
       await app.ready;
       terminal.sendInput("/");
-      await vi.waitFor(async () => {
+      await waitFor(async () => {
         app.tui.renderNow();
         await terminal.flush();
         expect(terminal.getViewport().join("\n")).toContain("Show available commands");
@@ -3252,7 +3254,7 @@ describe("createTuiApp", () => {
   it("stops the terminal without waiting for a stalled Desktop event stream", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.watchEvents).mockImplementation(
+    mocked(runtime.watchEvents).mockImplementation(
       async function* watchEvents() {
         await new Promise<void>(() => undefined);
         yield runtimeEvent({
@@ -3273,7 +3275,7 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     const stopping = app.stop();
-    await vi.waitFor(() => expect(terminal.stopped).toBe(true));
+    await waitFor(() => expect(terminal.stopped).toBe(true));
     await stopping;
   });
 
@@ -3281,7 +3283,7 @@ describe("createTuiApp", () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
     let finishRemoteAbort: ((value: boolean) => void) | undefined;
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage(_req: SendMessageReq, signal?: AbortSignal) {
         await new Promise<void>((resolve) => {
           signal?.addEventListener("abort", () => resolve(), { once: true });
@@ -3289,7 +3291,7 @@ describe("createTuiApp", () => {
         yield { type: "done" };
       },
     );
-    vi.mocked(runtime.abortSession).mockImplementation(
+    mocked(runtime.abortSession).mockImplementation(
       async () =>
         await new Promise<boolean>((resolve) => {
           finishRemoteAbort = resolve;
@@ -3305,11 +3307,11 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     const submitting = app.submit("Keep running");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().status).toBe("running"),
     );
     const stopping = app.stop();
-    await vi.waitFor(() => expect(terminal.stopped).toBe(true));
+    await waitFor(() => expect(terminal.stopped).toBe(true));
     finishRemoteAbort?.(true);
     await Promise.all([submitting, stopping]);
   });
@@ -3318,7 +3320,7 @@ describe("createTuiApp", () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
     let finishTurn: (() => void) | undefined;
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage() {
         yield {
           type: "delta",
@@ -3342,7 +3344,7 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     const submitting = app.submit("Keep running after the UI leaves");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().status).toBe("running"),
     );
 
@@ -3383,14 +3385,14 @@ describe("createTuiApp", () => {
   it("reports a launcher continue hydration failure in the Transcript", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessions).mockResolvedValue([
+    mocked(runtime.listSessions).mockResolvedValue([
       {
         sessionId: "session-existing",
         title: "Existing session",
         workspaceDir: "/workspace",
       },
     ]);
-    vi.mocked(runtime.getSession).mockRejectedValue(
+    mocked(runtime.getSession).mockRejectedValue(
       new Error("Session hydration failed"),
     );
     const app = createTuiApp({
@@ -3417,7 +3419,7 @@ describe("createTuiApp", () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
     let finishTool: (() => void) | undefined;
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage() {
         yield {
           type: "delta",
@@ -3447,7 +3449,7 @@ describe("createTuiApp", () => {
     await app.ready;
     const submission = app.submit("Inspect the pricing logic");
 
-    await vi.waitFor(() => {
+    await waitFor(() => {
       const rendered = app.tui.render(80).join("\n");
       expect(rendered).toContain("Reading (src/cart/price.ts)");
       expect(rendered).toContain("Running");
@@ -3478,7 +3480,7 @@ describe("createTuiApp", () => {
     });
     const runtime = createRuntime();
     let finishTurn: (() => void) | undefined;
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage() {
         yield {
           type: "delta",
@@ -3503,7 +3505,7 @@ describe("createTuiApp", () => {
     const submission = app.submit("Inspect the repository");
 
     try {
-      await vi.waitFor(() => {
+      await waitFor(() => {
         const rendered = stripAnsi(app.tui.render(100).join("\n"));
         expect(rendered).toContain("Running");
         expect(rendered).toContain("Ctrl+Enter queue");
@@ -3525,7 +3527,7 @@ describe("createTuiApp", () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
     let finishThinking: (() => void) | undefined;
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage() {
         yield {
           type: "delta",
@@ -3559,7 +3561,7 @@ describe("createTuiApp", () => {
     let expandedThinkingRows = 0;
 
     try {
-      await vi.waitFor(() => {
+      await waitFor(() => {
         const thinking = app.transcript
           .snapshot()
           .find((cell) => cell.kind === "thinking");
@@ -3581,7 +3583,7 @@ describe("createTuiApp", () => {
       });
 
       await app.submit("/transcript");
-      await vi.waitFor(() => {
+      await waitFor(() => {
         const rendered = renderTerminalViewport(app, terminal);
         expect(app.surfaceHost.getActiveSurface()).toEqual({
           kind: "feature",
@@ -3615,7 +3617,7 @@ describe("createTuiApp", () => {
       });
 
       terminal.input?.("\u001B");
-      await vi.waitFor(() => {
+      await waitFor(() => {
         const rendered = app.tui.render(80).join("\n");
         expect(app.surfaceHost.getActiveSurface()).toEqual({
           kind: "chat",
@@ -3679,10 +3681,10 @@ describe("createTuiApp", () => {
     async (action) => {
       const terminal = new FakeTerminal();
       const runtime = createRuntime();
-      vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+      mocked(runtime.listSessionInputSummaries).mockResolvedValue([
         { userMessageId: "before-todo", timestamp: 1, fileChangeCount: 0 },
       ]);
-      vi.mocked(runtime.listMessagePage).mockResolvedValue({
+      mocked(runtime.listMessagePage).mockResolvedValue({
         messages: [{ id: "before-todo", role: "user", content: "Original prompt" }],
         hasMore: false,
       });
@@ -3699,14 +3701,14 @@ describe("createTuiApp", () => {
         });
         expect(stripAnsi(app.tui.render(100).join("\n"))).toContain("Discarded todo");
         await app.submit("/history");
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(app.surfaceHost.getActiveSurface().id).toBe("session-history:explorer"),
         );
         terminal.input?.("\r");
         terminal.input?.("\x1b[B");
         if (action === "rewind") terminal.input?.("\x1b[B");
         terminal.input?.("\r");
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(app.surfaceHost.getActiveSurface().id).toBe(
             action === "rewind"
               ? "session-mutation:rewind-confirm"
@@ -3715,13 +3717,13 @@ describe("createTuiApp", () => {
         );
         terminal.input?.("\r");
         if (action === "edit") {
-          await vi.waitFor(() => expect(app.editor.getText()).toBe("Original prompt"));
+          await waitFor(() => expect(app.editor.getText()).toBe("Original prompt"));
           await app.submit("Revised prompt");
           expect(runtime.editSessionMessage).toHaveBeenCalledOnce();
         } else {
-          await vi.waitFor(() => expect(runtime.rewindSession).toHaveBeenCalledOnce());
+          await waitFor(() => expect(runtime.rewindSession).toHaveBeenCalledOnce());
         }
-        await vi.waitFor(() => expect(app.surfaceHost.getActiveSurface().kind).toBe("chat"));
+        await waitFor(() => expect(app.surfaceHost.getActiveSurface().kind).toBe("chat"));
         expect(stripAnsi(app.tui.render(100).join("\n"))).not.toContain("Discarded todo");
       } finally {
         await app.stop();
@@ -3732,10 +3734,10 @@ describe("createTuiApp", () => {
   it.each([false, true])("handles exact /rewind locally while editing=%s", async (editing) => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+    mocked(runtime.listSessionInputSummaries).mockResolvedValue([
       { userMessageId: "before-todo", timestamp: 1, fileChangeCount: 0 },
     ]);
-    vi.mocked(runtime.listMessagePage).mockResolvedValue({
+    mocked(runtime.listMessagePage).mockResolvedValue({
       messages: [{ id: "before-todo", role: "user", content: "Original prompt" }],
       hasMore: false,
     });
@@ -3746,12 +3748,12 @@ describe("createTuiApp", () => {
       await app.submit("Seed session");
       if (editing) {
         await app.submit("/edit");
-        await vi.waitFor(() => expect(app.editor.getText()).toBe("Original prompt"));
+        await waitFor(() => expect(app.editor.getText()).toBe("Original prompt"));
       }
-      const sends = vi.mocked(runtime.sendMessage).mock.calls.length;
+      const sends = mocked(runtime.sendMessage).mock.calls.length;
       app.editor.setText("/rewind");
       app.editor.handleInput("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.surfaceHost.getActiveSurface().id).toBe("session-mutation:history"),
       );
       expect(runtime.editSessionMessage).not.toHaveBeenCalled();
@@ -3924,12 +3926,12 @@ describe("createTuiApp", () => {
       workspaceDir: "/workspace",
     });
 
-    const showOverlay = vi.spyOn(app.tui, "showOverlay");
+    const showOverlay = spyOn(app.tui, "showOverlay");
     app.start();
     await app.ready;
-    const modelRequestsBeforeHelp = vi.mocked(runtime.listModels).mock.calls
+    const modelRequestsBeforeHelp = mocked(runtime.listModels).mock.calls
       .length;
-    const activeRunRequestsBeforeHelp = vi.mocked(runtime.getActiveRun).mock
+    const activeRunRequestsBeforeHelp = mocked(runtime.getActiveRun).mock
       .calls.length;
     await app.submit("/help");
 
@@ -3943,7 +3945,7 @@ describe("createTuiApp", () => {
     terminal.input?.("\r");
 
     expect(app.tui.hasOverlay()).toBe(false);
-    await vi.waitFor(() => expect(app.interaction.isActive()).toBe(false));
+    await waitFor(() => expect(app.interaction.isActive()).toBe(false));
     expect(app.editor.getText()).toBe("");
     expect(runtime.listModels).toHaveBeenCalledTimes(modelRequestsBeforeHelp);
     expect(runtime.getActiveRun).toHaveBeenCalledTimes(
@@ -3981,14 +3983,14 @@ describe("createTuiApp", () => {
   it("keeps steer executable and exposes it in slash-command discovery", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.getActiveRun).mockImplementation(async (sessionId) => ({
+    mocked(runtime.getActiveRun).mockImplementation(async (sessionId) => ({
       schemaVersion: 1,
       sessionId,
       state: "running",
       turnId: "turn-active",
       actions: { steer: true },
     }));
-    vi.mocked(runtime.steer).mockResolvedValue({
+    mocked(runtime.steer).mockResolvedValue({
       turnId: "turn-active",
       mode: "steered",
     });
@@ -4040,7 +4042,7 @@ describe("createTuiApp", () => {
       consumeSteer = resolve;
     });
     let steerAvailable = false;
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage() {
         yield {
           type: "delta",
@@ -4063,7 +4065,7 @@ describe("createTuiApp", () => {
         yield { type: "done", turnId: "turn-active" };
       },
     );
-    vi.mocked(runtime.getActiveRun).mockImplementation(async (sessionId) =>
+    mocked(runtime.getActiveRun).mockImplementation(async (sessionId) =>
       steerAvailable
         ? {
             schemaVersion: 1,
@@ -4079,7 +4081,7 @@ describe("createTuiApp", () => {
             actions: { steer: false },
           },
     );
-    vi.mocked(runtime.steer).mockResolvedValue({
+    mocked(runtime.steer).mockResolvedValue({
       turnId: "turn-active",
       mode: "steered",
     });
@@ -4095,7 +4097,7 @@ describe("createTuiApp", () => {
     const submission = app.submit("Inspect the failure");
 
     try {
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.tui.render(80).join("\n")).toContain("Running"),
       );
       steerAvailable = true;
@@ -4105,7 +4107,7 @@ describe("createTuiApp", () => {
 
       expect(app.editor.getText()).toBe("");
 
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(runtime.steer).toHaveBeenCalledWith(
           expect.objectContaining({
             sessionId: "session-1",
@@ -4128,7 +4130,7 @@ describe("createTuiApp", () => {
       );
 
       consumeSteer?.();
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(
           app.transcript.snapshot().filter((cell) => cell.kind === "user"),
         ).toEqual([
@@ -4148,7 +4150,7 @@ describe("createTuiApp", () => {
       expect(app.editor.getText()).toBe("");
     } finally {
       consumeSteer?.();
-      await vi.waitFor(() => expect(finishTurn).toEqual(expect.any(Function)));
+      await waitFor(() => expect(finishTurn).toEqual(expect.any(Function)));
       finishTurn?.();
       await submission;
       await app.stop();
@@ -4160,7 +4162,7 @@ describe("createTuiApp", () => {
     const runtime = createRuntime();
     const queuedItems: TuiQueuedMessage[] = [];
     let finishTurn: (() => void) | undefined;
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage() {
         yield {
           type: "delta",
@@ -4173,7 +4175,7 @@ describe("createTuiApp", () => {
         yield { type: "done", turnId: "turn-active" };
       },
     );
-    vi.mocked(runtime.enqueueMessage).mockImplementation(
+    mocked(runtime.enqueueMessage).mockImplementation(
       async (sessionId, content) => {
         const item: TuiQueuedMessage = {
           itemId: "queue-guidance",
@@ -4190,16 +4192,16 @@ describe("createTuiApp", () => {
         };
       },
     );
-    vi.mocked(runtime.listQueuedMessages).mockImplementation(async () => [
+    mocked(runtime.listQueuedMessages).mockImplementation(async () => [
       ...queuedItems,
     ]);
-    vi.mocked(runtime.deleteQueuedMessage).mockImplementation(
+    mocked(runtime.deleteQueuedMessage).mockImplementation(
       async (_sessionId, itemId) => {
         const index = queuedItems.findIndex((item) => item.itemId === itemId);
         return index >= 0 ? queuedItems.splice(index, 1)[0] : undefined;
       },
     );
-    vi.mocked(runtime.getActiveRun).mockImplementation(async (sessionId) => ({
+    mocked(runtime.getActiveRun).mockImplementation(async (sessionId) => ({
       schemaVersion: 1,
       sessionId,
       state: "running",
@@ -4217,24 +4219,24 @@ describe("createTuiApp", () => {
     await app.ready;
     const submission = app.submit("Inspect the failure");
     try {
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.tui.render(80).join("\n")).toContain("Running"),
       );
       terminal.input?.("Use the preview branch directly");
       terminal.input?.("\x1b\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.tui.render(80).join("\n")).toContain(
           "Use the preview branch directly",
         ),
       );
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(runtime.listQueuedMessages).toHaveBeenCalledWith("session-1"),
       );
       expect(app.editor.getText()).toBe("");
 
       terminal.input?.("\x1b[1;3A");
 
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.editor.getText()).toBe("Use the preview branch directly"),
       );
       expect(runtime.deleteQueuedMessage).toHaveBeenCalledWith(
@@ -4242,11 +4244,11 @@ describe("createTuiApp", () => {
         "queue-guidance",
       );
       expect(runtime.steerQueuedMessage).not.toHaveBeenCalled();
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.tui.render(80).join("\n")).not.toContain("Queued ·"),
       );
       terminal.input?.("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(runtime.steer).toHaveBeenCalledWith(
           expect.objectContaining({
             sessionId: "session-1",
@@ -4265,7 +4267,7 @@ describe("createTuiApp", () => {
 
   it("renders /context from the Runtime-owned persisted context usage", async () => {
     const runtime = createRuntime();
-    vi.mocked(runtime.getContextSnapshot).mockResolvedValue({
+    mocked(runtime.getContextSnapshot).mockResolvedValue({
       status: "live",
       model: { provider: "minimax", id: "MiniMax-M3", contextWindow: 10_000 },
       contextUsage: {
@@ -4310,7 +4312,7 @@ describe("createTuiApp", () => {
   it("routes /init through the Runtime-owned init Skill and the normal Agent turn", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSkills).mockResolvedValue({
+    mocked(runtime.listSkills).mockResolvedValue({
       skills: [
         {
           name: "init",
@@ -4331,7 +4333,7 @@ describe("createTuiApp", () => {
 
     app.start();
     await app.ready;
-    await vi.waitFor(() => expect(runtime.listSkills).toHaveBeenCalled());
+    await waitFor(() => expect(runtime.listSkills).toHaveBeenCalled());
     await app.submit("/init");
 
     expect(runtime.sendMessage).toHaveBeenCalledWith(
@@ -4407,8 +4409,7 @@ describe("createTuiApp", () => {
     await app.submit("/send-now do this first");
     await app.submit("/retry");
     expect(
-      vi
-        .mocked(runtime.sendMessage)
+      mocked(runtime.sendMessage)
         .mock.calls.map(([request]) => request.content),
     ).toEqual(["/queue-clear", "/send-now do this first"]);
     expect(app.tui.render(80).join("\n")).toContain(
@@ -4420,7 +4421,7 @@ describe("createTuiApp", () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
     let attempt = 0;
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage() {
         attempt += 1;
         if (attempt === 1) {
@@ -4450,13 +4451,11 @@ describe("createTuiApp", () => {
     await app.submit("/retry");
 
     expect(
-      vi
-        .mocked(runtime.sendMessage)
+      mocked(runtime.sendMessage)
         .mock.calls.map(([request]) => request.content),
     ).toEqual(["Explain this failure", "Explain this failure"]);
     expect(
-      vi
-        .mocked(runtime.sendMessage)
+      mocked(runtime.sendMessage)
         .mock.calls.some(([request]) => request.content === "/retry"),
     ).toBe(false);
     expect(app.transcript.snapshot()).toContainEqual(
@@ -4471,7 +4470,7 @@ describe("createTuiApp", () => {
   it("retries a failed side conversation response inside the side Session", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.createSession)
+    mocked(runtime.createSession)
       .mockResolvedValueOnce({ sessionId: "session-1", title: "Main", workspaceDir: "/workspace" })
       .mockResolvedValueOnce({
         sessionId: "session-side",
@@ -4479,7 +4478,7 @@ describe("createTuiApp", () => {
         title: "Side conversation",
         workspaceDir: "/workspace",
       });
-    vi.mocked(runtime.getSession).mockImplementation(async (sessionId: string) =>
+    mocked(runtime.getSession).mockImplementation(async (sessionId: string) =>
       sessionId === "session-side"
         ? {
             sessionId,
@@ -4490,7 +4489,7 @@ describe("createTuiApp", () => {
         : { sessionId, title: "Main", workspaceDir: "/workspace" },
     );
     let sideAttempt = 0;
-    vi.mocked(runtime.sendMessage).mockImplementation(async function* sendMessage(request) {
+    mocked(runtime.sendMessage).mockImplementation(async function* sendMessage(request) {
       if (request.id === "session-side") {
         sideAttempt += 1;
         if (sideAttempt === 1) {
@@ -4515,7 +4514,7 @@ describe("createTuiApp", () => {
     const rendered = app.tui.render(100).join("\n");
     expect(rendered).not.toContain("unavailable in side conversations");
     expect(
-      vi.mocked(runtime.sendMessage).mock.calls.map(([request]) => [request.id, request.content]),
+      mocked(runtime.sendMessage).mock.calls.map(([request]) => [request.id, request.content]),
     ).toEqual([
       ["session-1", "Main task"],
       ["session-side", "Side question"],
@@ -4533,7 +4532,7 @@ describe("createTuiApp", () => {
       const terminal = new FakeTerminal();
       const runtime = createRuntime();
       let handled = false;
-      vi.mocked(runtime.watchEvents).mockImplementation(async function* (signal) {
+      mocked(runtime.watchEvents).mockImplementation(async function* (signal) {
         yield runtimeEvent({
           type: "session.error",
           timestamp: Date.now(),
@@ -4560,14 +4559,14 @@ describe("createTuiApp", () => {
         await app.ready;
         await app.openSession("session-1");
         app.start();
-        await vi.waitFor(() => expect(handled).toBe(true));
+        await waitFor(() => expect(handled).toBe(true));
         expect(app.tui.render(100).join("\n")).toContain("Code: 50151");
         // The failure must survive reconciliation until another run starts.
         await app.controller.refreshCurrentSessionHistory();
         expect(app.tui.render(100).join("\n")).toContain("Run /retry");
 
         await app.submit(submission);
-        vi.mocked(runtime.getMessages).mockResolvedValue([
+        mocked(runtime.getMessages).mockResolvedValue([
           {
             id: "recovered-answer",
             role: "assistant",
@@ -4597,8 +4596,8 @@ describe("createTuiApp", () => {
       status: "error",
       errorMessage: "terminated",
     };
-    vi.mocked(runtime.listSessions).mockResolvedValue([restoredSession]);
-    vi.mocked(runtime.getSession).mockResolvedValue(restoredSession);
+    mocked(runtime.listSessions).mockResolvedValue([restoredSession]);
+    mocked(runtime.getSession).mockResolvedValue(restoredSession);
     const app = createTuiApp({
       runtime,
       terminal,
@@ -4628,7 +4627,7 @@ describe("createTuiApp", () => {
 
   it("reports service authentication failures without assuming the user needs to sign in", async () => {
     const runtime = createRuntime();
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage() {
         yield { type: "error", message: "authentication failed" };
       },
@@ -4672,7 +4671,7 @@ describe("createTuiApp", () => {
 
     terminal.input?.("\x1bm");
 
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(runtime.setPermissionMode).toHaveBeenCalledWith(
         "bypassPermissions",
       );
@@ -4688,7 +4687,7 @@ describe("createTuiApp", () => {
   it("projects Token Plan warnings into the status rail", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.getAccountStatus).mockResolvedValue({
+    mocked(runtime.getAccountStatus).mockResolvedValue({
       status: "ready",
       defaultModel: "minimax/MiniMax-M2.7",
       providerId: "minimax",
@@ -4714,7 +4713,7 @@ describe("createTuiApp", () => {
     await app.ready;
     await app.submit("Measure this turn");
 
-    await vi.waitFor(() => {
+    await waitFor(() => {
       const rendered = app.tui.render(120).join("\n");
       expect(rendered).toContain("5h 30%");
       expect(rendered).not.toContain("Week 64%");
@@ -4725,7 +4724,7 @@ describe("createTuiApp", () => {
   it("keeps Token Plan subscription state out of the status rail when no quota exists", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.getAccountStatus).mockResolvedValue({
+    mocked(runtime.getAccountStatus).mockResolvedValue({
       status: "ready",
       defaultModel: "minimax/MiniMax-M3",
       providerId: "minimax",
@@ -4747,7 +4746,7 @@ describe("createTuiApp", () => {
     await app.ready;
     await app.submit("Measure this turn");
 
-    await vi.waitFor(() => {
+    await waitFor(() => {
       const rendered = app.tui.render(120).join("\n");
       expect(rendered).toContain("✦ MiniMax M2.7");
       expect(rendered).not.toMatch(/Context 5%|Quota|Plan|5h|Week/u);
@@ -4758,7 +4757,7 @@ describe("createTuiApp", () => {
   it("keeps the current permission mode when an Alt+M update fails", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.setPermissionMode).mockRejectedValueOnce(
+    mocked(runtime.setPermissionMode).mockRejectedValueOnce(
       new Error("config is read-only"),
     );
     const app = createTuiApp({
@@ -4772,7 +4771,7 @@ describe("createTuiApp", () => {
     await app.ready;
     terminal.input?.("\x1bm");
 
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(app.tui.render(80).join("\n")).toContain("Auto");
       expect(app.tui.render(80).join("\n")).not.toContain("FULL");
       expect(app.transcript.snapshot().at(-1)).toMatchObject({
@@ -4821,7 +4820,7 @@ describe("createTuiApp", () => {
     );
 
     terminal.input?.("\r");
-    await vi.waitFor(() => expect(runtime.sendMessage).toHaveBeenCalledOnce());
+    await waitFor(() => expect(runtime.sendMessage).toHaveBeenCalledOnce());
     await app.controller.whenIdle();
 
     expect(runtime.sendMessage).toHaveBeenCalledWith(
@@ -4873,7 +4872,7 @@ describe("createTuiApp", () => {
 
   it("keeps the one-shot Plan intent armed when direct admission rejects it", async () => {
     const runtime = createRuntime();
-    vi.mocked(runtime.sendMessage).mockImplementationOnce(
+    mocked(runtime.sendMessage).mockImplementationOnce(
       async function* rejectedAdmission() {
         yield* [] as TuiStreamEvent[];
         throw Object.assign(new Error("Plan entry is disabled"), {
@@ -4904,12 +4903,12 @@ describe("createTuiApp", () => {
 
   it("settles a Plan transition from authoritative Session metadata when the stream is empty", async () => {
     const runtime = createRuntime();
-    vi.mocked(runtime.sendMessage).mockImplementationOnce(
+    mocked(runtime.sendMessage).mockImplementationOnce(
       async function* emptyAcceptedStream() {
         yield* [] as TuiStreamEvent[];
       },
     );
-    vi.mocked(runtime.getSession).mockResolvedValue({
+    mocked(runtime.getSession).mockResolvedValue({
       sessionId: "session-1",
       workspace: "/workspace",
       interactionMode: "plan",
@@ -4936,7 +4935,7 @@ describe("createTuiApp", () => {
 
   it("clears accepted Plan entry while authoritative metadata refresh is unavailable", async () => {
     const runtime = createRuntime();
-    vi.mocked(runtime.getSession).mockRejectedValue(
+    mocked(runtime.getSession).mockRejectedValue(
       new Error("metadata temporarily unavailable"),
     );
     const app = createTuiApp({
@@ -4962,7 +4961,7 @@ describe("createTuiApp", () => {
 
   it("preserves Plan intent through direct busy fallback into the Runtime Queue", async () => {
     const runtime = createRuntime();
-    vi.mocked(runtime.listModels).mockResolvedValue([
+    mocked(runtime.listModels).mockResolvedValue([
       {
         providerId: "minimax",
         modelId: "MiniMax-M2.7",
@@ -4970,7 +4969,7 @@ describe("createTuiApp", () => {
         variant: "",
       },
     ]);
-    vi.mocked(runtime.sendMessage).mockImplementationOnce(
+    mocked(runtime.sendMessage).mockImplementationOnce(
       async function* busyAdmission() {
         yield* [] as TuiStreamEvent[];
         throw Object.assign(new Error("Session is busy"), {
@@ -5009,7 +5008,7 @@ describe("createTuiApp", () => {
       releaseFirstEvent = resolve;
     });
     const runtime = createRuntime();
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* delayedAdmission() {
         await firstEventGate;
         yield { type: "delta", content: "Planning" };
@@ -5027,7 +5026,7 @@ describe("createTuiApp", () => {
     await app.ready;
     await app.submit("/plan on");
     const first = app.submit("Plan the implementation");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.sendMessage).toHaveBeenCalledTimes(1),
     );
 
@@ -5054,7 +5053,7 @@ describe("createTuiApp", () => {
   it("shows the Desktop-aligned confirmation when the Agent calls EnterPlanMode", async () => {
     let emitEvent: ((event: TuiRuntimeEvent) => void) | undefined;
     const runtime = createRuntime();
-    vi.mocked(runtime.watchEvents).mockImplementation(
+    mocked(runtime.watchEvents).mockImplementation(
       async function* watchEvents(signal) {
         const event = await new Promise<TuiRuntimeEvent | undefined>(
           (resolve) => {
@@ -5080,7 +5079,7 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     await app.submit("Plan a complex change");
-    await vi.waitFor(() => expect(emitEvent).toBeTypeOf("function"));
+    await waitFor(() => expect(emitEvent).toBeTypeOf("function"));
     const askEvent = runtimeEvent({
       type: "questionnaire.ask",
       timestamp: Date.now(),
@@ -5098,7 +5097,7 @@ describe("createTuiApp", () => {
     });
     emitEvent?.(askEvent);
 
-    await vi.waitFor(() => expect(app.interaction.isActive()).toBe(true));
+    await waitFor(() => expect(app.interaction.isActive()).toBe(true));
     const panel = app.interaction.current();
     const rendered = panel?.render?.(100).join("\n") ?? "";
     expect(rendered).toContain("Use Plan mode?");
@@ -5109,7 +5108,7 @@ describe("createTuiApp", () => {
     expect(rendered).toContain("Deny");
 
     panel?.handleInput?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.replyQuestionnaire).toHaveBeenCalledWith(
         "mavis",
         "plan-entry-agent-tool",
@@ -5129,12 +5128,12 @@ describe("createTuiApp", () => {
     let finishTurn: (() => void) | undefined;
     let interactionMode: "plan" | undefined;
     const runtime = createRuntime();
-    vi.mocked(runtime.getSession).mockImplementation(async () => ({
+    mocked(runtime.getSession).mockImplementation(async () => ({
       sessionId: "session-1",
       workspace: "/workspace",
       ...(interactionMode ? { interactionMode } : {}),
     }));
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* activePlanTurn() {
         interactionMode = "plan";
         yield { type: "delta", content: "Drafting the plan" };
@@ -5144,14 +5143,14 @@ describe("createTuiApp", () => {
         yield { type: "done" };
       },
     );
-    vi.mocked(runtime.getActiveRun).mockImplementation(async (sessionId) => ({
+    mocked(runtime.getActiveRun).mockImplementation(async (sessionId) => ({
       schemaVersion: 1,
       sessionId,
       state: "running",
       turnId: "turn-plan",
       actions: { steer: true },
     }));
-    vi.mocked(runtime.steer).mockResolvedValue({
+    mocked(runtime.steer).mockResolvedValue({
       turnId: "turn-plan",
       mode: "steered",
     });
@@ -5166,7 +5165,7 @@ describe("createTuiApp", () => {
     await app.ready;
     await app.submit("/plan on");
     const planTurn = app.submit("Draft a plan");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.tui.render(100).join("\n")).toContain(
         "/workspace │ PLAN │ Auto",
       ),
@@ -5191,7 +5190,7 @@ describe("createTuiApp", () => {
   it("does not arm a mode transition while a Plan Review is pending", async () => {
     let emitEvent: ((event: TuiRuntimeEvent) => void) | undefined;
     const runtime = createRuntime();
-    vi.mocked(runtime.watchEvents).mockImplementation(
+    mocked(runtime.watchEvents).mockImplementation(
       async function* watchEvents(signal) {
         const event = await new Promise<TuiRuntimeEvent | undefined>(
           (resolve) => {
@@ -5219,7 +5218,7 @@ describe("createTuiApp", () => {
     await app.ready;
     await app.submit("/plan on");
     await app.submit("Draft a plan");
-    await vi.waitFor(() => expect(emitEvent).toBeTypeOf("function"));
+    await waitFor(() => expect(emitEvent).toBeTypeOf("function"));
     emitEvent?.(
       runtimeEvent({
         type: "questionnaire.ask",
@@ -5232,7 +5231,7 @@ describe("createTuiApp", () => {
         },
       }),
     );
-    await vi.waitFor(() => expect(app.interaction.isActive()).toBe(true));
+    await waitFor(() => expect(app.interaction.isActive()).toBe(true));
     // The compact panel owns the decision; the frozen plan is projected to the Transcript.
     expect(app.interaction.current()?.render?.(100).join("\n")).toContain(
       "Plan complete. What would you like to do?",
@@ -5262,14 +5261,14 @@ describe("createTuiApp", () => {
     expect(runtime.steer).not.toHaveBeenCalled();
 
     app.interaction.current()?.handleInput?.("\u001b");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.replyQuestionnaire).toHaveBeenCalledWith(
         "mavis",
         "plan-review-mode-guard",
         [expect.objectContaining({ skipped: true })],
       ),
     );
-    await vi.waitFor(() => expect(app.interaction.isActive()).toBe(false));
+    await waitFor(() => expect(app.interaction.isActive()).toBe(false));
     expect(app.tui.render(100).join("\n")).toContain(
       "/workspace │ PLAN │ Auto",
     );
@@ -5281,13 +5280,13 @@ describe("createTuiApp", () => {
     let releaseContinuation: (() => void) | undefined;
     let finishReply: ((value: boolean) => void) | undefined;
     const runtime = createRuntime();
-    vi.mocked(runtime.replyQuestionnaire).mockImplementation(
+    mocked(runtime.replyQuestionnaire).mockImplementation(
       async () =>
         await new Promise<boolean>((resolve) => {
           finishReply = resolve;
         }),
     );
-    vi.mocked(runtime.watchEvents).mockImplementation(
+    mocked(runtime.watchEvents).mockImplementation(
       async function* watchEvents(signal) {
         const review = await new Promise<TuiRuntimeEvent | undefined>(
           (resolve) => {
@@ -5311,7 +5310,7 @@ describe("createTuiApp", () => {
           source: "runtime",
           payload: { sessionId: "session-1", turnId },
         });
-        vi.mocked(runtime.getMessages).mockResolvedValue([
+        mocked(runtime.getMessages).mockResolvedValue([
           {
             id: "assistant-revised-plan",
             role: "assistant",
@@ -5361,7 +5360,7 @@ describe("createTuiApp", () => {
     await app.ready;
     await app.submit("/plan on");
     await app.submit("Draft a plan");
-    await vi.waitFor(() => expect(emitReview).toBeTypeOf("function"));
+    await waitFor(() => expect(emitReview).toBeTypeOf("function"));
     emitReview?.(
       runtimeEvent({
         type: "questionnaire.ask",
@@ -5374,7 +5373,7 @@ describe("createTuiApp", () => {
         },
       }),
     );
-    await vi.waitFor(() => expect(app.interaction.isActive()).toBe(true));
+    await waitFor(() => expect(app.interaction.isActive()).toBe(true));
 
     terminal.input?.("\u001b[B");
     terminal.input?.("\u001b[B");
@@ -5382,10 +5381,10 @@ describe("createTuiApp", () => {
     for (const character of "Add rollback coverage")
       terminal.input?.(character);
     terminal.input?.("\r");
-    await vi.waitFor(() => expect(finishReply).toBeTypeOf("function"));
+    await waitFor(() => expect(finishReply).toBeTypeOf("function"));
     releaseContinuation?.();
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(
         app.transcript
           .snapshot()
@@ -5398,7 +5397,7 @@ describe("createTuiApp", () => {
       "turn-runtime-plan-feedback",
       expect.any(AbortSignal),
     );
-    await vi.waitFor(() => expect(app.interaction.isActive()).toBe(true));
+    await waitFor(() => expect(app.interaction.isActive()).toBe(true));
     // The revised plan is projected to the Transcript; the panel stays the compact decision.
     expect(app.interaction.current()?.render?.(100).join("\n")).toContain(
       "Plan complete. What would you like to do?",
@@ -5464,7 +5463,7 @@ describe("createTuiApp", () => {
 
     terminal.input?.("\u001b[B");
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.setPermissionMode).toHaveBeenCalledWith(
         "bypassPermissions",
       ),
@@ -5485,7 +5484,7 @@ describe("createTuiApp", () => {
 
   it("opens the latest settled Plan as a read-only full snapshot", async () => {
     const runtime = createRuntime();
-    vi.mocked(runtime.getLatestPlanReview).mockResolvedValue(
+    mocked(runtime.getLatestPlanReview).mockResolvedValue(
       planReviewEventRequest("plan-review-settled"),
     );
     const app = createTuiApp({
@@ -5519,7 +5518,7 @@ describe("createTuiApp", () => {
       | ((request: TuiQuestionnaireRequest | undefined) => void)
       | undefined;
     const runtime = createRuntime();
-    vi.mocked(runtime.getLatestPlanReview).mockImplementation(
+    mocked(runtime.getLatestPlanReview).mockImplementation(
       async () =>
         await new Promise<TuiQuestionnaireRequest | undefined>((resolve) => {
           resolveReview = resolve;
@@ -5536,7 +5535,7 @@ describe("createTuiApp", () => {
     await app.ready;
     await app.openSession("session-1");
     const viewing = app.submit("/plan view");
-    await vi.waitFor(() => expect(resolveReview).toBeTypeOf("function"));
+    await waitFor(() => expect(resolveReview).toBeTypeOf("function"));
     await app.openSession("session-2");
     resolveReview?.(planReviewEventRequest("stale-plan-review"));
     await viewing;
@@ -5548,7 +5547,7 @@ describe("createTuiApp", () => {
 
   it("blocks Plan entry but still allows Plan exit when the Runtime capability is disabled", async () => {
     const runtime = createRuntime();
-    vi.mocked(runtime.getPlanModeCapabilities).mockResolvedValue({
+    mocked(runtime.getPlanModeCapabilities).mockResolvedValue({
       entryEnabled: false,
     });
     const terminal = new FakeTerminal();
@@ -5567,7 +5566,7 @@ describe("createTuiApp", () => {
     expect(app.tui.render(100).join("\n")).not.toContain("PLAN next");
     expect(runtime.sendMessage).not.toHaveBeenCalled();
 
-    vi.mocked(runtime.getSession).mockResolvedValue({
+    mocked(runtime.getSession).mockResolvedValue({
       sessionId: "session-1",
       workspace: "/workspace",
       interactionMode: "plan",
@@ -5580,7 +5579,7 @@ describe("createTuiApp", () => {
 
   it("fails closed when the Runtime Plan capability cannot be loaded", async () => {
     const runtime = createRuntime();
-    vi.mocked(runtime.getPlanModeCapabilities).mockRejectedValue(
+    mocked(runtime.getPlanModeCapabilities).mockRejectedValue(
       new Error("Runtime unavailable"),
     );
     const terminal = new FakeTerminal();
@@ -5623,7 +5622,7 @@ describe("createTuiApp", () => {
   it("exposes sanitized checks and submits the hidden /config name as ordinary text", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listPendingPermissions).mockResolvedValue([
+    mocked(runtime.listPendingPermissions).mockResolvedValue([
       {
         requestId: "permission-1",
         sessionId: "session-1",
@@ -5709,7 +5708,7 @@ describe("createTuiApp", () => {
     expect(panel?.render(80).join("\n")).toContain("Client  mcode 0.1.0");
 
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.submitFeedback).toHaveBeenCalledWith(
         "feedback-draft-1",
         expect.objectContaining({ onPhase: expect.any(Function) }),
@@ -5743,7 +5742,7 @@ describe("createTuiApp", () => {
 
     await app.submit("/feedback Cancel this report");
     terminal.input?.("\x1b");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.cancelFeedback).toHaveBeenCalledWith("feedback-draft-1"),
     );
     expect(runtime.submitFeedback).not.toHaveBeenCalled();
@@ -5824,7 +5823,7 @@ describe("createTuiApp", () => {
     const logoutUrl =
       "https://agent.minimax.io/auth/logout?logout_redirect_uri=https%3A%2F%2Fagent.minimax.io";
     let authenticated = false;
-    vi.mocked(runtime.getAccountStatus).mockImplementation(async () =>
+    mocked(runtime.getAccountStatus).mockImplementation(async () =>
       authenticated
         ? {
             status: "ready",
@@ -5843,7 +5842,7 @@ describe("createTuiApp", () => {
           },
     );
     const auth = {
-      login: vi.fn(
+      login: mock(
         async (
           onProgress?: (progress: McodeAuthProgress) => void,
           _region?: "cn" | "en",
@@ -5864,7 +5863,7 @@ describe("createTuiApp", () => {
           };
         },
       ),
-      logout: vi.fn(async () => {
+      logout: mock(async () => {
         authenticated = false;
         return {
           state: "signed-out" as const,
@@ -5873,7 +5872,7 @@ describe("createTuiApp", () => {
         };
       }),
     };
-    const notifyAuthContextChanged = vi.fn(async () => {
+    const notifyAuthContextChanged = mock(async () => {
       throw new Error("Hook lifecycle cleanup failed");
     });
     const app = createTuiApp({
@@ -5899,8 +5898,8 @@ describe("createTuiApp", () => {
     expect(app.interaction.render(80).join("\n")).toContain("Global");
     app.interaction.current()?.handleInput("\u001b[B");
     app.interaction.current()?.handleInput("\r");
-    await vi.waitFor(() => expect(auth.login).toHaveBeenCalledOnce());
-    await vi.waitFor(() =>
+    await waitFor(() => expect(auth.login).toHaveBeenCalledOnce());
+    await waitFor(() =>
       expect(app.controller.snapshot().account?.managedTokenPresent).toBe(true),
     );
     expect(app.getSurface()).toBe("conversation");
@@ -5908,7 +5907,7 @@ describe("createTuiApp", () => {
     expect(app.tui.render(80).join("\n")).not.toContain("Login required");
 
     await app.submit("/logout");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().account?.managedTokenPresent).toBe(
         false,
       ),
@@ -5920,7 +5919,7 @@ describe("createTuiApp", () => {
       "https://account.example.test/device?client_surface=tui&download_source=mcode-internal",
       logoutUrl,
     ]);
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.transcript.snapshot()).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
@@ -5991,15 +5990,15 @@ describe("createTuiApp", () => {
   });
 
   it("clears Runtime auth context when the shared account is already signed out", async () => {
-    const notifyAuthContextChanged = vi.fn(async () => undefined);
+    const notifyAuthContextChanged = mock(async () => undefined);
     const logoutUrl =
       "https://agent.minimax.cn/auth/logout?logout_redirect_uri=https%3A%2F%2Fagent.minimax.cn";
-    const openExternalTarget = vi.fn(() => new Promise<void>(() => {}));
+    const openExternalTarget = mock(() => new Promise<void>(() => {}));
     const app = createTuiApp({
       runtime: createRuntime(),
       auth: {
-        login: vi.fn(),
-        logout: vi.fn(async () => ({
+        login: mock(),
+        logout: mock(async () => ({
           state: "already-signed-out" as const,
           message: "Already signed out of MiniMax.",
           logoutUrl,
@@ -6032,7 +6031,7 @@ describe("createTuiApp", () => {
   it("refreshes Runtime auth context when login renews an existing account", async () => {
     const runtime = createRuntime();
     let authenticated = false;
-    vi.mocked(runtime.getAccountStatus).mockImplementation(async () =>
+    mocked(runtime.getAccountStatus).mockImplementation(async () =>
       authenticated
         ? {
             status: "ready",
@@ -6050,16 +6049,16 @@ describe("createTuiApp", () => {
             warnings: [],
           },
     );
-    const notifyAuthContextChanged = vi.fn(async () => undefined);
+    const notifyAuthContextChanged = mock(async () => undefined);
     const auth = {
-      login: vi.fn(async () => {
+      login: mock(async () => {
         authenticated = true;
         return {
           state: "already-authenticated" as const,
           message: "Already signed in with MiniMax.",
         };
       }),
-      logout: vi.fn(async () => ({
+      logout: mock(async () => ({
         state: "signed-out" as const,
         message: "Signed out of MiniMax.",
       })),
@@ -6080,10 +6079,10 @@ describe("createTuiApp", () => {
     app.interaction.current()?.handleInput("\u001b[B");
     app.interaction.current()?.handleInput("\r");
 
-    await vi.waitFor(() => expect(auth.login).toHaveBeenCalledOnce());
+    await waitFor(() => expect(auth.login).toHaveBeenCalledOnce());
     expect(notifyAuthContextChanged).toHaveBeenCalledOnce();
     expect(notifyAuthContextChanged).toHaveBeenCalledWith("authenticated");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().account?.managedTokenPresent).toBe(true),
     );
     expect(app.getSurface()).toBe("conversation");
@@ -6095,7 +6094,7 @@ describe("createTuiApp", () => {
   it("exits immediately through /quit without aborting the shared Runtime turn", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    const abortSession = vi.spyOn(runtime, "abortSession");
+    const abortSession = spyOn(runtime, "abortSession");
     const app = createTuiApp({
       runtime,
       terminal,
@@ -6150,7 +6149,7 @@ describe("createTuiApp", () => {
     const terminal = new FakeTerminal();
     terminal.rows = 40;
     const runtime = createRuntime();
-    vi.mocked(runtime.getAccountStatus).mockResolvedValue({
+    mocked(runtime.getAccountStatus).mockResolvedValue({
       status: "warning",
       defaultModel: "minimax/MiniMax-M2.7",
       providerId: "minimax",
@@ -6192,7 +6191,7 @@ describe("createTuiApp", () => {
 
   it("reports doctor failures and submits the hidden /config name as text", async () => {
     const runtime = createRuntime();
-    vi.mocked(runtime.getRuntimeDiagnostics).mockRejectedValue(
+    mocked(runtime.getRuntimeDiagnostics).mockRejectedValue(
       new Error("Diagnostics unavailable"),
     );
     const app = createTuiApp({
@@ -6233,7 +6232,7 @@ describe("createTuiApp", () => {
           hasMore: boolean;
         }) => void)
       | undefined;
-    vi.mocked(runtime.listSessionPage).mockImplementationOnce(
+    mocked(runtime.listSessionPage).mockImplementationOnce(
       async () =>
         await new Promise((resolve) => {
           resolveSessionPage = resolve;
@@ -6249,7 +6248,7 @@ describe("createTuiApp", () => {
     await app.ready;
     const transcriptBeforeStatus = app.transcript.snapshot();
     const sessionCard = app.submit("/sessions");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.listSessionPage).toHaveBeenCalledOnce(),
     );
     await app.submit("/status");
@@ -6282,7 +6281,7 @@ describe("createTuiApp", () => {
 
   it("keeps unsupported standalone MCP inspection concise and recoverable", async () => {
     const runtime = createRuntime();
-    vi.mocked(runtime.listMcpServers).mockRejectedValue(
+    mocked(runtime.listMcpServers).mockRejectedValue(
       Object.assign(new Error("DesktopService implementation detail"), {
         status: 501,
         code: "NOT_IMPLEMENTED",
@@ -6307,7 +6306,7 @@ describe("createTuiApp", () => {
   it("registers enabled Skills as discoverable slash commands without shadowing built-ins", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSkills).mockResolvedValue({
+    mocked(runtime.listSkills).mockResolvedValue({
       skills: [
         {
           name: "docs",
@@ -6384,7 +6383,7 @@ describe("createTuiApp", () => {
       expect.any(AbortSignal),
     );
 
-    vi.mocked(runtime.sendMessage).mockClear();
+    mocked(runtime.sendMessage).mockClear();
     await app.submit("/disabled-skill");
     expect(runtime.sendMessage).toHaveBeenCalledWith(
       expect.objectContaining({ id: "session-1", content: "/disabled-skill" }),
@@ -6396,7 +6395,7 @@ describe("createTuiApp", () => {
   it("deduplicates configured Skills case-insensitively and reserves built-in names", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSkills).mockResolvedValue({
+    mocked(runtime.listSkills).mockResolvedValue({
       skills: [
         {
           name: "HELP",
@@ -6437,7 +6436,7 @@ describe("createTuiApp", () => {
       }),
       expect.any(AbortSignal),
     );
-    vi.mocked(runtime.sendMessage).mockClear();
+    mocked(runtime.sendMessage).mockClear();
     await app.submit("/docs explain this repository");
     expect(runtime.sendMessage).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -6493,7 +6492,7 @@ describe("createTuiApp", () => {
         app.editor.setText(Array.from({ length: 8 }, (_, index) => `Draft ${index}`).join("\n"));
       } else {
         terminal.sendInput("\x1b[200~/tmp/preview-missing.png\x1b[201~");
-        await vi.waitFor(() => expect(app.editor.getAttachmentPreview()).toBeDefined());
+        await waitFor(() => expect(app.editor.getAttachmentPreview()).toBeDefined());
       }
       app.tui.renderNow();
       await terminal.flush();
@@ -6513,7 +6512,7 @@ describe("createTuiApp", () => {
   it("does not push the conversation downward after closing /usage", async () => {
     const terminal = new VirtualTerminal(80, 50);
     const runtime = createRuntime();
-    vi.mocked(runtime.getAccountStatus).mockResolvedValue({
+    mocked(runtime.getAccountStatus).mockResolvedValue({
       status: "ready",
       authMode: "managed-login",
       managedTokenPresent: true,
@@ -6601,7 +6600,7 @@ describe("createTuiApp", () => {
     const terminal = new FakeTerminal();
     terminal.rows = 40;
     const runtime = createRuntime();
-    vi.mocked(runtime.getAccountStatus).mockResolvedValue({
+    mocked(runtime.getAccountStatus).mockResolvedValue({
       status: "ready",
       defaultModel: "minimax/MiniMax-M3",
       providerId: "minimax-cn-coding-plan",
@@ -6625,9 +6624,9 @@ describe("createTuiApp", () => {
     });
 
     await app.submit("Create a session");
-    vi.mocked(runtime.sendMessage).mockClear();
-    vi.mocked(runtime.getSessionUsage).mockClear();
-    vi.mocked(runtime.getContextSnapshot).mockResolvedValueOnce({
+    mocked(runtime.sendMessage).mockClear();
+    mocked(runtime.getSessionUsage).mockClear();
+    mocked(runtime.getContextSnapshot).mockResolvedValueOnce({
       status: "live",
       contextUsage: {
         contextWindowTokens: 10_000,
@@ -6687,7 +6686,7 @@ describe("createTuiApp", () => {
           compactionId: string;
         }) => void)
       | undefined;
-    vi.mocked(runtime.requestCompaction).mockImplementationOnce(
+    mocked(runtime.requestCompaction).mockImplementationOnce(
       async () =>
         await new Promise((resolve) => {
           resolveCompaction = resolve;
@@ -6702,7 +6701,7 @@ describe("createTuiApp", () => {
 
     await app.submit("Create a session");
     const pending = app.submit("/compact keep decisions");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.tui.render(80).join("\n")).toContain("Compacting context"),
     );
     expect(app.tui.render(80).join("\n")).not.toContain("Esc to interrupt");
@@ -6718,7 +6717,7 @@ describe("createTuiApp", () => {
 
   it("treats Runtime NOTHING_TO_COMPACT as a recoverable Session state", async () => {
     const runtime = createRuntime();
-    vi.mocked(runtime.requestCompaction).mockRejectedValue(
+    mocked(runtime.requestCompaction).mockRejectedValue(
       Object.assign(new Error("HTTP 400 implementation detail"), {
         status: 400,
         code: "NOTHING_TO_COMPACT",
@@ -6742,7 +6741,7 @@ describe("createTuiApp", () => {
 
   it("shows account usage before a Session exists and keeps Session-only inspection recoverable", async () => {
     const runtime = createRuntime();
-    vi.mocked(runtime.getAccountStatus).mockResolvedValue({
+    mocked(runtime.getAccountStatus).mockResolvedValue({
       status: "ready",
       authMode: "byok",
       managedTokenPresent: false,
@@ -6805,12 +6804,12 @@ describe("createTuiApp", () => {
     await app.ready;
     terminal.input?.("first prompt");
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.sendMessage).toHaveBeenCalledTimes(1),
     );
     terminal.input?.("second prompt");
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.sendMessage).toHaveBeenCalledTimes(2),
     );
 
@@ -6827,7 +6826,7 @@ describe("createTuiApp", () => {
     expect(app.editor.getText()).toContain("[paste #");
     expect(app.editor.getExpandedText()).toBe(pasted);
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.sendMessage).toHaveBeenCalledTimes(3),
     );
     expect(runtime.sendMessage).toHaveBeenLastCalledWith(
@@ -6863,7 +6862,7 @@ describe("createTuiApp", () => {
     for (const character of "abcdefgh") terminal.input?.(character);
     terminal.input?.("\r");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.sendMessage).toHaveBeenCalledTimes(1),
     );
     expect(app.editor.getText()).toBe("");
@@ -6872,7 +6871,7 @@ describe("createTuiApp", () => {
 
   it("projects an otty image paste as an inline editor placeholder", async () => {
     const terminal = new FakeTerminal();
-    const resolveAttachment = vi.fn(async () => ({
+    const resolveAttachment = mock(async () => ({
       type: "image" as const,
       filePath: "/tmp/otty-paste/image-123.png",
       fileName: "image-123.png",
@@ -6890,7 +6889,7 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     terminal.input?.("\x1b[200~/tmp/otty-paste/image-123.png\x1b[201~");
-    await vi.waitFor(() => expect(resolveAttachment).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(resolveAttachment).toHaveBeenCalledTimes(1));
 
     const rendered = app.tui.render(80).join("\n");
     expect(app.editor.getText()).toBe("[Image #1] ");
@@ -6922,7 +6921,7 @@ describe("createTuiApp", () => {
       app.start();
       await app.ready;
       terminal.input?.("\x1b[200~/tmp/image-preview-missing.png\x1b[201~");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.editor.getAttachmentPreview()?.id).toBe(
           "/tmp/image-preview-missing.png",
         ),
@@ -6939,7 +6938,7 @@ describe("createTuiApp", () => {
         "/tmp/image-preview-missing.png",
       );
       terminal.input?.("\r");
-      await vi.waitFor(() => expect(runtime.sendMessage).toHaveBeenCalled());
+      await waitFor(() => expect(runtime.sendMessage).toHaveBeenCalled());
       expect(runtime.sendMessage).toHaveBeenCalledWith(
         expect.objectContaining({
           content: "",
@@ -6961,7 +6960,7 @@ describe("createTuiApp", () => {
     const runtime = createRuntime();
     const wechatImagePath =
       "D:\\Yingyong\\social\\wechat\\xwechat_files\\wxid_demo\\temp\\RWTemp\\2026-08\\3336519cd4d5351f4bc5a5a68c7fea75.png";
-    const resolveAttachment = vi.fn(async () => ({
+    const resolveAttachment = mock(async () => ({
       type: "image" as const,
       filePath: wechatImagePath,
       fileName: "3336519cd4d5351f4bc5a5a68c7fea75.png",
@@ -6979,7 +6978,7 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     terminal.input?.(`\x1b[200~'${wechatImagePath}'\x1b[201~`);
-    await vi.waitFor(() => expect(resolveAttachment).toHaveBeenCalledOnce());
+    await waitFor(() => expect(resolveAttachment).toHaveBeenCalledOnce());
 
     expect(resolveAttachment).toHaveBeenCalledWith(`'${wechatImagePath}'`, {
       source: "terminal-paste",
@@ -7004,7 +7003,7 @@ describe("createTuiApp", () => {
 
   it("keeps an image placeholder visible before a long CJK prompt", async () => {
     const terminal = new FakeTerminal();
-    const resolveAttachment = vi.fn(async () => ({
+    const resolveAttachment = mock(async () => ({
       type: "image" as const,
       filePath: "/tmp/otty-paste/logo.png",
       fileName: "logo.png",
@@ -7022,7 +7021,7 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     terminal.input?.("\x1b[200~/tmp/otty-paste/logo.png\x1b[201~");
-    await vi.waitFor(() => expect(resolveAttachment).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(resolveAttachment).toHaveBeenCalledTimes(1));
     app.editor.insertTextAtCursor(
       "logo 不太对还是，还出现了奇怪的--; logo你自己截取把:",
     );
@@ -7034,7 +7033,7 @@ describe("createTuiApp", () => {
 
   it("removes an inline image placeholder and its attachment with Backspace", async () => {
     const terminal = new FakeTerminal();
-    const resolveAttachment = vi.fn(async () => ({
+    const resolveAttachment = mock(async () => ({
       type: "image" as const,
       filePath: "/tmp/otty-paste/image-123.png",
       fileName: "image-123.png",
@@ -7053,13 +7052,13 @@ describe("createTuiApp", () => {
     await app.ready;
     app.editor.setText("first line\nsecond line");
     terminal.input?.("\x1b[200~/tmp/otty-paste/image-123.png\x1b[201~");
-    await vi.waitFor(() => expect(resolveAttachment).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(resolveAttachment).toHaveBeenCalledTimes(1));
 
     expect(app.editor.getText()).toBe("first line\nsecond line [Image #1] ");
     expect(app.tui.render(80).join("\n")).toContain("[Image #1]");
 
     terminal.input?.("\x7f");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.editor.getText().trimEnd()).toBe("first line\nsecond line"),
     );
     expect(app.tui.render(80).join("\n")).not.toContain("[Image #1]");
@@ -7069,7 +7068,7 @@ describe("createTuiApp", () => {
   it("resumes Desktop history, supports rename, and executes the files-unchanged fork flow", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessions).mockResolvedValue([
+    mocked(runtime.listSessions).mockResolvedValue([
       {
         sessionId: "session-existing",
         title: "Existing session",
@@ -7095,12 +7094,12 @@ describe("createTuiApp", () => {
       },
     ];
     const forkRuntime = runtime as TuiRuntime & TuiSessionForkPort;
-    vi.mocked(runtime.getMessages).mockResolvedValue(history);
-    vi.mocked(runtime.listMessagePage).mockResolvedValue({
+    mocked(runtime.getMessages).mockResolvedValue(history);
+    mocked(runtime.listMessagePage).mockResolvedValue({
       messages: history,
       hasMore: false,
     });
-    vi.mocked(runtime.getSession).mockImplementation(async (sessionId) =>
+    mocked(runtime.getSession).mockImplementation(async (sessionId) =>
       sessionId === "session-fork"
         ? {
             sessionId,
@@ -7114,13 +7113,13 @@ describe("createTuiApp", () => {
             workspaceDir: "/workspace",
           },
     );
-    vi.mocked(forkRuntime.getSessionForkOptions).mockResolvedValue({
+    mocked(forkRuntime.getSessionForkOptions).mockResolvedValue({
       canFork: true,
       suggestedTitle: "Existing session (fork 1)",
       worktreeVisible: false,
       worktreeEligible: false,
     });
-    vi.mocked(forkRuntime.forkSession).mockResolvedValue({
+    mocked(forkRuntime.forkSession).mockResolvedValue({
       session: {
         sessionId: "session-fork",
         parentSessionId: "session-existing",
@@ -7143,7 +7142,7 @@ describe("createTuiApp", () => {
     expect(app.interaction.isActive()).toBe(false);
     await app.submit("/resume 1");
     expect(app.getSurface()).toBe("conversation");
-    vi.mocked(runtime.renameSession).mockClear();
+    mocked(runtime.renameSession).mockClear();
     await app.submit("/rename");
     expect(runtime.renameSession).not.toHaveBeenCalled();
     expect(app.interaction.isActive()).toBe(true);
@@ -7155,9 +7154,9 @@ describe("createTuiApp", () => {
     app.interaction.current()?.handleInput?.("\x1b");
     expect(app.interaction.isActive()).toBe(false);
     await app.submit("/rename Renamed session");
-    vi.mocked(runtime.createSession).mockClear();
+    mocked(runtime.createSession).mockClear();
     await app.submit("/fork");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.listSessionInputSummaries).toHaveBeenCalledWith(
         "session-existing",
         {
@@ -7172,9 +7171,9 @@ describe("createTuiApp", () => {
     );
     expect(renderTerminalViewport(app, terminal)).not.toContain("Transcript");
     // Esc cancels without calling the fork Runtime API.
-    const beforeForkCalls = vi.mocked(runtime.forkSession).mock.calls.length;
+    const beforeForkCalls = mocked(runtime.forkSession).mock.calls.length;
     app.surfaceHost.popFeature();
-    expect(vi.mocked(runtime.forkSession).mock.calls.length).toBe(
+    expect(mocked(runtime.forkSession).mock.calls.length).toBe(
       beforeForkCalls,
     );
     const transcriptBeforeStatus = app.transcript.snapshot();
@@ -7203,7 +7202,7 @@ describe("createTuiApp", () => {
     async (tuiMode) => {
       const terminal = new FakeTerminal();
       const runtime = createRuntime();
-      vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+      mocked(runtime.listSessionInputSummaries).mockResolvedValue([
         {
           userMessageId: "msg-user-history",
           assistantMessageId: "msg-assistant-history",
@@ -7224,7 +7223,7 @@ describe("createTuiApp", () => {
       await app.submit("Seed the session");
       await app.submit("/history");
 
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.surfaceHost.getActiveSurface()).toEqual({
           kind: "feature",
           id: "session-history:explorer",
@@ -7248,7 +7247,7 @@ describe("createTuiApp", () => {
   it("forks with the assistant boundary and starts a new operation after a terminal failure", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+    mocked(runtime.listSessionInputSummaries).mockResolvedValue([
       {
         userMessageId: "msg-user-1",
         assistantMessageId: "msg-assistant-1",
@@ -7264,12 +7263,12 @@ describe("createTuiApp", () => {
         fileChangeCount: 0,
       },
     ]);
-    vi.mocked(runtime.getSessionForkOptions).mockResolvedValue({
+    mocked(runtime.getSessionForkOptions).mockResolvedValue({
       canFork: true,
       worktreeVisible: false,
       worktreeEligible: false,
     });
-    vi.mocked(runtime.forkSession).mockRejectedValueOnce(
+    mocked(runtime.forkSession).mockRejectedValueOnce(
       Object.assign(new Error("persisted fork recovery failed"), {
         key: "FORK_RECOVERY_FAILED",
       }),
@@ -7285,21 +7284,21 @@ describe("createTuiApp", () => {
 
     // Submit a message so the controller has an active session id.
     await app.submit("Seed the session");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().session?.sessionId).toBe("session-1"),
     );
     const sourceSessionId = app.controller.snapshot().session?.sessionId;
     expect(sourceSessionId).toBe("session-1");
 
     const transcriptBefore = app.transcript.snapshot();
-    vi.mocked(runtime.createSession).mockClear();
-    vi.mocked(runtime.forkSession).mockClear();
-    vi.mocked(runtime.getSessionForkOptions).mockClear();
-    vi.mocked(runtime.listSessionInputSummaries).mockClear();
+    mocked(runtime.createSession).mockClear();
+    mocked(runtime.forkSession).mockClear();
+    mocked(runtime.getSessionForkOptions).mockClear();
+    mocked(runtime.listSessionInputSummaries).mockClear();
     await app.submit("/fork");
 
     // 1. /fork loads input summaries, not the generic transcript.
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.listSessionInputSummaries).toHaveBeenCalledWith(
         sourceSessionId,
         {
@@ -7313,7 +7312,7 @@ describe("createTuiApp", () => {
     expect(renderTerminalViewport(app, terminal)).not.toContain("Transcript");
 
     // 2. The newest summary (last entry) is selected by default; confirm with Enter.
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.surfaceHost.getActiveSurface()).toEqual({
         kind: "feature",
         id: "session-mutation:history",
@@ -7322,13 +7321,13 @@ describe("createTuiApp", () => {
     terminal.input?.("\r");
 
     // The history selection only fetches options; it must not mutate yet.
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.getSessionForkOptions).toHaveBeenCalledWith(
         sourceSessionId,
         "msg-assistant-2",
       ),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.surfaceHost.getActiveSurface()).toEqual({
         kind: "feature",
         id: "session-mutation:fork-confirm",
@@ -7339,7 +7338,7 @@ describe("createTuiApp", () => {
 
     // 3. Explicit confirmation performs the mutation.
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.forkSession).toHaveBeenCalledWith(
         expect.objectContaining({
           sessionId: sourceSessionId,
@@ -7350,24 +7349,24 @@ describe("createTuiApp", () => {
       ),
     );
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.surfaceHost.getActiveSurface()).toEqual({
         kind: "feature",
         id: "session-mutation:fork-confirm",
       }),
     );
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.forkSession).toHaveBeenCalledTimes(2),
     );
-    const forkCalls = vi.mocked(runtime.forkSession).mock.calls;
+    const forkCalls = mocked(runtime.forkSession).mock.calls;
     const operationIds = forkCalls.map(([input]) => input.clientRequestId);
     expect(operationIds[0]).toBeTruthy();
     expect(operationIds[1]).toBeTruthy();
     expect(operationIds[0]).not.toBe(operationIds[1]);
 
     // 5. Activation moves the controller to the child session id.
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().session?.sessionId).toBe("session-fork"),
     );
     expect(runtime.createSession).not.toHaveBeenCalled();
@@ -7381,7 +7380,7 @@ describe("createTuiApp", () => {
 
   it("keeps the main run timer when switching to a side conversation and back", async () => {
     let clock = 1_000_000;
-    const now = vi.spyOn(Date, "now").mockImplementation(() => clock);
+    const now = spyOn(Date, "now").mockImplementation(() => clock);
     const terminal = new FakeTerminal();
     terminal.columns = 100;
     terminal.rows = 20;
@@ -7404,13 +7403,13 @@ describe("createTuiApp", () => {
       purpose: "peek_btw_session",
       sessionKind: "peek" as const,
     };
-    vi.mocked(runtime.createSession).mockImplementation(async (input) =>
+    mocked(runtime.createSession).mockImplementation(async (input) =>
       input?.purpose === sideSession.purpose ? { ...sideSession } : { ...mainSession },
     );
-    vi.mocked(runtime.getSession).mockImplementation(async (sessionId) =>
+    mocked(runtime.getSession).mockImplementation(async (sessionId) =>
       sessionId === sideSession.sessionId ? { ...sideSession } : { ...mainSession, sessionId },
     );
-    vi.mocked(runtime.getActiveRun).mockImplementation(async (sessionId) => {
+    mocked(runtime.getActiveRun).mockImplementation(async (sessionId) => {
       const running = sessionId === "session-1" && mainTurnId !== undefined;
       return {
         schemaVersion: 1 as const,
@@ -7420,7 +7419,7 @@ describe("createTuiApp", () => {
         actions: { steer: false },
       };
     });
-    vi.mocked(runtime.watchSessionTurn).mockImplementation(
+    mocked(runtime.watchSessionTurn).mockImplementation(
       async function* watchSessionTurn(_sessionId, _turnId, signal) {
         await new Promise<void>((resolve) => {
           signal.addEventListener("abort", () => resolve(), { once: true });
@@ -7428,7 +7427,7 @@ describe("createTuiApp", () => {
         for (const event of [] as TuiStreamEvent[]) yield event;
       },
     );
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage(request): AsyncGenerator<TuiStreamEvent> {
         mainTurnId = request.turnId;
         yield { type: "delta", content: "Working on main" };
@@ -7441,21 +7440,21 @@ describe("createTuiApp", () => {
     await app.ready;
     try {
       void app.submit("main task");
-      await vi.waitFor(() => expect(mainTurnId).toBeDefined());
+      await waitFor(() => expect(mainTurnId).toBeDefined());
       clock += 42_000;
-      await vi.waitFor(() => expect(renderTerminalViewport(app, terminal)).toContain("42s"));
+      await waitFor(() => expect(renderTerminalViewport(app, terminal)).toContain("42s"));
 
       await app.submit("/btw");
-      await vi.waitFor(() => expect(app.controller.snapshot().session?.sessionId).toBe("side-1"));
+      await waitFor(() => expect(app.controller.snapshot().session?.sessionId).toBe("side-1"));
       clock += 5_000;
       await app.submit("/parent");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.controller.snapshot().session?.sessionId).toBe("session-1"),
       );
       clock += 3_000;
 
       // 42s before the switch + 5s in the side view + 3s back on main.
-      await vi.waitFor(() => expect(renderTerminalViewport(app, terminal)).toMatch(/\b50s\b/u));
+      await waitFor(() => expect(renderTerminalViewport(app, terminal)).toMatch(/\b50s\b/u));
     } finally {
       releaseMainTurn();
       await app.stop();
@@ -7475,7 +7474,7 @@ describe("createTuiApp", () => {
       {
         label: "esc cancels the picker without invoking fork",
         setup: (runtime) => {
-          vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+          mocked(runtime.listSessionInputSummaries).mockResolvedValue([
             {
               userMessageId: "msg-user-1",
               assistantMessageId: "msg-assistant-1",
@@ -7493,7 +7492,7 @@ describe("createTuiApp", () => {
       {
         label: "unavailable fork surfaces a warning without invoking fork",
         setup: (runtime) => {
-          vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+          mocked(runtime.listSessionInputSummaries).mockResolvedValue([
             {
               userMessageId: "msg-user-1",
               assistantMessageId: "msg-assistant-1",
@@ -7502,7 +7501,7 @@ describe("createTuiApp", () => {
               fileChangeCount: 0,
             },
           ]);
-          vi.mocked(runtime.getSessionForkOptions).mockResolvedValue({
+          mocked(runtime.getSessionForkOptions).mockResolvedValue({
             canFork: false,
             unavailableReason: "No persisted user prompts yet.",
             worktreeVisible: false,
@@ -7518,7 +7517,7 @@ describe("createTuiApp", () => {
         label:
           "forkSession failure preserves the source session and transcript",
         setup: (runtime) => {
-          vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+          mocked(runtime.listSessionInputSummaries).mockResolvedValue([
             {
               userMessageId: "msg-user-1",
               assistantMessageId: "msg-assistant-1",
@@ -7527,12 +7526,12 @@ describe("createTuiApp", () => {
               fileChangeCount: 0,
             },
           ]);
-          vi.mocked(runtime.getSessionForkOptions).mockResolvedValue({
+          mocked(runtime.getSessionForkOptions).mockResolvedValue({
             canFork: true,
             worktreeVisible: false,
             worktreeEligible: false,
           });
-          vi.mocked(runtime.forkSession).mockRejectedValue(
+          mocked(runtime.forkSession).mockRejectedValue(
             new Error("Runtime offline."),
           );
         },
@@ -7557,13 +7556,13 @@ describe("createTuiApp", () => {
       app.start();
       await app.ready;
       await app.submit("Seed the session");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.controller.snapshot().session?.sessionId).toBe("session-1"),
       );
       const sourceSessionId = app.controller.snapshot().session?.sessionId;
       const transcriptBefore = app.transcript.snapshot();
       await app.submit("/fork");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.surfaceHost.getActiveSurface()).toEqual({
           kind: "feature",
           id: "session-mutation:history",
@@ -7571,7 +7570,7 @@ describe("createTuiApp", () => {
       );
       await scenario.interact(terminal);
       if (scenario.expectForkCall || scenario.label.includes("unavailable")) {
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(runtime.getSessionForkOptions).toHaveBeenCalled(),
         );
       }
@@ -7583,12 +7582,12 @@ describe("createTuiApp", () => {
       await new Promise((resolve) => setTimeout(resolve, 40));
       if (scenario.expectForkCall) {
         expect(
-          vi.mocked(runtime.forkSession).mock.calls.length,
+          mocked(runtime.forkSession).mock.calls.length,
           `${scenario.label} should call forkSession once`,
         ).toBe(1);
       } else {
         expect(
-          vi.mocked(runtime.forkSession).mock.calls.length,
+          mocked(runtime.forkSession).mock.calls.length,
           `${scenario.label} should not call forkSession`,
         ).toBe(0);
       }
@@ -7607,7 +7606,7 @@ describe("createTuiApp", () => {
   it("does not call forkSession when the source session changes between summary and selection", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+    mocked(runtime.listSessionInputSummaries).mockResolvedValue([
       {
         userMessageId: "msg-user-1",
         assistantMessageId: "msg-assistant-1",
@@ -7616,7 +7615,7 @@ describe("createTuiApp", () => {
         fileChangeCount: 0,
       },
     ]);
-    vi.mocked(runtime.getSessionForkOptions).mockResolvedValue({
+    mocked(runtime.getSessionForkOptions).mockResolvedValue({
       canFork: true,
       worktreeVisible: false,
       worktreeEligible: false,
@@ -7630,12 +7629,12 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     await app.submit("Seed the session");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().session?.sessionId).toBe("session-1"),
     );
 
     await app.submit("/fork");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.surfaceHost.getActiveSurface()).toEqual({
         kind: "feature",
         id: "session-mutation:history",
@@ -7648,8 +7647,8 @@ describe("createTuiApp", () => {
       title: "Other session",
       workspaceDir: "/workspace",
     };
-    vi.mocked(runtime.listSessions).mockResolvedValue([otherSession]);
-    vi.mocked(runtime.getSession).mockImplementation(async (sessionId) =>
+    mocked(runtime.listSessions).mockResolvedValue([otherSession]);
+    mocked(runtime.getSession).mockImplementation(async (sessionId) =>
       sessionId === otherSession.sessionId
         ? otherSession
         : { sessionId, workspaceDir: "/workspace" },
@@ -7662,15 +7661,15 @@ describe("createTuiApp", () => {
     // Confirming the picker now must not call forkSession.
     terminal.input?.("\r");
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(vi.mocked(runtime.forkSession)).not.toHaveBeenCalled();
-    expect(vi.mocked(runtime.getSessionForkOptions).mock.calls.length).toBe(0);
+    expect(mocked(runtime.forkSession)).not.toHaveBeenCalled();
+    expect(mocked(runtime.getSessionForkOptions).mock.calls.length).toBe(0);
   });
 
   it("preserves the /fork command draft and skips mutation when a turn is running", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
     let finishTurn: (() => void) | undefined;
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage() {
         await new Promise<void>((resolve) => {
           finishTurn = resolve;
@@ -7687,18 +7686,18 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     const submission = app.submit("Seed the session");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().session?.sessionId).toBe("session-1"),
     );
-    await vi.waitFor(() =>
-      expect(vi.mocked(runtime.sendMessage)).toHaveBeenCalled(),
+    await waitFor(() =>
+      expect(mocked(runtime.sendMessage)).toHaveBeenCalled(),
     );
 
-    const summariesBefore = vi.mocked(runtime.listSessionInputSummaries).mock
+    const summariesBefore = mocked(runtime.listSessionInputSummaries).mock
       .calls.length;
-    const forkOptionsBefore = vi.mocked(runtime.getSessionForkOptions).mock
+    const forkOptionsBefore = mocked(runtime.getSessionForkOptions).mock
       .calls.length;
-    const forkBefore = vi.mocked(runtime.forkSession).mock.calls.length;
+    const forkBefore = mocked(runtime.forkSession).mock.calls.length;
 
     // While the turn is still running, /fork should preserve the draft and
     // skip every runtime mutation method.
@@ -7706,13 +7705,13 @@ describe("createTuiApp", () => {
     await app.submit("/fork");
 
     expect(app.editor.getText()).toBe("/fork");
-    expect(vi.mocked(runtime.listSessionInputSummaries).mock.calls.length).toBe(
+    expect(mocked(runtime.listSessionInputSummaries).mock.calls.length).toBe(
       summariesBefore,
     );
-    expect(vi.mocked(runtime.getSessionForkOptions).mock.calls.length).toBe(
+    expect(mocked(runtime.getSessionForkOptions).mock.calls.length).toBe(
       forkOptionsBefore,
     );
-    expect(vi.mocked(runtime.forkSession).mock.calls.length).toBe(forkBefore);
+    expect(mocked(runtime.forkSession).mock.calls.length).toBe(forkBefore);
     // The fork surface should not have been pushed either.
     expect(app.surfaceHost.getActiveSurface()).toEqual({
       kind: "chat",
@@ -7732,7 +7731,7 @@ describe("createTuiApp", () => {
     async (scope, navigation) => {
       const terminal = new FakeTerminal();
       const runtime = createRuntime();
-      vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+      mocked(runtime.listSessionInputSummaries).mockResolvedValue([
         {
           userMessageId: "msg-user-rewind",
           contentHead: "Undo this point",
@@ -7740,7 +7739,7 @@ describe("createTuiApp", () => {
           fileChangeCount: 2,
         },
       ]);
-      vi.mocked(runtime.getSessionRewindPreview).mockResolvedValue({
+      mocked(runtime.getSessionRewindPreview).mockResolvedValue({
         turns: [
           {
             turnId: "turn-1",
@@ -7751,7 +7750,7 @@ describe("createTuiApp", () => {
           },
         ],
       });
-      vi.mocked(runtime.rewindSession).mockResolvedValue(
+      mocked(runtime.rewindSession).mockResolvedValue(
         scope === "conversation"
           ? { rewound: true }
           : {
@@ -7771,29 +7770,29 @@ describe("createTuiApp", () => {
       app.start();
       await app.ready;
       await app.submit("Seed rewind session");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.controller.snapshot().session?.sessionId).toBe("session-1"),
       );
       expect(
         app.transcript.snapshot().some((cell) => cell.kind === "turn-duration"),
       ).toBe(true);
-      vi.mocked(runtime.getMessages).mockResolvedValue([]);
+      mocked(runtime.getMessages).mockResolvedValue([]);
 
       await app.submit("/rewind");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.surfaceHost.getActiveSurface()).toEqual({
           kind: "feature",
           id: "session-mutation:history",
         }),
       );
       terminal.input?.("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(runtime.getSessionRewindPreview).toHaveBeenCalledWith({
           sessionId: "session-1",
           userMessageId: "msg-user-rewind",
         }),
       );
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.surfaceHost.getActiveSurface()).toEqual({
           kind: "feature",
           id: "session-mutation:rewind-preview",
@@ -7802,7 +7801,7 @@ describe("createTuiApp", () => {
       expect(renderTerminalViewport(app, terminal)).toContain("src/ready.ts");
       expect(renderTerminalViewport(app, terminal)).toContain("src/skipped.ts");
       terminal.input?.("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.surfaceHost.getActiveSurface()).toEqual({
           kind: "feature",
           id: "session-mutation:scope",
@@ -7810,7 +7809,7 @@ describe("createTuiApp", () => {
       );
       for (const key of navigation) terminal.input?.(key);
       terminal.input?.("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.surfaceHost.getActiveSurface()).toEqual({
           kind: "feature",
           id: "session-mutation:rewind-confirm",
@@ -7818,10 +7817,10 @@ describe("createTuiApp", () => {
       );
       expect(runtime.rewindSession).not.toHaveBeenCalled();
       terminal.input?.("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(runtime.rewindSession).toHaveBeenCalledTimes(1),
       );
-      const input = vi.mocked(runtime.rewindSession).mock.calls[0]?.[0];
+      const input = mocked(runtime.rewindSession).mock.calls[0]?.[0];
       expect(input).toEqual({
         sessionId: "session-1",
         userMessageId: "msg-user-rewind",
@@ -7829,8 +7828,8 @@ describe("createTuiApp", () => {
         ...(scope === "conversation_and_files" ? { rewindTurnDiff: true } : {}),
       });
       expect(input?.clientRequestId).toMatch(/^tui-rewind_/);
-      await vi.waitFor(() => expect(runtime.getMessages).toHaveBeenCalled());
-      await vi.waitFor(() =>
+      await waitFor(() => expect(runtime.getMessages).toHaveBeenCalled());
+      await waitFor(() =>
         expect(app.surfaceHost.getActiveSurface()).toEqual({
           kind: "chat",
           id: "chat",
@@ -7849,7 +7848,7 @@ describe("createTuiApp", () => {
   it("edits only the latest user turn, hides that turn while editing, and adds no completion cell", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+    mocked(runtime.listSessionInputSummaries).mockResolvedValue([
       {
         userMessageId: "msg-user-older",
         assistantMessageId: "msg-assistant-older",
@@ -7865,7 +7864,7 @@ describe("createTuiApp", () => {
         fileChangeCount: 0,
       },
     ]);
-    vi.mocked(runtime.listMessagePage).mockResolvedValue({
+    mocked(runtime.listMessagePage).mockResolvedValue({
       messages: [
         {
           id: "msg-user-older",
@@ -7891,7 +7890,7 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     await app.submit("Seed edit session");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().session?.sessionId).toBe("session-1"),
     );
     app.transcript.upsert({
@@ -7923,7 +7922,7 @@ describe("createTuiApp", () => {
     });
 
     await app.submit("/edit");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.editor.getExpandedText()).toBe("Latest prompt"),
     );
     expect(app.surfaceHost.getActiveSurface()).toEqual({
@@ -7934,15 +7933,15 @@ describe("createTuiApp", () => {
     expect(editingFrame).toContain("Older prompt");
     expect(editingFrame).not.toContain("Latest response");
 
-    const historyRefreshCount = vi.mocked(runtime.getMessages).mock.calls
+    const historyRefreshCount = mocked(runtime.getMessages).mock.calls
       .length;
     app.editor.setText("Edited latest prompt");
     app.editor.handleInput("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.editSessionMessage).toHaveBeenCalledTimes(1),
     );
-    await vi.waitFor(() =>
-      expect(vi.mocked(runtime.getMessages).mock.calls.length).toBeGreaterThan(
+    await waitFor(() =>
+      expect(mocked(runtime.getMessages).mock.calls.length).toBeGreaterThan(
         historyRefreshCount,
       ),
     );
@@ -7967,7 +7966,7 @@ describe("createTuiApp", () => {
   it("restores the hidden latest turn when Edit is cancelled", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+    mocked(runtime.listSessionInputSummaries).mockResolvedValue([
       {
         userMessageId: "msg-user-latest",
         assistantMessageId: "msg-assistant-latest",
@@ -7976,7 +7975,7 @@ describe("createTuiApp", () => {
         fileChangeCount: 0,
       },
     ]);
-    vi.mocked(runtime.listMessagePage).mockResolvedValue({
+    mocked(runtime.listMessagePage).mockResolvedValue({
       messages: [
         {
           id: "msg-user-latest",
@@ -8016,7 +8015,7 @@ describe("createTuiApp", () => {
     });
 
     await app.submit("/edit");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.editor.getExpandedText()).toBe("Latest prompt"),
     );
     expect(app.tui.render(100).join("\n")).not.toContain(
@@ -8024,7 +8023,7 @@ describe("createTuiApp", () => {
     );
 
     terminal.input?.("\u001b");
-    await vi.waitFor(() => expect(app.editor.getExpandedText()).toBe(""));
+    await waitFor(() => expect(app.editor.getExpandedText()).toBe(""));
     expect(app.tui.render(100).join("\n")).toContain(
       "Latest response restored on cancel",
     );
@@ -8045,7 +8044,7 @@ describe("createTuiApp", () => {
     async ({ reference, action }) => {
       const terminal = new FakeTerminal();
       const runtime = createRuntime();
-      vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+      mocked(runtime.listSessionInputSummaries).mockResolvedValue([
         {
           userMessageId: "msg-user-latest",
           assistantMessageId: "msg-assistant-latest",
@@ -8054,7 +8053,7 @@ describe("createTuiApp", () => {
           fileChangeCount: 0,
         },
       ]);
-      vi.mocked(runtime.listMessagePage).mockResolvedValue({
+      mocked(runtime.listMessagePage).mockResolvedValue({
         messages: [
           {
             id: "msg-user-latest",
@@ -8094,16 +8093,16 @@ describe("createTuiApp", () => {
       let restoredText = "Latest prompt from shortcut [Image #1] ";
       if (action === "cached") {
         terminal.input?.("\x1b[200~/workspace/edit-reference.png\x1b[201~");
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(app.editor.getText()).toContain("[Image #1]"),
         );
         app.editor.handleInput("Latest prompt from shortcut");
         restoredText = app.editor.getText();
         app.editor.handleInput("\r");
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(runtime.sendMessage).toHaveBeenCalledTimes(1),
         );
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(app.controller.snapshot().activeTurnId).toBeUndefined(),
         );
       } else {
@@ -8113,7 +8112,7 @@ describe("createTuiApp", () => {
       terminal.input?.("\u001b");
       terminal.input?.("\u001b");
 
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.editor.getExpandedText()).toBe(restoredText),
       );
       expect(runtime.listSessionInputSummaries).toHaveBeenCalledWith(
@@ -8125,14 +8124,14 @@ describe("createTuiApp", () => {
         id: "chat",
       });
       expect(stripAnsi(app.tui.render(100).join("\n"))).toContain("[Image #1]");
-      vi.mocked(runtime.editSessionMessage).mockRejectedValueOnce(
+      mocked(runtime.editSessionMessage).mockRejectedValueOnce(
         new Error("Temporary failure"),
       );
       app.editor.handleInput("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(runtime.editSessionMessage).toHaveBeenCalledTimes(1),
       );
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.editor.getExpandedText()).toBe(restoredText),
       );
       expect(stripAnsi(app.tui.render(100).join("\n"))).toContain("[Image #1]");
@@ -8153,7 +8152,7 @@ describe("createTuiApp", () => {
       if (action === "delete" || action === "undo") {
         app.editor.handleInput("\x05");
         app.editor.handleInput("\x7f");
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(app.editor.getText()).not.toContain("[Image #1]"),
         );
         if (action === "undo") {
@@ -8163,7 +8162,7 @@ describe("createTuiApp", () => {
       }
       if (action === "add") {
         terminal.input?.("\x1b[200~/workspace/new.png\x1b[201~");
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(app.editor.getText()).toContain("[Image #2]"),
         );
         expect(app.editor.captureDraft().attachmentPlaceholders).toHaveLength(
@@ -8180,10 +8179,10 @@ describe("createTuiApp", () => {
         terminal.input?.("\u001b");
       } else {
         app.editor.handleInput("\r");
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(runtime.editSessionMessage).toHaveBeenCalledTimes(2),
         );
-        const sent = vi.mocked(runtime.editSessionMessage).mock.calls[1]?.[0];
+        const sent = mocked(runtime.editSessionMessage).mock.calls[1]?.[0];
         expect(sent?.content).toBe("Latest prompt from shortcut");
         expect(sent?.attachments ?? []).toHaveLength(
           action === "delete" ? 0 : action === "add" ? 2 : 1,
@@ -8191,7 +8190,7 @@ describe("createTuiApp", () => {
         if (action !== "delete")
           expect(sent?.attachments?.[0]?.fileName).toBe("edit-reference.png");
       }
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(stripAnsi(app.tui.render(100).join("\n"))).not.toContain(
           "[Image #1]",
         ),
@@ -8203,7 +8202,7 @@ describe("createTuiApp", () => {
   it("edits the latest committed user turn through the desktop-aligned mutation contract", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+    mocked(runtime.listSessionInputSummaries).mockResolvedValue([
       {
         userMessageId: "msg-user-v1-target",
         assistantMessageId: "msg-assistant-v1-target",
@@ -8212,7 +8211,7 @@ describe("createTuiApp", () => {
         fileChangeCount: 1,
       },
     ]);
-    vi.mocked(runtime.listMessagePage).mockResolvedValue({
+    mocked(runtime.listMessagePage).mockResolvedValue({
       messages: [
         {
           id: "msg-user-v1-target",
@@ -8241,12 +8240,12 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     await app.submit("Seed edit session");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().session?.sessionId).toBe("session-1"),
     );
 
     await app.submit("/edit");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.editor.getExpandedText()).toBe(
         "Original complete prompt [File #1] ",
       ),
@@ -8258,7 +8257,7 @@ describe("createTuiApp", () => {
 
     app.editor.setText("Updated prompt");
     app.editor.handleInput("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.editSessionMessage).toHaveBeenCalledTimes(1),
     );
     expect(runtime.editSessionMessage).toHaveBeenCalledWith({
@@ -8290,7 +8289,7 @@ describe("createTuiApp", () => {
       "",
       "Original visible prompt",
     ].join("\n");
-    vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+    mocked(runtime.listSessionInputSummaries).mockResolvedValue([
       {
         userMessageId: "msg-user-v1-context",
         assistantMessageId: "msg-assistant-v1-context",
@@ -8299,7 +8298,7 @@ describe("createTuiApp", () => {
         fileChangeCount: 0,
       },
     ]);
-    vi.mocked(runtime.listMessagePage).mockResolvedValue({
+    mocked(runtime.listMessagePage).mockResolvedValue({
       messages: [
         {
           id: "msg-user-v1-context",
@@ -8310,7 +8309,7 @@ describe("createTuiApp", () => {
       ],
       hasMore: false,
     });
-    vi.mocked(runtime.getSessionRewindPreview).mockResolvedValue({ turns: [] });
+    mocked(runtime.getSessionRewindPreview).mockResolvedValue({ turns: [] });
     const app = createTuiApp({
       runtime,
       terminal,
@@ -8322,14 +8321,14 @@ describe("createTuiApp", () => {
     await app.submit("Seed edit session");
 
     await app.submit("/edit");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.editor.getExpandedText()).toBe("Original visible prompt"),
     );
     expect(app.editor.getExpandedText()).not.toContain("user-provided-context");
 
     app.editor.setText("Updated visible prompt");
     app.editor.handleInput("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.editSessionMessage).toHaveBeenCalledTimes(1),
     );
     expect(runtime.editSessionMessage).toHaveBeenCalledWith(
@@ -8356,7 +8355,7 @@ describe("createTuiApp", () => {
       "",
       "Original visible prompt",
     ].join("\n");
-    vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+    mocked(runtime.listSessionInputSummaries).mockResolvedValue([
       {
         userMessageId: "msg-user-v1-recovery",
         assistantMessageId: "msg-assistant-v1-recovery",
@@ -8365,7 +8364,7 @@ describe("createTuiApp", () => {
         fileChangeCount: 0,
       },
     ]);
-    vi.mocked(runtime.listMessagePage).mockResolvedValue({
+    mocked(runtime.listMessagePage).mockResolvedValue({
       messages: [
         {
           id: "msg-user-v1-recovery",
@@ -8385,8 +8384,8 @@ describe("createTuiApp", () => {
       ],
       hasMore: false,
     });
-    vi.mocked(runtime.getSessionRewindPreview).mockResolvedValue({ turns: [] });
-    vi.mocked(runtime.editSessionMessage).mockRejectedValueOnce(
+    mocked(runtime.getSessionRewindPreview).mockResolvedValue({ turns: [] });
+    mocked(runtime.editSessionMessage).mockRejectedValueOnce(
       Object.assign(new Error("history already rewound"), {
         key: "EDIT_RESTART_NEEDS_RESUBMIT",
       }),
@@ -8400,11 +8399,11 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     await app.submit("Seed edit session");
-    const sendCountBeforeEdit = vi.mocked(runtime.sendMessage).mock.calls
+    const sendCountBeforeEdit = mocked(runtime.sendMessage).mock.calls
       .length;
 
     await app.submit("/edit");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.editor.getExpandedText()).toBe(
         "Original visible prompt [File #1] ",
       ),
@@ -8412,10 +8411,10 @@ describe("createTuiApp", () => {
 
     app.editor.setText("/help should remain message text");
     app.editor.handleInput("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.editSessionMessage).toHaveBeenCalledTimes(1),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.editor.getExpandedText()).toBe(
         "/help should remain message text [File #1] ",
       ),
@@ -8424,7 +8423,7 @@ describe("createTuiApp", () => {
     expect(runtime.sendMessage).toHaveBeenCalledTimes(sendCountBeforeEdit);
 
     let releaseAdmission!: () => void;
-    vi.mocked(runtime.getAccountStatus).mockImplementationOnce(
+    mocked(runtime.getAccountStatus).mockImplementationOnce(
       async () =>
         await new Promise((resolve) => {
           releaseAdmission = () =>
@@ -8440,12 +8439,12 @@ describe("createTuiApp", () => {
         }),
     );
     app.editor.handleInput("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().activeTurnId).toBeDefined(),
     );
     terminal.input?.("\u001b");
     releaseAdmission();
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.editor.getExpandedText()).toBe(
         "/help should remain message text [File #1] ",
       ),
@@ -8453,12 +8452,12 @@ describe("createTuiApp", () => {
     expect(runtime.sendMessage).toHaveBeenCalledTimes(sendCountBeforeEdit);
 
     app.editor.handleInput("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.sendMessage).toHaveBeenCalledTimes(
         sendCountBeforeEdit + 1,
       ),
     );
-    expect(vi.mocked(runtime.sendMessage).mock.calls.at(-1)?.[0]).toMatchObject(
+    expect(mocked(runtime.sendMessage).mock.calls.at(-1)?.[0]).toMatchObject(
       {
         content: [
           "<mavis-chat-context>",
@@ -8501,7 +8500,7 @@ describe("createTuiApp", () => {
   it("allows an attachment-only committed message to enter Edit and gain a body", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+    mocked(runtime.listSessionInputSummaries).mockResolvedValue([
       {
         userMessageId: "msg-user-v1-attachment-only",
         assistantMessageId: "msg-assistant-v1-attachment-only",
@@ -8509,7 +8508,7 @@ describe("createTuiApp", () => {
         fileChangeCount: 0,
       },
     ]);
-    vi.mocked(runtime.listMessagePage).mockResolvedValue({
+    mocked(runtime.listMessagePage).mockResolvedValue({
       messages: [
         {
           id: "msg-user-v1-attachment-only",
@@ -8528,7 +8527,7 @@ describe("createTuiApp", () => {
       ],
       hasMore: false,
     });
-    vi.mocked(runtime.getSessionRewindPreview).mockResolvedValue({ turns: [] });
+    mocked(runtime.getSessionRewindPreview).mockResolvedValue({ turns: [] });
     const app = createTuiApp({
       runtime,
       terminal,
@@ -8538,11 +8537,11 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     await app.submit("Seed edit session");
-    const sendCountBeforeEdit = vi.mocked(runtime.sendMessage).mock.calls
+    const sendCountBeforeEdit = mocked(runtime.sendMessage).mock.calls
       .length;
 
     await app.submit("/edit");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.tui.render(100).join("\n")).toContain(
         "Editing the selected message",
       ),
@@ -8555,7 +8554,7 @@ describe("createTuiApp", () => {
 
     app.editor.setText("Describe this reference");
     app.editor.handleInput("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.editSessionMessage).toHaveBeenCalledTimes(1),
     );
     expect(runtime.editSessionMessage).toHaveBeenCalledWith({
@@ -8580,7 +8579,7 @@ describe("createTuiApp", () => {
   it("keeps a second composer submission while an edit request is still in flight", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+    mocked(runtime.listSessionInputSummaries).mockResolvedValue([
       {
         userMessageId: "msg-user-v1-target",
         assistantMessageId: "msg-assistant-v1-target",
@@ -8589,7 +8588,7 @@ describe("createTuiApp", () => {
         fileChangeCount: 0,
       },
     ]);
-    vi.mocked(runtime.listMessagePage).mockResolvedValue({
+    mocked(runtime.listMessagePage).mockResolvedValue({
       messages: [
         {
           id: "msg-user-v1-target",
@@ -8600,13 +8599,13 @@ describe("createTuiApp", () => {
       ],
       hasMore: false,
     });
-    vi.mocked(runtime.getSessionRewindPreview).mockResolvedValue({ turns: [] });
+    mocked(runtime.getSessionRewindPreview).mockResolvedValue({ turns: [] });
     let resolveEdit!: (value: {
       rewound: boolean;
       turnId: string;
       userMessageId: string;
     }) => void;
-    vi.mocked(runtime.editSessionMessage).mockImplementation(
+    mocked(runtime.editSessionMessage).mockImplementation(
       () =>
         new Promise((resolve) => {
           resolveEdit = resolve;
@@ -8621,22 +8620,22 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     await app.submit("Seed edit session");
-    const sendCountBeforeEdit = vi.mocked(runtime.sendMessage).mock.calls
+    const sendCountBeforeEdit = mocked(runtime.sendMessage).mock.calls
       .length;
 
     await app.submit("/edit");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.editor.getText()).toBe("Original prompt"),
     );
     app.editor.setText("First edited prompt");
     app.editor.handleInput("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.editSessionMessage).toHaveBeenCalledTimes(1),
     );
 
     app.editor.setText("Keep this until edit settles");
     app.editor.handleInput("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.editor.getText()).toBe("Keep this until edit settles"),
     );
     expect(runtime.sendMessage).toHaveBeenCalledTimes(sendCountBeforeEdit);
@@ -8652,7 +8651,7 @@ describe("createTuiApp", () => {
   it("preserves the edit and retries the same operation when submission fails after rewind", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+    mocked(runtime.listSessionInputSummaries).mockResolvedValue([
       {
         userMessageId: "msg-user-v1-target",
         assistantMessageId: "msg-assistant-v1-target",
@@ -8661,7 +8660,7 @@ describe("createTuiApp", () => {
         fileChangeCount: 0,
       },
     ]);
-    vi.mocked(runtime.listMessagePage).mockResolvedValue({
+    mocked(runtime.listMessagePage).mockResolvedValue({
       messages: [
         {
           id: "msg-user-v1-target",
@@ -8672,8 +8671,8 @@ describe("createTuiApp", () => {
       ],
       hasMore: false,
     });
-    vi.mocked(runtime.getSessionRewindPreview).mockResolvedValue({ turns: [] });
-    vi.mocked(runtime.editSessionMessage)
+    mocked(runtime.getSessionRewindPreview).mockResolvedValue({ turns: [] });
+    mocked(runtime.editSessionMessage)
       .mockRejectedValueOnce(
         Object.assign(new Error("submit failed"), {
           key: "EDIT_SUBMIT_FAILED_AFTER_REWIND",
@@ -8695,16 +8694,16 @@ describe("createTuiApp", () => {
     await app.submit("Seed edit session");
 
     await app.submit("/edit");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.editor.getText()).toBe("Original prompt"),
     );
     app.editor.setText("Preserve this edited prompt");
     app.editor.handleInput("\r");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.editSessionMessage).toHaveBeenCalledTimes(1),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.editor.getText()).toBe("Preserve this edited prompt"),
     );
     expect(
@@ -8713,11 +8712,11 @@ describe("createTuiApp", () => {
         .some((cell) => cell.content.includes("History was rewound")),
     ).toBe(true);
 
-    const firstOperationId = vi.mocked(runtime.editSessionMessage).mock
+    const firstOperationId = mocked(runtime.editSessionMessage).mock
       .calls[0]?.[0].clientRequestId;
-    const sendCount = vi.mocked(runtime.sendMessage).mock.calls.length;
+    const sendCount = mocked(runtime.sendMessage).mock.calls.length;
     app.editor.handleInput("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.editSessionMessage).toHaveBeenCalledTimes(2),
     );
     expect(runtime.editSessionMessage).toHaveBeenLastCalledWith(
@@ -8735,7 +8734,7 @@ describe("createTuiApp", () => {
       let resolveHistory!: (
         value: Awaited<ReturnType<TuiRuntime['listSessionInputSummaries']>>,
       ) => void;
-      vi.mocked(runtime.listSessionInputSummaries).mockImplementation(
+      mocked(runtime.listSessionInputSummaries).mockImplementation(
         () =>
           new Promise((resolve) => {
             resolveHistory = resolve;
@@ -8750,7 +8749,7 @@ describe("createTuiApp", () => {
         const loadingChat = stripAnsi(app.tui.render(120).join('\n'));
         expect(loadingChat).toMatch(/Loading|Finding/);
         resolveHistory([{ userMessageId: 'history-user', timestamp: 1, fileChangeCount: 0 }]);
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(app.surfaceHost.getActiveSurface()).toEqual({
             kind: 'feature',
             id: 'session-mutation:history',
@@ -8773,10 +8772,10 @@ describe("createTuiApp", () => {
   it("cancels /rewind preview and ignores duplicate scope submission", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+    mocked(runtime.listSessionInputSummaries).mockResolvedValue([
       { userMessageId: "msg-user-rewind", timestamp: 1, fileChangeCount: 1 },
     ]);
-    vi.mocked(runtime.getSessionRewindPreview).mockResolvedValue({
+    mocked(runtime.getSessionRewindPreview).mockResolvedValue({
       turns: [
         {
           turnId: "turn-1",
@@ -8785,7 +8784,7 @@ describe("createTuiApp", () => {
       ],
     });
     let resolveRewind!: (value: { rewound: boolean }) => void;
-    vi.mocked(runtime.rewindSession).mockImplementation(
+    mocked(runtime.rewindSession).mockImplementation(
       () =>
         new Promise((resolve) => {
           resolveRewind = resolve;
@@ -8801,14 +8800,14 @@ describe("createTuiApp", () => {
     await app.ready;
     await app.submit("Seed rewind session");
     await app.submit("/rewind");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.surfaceHost.getActiveSurface()).toEqual({
         kind: "feature",
         id: "session-mutation:history",
       }),
     );
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.surfaceHost.getActiveSurface()).toEqual({
         kind: "feature",
         id: "session-mutation:rewind-preview",
@@ -8818,35 +8817,35 @@ describe("createTuiApp", () => {
     expect(runtime.rewindSession).not.toHaveBeenCalled();
 
     await app.submit("/rewind");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.surfaceHost.getActiveSurface()).toEqual({
         kind: "feature",
         id: "session-mutation:history",
       }),
     );
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.surfaceHost.getActiveSurface()).toEqual({
         kind: "feature",
         id: "session-mutation:rewind-preview",
       }),
     );
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.surfaceHost.getActiveSurface()).toEqual({
         kind: "feature",
         id: "session-mutation:scope",
       }),
     );
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.surfaceHost.getActiveSurface()).toEqual({
         kind: "feature",
         id: "session-mutation:rewind-confirm",
       }),
     );
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.rewindSession).toHaveBeenCalledTimes(1),
     );
     terminal.input?.("\u001b");
@@ -8855,7 +8854,7 @@ describe("createTuiApp", () => {
       id: "session-mutation:rewind-confirm",
     });
     resolveRewind({ rewound: true });
-    await vi.waitFor(() => expect(app.surfaceHost.getActiveSurface()).toEqual({ kind: 'chat', id: 'chat' }));
+    await waitFor(() => expect(app.surfaceHost.getActiveSurface()).toEqual({ kind: 'chat', id: 'chat' }));
     expect(stripAnsi(app.tui.render(120).join('\n'))).toContain('Rewound 1 turn');
     expect(stripAnsi(app.tui.render(120).join('\n'))).not.toMatch(/Loading rewind history|Finding messages/);
     await app.stop();
@@ -8864,10 +8863,10 @@ describe("createTuiApp", () => {
   it("invalidates /rewind when the active session switches before mutation", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+    mocked(runtime.listSessionInputSummaries).mockResolvedValue([
       { userMessageId: "msg-user-rewind", timestamp: 1, fileChangeCount: 0 },
     ]);
-    vi.mocked(runtime.getSessionRewindPreview).mockResolvedValue({ turns: [] });
+    mocked(runtime.getSessionRewindPreview).mockResolvedValue({ turns: [] });
     const app = createTuiApp({
       runtime,
       terminal,
@@ -8878,7 +8877,7 @@ describe("createTuiApp", () => {
     await app.ready;
     await app.submit("Seed rewind session");
     await app.submit("/rewind");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.surfaceHost.getActiveSurface()).toEqual({
         kind: "feature",
         id: "session-mutation:history",
@@ -8889,7 +8888,7 @@ describe("createTuiApp", () => {
       title: "Other",
       workspaceDir: "/workspace",
     };
-    vi.mocked(runtime.getSession).mockResolvedValue(other);
+    mocked(runtime.getSession).mockResolvedValue(other);
     await app.openSession(other.sessionId);
     terminal.input?.("\r");
     await new Promise((resolve) => setTimeout(resolve, 20));
@@ -8902,10 +8901,10 @@ describe("createTuiApp", () => {
   it("retries a failed file rewind with the same operation id", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+    mocked(runtime.listSessionInputSummaries).mockResolvedValue([
       { userMessageId: "msg-user-rewind", timestamp: 1, fileChangeCount: 1 },
     ]);
-    vi.mocked(runtime.getSessionRewindPreview).mockResolvedValue({
+    mocked(runtime.getSessionRewindPreview).mockResolvedValue({
       turns: [
         {
           turnId: "turn-1",
@@ -8913,7 +8912,7 @@ describe("createTuiApp", () => {
         },
       ],
     });
-    vi.mocked(runtime.rewindSession)
+    mocked(runtime.rewindSession)
       .mockRejectedValueOnce(new Error("temporary conflict"))
       .mockResolvedValueOnce({
         rewound: true,
@@ -8929,21 +8928,21 @@ describe("createTuiApp", () => {
     await app.ready;
     await app.submit("Seed rewind session");
     await app.submit("/rewind");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.surfaceHost.getActiveSurface()).toEqual({
         kind: "feature",
         id: "session-mutation:history",
       }),
     );
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.surfaceHost.getActiveSurface()).toEqual({
         kind: "feature",
         id: "session-mutation:rewind-preview",
       }),
     );
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.surfaceHost.getActiveSurface()).toEqual({
         kind: "feature",
         id: "session-mutation:scope",
@@ -8951,14 +8950,14 @@ describe("createTuiApp", () => {
     );
     terminal.input?.("\u001b[B");
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.surfaceHost.getActiveSurface()).toEqual({
         kind: "feature",
         id: "session-mutation:rewind-confirm",
       }),
     );
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.rewindSession).toHaveBeenCalledTimes(1),
     );
     expect(app.surfaceHost.getActiveSurface()).toEqual({
@@ -8966,11 +8965,10 @@ describe("createTuiApp", () => {
       id: "session-mutation:rewind-confirm",
     });
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.rewindSession).toHaveBeenCalledTimes(2),
     );
-    const ids = vi
-      .mocked(runtime.rewindSession)
+    const ids = mocked(runtime.rewindSession)
       .mock.calls.map(([input]) => input.clientRequestId);
     expect(ids[0]).toBe(ids[1]);
     await app.stop();
@@ -8994,13 +8992,13 @@ describe("createTuiApp", () => {
     async (_label, errorCode, expectedCopy, reuseOperationId) => {
       const terminal = new FakeTerminal();
       const runtime = createRuntime();
-      vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+      mocked(runtime.listSessionInputSummaries).mockResolvedValue([
         { userMessageId: "msg-user-rewind", timestamp: 1, fileChangeCount: 0 },
       ]);
-      vi.mocked(runtime.getSessionRewindPreview).mockResolvedValue({
+      mocked(runtime.getSessionRewindPreview).mockResolvedValue({
         turns: [],
       });
-      vi.mocked(runtime.rewindSession)
+      mocked(runtime.rewindSession)
         .mockRejectedValueOnce(
           Object.assign(new Error("rewind failed"), { key: errorCode }),
         )
@@ -9015,35 +9013,35 @@ describe("createTuiApp", () => {
       await app.ready;
       await app.submit("Seed rewind session");
       await app.submit("/rewind");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.surfaceHost.getActiveSurface()).toEqual({
           kind: "feature",
           id: "session-mutation:history",
         }),
       );
       terminal.input?.("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.surfaceHost.getActiveSurface()).toEqual({
           kind: "feature",
           id: "session-mutation:rewind-preview",
         }),
       );
       terminal.input?.("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.surfaceHost.getActiveSurface()).toEqual({
           kind: "feature",
           id: "session-mutation:scope",
         }),
       );
       terminal.input?.("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.surfaceHost.getActiveSurface()).toEqual({
           kind: "feature",
           id: "session-mutation:rewind-confirm",
         }),
       );
       terminal.input?.("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(runtime.rewindSession).toHaveBeenCalledTimes(1),
       );
       expect(app.surfaceHost.getActiveSurface()).toEqual({
@@ -9053,11 +9051,10 @@ describe("createTuiApp", () => {
       expect(renderTerminalViewport(app, terminal)).toContain(expectedCopy);
 
       terminal.input?.("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(runtime.rewindSession).toHaveBeenCalledTimes(2),
       );
-      const ids = vi
-        .mocked(runtime.rewindSession)
+      const ids = mocked(runtime.rewindSession)
         .mock.calls.map(([input]) => input.clientRequestId);
       if (reuseOperationId) expect(ids[0]).toBe(ids[1]);
       else expect(ids[0]).not.toBe(ids[1]);
@@ -9084,10 +9081,10 @@ describe("createTuiApp", () => {
     async (_label, turnDiffRewind) => {
       const terminal = new FakeTerminal();
       const runtime = createRuntime();
-      vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+      mocked(runtime.listSessionInputSummaries).mockResolvedValue([
         { userMessageId: "msg-user-rewind", timestamp: 1, fileChangeCount: 1 },
       ]);
-      vi.mocked(runtime.getSessionRewindPreview).mockResolvedValue({
+      mocked(runtime.getSessionRewindPreview).mockResolvedValue({
         turns: [
           {
             turnId: "turn-1",
@@ -9095,7 +9092,7 @@ describe("createTuiApp", () => {
           },
         ],
       });
-      vi.mocked(runtime.rewindSession).mockResolvedValue({
+      mocked(runtime.rewindSession).mockResolvedValue({
         rewound: true,
         turnDiffRewind,
       });
@@ -9109,21 +9106,21 @@ describe("createTuiApp", () => {
       await app.ready;
       await app.submit("Seed rewind session");
       await app.submit("/rewind");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.surfaceHost.getActiveSurface()).toEqual({
           kind: "feature",
           id: "session-mutation:history",
         }),
       );
       terminal.input?.("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.surfaceHost.getActiveSurface()).toEqual({
           kind: "feature",
           id: "session-mutation:rewind-preview",
         }),
       );
       terminal.input?.("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.surfaceHost.getActiveSurface()).toEqual({
           kind: "feature",
           id: "session-mutation:scope",
@@ -9131,17 +9128,17 @@ describe("createTuiApp", () => {
       );
       terminal.input?.("\u001b[B");
       terminal.input?.("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.surfaceHost.getActiveSurface()).toEqual({
           kind: "feature",
           id: "session-mutation:rewind-confirm",
         }),
       );
       terminal.input?.("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(runtime.rewindSession).toHaveBeenCalledTimes(1),
       );
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.transcript.snapshot().at(-1)?.content).toMatch(
           /did not complete|No file changes/,
         ),
@@ -9168,10 +9165,10 @@ describe("createTuiApp", () => {
     async (code, expected) => {
       const terminal = new FakeTerminal();
       const runtime = createRuntime();
-      vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+      mocked(runtime.listSessionInputSummaries).mockResolvedValue([
         { userMessageId: "msg-user-rewind", timestamp: 1, fileChangeCount: 1 },
       ]);
-      vi.mocked(runtime.getSessionRewindPreview).mockResolvedValue({
+      mocked(runtime.getSessionRewindPreview).mockResolvedValue({
         turns: [
           {
             turnId: "turn-1",
@@ -9179,7 +9176,7 @@ describe("createTuiApp", () => {
           },
         ],
       });
-      vi.mocked(runtime.rewindSession).mockRejectedValue(
+      mocked(runtime.rewindSession).mockRejectedValue(
         Object.assign(new Error("raw prompt token=secret"), { key: code }),
       );
       const app = createTuiApp({
@@ -9192,21 +9189,21 @@ describe("createTuiApp", () => {
       await app.ready;
       await app.submit("Seed rewind session");
       await app.submit("/rewind");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.surfaceHost.getActiveSurface()).toEqual({
           kind: "feature",
           id: "session-mutation:history",
         }),
       );
       terminal.input?.("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.surfaceHost.getActiveSurface()).toEqual({
           kind: "feature",
           id: "session-mutation:rewind-preview",
         }),
       );
       terminal.input?.("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.surfaceHost.getActiveSurface()).toEqual({
           kind: "feature",
           id: "session-mutation:scope",
@@ -9214,14 +9211,14 @@ describe("createTuiApp", () => {
       );
       terminal.input?.("\u001b[B");
       terminal.input?.("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.surfaceHost.getActiveSurface()).toEqual({
           kind: "feature",
           id: "session-mutation:rewind-confirm",
         }),
       );
       terminal.input?.("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(
           app.transcript.snapshot().some((cell) => cell.content === expected),
         ),
@@ -9238,10 +9235,10 @@ describe("createTuiApp", () => {
   it("reports refresh failure without unhandled rejection after conversation-and-files rewind", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+    mocked(runtime.listSessionInputSummaries).mockResolvedValue([
       { userMessageId: "msg-user-rewind", timestamp: 1, fileChangeCount: 1 },
     ]);
-    vi.mocked(runtime.getSessionRewindPreview).mockResolvedValue({
+    mocked(runtime.getSessionRewindPreview).mockResolvedValue({
       turns: [
         {
           turnId: "turn-1",
@@ -9249,11 +9246,11 @@ describe("createTuiApp", () => {
         },
       ],
     });
-    vi.mocked(runtime.rewindSession).mockResolvedValue({
+    mocked(runtime.rewindSession).mockResolvedValue({
       rewound: true,
       turnDiffRewind: { status: "rewound", revertedTurnIds: ["turn-1"] },
     });
-    vi.mocked(runtime.getMessages).mockRejectedValueOnce(
+    mocked(runtime.getMessages).mockRejectedValueOnce(
       new Error("refresh unavailable"),
     );
     const app = createTuiApp({
@@ -9266,21 +9263,21 @@ describe("createTuiApp", () => {
     await app.ready;
     await app.submit("Seed rewind session");
     await app.submit("/rewind");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.surfaceHost.getActiveSurface()).toEqual({
         kind: "feature",
         id: "session-mutation:history",
       }),
     );
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.surfaceHost.getActiveSurface()).toEqual({
         kind: "feature",
         id: "session-mutation:rewind-preview",
       }),
     );
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.surfaceHost.getActiveSurface()).toEqual({
         kind: "feature",
         id: "session-mutation:scope",
@@ -9288,14 +9285,14 @@ describe("createTuiApp", () => {
     );
     terminal.input?.("\u001b[B");
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.surfaceHost.getActiveSurface()).toEqual({
         kind: "feature",
         id: "session-mutation:rewind-confirm",
       }),
     );
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(
         app.transcript
           .snapshot()
@@ -9308,10 +9305,10 @@ describe("createTuiApp", () => {
   it("does not apply a pending rewind refresh result after switching sessions", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+    mocked(runtime.listSessionInputSummaries).mockResolvedValue([
       { userMessageId: "msg-user-rewind", timestamp: 1, fileChangeCount: 1 },
     ]);
-    vi.mocked(runtime.getSessionRewindPreview).mockResolvedValue({
+    mocked(runtime.getSessionRewindPreview).mockResolvedValue({
       turns: [
         {
           turnId: "turn-1",
@@ -9319,7 +9316,7 @@ describe("createTuiApp", () => {
         },
       ],
     });
-    vi.mocked(runtime.rewindSession).mockResolvedValue({
+    mocked(runtime.rewindSession).mockResolvedValue({
       rewound: true,
       turnDiffRewind: { status: "rewound", revertedTurnIds: ["turn-1"] },
     });
@@ -9336,23 +9333,23 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     await app.submit("Seed rewind session");
-    vi.mocked(runtime.getMessages).mockImplementationOnce(() => refreshPromise);
+    mocked(runtime.getMessages).mockImplementationOnce(() => refreshPromise);
     await app.submit("/rewind");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.surfaceHost.getActiveSurface()).toEqual({
         kind: "feature",
         id: "session-mutation:history",
       }),
     );
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.surfaceHost.getActiveSurface()).toEqual({
         kind: "feature",
         id: "session-mutation:rewind-preview",
       }),
     );
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.surfaceHost.getActiveSurface()).toEqual({
         kind: "feature",
         id: "session-mutation:scope",
@@ -9360,14 +9357,14 @@ describe("createTuiApp", () => {
     );
     terminal.input?.("\u001b[B");
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.surfaceHost.getActiveSurface()).toEqual({
         kind: "feature",
         id: "session-mutation:rewind-confirm",
       }),
     );
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.rewindSession).toHaveBeenCalledTimes(1),
     );
     const other = {
@@ -9375,8 +9372,8 @@ describe("createTuiApp", () => {
       title: "Other",
       workspaceDir: "/workspace",
     };
-    vi.mocked(runtime.getSession).mockResolvedValue(other);
-    vi.mocked(runtime.getMessages).mockResolvedValue([]);
+    mocked(runtime.getSession).mockResolvedValue(other);
+    mocked(runtime.getMessages).mockResolvedValue([]);
     const open = app.openSession(other.sessionId);
     resolveRefresh([
       {
@@ -9414,8 +9411,8 @@ describe("createTuiApp", () => {
       purpose: "local-task:turn-1:tool-1",
       agentName: "verifier",
     };
-    vi.mocked(runtime.listSessions).mockResolvedValue([parent]);
-    vi.mocked(runtime.getSession).mockImplementation(async (sessionId) =>
+    mocked(runtime.listSessions).mockResolvedValue([parent]);
+    mocked(runtime.getSession).mockImplementation(async (sessionId) =>
       sessionId === child.sessionId ? child : parent,
     );
     const app = createTuiApp({
@@ -9457,11 +9454,11 @@ describe("createTuiApp", () => {
       agentName: "verifier",
       status: "finished",
     };
-    vi.mocked(runtime.listSessions).mockResolvedValue([parent]);
-    vi.mocked(runtime.getSession).mockImplementation(async (sessionId) =>
+    mocked(runtime.listSessions).mockResolvedValue([parent]);
+    mocked(runtime.getSession).mockImplementation(async (sessionId) =>
       sessionId === child.sessionId ? child : parent,
     );
-    vi.mocked(runtime.getDelegationSnapshot).mockResolvedValue({
+    mocked(runtime.getDelegationSnapshot).mockResolvedValue({
       schemaVersion: 1,
       rootSessionId: parent.sessionId,
       members: [
@@ -9476,7 +9473,7 @@ describe("createTuiApp", () => {
         },
       ],
     });
-    vi.mocked(runtime.getMessages).mockImplementation(async (sessionId) =>
+    mocked(runtime.getMessages).mockImplementation(async (sessionId) =>
       sessionId === child.sessionId
         ? [
             {
@@ -9489,7 +9486,7 @@ describe("createTuiApp", () => {
           ]
         : [],
     );
-    vi.mocked(runtime.getActiveRun).mockImplementation(async (sessionId) => ({
+    mocked(runtime.getActiveRun).mockImplementation(async (sessionId) => ({
       schemaVersion: 1,
       sessionId,
       state: sessionId === child.sessionId ? "running" : "idle",
@@ -9525,8 +9522,7 @@ describe("createTuiApp", () => {
       "Child verification result",
     );
     expect(
-      vi
-        .mocked(runtime.sendMessage)
+      mocked(runtime.sendMessage)
         .mock.calls.map(([request]) => request.content),
     ).toEqual(["/agents", "/team"]);
     await app.stop();
@@ -9536,7 +9532,7 @@ describe("createTuiApp", () => {
     const terminal = new FakeTerminal();
     terminal.rows = 24;
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessionPage).mockResolvedValue({
+    mocked(runtime.listSessionPage).mockResolvedValue({
       sessions: Array.from({ length: 12 }, (_, index) => ({
         sessionId: `session-${String(index + 1).padStart(2, "0")}`,
         title: `Session ${String(index + 1).padStart(2, "0")}`,
@@ -9578,18 +9574,18 @@ describe("createTuiApp", () => {
       updatedAt: 100,
       archived: true,
     };
-    vi.mocked(runtime.listSessions).mockResolvedValue([activeSession]);
-    vi.mocked(runtime.listSessionPage).mockResolvedValue({
+    mocked(runtime.listSessions).mockResolvedValue([activeSession]);
+    mocked(runtime.listSessionPage).mockResolvedValue({
       sessions: [activeSession, archivedSession],
       hasMore: false,
     });
-    vi.mocked(runtime.getSession).mockImplementation(async (sessionId) => ({
+    mocked(runtime.getSession).mockImplementation(async (sessionId) => ({
       ...(sessionId === archivedSession.sessionId
         ? archivedSession
         : activeSession),
       archived: sessionId === archivedSession.sessionId ? archived : false,
     }));
-    vi.mocked(runtime.archiveSession).mockImplementation(
+    mocked(runtime.archiveSession).mockImplementation(
       async (_sessionId, value) => {
         archived = value;
       },
@@ -9617,13 +9613,13 @@ describe("createTuiApp", () => {
     terminal.input?.("\t");
     terminal.input?.("\r");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.archiveSession).toHaveBeenCalledWith(
         "session-archived",
         false,
       ),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.getMessages).toHaveBeenCalledWith("session-archived"),
     );
     expect(app.getSurface()).toBe("conversation");
@@ -9638,7 +9634,7 @@ describe("createTuiApp", () => {
   it("uses the resume alias to search every Desktop session page", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessionPage)
+    mocked(runtime.listSessionPage)
       .mockResolvedValueOnce({
         sessions: [
           {
@@ -9673,7 +9669,7 @@ describe("createTuiApp", () => {
     await app.ready;
     await app.submit("/resume Second page");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.listSessionPage).toHaveBeenNthCalledWith(2, {
         allAgents: true,
         workspaceDir: "/workspace",
@@ -9712,12 +9708,12 @@ describe("createTuiApp", () => {
       workspaceDir: "/workspace",
       ...(purpose ? { purpose } : {}),
     };
-    vi.mocked(runtime.listSessions).mockResolvedValue([session]);
-    vi.mocked(runtime.listSessionPage).mockResolvedValue({
+    mocked(runtime.listSessions).mockResolvedValue([session]);
+    mocked(runtime.listSessionPage).mockResolvedValue({
       sessions: [session],
       hasMore: false,
     });
-    vi.mocked(runtime.getSession).mockResolvedValue(session);
+    mocked(runtime.getSession).mockResolvedValue(session);
     const app = createTuiApp({
       runtime,
       terminal,
@@ -9727,7 +9723,7 @@ describe("createTuiApp", () => {
     try {
       await app.ready;
       await app.submit("/resume session-resumed-mode");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.controller.snapshot().session?.sessionId).toBe("session-resumed-mode"),
       );
       const rendered = stripAnsi(app.tui.render(120).join("\n"));
@@ -9741,7 +9737,7 @@ describe("createTuiApp", () => {
   it("queries the current workspace first and reloads the global catalog on Ctrl+A", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessionPage).mockImplementation(
+    mocked(runtime.listSessionPage).mockImplementation(
       async (input = {}) => {
         if (input.cursor === "all-page-2") {
           return {
@@ -9812,7 +9808,7 @@ describe("createTuiApp", () => {
 
     terminal.input?.("\x01");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.listSessionPage).toHaveBeenNthCalledWith(2, {
         allAgents: true,
         limit: 50,
@@ -9820,7 +9816,7 @@ describe("createTuiApp", () => {
         includeHidden: true,
       }),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.interaction.current()?.render(100).join("\n")).toContain(
         "Newer session elsewhere",
       ),
@@ -9831,7 +9827,7 @@ describe("createTuiApp", () => {
 
     terminal.input?.("\x0c");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.listSessionPage).toHaveBeenNthCalledWith(3, {
         allAgents: true,
         limit: 50,
@@ -9840,7 +9836,7 @@ describe("createTuiApp", () => {
         includeHidden: true,
       }),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.interaction.current()?.render(100).join("\n")).toContain(
         "Older session elsewhere",
       ),
@@ -9852,14 +9848,14 @@ describe("createTuiApp", () => {
   it("reports permission and question waits to the title and OSC 7501 without build-mode", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessions).mockResolvedValue([
+    mocked(runtime.listSessions).mockResolvedValue([
       {
         sessionId: "session-existing",
         title: "Existing session",
         workspaceDir: "/workspace",
       },
     ]);
-    vi.mocked(runtime.listPendingPermissions).mockResolvedValue([
+    mocked(runtime.listPendingPermissions).mockResolvedValue([
       {
         requestId: "permission-1",
         sessionId: "session-existing",
@@ -9869,14 +9865,14 @@ describe("createTuiApp", () => {
       },
     ]);
     // The permission arrives while its Turn is active, as in a real approval prompt.
-    vi.mocked(runtime.getActiveRun).mockImplementation(async (sessionId: string) => ({
+    mocked(runtime.getActiveRun).mockImplementation(async (sessionId: string) => ({
       schemaVersion: 1,
       sessionId,
       state: "decision-blocked",
       turnId: "turn-permission",
       actions: { steer: false },
     }));
-    vi.mocked(runtime.getPendingQuestionnaire).mockResolvedValue({
+    mocked(runtime.getPendingQuestionnaire).mockResolvedValue({
       id: "question-1",
       title: "Choose",
       requester: { sessionId: "session-existing", runId: "turn-question" },
@@ -9906,7 +9902,7 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     await app.submit("/resume session-existing");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(terminal.title).toBe("Needs approval | Existing session | MCode"),
     );
     expect(programReports().at(-1)).toBe(
@@ -9914,7 +9910,7 @@ describe("createTuiApp", () => {
     );
 
     await app.submit("/allow");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(terminal.title).toBe("Needs input | Existing session | MCode"),
     );
     expect(programReports().at(-1)).toBe(
@@ -9946,14 +9942,14 @@ describe("createTuiApp", () => {
   it("shows account status and resolves pending permission and questionnaire decisions", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessions).mockResolvedValue([
+    mocked(runtime.listSessions).mockResolvedValue([
       {
         sessionId: "session-existing",
         title: "Existing session",
         workspaceDir: "/workspace",
       },
     ]);
-    vi.mocked(runtime.listPendingPermissions).mockResolvedValue([
+    mocked(runtime.listPendingPermissions).mockResolvedValue([
       {
         requestId: "permission-1",
         sessionId: "session-existing",
@@ -9963,7 +9959,7 @@ describe("createTuiApp", () => {
         allowAlwaysSupported: true,
       },
     ]);
-    vi.mocked(runtime.getPendingQuestionnaire).mockResolvedValue({
+    mocked(runtime.getPendingQuestionnaire).mockResolvedValue({
       id: "question-1",
       title: "Choose",
       steps: [
@@ -10053,7 +10049,7 @@ describe("createTuiApp", () => {
   it("does not let a stale permission response hide a newer decision surface", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessions).mockResolvedValue([
+    mocked(runtime.listSessions).mockResolvedValue([
       {
         sessionId: "session-race",
         title: "Decision race",
@@ -10076,12 +10072,12 @@ describe("createTuiApp", () => {
       reason: "Newer request",
       allowAlwaysSupported: false,
     };
-    vi.mocked(runtime.listPendingPermissions).mockResolvedValue([
+    mocked(runtime.listPendingPermissions).mockResolvedValue([
       firstPermission,
     ]);
 
     let finishReply: ((value: boolean) => void) | undefined;
-    vi.mocked(runtime.replyPermission).mockImplementation(
+    mocked(runtime.replyPermission).mockImplementation(
       async () =>
         await new Promise<boolean>((resolve) => {
           finishReply = resolve;
@@ -10089,7 +10085,7 @@ describe("createTuiApp", () => {
     );
 
     let emitEvent: ((event: TuiRuntimeEvent) => void) | undefined;
-    vi.mocked(runtime.watchEvents).mockImplementation(
+    mocked(runtime.watchEvents).mockImplementation(
       async function* watchEvents(signal) {
         const event = await new Promise<TuiRuntimeEvent | undefined>(
           (resolve) => {
@@ -10117,8 +10113,8 @@ describe("createTuiApp", () => {
     await app.ready;
     await app.submit("/resume session-race");
     const resolving = app.submit("/allow");
-    await vi.waitFor(() => expect(runtime.replyPermission).toHaveBeenCalled());
-    await vi.waitFor(() => expect(emitEvent).toBeTypeOf("function"));
+    await waitFor(() => expect(runtime.replyPermission).toHaveBeenCalled());
+    await waitFor(() => expect(emitEvent).toBeTypeOf("function"));
 
     emitEvent?.(
       runtimeEvent({
@@ -10128,7 +10124,7 @@ describe("createTuiApp", () => {
         payload: secondPermission,
       }),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.tui.render(80).join("\n")).toContain("Newer request"),
     );
 
@@ -10153,17 +10149,17 @@ describe("createTuiApp", () => {
       reason: "Run tests",
       allowAlwaysSupported: true,
     };
-    vi.mocked(runtime.listSessions).mockResolvedValue([
+    mocked(runtime.listSessions).mockResolvedValue([
       {
         sessionId: "session-permission-stale",
         title: "Permission race",
         workspaceDir: "/workspace",
       },
     ]);
-    vi.mocked(runtime.listPendingPermissions)
+    mocked(runtime.listPendingPermissions)
       .mockResolvedValueOnce([permission])
       .mockResolvedValue([]);
-    vi.mocked(runtime.replyPermission).mockResolvedValue(false);
+    mocked(runtime.replyPermission).mockResolvedValue(false);
     const app = createTuiApp({
       runtime,
       terminal,
@@ -10185,14 +10181,14 @@ describe("createTuiApp", () => {
   it("keeps an option-only questionnaire pending after an invalid slash answer", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessions).mockResolvedValue([
+    mocked(runtime.listSessions).mockResolvedValue([
       {
         sessionId: "session-questionnaire",
         title: "Questionnaire session",
         workspaceDir: "/workspace",
       },
     ]);
-    vi.mocked(runtime.getPendingQuestionnaire).mockResolvedValue({
+    mocked(runtime.getPendingQuestionnaire).mockResolvedValue({
       id: "question-options-only",
       title: "Choose",
       steps: [
@@ -10246,14 +10242,14 @@ describe("createTuiApp", () => {
   it("shows the first AskUser answer immediately while later questions remain pending", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessions).mockResolvedValue([
+    mocked(runtime.listSessions).mockResolvedValue([
       {
         sessionId: "session-multi-question",
         title: "Multi question",
         workspaceDir: "/workspace",
       },
     ]);
-    vi.mocked(runtime.getPendingQuestionnaire).mockResolvedValue({
+    mocked(runtime.getPendingQuestionnaire).mockResolvedValue({
       id: "question-multi-step",
       title: "Preferences",
       steps: [
@@ -10308,7 +10304,7 @@ describe("createTuiApp", () => {
     expect(app.tui.render(80).join("\n")).toContain("› 2  Green");
     terminal.input?.("\r");
 
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(runtime.replyQuestionnaire).toHaveBeenCalledWith(
         "mavis",
         "question-multi-step",
@@ -10332,14 +10328,14 @@ describe("createTuiApp", () => {
   it("sends the selected answer immediately and refreshes the Agent continuation", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessions).mockResolvedValue([
+    mocked(runtime.listSessions).mockResolvedValue([
       {
         sessionId: "session-review",
         title: "Questionnaire review",
         workspaceDir: "/workspace",
       },
     ]);
-    vi.mocked(runtime.getPendingQuestionnaire).mockResolvedValue({
+    mocked(runtime.getPendingQuestionnaire).mockResolvedValue({
       id: "question-review",
       title: "Release setup",
       steps: [
@@ -10369,7 +10365,7 @@ describe("createTuiApp", () => {
         ].join("\n"),
       },
     ];
-    vi.mocked(runtime.getMessages).mockResolvedValue(previousMessages);
+    mocked(runtime.getMessages).mockResolvedValue(previousMessages);
     const app = createTuiApp({
       runtime,
       terminal,
@@ -10378,13 +10374,13 @@ describe("createTuiApp", () => {
     });
     let releaseReply: ((result: boolean) => void) | undefined;
     let releaseContinuation: (() => void) | undefined;
-    vi.mocked(runtime.replyQuestionnaire).mockImplementation(
+    mocked(runtime.replyQuestionnaire).mockImplementation(
       async () =>
         await new Promise<boolean>((resolve) => {
           releaseReply = resolve;
         }),
     );
-    vi.mocked(runtime.watchEvents).mockImplementation(
+    mocked(runtime.watchEvents).mockImplementation(
       async function* watchEvents(signal) {
         await new Promise<void>((resolve) => {
           releaseContinuation = resolve;
@@ -10419,7 +10415,7 @@ describe("createTuiApp", () => {
     expect(app.interaction.isActive()).toBe(true);
 
     terminal.input?.("2");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.replyQuestionnaire).toHaveBeenCalledWith(
         "mavis",
         "question-review",
@@ -10439,14 +10435,14 @@ describe("createTuiApp", () => {
     });
 
     releaseReply?.(true);
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.transcript.get("question:question-review")).toMatchObject({
         status: "resolved",
         detail: "Answer sent · MCode is continuing…",
       }),
     );
 
-    vi.mocked(runtime.getMessages).mockResolvedValue([
+    mocked(runtime.getMessages).mockResolvedValue([
       ...previousMessages,
       {
         id: "assistant-after-question",
@@ -10455,7 +10451,7 @@ describe("createTuiApp", () => {
       },
     ]);
     releaseContinuation?.();
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(
         app.transcript
           .snapshot()
@@ -10484,14 +10480,14 @@ describe("createTuiApp", () => {
   it("redraws after a delayed questionnaire reply resolves", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessions).mockResolvedValue([
+    mocked(runtime.listSessions).mockResolvedValue([
       {
         sessionId: "session-delayed-reply",
         title: "Delayed questionnaire reply",
         workspaceDir: "/workspace",
       },
     ]);
-    vi.mocked(runtime.getPendingQuestionnaire).mockResolvedValue({
+    mocked(runtime.getPendingQuestionnaire).mockResolvedValue({
       id: "question-delayed-reply",
       steps: [
         {
@@ -10503,7 +10499,7 @@ describe("createTuiApp", () => {
       ],
     });
     let finishReply: ((result: boolean) => void) | undefined;
-    vi.mocked(runtime.replyQuestionnaire).mockImplementation(
+    mocked(runtime.replyQuestionnaire).mockImplementation(
       async () =>
         await new Promise<boolean>((resolve) => {
           finishReply = resolve;
@@ -10519,14 +10515,14 @@ describe("createTuiApp", () => {
     await app.ready;
     await app.submit("/resume session-delayed-reply");
     terminal.input?.("1");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.replyQuestionnaire).toHaveBeenCalledTimes(1),
     );
     expect(app.tui.hasOverlay()).toBe(false);
 
     const writesBeforeResolution = terminal.writes.length;
     finishReply?.(true);
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(
         app.transcript.get("question:question-delayed-reply"),
       ).toMatchObject({
@@ -10534,7 +10530,7 @@ describe("createTuiApp", () => {
         detail: "Answer sent · MCode is continuing…",
       }),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(terminal.writes.length).toBeGreaterThan(writesBeforeResolution),
     );
 
@@ -10544,14 +10540,14 @@ describe("createTuiApp", () => {
   it("keeps the questionnaire interactive when the Runtime cannot start its continuation", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessions).mockResolvedValue([
+    mocked(runtime.listSessions).mockResolvedValue([
       {
         sessionId: "session-retry-questionnaire",
         title: "Retry questionnaire",
         workspaceDir: "/workspace",
       },
     ]);
-    vi.mocked(runtime.getPendingQuestionnaire).mockResolvedValue({
+    mocked(runtime.getPendingQuestionnaire).mockResolvedValue({
       id: "question-retry",
       title: "Choose a channel",
       steps: [
@@ -10563,7 +10559,7 @@ describe("createTuiApp", () => {
         },
       ],
     });
-    vi.mocked(runtime.replyQuestionnaire).mockRejectedValue(
+    mocked(runtime.replyQuestionnaire).mockRejectedValue(
       new Error(
         "Questionnaire answer was saved, but the continuation could not start.",
       ),
@@ -10581,7 +10577,7 @@ describe("createTuiApp", () => {
     await app.submit("/resume session-retry-questionnaire");
     terminal.input?.("1");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.transcript.get("question:question-retry")).toMatchObject({
         status: "blocked",
         title: "Choose a channel",
@@ -10600,19 +10596,19 @@ describe("createTuiApp", () => {
   it("redraws after a delayed questionnaire dismissal resolves", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessions).mockResolvedValue([
+    mocked(runtime.listSessions).mockResolvedValue([
       {
         sessionId: "session-delayed-dismiss",
         title: "Delayed questionnaire dismissal",
         workspaceDir: "/workspace",
       },
     ]);
-    vi.mocked(runtime.getPendingQuestionnaire).mockResolvedValue({
+    mocked(runtime.getPendingQuestionnaire).mockResolvedValue({
       id: "question-delayed-dismiss",
       steps: [{ id: "confirmation", question: "Continue?" }],
     });
     let finishDismiss: ((result: boolean) => void) | undefined;
-    vi.mocked(runtime.dismissQuestionnaire).mockImplementation(
+    mocked(runtime.dismissQuestionnaire).mockImplementation(
       async () =>
         await new Promise<boolean>((resolve) => {
           finishDismiss = resolve;
@@ -10628,7 +10624,7 @@ describe("createTuiApp", () => {
     await app.ready;
     await app.submit("/resume session-delayed-dismiss");
     const dismissing = app.submit("/ask-cancel");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.dismissQuestionnaire).toHaveBeenCalledTimes(1),
     );
 
@@ -10643,7 +10639,7 @@ describe("createTuiApp", () => {
       content: "",
       detail: undefined,
     });
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(terminal.writes.length).toBeGreaterThan(writesBeforeResolution),
     );
     await app.stop();
@@ -10657,14 +10653,14 @@ describe("createTuiApp", () => {
     async ({ input }) => {
       const terminal = new FakeTerminal();
       const runtime = createRuntime();
-      vi.mocked(runtime.listSessions).mockResolvedValue([
+      mocked(runtime.listSessions).mockResolvedValue([
         {
           sessionId: "session-escape-dismiss",
           title: "Escape questionnaire dismissal",
           workspaceDir: "/workspace",
         },
       ]);
-      vi.mocked(runtime.getPendingQuestionnaire).mockResolvedValue({
+      mocked(runtime.getPendingQuestionnaire).mockResolvedValue({
         id: "question-escape-dismiss",
         steps: [
           {
@@ -10676,7 +10672,7 @@ describe("createTuiApp", () => {
         ],
       });
       let finishDismiss: ((result: boolean) => void) | undefined;
-      vi.mocked(runtime.dismissQuestionnaire).mockImplementation(
+      mocked(runtime.dismissQuestionnaire).mockImplementation(
         async () =>
           await new Promise<boolean>((resolve) => {
             finishDismiss = resolve;
@@ -10700,7 +10696,7 @@ describe("createTuiApp", () => {
         terminal.input?.("\r");
       }
 
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(runtime.dismissQuestionnaire).toHaveBeenCalledWith(
           "mavis",
           "question-escape-dismiss",
@@ -10716,7 +10712,7 @@ describe("createTuiApp", () => {
       ).toBe(true);
 
       finishDismiss?.(true);
-      await vi.waitFor(() => expect(app.interaction.isActive()).toBe(false));
+      await waitFor(() => expect(app.interaction.isActive()).toBe(false));
       expect(
         app.transcript.get("question:question-escape-dismiss"),
       ).toMatchObject({
@@ -10735,14 +10731,14 @@ describe("createTuiApp", () => {
   it("denies a pending permission explicitly and releases the blocked interaction", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessions).mockResolvedValue([
+    mocked(runtime.listSessions).mockResolvedValue([
       {
         sessionId: "session-pending",
         title: "Pending permission",
         workspaceDir: "/workspace",
       },
     ]);
-    vi.mocked(runtime.listPendingPermissions).mockResolvedValue([
+    mocked(runtime.listPendingPermissions).mockResolvedValue([
       {
         requestId: "permission-pending",
         sessionId: "session-pending",
@@ -10768,7 +10764,7 @@ describe("createTuiApp", () => {
 
     terminal.input?.("3");
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.replyPermission).toHaveBeenCalledWith(
         "mavis",
         "permission-pending",
@@ -10789,14 +10785,14 @@ describe("createTuiApp", () => {
     const terminal = new FakeTerminal();
     terminal.rows = 8;
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessions).mockResolvedValue([
+    mocked(runtime.listSessions).mockResolvedValue([
       {
         sessionId: "session-permission-render",
         title: "Permission render",
         workspaceDir: "/workspace",
       },
     ]);
-    vi.mocked(runtime.listPendingPermissions).mockResolvedValue([
+    mocked(runtime.listPendingPermissions).mockResolvedValue([
       {
         requestId: "permission-render",
         sessionId: "session-permission-render",
@@ -10818,7 +10814,7 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     await app.submit("/resume session-permission-render");
-    await vi.waitFor(() => expect(app.interaction.isActive()).toBe(true));
+    await waitFor(() => expect(app.interaction.isActive()).toBe(true));
     // A user types `/resume`; model that input so the history rebuild for the
     // welcome-to-conversation switch in this 8-row terminal runs now instead of
     // being deferred to the permission key (#426, L047).
@@ -10828,8 +10824,8 @@ describe("createTuiApp", () => {
 
     terminal.input?.("\r");
 
-    await vi.waitFor(() => expect(app.interaction.isActive()).toBe(false));
-    await vi.waitFor(() => expect(terminal.writes.length).toBeGreaterThan(0));
+    await waitFor(() => expect(app.interaction.isActive()).toBe(false));
+    await waitFor(() => expect(terminal.writes.length).toBeGreaterThan(0));
     expect(runtime.replyPermission).toHaveBeenCalledWith(
       "mavis",
       "permission-render",
@@ -10847,14 +10843,14 @@ describe("createTuiApp", () => {
   it("keeps a submission retryable when a pending decision blocks admission", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessions).mockResolvedValue([
+    mocked(runtime.listSessions).mockResolvedValue([
       {
         sessionId: "session-draft-blocked",
         title: "Pending decision",
         workspaceDir: "/workspace",
       },
     ]);
-    vi.mocked(runtime.listPendingPermissions).mockResolvedValue([
+    mocked(runtime.listPendingPermissions).mockResolvedValue([
       {
         requestId: "permission-draft-blocked",
         sessionId: "session-draft-blocked",
@@ -10876,7 +10872,7 @@ describe("createTuiApp", () => {
 
     app.editor.setText("Keep this draft for later");
     app.editor.handleInput("\r");
-    await vi.waitFor(() => expect(app.editor.getText()).toBe(""));
+    await waitFor(() => expect(app.editor.getText()).toBe(""));
 
     expect(runtime.sendMessage).not.toHaveBeenCalled();
     expect(app.tui.render(80).join("\n")).toContain("Approval required");
@@ -10887,18 +10883,18 @@ describe("createTuiApp", () => {
   it("keeps a pending questionnaire when Runtime rejects dismissal", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessions).mockResolvedValue([
+    mocked(runtime.listSessions).mockResolvedValue([
       {
         sessionId: "session-existing",
         title: "Existing session",
         workspaceDir: "/workspace",
       },
     ]);
-    vi.mocked(runtime.getPendingQuestionnaire).mockResolvedValue({
+    mocked(runtime.getPendingQuestionnaire).mockResolvedValue({
       id: "question-rejected",
       steps: [{ id: "step-1", question: "Proceed?" }],
     });
-    vi.mocked(runtime.dismissQuestionnaire).mockResolvedValue(false);
+    mocked(runtime.dismissQuestionnaire).mockResolvedValue(false);
     const app = createTuiApp({
       runtime,
       terminal,
@@ -10921,14 +10917,14 @@ describe("createTuiApp", () => {
 
   it("restores the questionnaire panel when an Escape dismissal request fails", async () => {
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessions).mockResolvedValue([
+    mocked(runtime.listSessions).mockResolvedValue([
       {
         sessionId: "session-dismiss-retry",
         title: "Dismiss retry",
         workspaceDir: "/workspace",
       },
     ]);
-    vi.mocked(runtime.getPendingQuestionnaire).mockResolvedValue({
+    mocked(runtime.getPendingQuestionnaire).mockResolvedValue({
       id: "question-dismiss-retry",
       steps: [
         {
@@ -10939,7 +10935,7 @@ describe("createTuiApp", () => {
         },
       ],
     });
-    vi.mocked(runtime.dismissQuestionnaire).mockRejectedValue(
+    mocked(runtime.dismissQuestionnaire).mockRejectedValue(
       new Error("connection lost"),
     );
     const app = createTuiApp({
@@ -10954,10 +10950,10 @@ describe("createTuiApp", () => {
     app.interaction.current()?.handleInput("\u001b");
     app.interaction.current()?.handleInput("\r");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.dismissQuestionnaire).toHaveBeenCalledOnce(),
     );
-    await vi.waitFor(() => {
+    await waitFor(() => {
       const panel = app.interaction.current();
       expect(panel).toBeDefined();
       expect(panel?.render(80).join("\n")).toContain("Ask");
@@ -10972,18 +10968,18 @@ describe("createTuiApp", () => {
   it("settles a questionnaire dismissal that already reached a terminal Runtime state", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listSessions).mockResolvedValue([
+    mocked(runtime.listSessions).mockResolvedValue([
       {
         sessionId: "session-terminal-dismiss",
         title: "Terminal dismissal",
         workspaceDir: "/workspace",
       },
     ]);
-    vi.mocked(runtime.getPendingQuestionnaire).mockResolvedValue({
+    mocked(runtime.getPendingQuestionnaire).mockResolvedValue({
       id: "question-terminal-dismiss",
       steps: [{ id: "step-1", question: "Proceed?" }],
     });
-    vi.mocked(runtime.dismissQuestionnaire).mockRejectedValue(
+    mocked(runtime.dismissQuestionnaire).mockRejectedValue(
       Object.assign(new Error("already superseded"), {
         status: 410,
         code: "QUESTIONNAIRE_NOT_PENDING",
@@ -11013,7 +11009,7 @@ describe("createTuiApp", () => {
   it("projects live Desktop permission events into the transcript", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.watchEvents).mockImplementation(
+    mocked(runtime.watchEvents).mockImplementation(
       async function* watchEvents() {
         yield runtimeEvent({
           type: "permission.ask",
@@ -11047,7 +11043,7 @@ describe("createTuiApp", () => {
       id: "transcript",
     });
     app.start();
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.transcript.get("permission:permission-live")).toMatchObject({
         kind: "permission",
         status: "blocked",
@@ -11082,7 +11078,7 @@ describe("createTuiApp", () => {
     const eventsDelivered = new Promise<void>((resolve) => {
       resolveEventsDelivered = resolve;
     });
-    vi.mocked(runtime.watchEvents).mockImplementation(
+    mocked(runtime.watchEvents).mockImplementation(
       async function* watchEvents(signal) {
         yield runtimeEvent({
           type: "permission.ask",
@@ -11154,9 +11150,9 @@ describe("createTuiApp", () => {
       workspaceDir: "/workspace",
       status: "started",
     };
-    vi.mocked(runtime.listSessions).mockResolvedValue([rootSession]);
-    vi.mocked(runtime.getSession).mockResolvedValue(rootSession);
-    vi.mocked(runtime.getDelegationSnapshot).mockResolvedValue({
+    mocked(runtime.listSessions).mockResolvedValue([rootSession]);
+    mocked(runtime.getSession).mockResolvedValue(rootSession);
+    mocked(runtime.getDelegationSnapshot).mockResolvedValue({
       schemaVersion: 1,
       rootSessionId: "session-root",
       members: [
@@ -11176,7 +11172,7 @@ describe("createTuiApp", () => {
         },
       ],
     });
-    vi.mocked(runtime.getActiveRun).mockImplementation(
+    mocked(runtime.getActiveRun).mockImplementation(
       async (sessionId: string) => ({
         schemaVersion: 1,
         sessionId,
@@ -11190,13 +11186,13 @@ describe("createTuiApp", () => {
       }),
     );
     const deniedPermissionIds = new Set<string>();
-    vi.mocked(runtime.replyPermission).mockImplementation(
+    mocked(runtime.replyPermission).mockImplementation(
       async (_agentName, requestId) => {
         deniedPermissionIds.add(requestId);
         return true;
       },
     );
-    vi.mocked(runtime.listPendingPermissions).mockImplementation(async () =>
+    mocked(runtime.listPendingPermissions).mockImplementation(async () =>
       deniedPermissionIds.has("permission-grandchild")
         ? [
             {
@@ -11220,7 +11216,7 @@ describe("createTuiApp", () => {
           ]
         : [],
     );
-    vi.mocked(runtime.watchEvents).mockImplementation(
+    mocked(runtime.watchEvents).mockImplementation(
       async function* watchEvents(signal) {
         yield runtimeEvent({
           type: "permission.ask",
@@ -11261,11 +11257,11 @@ describe("createTuiApp", () => {
 
     await app.ready;
     await app.submit("/resume session-root");
-    vi.mocked(runtime.abortSession).mockClear();
-    vi.mocked(runtime.stopDelegation).mockClear();
+    mocked(runtime.abortSession).mockClear();
+    mocked(runtime.stopDelegation).mockClear();
     app.start();
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(
         app.transcript.get("permission:permission-grandchild"),
       ).toMatchObject({
@@ -11283,7 +11279,7 @@ describe("createTuiApp", () => {
     app.interaction.current()?.handleInput?.("3");
     app.interaction.current()?.handleInput?.("\r");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.replyPermission).toHaveBeenCalledWith(
         "verifier",
         "permission-grandchild",
@@ -11292,7 +11288,7 @@ describe("createTuiApp", () => {
     );
     expect(runtime.stopDelegation).not.toHaveBeenCalled();
     expect(runtime.abortSession).not.toHaveBeenCalled();
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.interaction.current()?.render(80).join("\n")).toContain(
         "Inspect the delegated output",
       ),
@@ -11303,7 +11299,7 @@ describe("createTuiApp", () => {
 
     terminal.input?.("\x1b");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.replyPermission).toHaveBeenCalledWith(
         "worker",
         "permission-child-next",
@@ -11312,7 +11308,7 @@ describe("createTuiApp", () => {
     );
     expect(runtime.abortSession).not.toHaveBeenCalled();
     expect(runtime.stopDelegation).not.toHaveBeenCalled();
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.interaction.current()?.render(80).join("\n")).toContain(
         "Wait for an explicit Stop",
       ),
@@ -11320,7 +11316,7 @@ describe("createTuiApp", () => {
 
     terminal.input?.("\x03");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.abortSession).toHaveBeenCalledWith({
         id: rootSession.sessionId,
         turnId: "turn-root",
@@ -11344,9 +11340,9 @@ describe("createTuiApp", () => {
       title: "Recovery root",
       workspaceDir: "/workspace",
     };
-    vi.mocked(runtime.listSessions).mockResolvedValue([rootSession]);
-    vi.mocked(runtime.getSession).mockResolvedValue(rootSession);
-    vi.mocked(runtime.getDelegationSnapshot).mockResolvedValue({
+    mocked(runtime.listSessions).mockResolvedValue([rootSession]);
+    mocked(runtime.getSession).mockResolvedValue(rootSession);
+    mocked(runtime.getDelegationSnapshot).mockResolvedValue({
       schemaVersion: 1,
       rootSessionId: rootSession.sessionId,
       members: [
@@ -11359,7 +11355,7 @@ describe("createTuiApp", () => {
         },
       ],
     });
-    vi.mocked(runtime.listPendingPermissions).mockResolvedValue([
+    mocked(runtime.listPendingPermissions).mockResolvedValue([
       {
         requestId: "permission-recovery-unrelated",
         sessionId: "session-other-root",
@@ -11405,7 +11401,7 @@ describe("createTuiApp", () => {
     const runtime = createRuntime();
     const observability = createObservability();
     let attempt = 0;
-    vi.mocked(runtime.watchEvents).mockImplementation(
+    mocked(runtime.watchEvents).mockImplementation(
       async function* watchEvents() {
         attempt += 1;
         if (attempt === 1) throw new Error("connection reset");
@@ -11432,7 +11428,7 @@ describe("createTuiApp", () => {
     await app.ready;
     await app.submit("Start the current session");
     app.start();
-    await vi.waitFor(
+    await waitFor(
       () =>
         expect(
           app.transcript.get("permission:permission-after-reconnect"),
@@ -11472,7 +11468,7 @@ describe("createTuiApp", () => {
   it("sends pasted local attachments and restores failed sends to the Composer", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    const readClipboardImage = vi.fn(async () => ({
+    const readClipboardImage = mock(async () => ({
       attachment: {
         type: "image" as const,
         filePath: "/tmp/minimax-code-clipboard/diagram.png",
@@ -11480,7 +11476,7 @@ describe("createTuiApp", () => {
         mimeType: "image/png",
         sizeBytes: 2048,
       },
-      dispose: vi.fn(async () => undefined),
+      dispose: mock(async () => undefined),
     }));
     const app = createTuiApp({
       runtime,
@@ -11494,7 +11490,7 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     terminal.input?.("\u001bv");
-    await vi.waitFor(() => expect(readClipboardImage).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(readClipboardImage).toHaveBeenCalledTimes(1));
     await app.submit("Inspect the diagram");
 
     expect(runtime.sendMessage).toHaveBeenCalledWith(
@@ -11513,16 +11509,16 @@ describe("createTuiApp", () => {
 
     expect(app.tui.render(80).join("\n")).not.toContain("[Image #1]");
 
-    vi.mocked(runtime.sendMessage).mockImplementationOnce(
+    mocked(runtime.sendMessage).mockImplementationOnce(
       async function* sendMessage() {
         yield { type: "error", message: "provider unavailable" };
       },
     );
     terminal.input?.("\x16");
-    await vi.waitFor(() => expect(readClipboardImage).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(readClipboardImage).toHaveBeenCalledTimes(2));
     app.editor.setText("Try again");
     app.editor.handleInput("\r");
-    await vi.waitFor(() => expect(app.editor.getText()).toContain("Try again"));
+    await waitFor(() => expect(app.editor.getText()).toContain("Try again"));
     expect(app.tui.render(80).join("\n")).toContain(
       "Error  The model provider is temporarily unavailable.",
     );
@@ -11556,7 +11552,7 @@ describe("createTuiApp", () => {
     const runtime = createRuntime();
     const busEvents: TuiRuntimeEvent[] = [];
     let wakeBus: (() => void) | undefined;
-    vi.mocked(runtime.watchEvents).mockImplementation(
+    mocked(runtime.watchEvents).mockImplementation(
       async function* watchEvents(signal) {
         while (!signal.aborted) {
           if (busEvents.length === 0) {
@@ -11571,7 +11567,7 @@ describe("createTuiApp", () => {
       },
     );
     let releaseTurn: (() => void) | undefined;
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage() {
         await new Promise<void>((resolve) => {
           releaseTurn = resolve;
@@ -11590,7 +11586,7 @@ describe("createTuiApp", () => {
     await app.ready;
     terminal.input?.("review this response");
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().activeTurnId).toBeTruthy(),
     );
 
@@ -11611,7 +11607,7 @@ describe("createTuiApp", () => {
     wakeBus?.();
     releaseTurn?.();
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.editor.getText()).toBe("review this response"),
     );
     const rendered = app.tui.render(100).join("\n");
@@ -11645,8 +11641,8 @@ describe("createTuiApp", () => {
   it("pastes a clipboard image without replacing the text draft and cleans it after send", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    const dispose = vi.fn(async () => undefined);
-    const readClipboardImage = vi.fn(async () => ({
+    const dispose = mock(async () => undefined);
+    const readClipboardImage = mock(async () => ({
       attachment: {
         type: "image" as const,
         filePath: "/tmp/minimax-code-clipboard/clipboard-1.png",
@@ -11670,8 +11666,8 @@ describe("createTuiApp", () => {
     app.editor.setText("Keep this draft");
     terminal.input?.("\u001B[118;9u");
     terminal.input?.("\u001B[118;9:3u");
-    await vi.waitFor(() => expect(readClipboardImage).toHaveBeenCalledOnce());
-    await vi.waitFor(() =>
+    await waitFor(() => expect(readClipboardImage).toHaveBeenCalledOnce());
+    await waitFor(() =>
       expect(app.editor.getText()).toContain("[Image #1]"),
     );
 
@@ -11700,9 +11696,8 @@ describe("createTuiApp", () => {
   it("retains existing draft state when clipboard read or send fails", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    const dispose = vi.fn(async () => undefined);
-    const readClipboardImage = vi
-      .fn()
+    const dispose = mock(async () => undefined);
+    const readClipboardImage = mock()
       .mockResolvedValueOnce({
         attachment: {
           type: "image" as const,
@@ -11714,7 +11709,7 @@ describe("createTuiApp", () => {
         dispose,
       })
       .mockRejectedValueOnce(new Error("clipboard has no image"));
-    vi.mocked(runtime.sendMessage).mockImplementationOnce(
+    mocked(runtime.sendMessage).mockImplementationOnce(
       async function* sendMessage() {
         yield { type: "error", message: "provider unavailable" };
       },
@@ -11732,9 +11727,9 @@ describe("createTuiApp", () => {
     await app.ready;
     app.editor.setText("Do not clear me");
     terminal.input?.("\x16");
-    await vi.waitFor(() => expect(readClipboardImage).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(readClipboardImage).toHaveBeenCalledTimes(1));
     terminal.input?.("\x16");
-    await vi.waitFor(() => expect(readClipboardImage).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(readClipboardImage).toHaveBeenCalledTimes(2));
 
     expect(app.editor.getText()).toBe("Do not clear me [Image #1] ");
     await app.submit("Try the image");
@@ -11752,7 +11747,7 @@ describe("createTuiApp", () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
     let observedSignal: AbortSignal | undefined;
-    const readClipboardImage = vi.fn(
+    const readClipboardImage = mock(
       async (signal?: AbortSignal) =>
         await new Promise<never>((_resolve, reject) => {
           observedSignal = signal;
@@ -11776,9 +11771,9 @@ describe("createTuiApp", () => {
     await app.ready;
     app.editor.setText("Draft survives");
     terminal.input?.("\x16");
-    await vi.waitFor(() => expect(observedSignal).toBeDefined());
+    await waitFor(() => expect(observedSignal).toBeDefined());
     terminal.input?.("\x03");
-    await vi.waitFor(() => expect(observedSignal?.aborted).toBe(true));
+    await waitFor(() => expect(observedSignal?.aborted).toBe(true));
 
     expect(app.editor.getText()).toBe("Draft survives");
     await app.stop();
@@ -11787,10 +11782,10 @@ describe("createTuiApp", () => {
   it("keeps queued clipboard files alive until the Runtime reports a terminal queue state", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    const dispose = vi.fn(async () => undefined);
+    const dispose = mock(async () => undefined);
     let finishTurn: (() => void) | undefined;
     let deliverQueueEvent: ((event: TuiRuntimeEvent) => void) | undefined;
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage() {
         await new Promise<void>((resolve) => {
           finishTurn = resolve;
@@ -11798,7 +11793,7 @@ describe("createTuiApp", () => {
         yield { type: "done" };
       },
     );
-    vi.mocked(runtime.watchEvents).mockImplementation(
+    mocked(runtime.watchEvents).mockImplementation(
       async function* watchEvents() {
         const event = await new Promise<TuiRuntimeEvent>((resolve) => {
           deliverQueueEvent = resolve;
@@ -11806,7 +11801,7 @@ describe("createTuiApp", () => {
         yield event;
       },
     );
-    const readClipboardImage = vi.fn(async () => ({
+    const readClipboardImage = mock(async () => ({
       attachment: {
         type: "image" as const,
         filePath: "/tmp/minimax-code-clipboard/clipboard-queue.png",
@@ -11828,11 +11823,11 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     const first = app.submit("First turn");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().status).toBe("running"),
     );
     terminal.input?.("\x16");
-    await vi.waitFor(() => expect(readClipboardImage).toHaveBeenCalledOnce());
+    await waitFor(() => expect(readClipboardImage).toHaveBeenCalledOnce());
     await app.submit("Queued with image");
 
     expect(runtime.enqueueMessage).toHaveBeenCalledWith(
@@ -11859,7 +11854,7 @@ describe("createTuiApp", () => {
         },
       }),
     );
-    await vi.waitFor(() => expect(dispose).toHaveBeenCalledOnce());
+    await waitFor(() => expect(dispose).toHaveBeenCalledOnce());
     finishTurn?.();
     await first;
     await app.stop();
@@ -11868,7 +11863,7 @@ describe("createTuiApp", () => {
   it("opens the Desktop model picker and applies the selected session model", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listModels).mockResolvedValue([
+    mocked(runtime.listModels).mockResolvedValue([
       {
         providerId: "minimax",
         modelId: "MiniMax-M3",
@@ -11898,7 +11893,7 @@ describe("createTuiApp", () => {
     await app.submit("/model");
     terminal.input?.("\r");
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.selectModel).toHaveBeenCalledWith(
         expect.objectContaining({
           providerId: "minimax",
@@ -11908,7 +11903,7 @@ describe("createTuiApp", () => {
         "session-1",
       ),
     );
-    await vi.waitFor(() => {
+    await waitFor(() => {
       const rendered = app.tui.render(120).join("\n");
       expect(rendered).toContain("✦ MiniMax M3");
       expect(rendered).toContain("Thinking On");
@@ -11921,7 +11916,7 @@ describe("createTuiApp", () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
     let finishTurn: (() => void) | undefined;
-    vi.mocked(runtime.listModels).mockResolvedValue([
+    mocked(runtime.listModels).mockResolvedValue([
       {
         providerId: "minimax",
         modelId: "deep-reasoner-1",
@@ -11932,7 +11927,7 @@ describe("createTuiApp", () => {
         effortOptions: ["xhigh"],
       },
     ]);
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage() {
         await new Promise<void>((resolve) => {
           finishTurn = resolve;
@@ -11951,7 +11946,7 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     const first = app.submit("First turn");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().status).toBe("running"),
     );
     await app.submit("Queued turn");
@@ -11980,7 +11975,7 @@ describe("createTuiApp", () => {
   it("applies a welcome-screen effort to the new Session before sending its first message", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listModels).mockResolvedValue([
+    mocked(runtime.listModels).mockResolvedValue([
       {
         providerId: "custom_provider:byok",
         modelId: "byok-large-5",
@@ -11993,7 +11988,7 @@ describe("createTuiApp", () => {
     ]);
     let releaseDefaultSelection: ((selected: boolean) => void) | undefined;
     let releaseSessionSelection: ((selected: boolean) => void) | undefined;
-    vi.mocked(runtime.selectModel)
+    mocked(runtime.selectModel)
       .mockImplementationOnce(
         async () =>
           await new Promise<boolean>((resolve) => {
@@ -12020,7 +12015,7 @@ describe("createTuiApp", () => {
     terminal.input?.("\r");
 
     const firstTurn = app.submit("First turn");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.selectModel).toHaveBeenNthCalledWith(
         1,
         expect.objectContaining({ thinking: { effort: "high" }, variant: "" }),
@@ -12031,7 +12026,7 @@ describe("createTuiApp", () => {
     expect(runtime.sendMessage).not.toHaveBeenCalled();
 
     releaseDefaultSelection?.(true);
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.selectModel).toHaveBeenNthCalledWith(
         2,
         expect.objectContaining({ thinking: { effort: "high" }, variant: "" }),
@@ -12054,7 +12049,7 @@ describe("createTuiApp", () => {
   it("does not send the first message when Runtime rejects its pending effort", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listModels).mockResolvedValue([
+    mocked(runtime.listModels).mockResolvedValue([
       {
         providerId: "custom_provider:byok",
         modelId: "byok-large-5",
@@ -12063,7 +12058,7 @@ describe("createTuiApp", () => {
         effortOptions: ["low", "medium", "high"],
       },
     ]);
-    vi.mocked(runtime.selectModel)
+    mocked(runtime.selectModel)
       .mockResolvedValueOnce(true)
       .mockResolvedValueOnce(false);
     const app = createTuiApp({
@@ -12077,7 +12072,7 @@ describe("createTuiApp", () => {
     await app.ready;
     await app.submit("/model");
     terminal.input?.("\r");
-    await vi.waitFor(() => expect(runtime.selectModel).toHaveBeenCalledOnce());
+    await waitFor(() => expect(runtime.selectModel).toHaveBeenCalledOnce());
 
     await app.submit("First turn");
 
@@ -12092,7 +12087,7 @@ describe("createTuiApp", () => {
     let finishSessionCreation:
       | ((session: { sessionId: string; workspaceDir: string }) => void)
       | undefined;
-    vi.mocked(runtime.createSession).mockImplementation(
+    mocked(runtime.createSession).mockImplementation(
       async () =>
         await new Promise<{ sessionId: string; workspaceDir: string }>(
           (resolve) => {
@@ -12111,7 +12106,7 @@ describe("createTuiApp", () => {
     await app.ready;
     const submitting = app.submit("Wait for the session");
     let turnIdAtAbort: string | undefined;
-    await vi.waitFor(() => {
+    await waitFor(() => {
       const snapshot = app.controller.snapshot();
       turnIdAtAbort = snapshot.activeTurnId;
       expect(snapshot).toMatchObject({
@@ -12123,7 +12118,7 @@ describe("createTuiApp", () => {
     expect(app.tui.render(80).join("\n")).not.toContain("Loading · 0s");
     expect(app.tui.render(80).join("\n")).not.toContain("MCode ·");
     terminal.input?.("\x1b");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().activeTurnId).toBeUndefined(),
     );
     finishSessionCreation?.({
@@ -12150,7 +12145,7 @@ describe("createTuiApp", () => {
     const runtime = createRuntime();
     let releaseCancelledStream: (() => void) | undefined;
     let sendCount = 0;
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage(_req: SendMessageReq, signal?: AbortSignal) {
         sendCount += 1;
         if (sendCount === 1) {
@@ -12166,7 +12161,7 @@ describe("createTuiApp", () => {
         yield { type: "done" };
       },
     );
-    vi.mocked(runtime.abortSession).mockImplementation(async () => {
+    mocked(runtime.abortSession).mockImplementation(async () => {
       setTimeout(() => releaseCancelledStream?.(), 10);
       return true;
     });
@@ -12181,38 +12176,38 @@ describe("createTuiApp", () => {
     await app.ready;
     terminal.input?.("First request");
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().status).toBe("running"),
     );
 
     terminal.input?.("\x1b");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().cancelling).toBe(true),
     );
     terminal.input?.("Second request");
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.editor.getText()).toContain("Second request"),
     );
     expect(runtime.sendMessage).toHaveBeenCalledTimes(1);
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().activeTurnId).toBeUndefined(),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().retiringTurnId).toBeUndefined(),
     );
     expect(app.controller.snapshot().cancelling).toBe(false);
     // The aborted first prompt (still without output) returns to the composer
     // and merges with the text typed while the fence was active.
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.editor.getText()).toBe("First request\nSecond request"),
     );
     expect(app.tui.render(80).join("\n")).not.toContain(
       "Stopping the current response",
     );
     app.editor.handleInput("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.sendMessage).toHaveBeenCalledTimes(2),
     );
     expect(runtime.sendMessage).toHaveBeenCalledTimes(2);
@@ -12233,7 +12228,7 @@ describe("createTuiApp", () => {
     const runtimeOwnershipReleased = new Promise<void>((resolve) => {
       releaseRuntimeOwnership = resolve;
     });
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage(_req: SendMessageReq, signal?: AbortSignal) {
         // One delta keeps this turn outside the abort-prompt-restore window so
         // this test stays focused on the failed-submission restore below.
@@ -12256,12 +12251,12 @@ describe("createTuiApp", () => {
     await app.ready;
     terminal.input?.("First request");
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().status).toBe("running"),
     );
 
     terminal.input?.("\x1b");
-    await vi.waitFor(
+    await waitFor(
       () => expect(app.controller.snapshot().retiringTurnId).toBeTruthy(),
       {
         timeout: 2_000,
@@ -12276,15 +12271,15 @@ describe("createTuiApp", () => {
     terminal.input?.("Second request");
     terminal.input?.("\r");
     terminal.input?.("extra detail");
-    await vi.waitFor(() => expect(app.editor.getText()).toBe("extra detail"));
+    await waitFor(() => expect(app.editor.getText()).toBe("extra detail"));
     expect(runtime.sendMessage).toHaveBeenCalledTimes(1);
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.tui.render(160).join("\n")).toContain("Second request"),
     );
     expect(app.editor.getText()).toBe("Second request\nextra detail");
 
     releaseRuntimeOwnership?.();
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().retiringTurnId).toBeUndefined(),
     );
     expect(app.tui.render(160).join("\n")).not.toContain(
@@ -12296,7 +12291,7 @@ describe("createTuiApp", () => {
   it("returns the prompt to the composer when a turn is aborted before any output", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage(_req: SendMessageReq, signal?: AbortSignal) {
         await new Promise<void>((resolve) => {
           signal?.addEventListener("abort", resolve, { once: true });
@@ -12304,7 +12299,7 @@ describe("createTuiApp", () => {
         yield { type: "done" };
       },
     );
-    vi.mocked(runtime.abortSession).mockResolvedValue(true);
+    mocked(runtime.abortSession).mockResolvedValue(true);
     const app = createTuiApp({
       runtime,
       terminal,
@@ -12316,14 +12311,14 @@ describe("createTuiApp", () => {
     await app.ready;
     terminal.input?.("Fix the typo");
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().status).toBe("running"),
     );
     const turnId = app.controller.snapshot().activeTurnId;
     expect(turnId).toBeTruthy();
 
     terminal.input?.("\x1b");
-    await vi.waitFor(() => expect(app.editor.getText()).toBe("Fix the typo"));
+    await waitFor(() => expect(app.editor.getText()).toBe("Fix the typo"));
 
     // The user row stays in the transcript, marked cancelled and rendered
     // with the muted marker.
@@ -12333,10 +12328,10 @@ describe("createTuiApp", () => {
     expect(
       app.transcript.snapshot().some((cell) => cell.turnId === turnId),
     ).toBe(true);
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.tui.render(160).join("\n")).toContain("× Cancelled"),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.tui.render(160).join("\n")).toContain(
         "Stopped · message restored to the Composer.",
       ),
@@ -12370,7 +12365,7 @@ describe("createTuiApp", () => {
       const busEvents: TuiRuntimeEvent[] = [];
       let wakeBus: (() => void) | undefined;
       let finishEdit: (() => void) | undefined;
-      vi.mocked(runtime.watchEvents).mockImplementation(async function* (signal) {
+      mocked(runtime.watchEvents).mockImplementation(async function* (signal) {
         while (!signal.aborted) {
           if (busEvents.length === 0) {
             await new Promise<void>((resolve) => {
@@ -12388,14 +12383,14 @@ describe("createTuiApp", () => {
         content: "Original query",
         timestamp: 1,
       };
-      vi.mocked(runtime.listSessionInputSummaries).mockResolvedValue([
+      mocked(runtime.listSessionInputSummaries).mockResolvedValue([
         { userMessageId: originalMessage.id, timestamp: 1, fileChangeCount: 0 },
       ]);
-      vi.mocked(runtime.listMessagePage).mockResolvedValue({
+      mocked(runtime.listMessagePage).mockResolvedValue({
         messages: [originalMessage],
         hasMore: false,
       });
-      vi.mocked(runtime.sendMessage).mockImplementation(
+      mocked(runtime.sendMessage).mockImplementation(
         async function* (_request, signal) {
           yield { type: "message", message: originalMessage };
           yield { type: "delta", content: "Partial response" };
@@ -12406,7 +12401,7 @@ describe("createTuiApp", () => {
         },
       );
       // The RPC/history refresh can finish before the replacement session.start event.
-      vi.mocked(runtime.editSessionMessage).mockImplementation(async () => {
+      mocked(runtime.editSessionMessage).mockImplementation(async () => {
         if (action === "failed-submit-cancel")
           throw new Error("Edit rejected before rewind");
         const failureCodes: Partial<Record<string, string>> = {
@@ -12426,7 +12421,7 @@ describe("createTuiApp", () => {
             2_000,
           );
         }
-        vi.mocked(runtime.getMessages).mockResolvedValue([
+        mocked(runtime.getMessages).mockResolvedValue([
           { ...originalMessage, id: "msg-user-edited", content: "Edited query" },
         ]);
         if (action === "early-rewind") {
@@ -12460,7 +12455,7 @@ describe("createTuiApp", () => {
         await app.ready;
         terminal.input?.("Original query");
         terminal.input?.("\r");
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(
             app.transcript
               .snapshot()
@@ -12468,7 +12463,7 @@ describe("createTuiApp", () => {
           ).toBe(true),
         );
         terminal.input?.("\x1b");
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(
             app.transcript
               .snapshot()
@@ -12481,7 +12476,7 @@ describe("createTuiApp", () => {
 
         terminal.input?.("\x1b");
         terminal.input?.("\x1b");
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(app.editor.getText()).toBe("Original query"),
         );
         app.tui.renderNow();
@@ -12499,7 +12494,7 @@ describe("createTuiApp", () => {
         app.editor.setText("Edited query");
         terminal.input?.("\r");
         if (action.endsWith("-cancel")) {
-          await vi.waitFor(() =>
+          await waitFor(() =>
             expect(app.editor.getText()).toBe("Edited query"),
           );
           expect(runtime.editSessionMessage).toHaveBeenCalledOnce();
@@ -12515,7 +12510,7 @@ describe("createTuiApp", () => {
           }
           return;
         }
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(
             app.transcript
               .snapshot()
@@ -12528,7 +12523,7 @@ describe("createTuiApp", () => {
           expect(finishEdit).toBeDefined();
           expect(screen.text()).not.toContain("Interrupted after");
           finishEdit?.();
-          await vi.waitFor(() => expect(app.editor.getText()).toBe(""));
+          await waitFor(() => expect(app.editor.getText()).toBe(""));
           app.tui.renderNow();
         }
         expect(runtime.editSessionMessage).toHaveBeenCalledOnce();
@@ -12567,7 +12562,7 @@ describe("createTuiApp", () => {
     const runtime = createRuntime();
     let finishResend: (() => void) | undefined;
     let sendCount = 0;
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* (_request, signal) {
         sendCount += 1;
         if (sendCount <= 10) {
@@ -12605,12 +12600,12 @@ describe("createTuiApp", () => {
       }
       terminal.input?.("First request");
       terminal.input?.("\r");
-      await vi.waitFor(() => expect(app.controller.snapshot().status).toBe("running"));
+      await waitFor(() => expect(app.controller.snapshot().status).toBe("running"));
       terminal.input?.("\x1b");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.tui.render(80).join("\n")).toContain("Partial response"),
       );
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(
           app.transcript
             .snapshot()
@@ -12626,7 +12621,7 @@ describe("createTuiApp", () => {
       terminal.input?.("\r");
       expect(screen.text()).not.toContain("Interrupted after");
       expect(app.tui.render(80).join("\n")).not.toContain("Interrupted after");
-      await vi.waitFor(() => expect(runtime.sendMessage).toHaveBeenCalledTimes(12));
+      await waitFor(() => expect(runtime.sendMessage).toHaveBeenCalledTimes(12));
       app.tui.renderNow();
 
       expect(frames.length).toBeGreaterThan(0);
@@ -12641,7 +12636,7 @@ describe("createTuiApp", () => {
   it("returns a thinking-only turn's prompt to the composer on abort", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage(_req: SendMessageReq, signal?: AbortSignal) {
         yield { type: "delta", thinking: "let me consider" };
         await new Promise<void>((resolve) => {
@@ -12650,7 +12645,7 @@ describe("createTuiApp", () => {
         yield { type: "done" };
       },
     );
-    vi.mocked(runtime.abortSession).mockResolvedValue(true);
+    mocked(runtime.abortSession).mockResolvedValue(true);
     const app = createTuiApp({
       runtime,
       terminal,
@@ -12662,18 +12657,18 @@ describe("createTuiApp", () => {
     await app.ready;
     terminal.input?.("Wrong question");
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().status).toBe("running"),
     );
     const turnId = app.controller.snapshot().activeTurnId;
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(
         app.transcript.snapshot().some((cell) => cell.kind === "thinking"),
       ).toBe(true),
     );
 
     terminal.input?.("\x1b");
-    await vi.waitFor(() => expect(app.editor.getText()).toBe("Wrong question"));
+    await waitFor(() => expect(app.editor.getText()).toBe("Wrong question"));
     expect(
       app.transcript.snapshot().some((cell) => cell.turnId === turnId),
     ).toBe(true);
@@ -12683,7 +12678,7 @@ describe("createTuiApp", () => {
   it("keeps the transcript and leaves the composer empty when aborting after output", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage(_req: SendMessageReq, signal?: AbortSignal) {
         yield { type: "delta", content: "partial answer" };
         await new Promise<void>((resolve) => {
@@ -12692,7 +12687,7 @@ describe("createTuiApp", () => {
         yield { type: "done" };
       },
     );
-    vi.mocked(runtime.abortSession).mockResolvedValue(true);
+    mocked(runtime.abortSession).mockResolvedValue(true);
     const app = createTuiApp({
       runtime,
       terminal,
@@ -12704,11 +12699,11 @@ describe("createTuiApp", () => {
     await app.ready;
     terminal.input?.("Keep this prompt");
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().status).toBe("running"),
     );
     const turnId = app.controller.snapshot().activeTurnId;
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(
         app.transcript.snapshot().some(
           (cell) => cell.kind === "assistant" && cell.content.length > 0,
@@ -12717,10 +12712,10 @@ describe("createTuiApp", () => {
     );
 
     terminal.input?.("\x1b");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().activeTurnId).toBeUndefined(),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().retiringTurnId).toBeUndefined(),
     );
 
@@ -12741,7 +12736,7 @@ describe("createTuiApp", () => {
         await writeFile(localPath, "png");
         const terminal = new FakeTerminal();
         const runtime = createRuntime();
-        vi.mocked(runtime.sendMessage).mockImplementation(
+        mocked(runtime.sendMessage).mockImplementation(
           async function* sendMessage(_req: SendMessageReq, signal?: AbortSignal) {
             await new Promise<void>((resolve) => {
               signal?.addEventListener("abort", resolve, { once: true });
@@ -12749,7 +12744,7 @@ describe("createTuiApp", () => {
             yield { type: "done" };
           },
         );
-        vi.mocked(runtime.abortSession).mockResolvedValue(true);
+        mocked(runtime.abortSession).mockResolvedValue(true);
         const app = createTuiApp({
           runtime,
           terminal,
@@ -12798,35 +12793,35 @@ describe("createTuiApp", () => {
           ],
         };
         void app.commandFlow.submit("Mixed restore", seed).catch(() => undefined);
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(app.controller.snapshot().status).toBe("running"),
         );
         const turnIdAtAbort = app.controller.snapshot().activeTurnId;
 
         terminal.input?.("\x1b");
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(app.editor.getText()).toBe("Mixed restore [Image #1] "),
         );
         // The retained snapshot was consulted and dropped after the restore.
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(app.commandFlow.getRetainedSubmission(String(turnIdAtAbort))).toBeUndefined(),
         );
 
         if (removeLocal) {
           app.editor.handleInput("\x05");
           app.editor.handleInput("\x7f");
-          await vi.waitFor(() =>
+          await waitFor(() =>
             expect(app.editor.getText()).not.toContain("[Image #1]"),
           );
         }
 
         // Resubmit the restored draft with its current attachment selection.
         app.editor.handleInput("\r");
-        await vi.waitFor(() =>
-          expect(vi.mocked(runtime.sendMessage).mock.calls.length).toBe(2),
+        await waitFor(() =>
+          expect(mocked(runtime.sendMessage).mock.calls.length).toBe(2),
         );
 
-        const request = vi.mocked(runtime.sendMessage).mock.calls[1][0];
+        const request = mocked(runtime.sendMessage).mock.calls[1][0];
         expect(request.attachments).toHaveLength(removeLocal ? 1 : 2);
         const locals = request.attachments?.map((attachment) => attachment.local) ?? [];
         expect(locals).toEqual(
@@ -12849,7 +12844,7 @@ describe("createTuiApp", () => {
     async (edited) => {
       const terminal = new FakeTerminal();
       const runtime = createRuntime();
-      vi.mocked(runtime.sendMessage).mockImplementation(
+      mocked(runtime.sendMessage).mockImplementation(
         async function* sendMessage(_req: SendMessageReq, signal?: AbortSignal) {
           await new Promise<void>((resolve) => {
             signal?.addEventListener("abort", resolve, { once: true });
@@ -12857,7 +12852,7 @@ describe("createTuiApp", () => {
           yield { type: "done" };
         },
       );
-      vi.mocked(runtime.abortSession).mockResolvedValue(true);
+      mocked(runtime.abortSession).mockResolvedValue(true);
       const app = createTuiApp({
         runtime,
         terminal,
@@ -12873,14 +12868,14 @@ describe("createTuiApp", () => {
         transportContent: "Original hidden transport",
         clientIntent: "plan-entry",
       });
-      await vi.waitFor(() => expect(app.controller.snapshot().status).toBe("running"));
+      await waitFor(() => expect(app.controller.snapshot().status).toBe("running"));
 
       terminal.input?.("\x1b");
-      await vi.waitFor(() => expect(app.editor.getText()).toBe("Visible prompt"));
+      await waitFor(() => expect(app.editor.getText()).toBe("Visible prompt"));
       if (edited) app.editor.setText("Corrected prompt");
       app.editor.handleInput("\r");
-      await vi.waitFor(() => expect(vi.mocked(runtime.sendMessage)).toHaveBeenCalledTimes(2));
-      const request = vi.mocked(runtime.sendMessage).mock.calls[1][0];
+      await waitFor(() => expect(mocked(runtime.sendMessage)).toHaveBeenCalledTimes(2));
+      const request = mocked(runtime.sendMessage).mock.calls[1][0];
       expect(request.content).toBe(edited ? "Corrected prompt" : "Original hidden transport");
       expect(request.clientIntent).toBe(edited ? undefined : "plan-entry");
       await app.stop();
@@ -12890,7 +12885,7 @@ describe("createTuiApp", () => {
   it("sends edited visible text instead of stale hidden review transport after abort", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage(_req: SendMessageReq, signal?: AbortSignal) {
         await new Promise<void>((resolve) => {
           signal?.addEventListener("abort", resolve, { once: true });
@@ -12898,7 +12893,7 @@ describe("createTuiApp", () => {
         yield { type: "done" };
       },
     );
-    vi.mocked(runtime.abortSession).mockResolvedValue(true);
+    mocked(runtime.abortSession).mockResolvedValue(true);
     const app = createTuiApp({
       runtime,
       terminal,
@@ -12920,24 +12915,24 @@ describe("createTuiApp", () => {
         reviewRequest: { scope: "local_changes" },
       },
     );
-    await vi.waitFor(() => expect(app.controller.snapshot().status).toBe("running"));
+    await waitFor(() => expect(app.controller.snapshot().status).toBe("running"));
 
     terminal.input?.("\x1b");
-    await vi.waitFor(() => expect(app.editor.getText()).toBe("/review"));
+    await waitFor(() => expect(app.editor.getText()).toBe("/review"));
     app.editor.setText("Review only src/foo.ts");
     app.editor.handleInput("\r");
-    await vi.waitFor(() => expect(vi.mocked(runtime.sendMessage)).toHaveBeenCalledTimes(2));
-    expect(vi.mocked(runtime.sendMessage).mock.calls[1][0]).toMatchObject({
+    await waitFor(() => expect(mocked(runtime.sendMessage)).toHaveBeenCalledTimes(2));
+    expect(mocked(runtime.sendMessage).mock.calls[1][0]).toMatchObject({
       content: "Review only src/foo.ts",
     });
-    expect(vi.mocked(runtime.sendMessage).mock.calls[1][0].reviewRequest).toBeUndefined();
+    expect(mocked(runtime.sendMessage).mock.calls[1][0].reviewRequest).toBeUndefined();
     await app.stop();
   });
 
   it("does not restore the prompt when the runtime does not confirm the stop", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage(_req: SendMessageReq, signal?: AbortSignal) {
         await new Promise<void>((resolve) => {
           signal?.addEventListener("abort", resolve, { once: true });
@@ -12945,7 +12940,7 @@ describe("createTuiApp", () => {
         yield { type: "done" };
       },
     );
-    vi.mocked(runtime.abortSession).mockResolvedValue(false);
+    mocked(runtime.abortSession).mockResolvedValue(false);
     const app = createTuiApp({
       runtime,
       terminal,
@@ -12957,13 +12952,13 @@ describe("createTuiApp", () => {
     await app.ready;
     terminal.input?.("Unconfirmed stop");
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().status).toBe("running"),
     );
     const turnId = app.controller.snapshot().activeTurnId;
 
     terminal.input?.("\x1b");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().cancelling).toBe(true),
     );
     // Let the abort funnel (settle race included) finish before asserting; an
@@ -12978,7 +12973,7 @@ describe("createTuiApp", () => {
   it("does not restore the prompt when only delegated agents stopped", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage(_req: SendMessageReq, signal?: AbortSignal) {
         await new Promise<void>((resolve) => {
           signal?.addEventListener("abort", resolve, { once: true });
@@ -12986,8 +12981,8 @@ describe("createTuiApp", () => {
         yield { type: "done" };
       },
     );
-    vi.mocked(runtime.abortSession).mockResolvedValue(false);
-    vi.mocked(runtime.stopDelegation).mockResolvedValue({
+    mocked(runtime.abortSession).mockResolvedValue(false);
+    mocked(runtime.stopDelegation).mockResolvedValue({
       rootStopped: false,
       stoppedSessionIds: ["child-1"],
       failedSessionIds: [],
@@ -13004,13 +12999,13 @@ describe("createTuiApp", () => {
     await app.ready;
     terminal.input?.("Root keeps running");
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().status).toBe("running"),
     );
     const turnId = app.controller.snapshot().activeTurnId;
 
     terminal.input?.("\x1b");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().cancelling).toBe(true),
     );
     // Let the abort funnel settle; the root turn was never confirmed stopped.
@@ -13024,7 +13019,7 @@ describe("createTuiApp", () => {
   it("does not restore when retirement does not settle within the settlement window", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage(_req: SendMessageReq, signal?: AbortSignal) {
         await new Promise<void>((resolve) => {
           signal?.addEventListener("abort", resolve, { once: true });
@@ -13032,7 +13027,7 @@ describe("createTuiApp", () => {
         yield { type: "done" };
       },
     );
-    vi.mocked(runtime.abortSession).mockResolvedValue(true);
+    mocked(runtime.abortSession).mockResolvedValue(true);
     const app = createTuiApp({
       runtime,
       terminal,
@@ -13044,7 +13039,7 @@ describe("createTuiApp", () => {
     await app.ready;
     terminal.input?.("Hanging retirement");
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().status).toBe("running"),
     );
     const turnId = app.controller.snapshot().activeTurnId;
@@ -13052,7 +13047,7 @@ describe("createTuiApp", () => {
     // Simulate a retirement that never settles: whenIdle parks its waiter
     // forever, so the bounded settle race must skip the restore instead of
     // hanging the funnel.
-    vi.spyOn(app.controller, "whenIdle").mockReturnValue(new Promise(() => undefined));
+    spyOn(app.controller, "whenIdle").mockReturnValue(new Promise(() => undefined));
 
     terminal.input?.("\x1b");
     // Both the coordinator settle wait and the restore's settle race use the
@@ -13076,7 +13071,7 @@ describe("createTuiApp", () => {
     try {
       const terminal = new FakeTerminal();
       const runtime = createRuntime();
-      vi.mocked(runtime.sendMessage).mockImplementation(
+      mocked(runtime.sendMessage).mockImplementation(
         async function* sendMessage(_req: SendMessageReq, signal?: AbortSignal) {
           await new Promise<void>((resolve) => {
             signal?.addEventListener("abort", resolve, { once: true });
@@ -13084,7 +13079,7 @@ describe("createTuiApp", () => {
           yield { type: "done" };
         },
       );
-      vi.mocked(runtime.abortSession).mockResolvedValue(true);
+      mocked(runtime.abortSession).mockResolvedValue(true);
       const first = createTuiApp({
         runtime,
         terminal,
@@ -13097,11 +13092,11 @@ describe("createTuiApp", () => {
       await first.openSession("session-1");
       terminal.input?.("Only once");
       terminal.input?.("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(first.controller.snapshot().status).toBe("running"),
       );
       terminal.input?.("\x1b");
-      await vi.waitFor(() => expect(first.editor.getText()).toBe("Only once"));
+      await waitFor(() => expect(first.editor.getText()).toBe("Only once"));
       await first.stop();
 
       const restored = createTuiApp({
@@ -13114,7 +13109,7 @@ describe("createTuiApp", () => {
       restored.start();
       await restored.ready;
       await restored.openSession("session-1");
-      await vi.waitFor(() => expect(restored.editor.getText()).toBe("Only once"));
+      await waitFor(() => expect(restored.editor.getText()).toBe("Only once"));
       await restored.stop();
     } finally {
       await rm(dataDir, { recursive: true, force: true });
@@ -13127,7 +13122,7 @@ describe("createTuiApp", () => {
       const localPath = join(dataDir, "local.png");
       await writeFile(localPath, "png");
       const runtime = createRuntime();
-      vi.mocked(runtime.sendMessage).mockImplementation(
+      mocked(runtime.sendMessage).mockImplementation(
         async function* sendMessage(_req: SendMessageReq, signal?: AbortSignal) {
           await new Promise<void>((resolve) => {
             signal?.addEventListener("abort", resolve, { once: true });
@@ -13135,7 +13130,7 @@ describe("createTuiApp", () => {
           yield { type: "done" };
         },
       );
-      vi.mocked(runtime.abortSession).mockResolvedValue(true);
+      mocked(runtime.abortSession).mockResolvedValue(true);
       const first = createTuiApp({
         runtime,
         terminal: new FakeTerminal(),
@@ -13171,9 +13166,9 @@ describe("createTuiApp", () => {
         transportContent: "Original hidden transport",
         clientIntent: "plan-entry",
       });
-      await vi.waitFor(() => expect(first.controller.snapshot().status).toBe("running"));
+      await waitFor(() => expect(first.controller.snapshot().status).toBe("running"));
       await first.abortTurn();
-      await vi.waitFor(() => expect(first.editor.getText()).toContain("Mixed restore"));
+      await waitFor(() => expect(first.editor.getText()).toContain("Mixed restore"));
       await first.stop();
 
       const nextRuntime = createRuntime();
@@ -13187,11 +13182,11 @@ describe("createTuiApp", () => {
       restored.start();
       await restored.ready;
       await restored.openSession("session-1");
-      await vi.waitFor(() => expect(restored.editor.getText()).toContain("Mixed restore"));
+      await waitFor(() => expect(restored.editor.getText()).toContain("Mixed restore"));
       expect(restored.editor.captureDraft().attachmentPlaceholders).toHaveLength(1);
       restored.editor.handleInput("\r");
-      await vi.waitFor(() => expect(nextRuntime.sendMessage).toHaveBeenCalledTimes(1));
-      const request = vi.mocked(nextRuntime.sendMessage).mock.calls[0][0];
+      await waitFor(() => expect(nextRuntime.sendMessage).toHaveBeenCalledTimes(1));
+      const request = mocked(nextRuntime.sendMessage).mock.calls[0][0];
       expect(request.content).toBe("Original hidden transport");
       expect(request.clientIntent).toBe("plan-entry");
       expect(request.attachments?.map((attachment) => attachment.local)).toEqual(
@@ -13212,7 +13207,7 @@ describe("createTuiApp", () => {
       const dataDir = await mkdtemp(join(tmpdir(), "mcode-abort-review-"));
       try {
         const runtime = createRuntime();
-        vi.mocked(runtime.sendMessage).mockImplementation(
+        mocked(runtime.sendMessage).mockImplementation(
           async function* sendMessage(_req: SendMessageReq, signal?: AbortSignal) {
             await new Promise<void>((resolve) => {
               signal?.addEventListener("abort", resolve, { once: true });
@@ -13220,7 +13215,7 @@ describe("createTuiApp", () => {
             yield { type: "done" };
           },
         );
-        vi.mocked(runtime.abortSession).mockResolvedValue(true);
+        mocked(runtime.abortSession).mockResolvedValue(true);
         const first = createTuiApp({
           runtime,
           terminal: new FakeTerminal(),
@@ -13244,9 +13239,9 @@ describe("createTuiApp", () => {
             reviewRequest: { scope: "local_changes" },
           },
         );
-        await vi.waitFor(() => expect(first.controller.snapshot().status).toBe("running"));
+        await waitFor(() => expect(first.controller.snapshot().status).toBe("running"));
         await first.abortTurn();
-        await vi.waitFor(() => expect(first.editor.getText()).toBe("/review"));
+        await waitFor(() => expect(first.editor.getText()).toBe("/review"));
         await first.stop();
 
         const nextRuntime = createRuntime();
@@ -13260,11 +13255,11 @@ describe("createTuiApp", () => {
         restored.start();
         await restored.ready;
         await restored.openSession("session-1");
-        await vi.waitFor(() => expect(restored.editor.getText()).toBe("/review"));
+        await waitFor(() => expect(restored.editor.getText()).toBe("/review"));
         if (edited) restored.editor.setText("Review src/foo.ts");
         restored.editor.handleInput("\r");
-        await vi.waitFor(() => expect(nextRuntime.sendMessage).toHaveBeenCalledOnce());
-        const request = vi.mocked(nextRuntime.sendMessage).mock.calls[0][0];
+        await waitFor(() => expect(nextRuntime.sendMessage).toHaveBeenCalledOnce());
+        const request = mocked(nextRuntime.sendMessage).mock.calls[0][0];
         expect(request.content).toBe(
           edited ? "Review src/foo.ts" : "Please review my uncommitted changes.",
         );
@@ -13284,7 +13279,7 @@ describe("createTuiApp", () => {
     let finishSessionCreation:
       | ((session: { sessionId: string; workspaceDir: string }) => void)
       | undefined;
-    vi.mocked(runtime.createSession).mockImplementation(
+    mocked(runtime.createSession).mockImplementation(
       async () =>
         await new Promise<{ sessionId: string; workspaceDir: string }>(
           (resolve) => {
@@ -13302,7 +13297,7 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     const submitting = app.submit("Wait for the session");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().activeTurnId).toEqual(
         expect.any(String),
       ),
@@ -13327,7 +13322,7 @@ describe("createTuiApp", () => {
     "hydrates the Runtime-selected startup model for %s",
     async (providerId) => {
       const runtime = createRuntime();
-      vi.mocked(runtime.listModels).mockResolvedValue([
+      mocked(runtime.listModels).mockResolvedValue([
         { providerId, modelId: "MiniMax-M3", selected: true },
       ]);
       const app = createTuiApp({
@@ -13352,7 +13347,7 @@ describe("createTuiApp", () => {
   it("offers provider onboarding when Desktop has no models", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listModels).mockResolvedValue([]);
+    mocked(runtime.listModels).mockResolvedValue([]);
     const app = createTuiApp({
       runtime,
       terminal,
@@ -13375,7 +13370,7 @@ describe("createTuiApp", () => {
   it("keeps the TUI usable when the Runtime model catalog fails to load", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
-    vi.mocked(runtime.listModels).mockRejectedValue(
+    mocked(runtime.listModels).mockRejectedValue(
       new Error("catalog unavailable"),
     );
     const app = createTuiApp({
@@ -13401,7 +13396,7 @@ describe("createTuiApp", () => {
     let finishFirstTurn: (() => void) | undefined;
     let finishEnqueue: (() => void) | undefined;
     let admitted = false;
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage() {
         await new Promise<void>((resolve) => {
           finishFirstTurn = resolve;
@@ -13409,14 +13404,14 @@ describe("createTuiApp", () => {
         yield { type: "done" };
       },
     );
-    vi.mocked(runtime.enqueueMessage).mockImplementation(async () => {
+    mocked(runtime.enqueueMessage).mockImplementation(async () => {
       await new Promise<void>((resolve) => {
         finishEnqueue = resolve;
       });
       admitted = true;
       return { itemId: "queue-pending-1", status: "queued", position: 1 };
     });
-    vi.mocked(runtime.listQueuedMessages).mockImplementation(async () =>
+    mocked(runtime.listQueuedMessages).mockImplementation(async () =>
       admitted
         ? [
             {
@@ -13438,7 +13433,7 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     const first = app.submit("First turn");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().activeTurnId).toEqual(
         expect.any(String),
       ),
@@ -13446,7 +13441,7 @@ describe("createTuiApp", () => {
 
     terminal.input?.("Second turn");
     terminal.input?.("\x1b\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.enqueueMessage).toHaveBeenCalledOnce(),
     );
 
@@ -13461,7 +13456,7 @@ describe("createTuiApp", () => {
       expect(rendered).toContain("Next · after current response");
       expect(rendered).toContain("Second turn");
       finishEnqueue?.();
-      await vi.waitFor(() => {
+      await waitFor(() => {
         const confirmed = app.tui.render(100).join("\n");
         expect(confirmed).not.toContain("Adding to Queue");
         expect(confirmed).toContain("Next · after current response");
@@ -13480,7 +13475,7 @@ describe("createTuiApp", () => {
     const runtime = createRuntime();
     let finishFirstTurn: (() => void) | undefined;
     let rejectEnqueue: ((error: Error) => void) | undefined;
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage() {
         await new Promise<void>((resolve) => {
           finishFirstTurn = resolve;
@@ -13488,7 +13483,7 @@ describe("createTuiApp", () => {
         yield { type: "done" };
       },
     );
-    vi.mocked(runtime.enqueueMessage).mockImplementation(
+    mocked(runtime.enqueueMessage).mockImplementation(
       async () =>
         await new Promise<never>((_resolve, reject) => {
           rejectEnqueue = reject;
@@ -13504,24 +13499,24 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     const first = app.submit("First turn");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().activeTurnId).toEqual(
         expect.any(String),
       ),
     );
     terminal.input?.("Keep this Draft");
     terminal.input?.("\x1b\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.tui.render(100).join("\n")).toContain(
         "Next · after current response",
       ),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.enqueueMessage).toHaveBeenCalledOnce(),
     );
 
     rejectEnqueue?.(new Error("queue unavailable"));
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.editor.getText()).toBe("Keep this Draft"),
     );
     const rendered = app.tui.render(100).join("\n");
@@ -13539,7 +13534,7 @@ describe("createTuiApp", () => {
     let finishFirstTurn: (() => void) | undefined;
     const releaseAdmissions: Array<() => void> = [];
     const queued: TuiQueuedMessage[] = [];
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage() {
         await new Promise<void>((resolve) => {
           finishFirstTurn = resolve;
@@ -13547,7 +13542,7 @@ describe("createTuiApp", () => {
         yield { type: "done" };
       },
     );
-    vi.mocked(runtime.enqueueMessage).mockImplementation(
+    mocked(runtime.enqueueMessage).mockImplementation(
       async (sessionId, content) => {
         await new Promise<void>((resolve) => releaseAdmissions.push(resolve));
         const item = {
@@ -13564,7 +13559,7 @@ describe("createTuiApp", () => {
         };
       },
     );
-    vi.mocked(runtime.listQueuedMessages).mockImplementation(async () => [
+    mocked(runtime.listQueuedMessages).mockImplementation(async () => [
       ...queued,
     ]);
     const app = createTuiApp({
@@ -13577,7 +13572,7 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     const first = app.submit("First turn");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().activeTurnId).toEqual(
         expect.any(String),
       ),
@@ -13587,7 +13582,7 @@ describe("createTuiApp", () => {
     terminal.input?.("Third turn");
     terminal.input?.("\x1b\r");
 
-    await vi.waitFor(() => {
+    await waitFor(() => {
       const rendered = app.tui.render(100).join("\n");
       expect(rendered).not.toContain("Adding");
       expect(rendered).toContain("Queue · 2 next");
@@ -13604,11 +13599,11 @@ describe("createTuiApp", () => {
         ),
     ).toEqual([]);
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.enqueueMessage).toHaveBeenCalledOnce(),
     );
     releaseAdmissions[0]?.();
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.enqueueMessage).toHaveBeenCalledTimes(2),
     );
     const partiallyConfirmed = app.tui.render(100).join("\n");
@@ -13617,7 +13612,7 @@ describe("createTuiApp", () => {
       partiallyConfirmed.indexOf("Third turn"),
     );
     releaseAdmissions[1]?.();
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.tui.render(100).join("\n")).toContain("Queue · 2 next"),
     );
 
@@ -13630,7 +13625,7 @@ describe("createTuiApp", () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
     let finishFirstTurn: (() => void) | undefined;
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage(req: SendMessageReq) {
         const content = req.content ?? "";
         if (content === "First turn") {
@@ -13655,7 +13650,7 @@ describe("createTuiApp", () => {
       status: string;
       content: string;
     }> = [];
-    vi.mocked(runtime.enqueueMessage).mockImplementation(
+    mocked(runtime.enqueueMessage).mockImplementation(
       async (sessionId, content) => {
         const item = {
           itemId: `queue-${queued.length + 1}`,
@@ -13671,19 +13666,19 @@ describe("createTuiApp", () => {
         };
       },
     );
-    vi.mocked(runtime.listQueuedMessages).mockImplementation(async () => [
+    mocked(runtime.listQueuedMessages).mockImplementation(async () => [
       ...queued,
     ]);
-    vi.mocked(runtime.deleteQueuedMessage).mockImplementation(
+    mocked(runtime.deleteQueuedMessage).mockImplementation(
       async (_sessionId, itemId) => {
         const index = queued.findIndex((item) => item.itemId === itemId);
         if (index < 0) return undefined;
         return queued.splice(index, 1)[0];
       },
     );
-    const readClipboardImage = vi.fn(async () => ({
+    const readClipboardImage = mock(async () => ({
       attachment,
-      dispose: vi.fn(async () => undefined),
+      dispose: mock(async () => undefined),
     }));
     const app = createTuiApp({
       runtime,
@@ -13696,13 +13691,13 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     const first = app.submit("First turn");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().activeTurnId).toEqual(
         expect.any(String),
       ),
     );
     terminal.input?.("\x16");
-    await vi.waitFor(() => expect(readClipboardImage).toHaveBeenCalledOnce());
+    await waitFor(() => expect(readClipboardImage).toHaveBeenCalledOnce());
     await app.submit("Second turn");
     await app.submit("Third turn");
 
@@ -13744,13 +13739,13 @@ describe("createTuiApp", () => {
       "Remove this next message?",
     );
     terminal.input?.("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.deleteQueuedMessage).toHaveBeenCalledWith(
         "session-1",
         "queue-2",
       ),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.tui.render(80).join("\n")).not.toContain("Third turn"),
     );
     expect(app.tui.render(80).join("\n")).toContain("Second turn");
@@ -13760,7 +13755,7 @@ describe("createTuiApp", () => {
     await first;
 
     expect(
-      vi.mocked(runtime.sendMessage).mock.calls.map((call) => call[0].content),
+      mocked(runtime.sendMessage).mock.calls.map((call) => call[0].content),
     ).toEqual(["First turn"]);
     expect(app.tui.render(80).join("\n")).toContain(
       "Next · after current response",
@@ -13787,22 +13782,22 @@ describe("createTuiApp", () => {
       workspaceDir: "/workspace",
       status: "started",
     };
-    vi.mocked(runtime.listSessions).mockResolvedValue([session]);
-    vi.mocked(runtime.getSession).mockResolvedValue(session);
-    vi.mocked(runtime.getActiveRun).mockResolvedValue({
+    mocked(runtime.listSessions).mockResolvedValue([session]);
+    mocked(runtime.getSession).mockResolvedValue(session);
+    mocked(runtime.getActiveRun).mockResolvedValue({
       schemaVersion: 1,
       sessionId: "session-running",
       state: "running",
       turnId: "turn-running",
       actions: { steer: true },
     });
-    vi.mocked(runtime.listQueuedMessages).mockImplementation(
+    mocked(runtime.listQueuedMessages).mockImplementation(
       async () => slowQueue,
     );
-    vi.mocked(runtime.listModels).mockImplementation(async (sessionId) =>
+    mocked(runtime.listModels).mockImplementation(async (sessionId) =>
       sessionId ? slowModels : [],
     );
-    vi.mocked(runtime.enqueueMessage).mockResolvedValue({
+    mocked(runtime.enqueueMessage).mockResolvedValue({
       itemId: "queue-running-1",
       status: "queued",
       position: 1,
@@ -13817,13 +13812,13 @@ describe("createTuiApp", () => {
 
     await app.ready;
     const resuming = app.submit("/resume session-running");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.tui.render(80).join("\n")).toContain("Loading"),
     );
     expect(app.tui.render(80).join("\n")).not.toContain("Loading · 0s");
 
     const followUp = app.submit("Send this through the Runtime queue");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.enqueueMessage).toHaveBeenCalledWith(
         "session-running",
         "Send this through the Runtime queue",
@@ -13847,8 +13842,8 @@ describe("createTuiApp", () => {
       workspaceDir: "/workspace",
       status: "finished",
     };
-    vi.mocked(runtime.listSessions).mockResolvedValue([session]);
-    vi.mocked(runtime.getSession).mockResolvedValue(session);
+    mocked(runtime.listSessions).mockResolvedValue([session]);
+    mocked(runtime.getSession).mockResolvedValue(session);
     const app = createTuiApp({
       runtime,
       terminal,
@@ -13873,8 +13868,8 @@ describe("createTuiApp", () => {
       workspaceDir: "/workspace",
       status: "started",
     };
-    vi.mocked(runtime.listSessions).mockResolvedValue([session]);
-    vi.mocked(runtime.getSession).mockResolvedValue(session);
+    mocked(runtime.listSessions).mockResolvedValue([session]);
+    mocked(runtime.getSession).mockResolvedValue(session);
 
     const app = createTuiApp({
       runtime,
@@ -13886,7 +13881,7 @@ describe("createTuiApp", () => {
     app.start();
     await app.ready;
     await app.submit("/resume session-stale");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.tui.render(80).join("\n")).not.toContain("Loading"),
     );
 
@@ -13907,16 +13902,16 @@ describe("createTuiApp", () => {
       workspaceDir: "/workspace",
       status: "started",
     };
-    vi.mocked(runtime.listSessions).mockResolvedValue([session]);
-    vi.mocked(runtime.getSession).mockResolvedValue(session);
-    vi.mocked(runtime.getActiveRun).mockResolvedValue({
+    mocked(runtime.listSessions).mockResolvedValue([session]);
+    mocked(runtime.getSession).mockResolvedValue(session);
+    mocked(runtime.getActiveRun).mockResolvedValue({
       schemaVersion: 1,
       sessionId: "session-running",
       state: "running",
       turnId: "turn-running",
       actions: { steer: true },
     });
-    vi.mocked(runtime.abortSession).mockResolvedValue(true);
+    mocked(runtime.abortSession).mockResolvedValue(true);
     const app = createTuiApp({
       runtime,
       terminal,
@@ -13933,15 +13928,15 @@ describe("createTuiApp", () => {
     );
     expect(app.tui.render(80).join("\n")).not.toContain("Esc to interrupt");
 
-    vi.mocked(runtime.abortSession).mockClear();
+    mocked(runtime.abortSession).mockClear();
     await app.submit("/resume session-running");
     terminal.input?.("\x1b");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.abortSession).toHaveBeenCalledWith(
         expect.objectContaining({ id: "session-running" }),
       ),
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.tui.render(80).join("\n")).not.toContain("Esc to interrupt"),
     );
     expect(app.tui.render(80).join("\n")).not.toMatch(
@@ -13972,16 +13967,16 @@ describe("createTuiApp", () => {
         workspaceDir: "/workspace",
         status: "started",
       };
-      vi.mocked(runtime.listSessions).mockResolvedValue([session]);
-      vi.mocked(runtime.getSession).mockResolvedValue(session);
-      vi.mocked(runtime.getActiveRun).mockResolvedValue({
+      mocked(runtime.listSessions).mockResolvedValue([session]);
+      mocked(runtime.getSession).mockResolvedValue(session);
+      mocked(runtime.getActiveRun).mockResolvedValue({
         schemaVersion: 1,
         sessionId: "session-running",
         state: "running",
         turnId: "turn-running",
         actions: { steer: false },
       });
-      vi.mocked(runtime.abortSession).mockImplementation(abort);
+      mocked(runtime.abortSession).mockImplementation(abort);
       const app = createTuiApp({
         runtime,
         terminal,
@@ -13994,15 +13989,15 @@ describe("createTuiApp", () => {
       await app.submit("/resume session-running");
       terminal.input?.("\x1b");
 
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(runtime.abortSession).toHaveBeenCalledWith(
           expect.objectContaining({ id: "session-running" }),
         ),
       );
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.tui.render(80).join("\n")).not.toContain("Esc to interrupt"),
       );
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.tui.render(80).join("\n")).toContain(expectedError),
       );
       await app.stop();
@@ -14021,13 +14016,13 @@ describe("createTuiApp", () => {
         content: "Continue after failure",
       },
     ];
-    vi.mocked(runtime.listQueuedMessages).mockResolvedValue(queued);
-    vi.mocked(runtime.enqueueMessage).mockResolvedValue({
+    mocked(runtime.listQueuedMessages).mockResolvedValue(queued);
+    mocked(runtime.enqueueMessage).mockResolvedValue({
       itemId: "queue-after-error",
       status: "queued",
       position: 1,
     });
-    vi.mocked(runtime.sendMessage).mockImplementation(
+    mocked(runtime.sendMessage).mockImplementation(
       async function* sendMessage() {
         await new Promise<void>((resolve) => {
           finishTurn = resolve;
@@ -14045,7 +14040,7 @@ describe("createTuiApp", () => {
 
     await app.ready;
     const first = app.submit("First turn");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.controller.snapshot().activeTurnId).toEqual(
         expect.any(String),
       ),
@@ -14077,10 +14072,10 @@ describe("createTuiApp", () => {
         wakeBus = resolve;
         signal.addEventListener("abort", resolve, { once: true });
       });
-    vi.mocked(runtime.listSessions).mockResolvedValue([session]);
-    vi.mocked(runtime.getSession).mockResolvedValue(session);
+    mocked(runtime.listSessions).mockResolvedValue([session]);
+    mocked(runtime.getSession).mockResolvedValue(session);
     let activeRecoveredTurn = true;
-    vi.mocked(runtime.getActiveRun).mockImplementation(async () =>
+    mocked(runtime.getActiveRun).mockImplementation(async () =>
       activeRecoveredTurn
         ? {
             schemaVersion: 1,
@@ -14098,10 +14093,10 @@ describe("createTuiApp", () => {
           },
     );
     let durableMessages: Awaited<ReturnType<TuiRuntime["getMessages"]>> = [];
-    vi.mocked(runtime.getMessages).mockImplementation(
+    mocked(runtime.getMessages).mockImplementation(
       async () => durableMessages,
     );
-    vi.mocked(runtime.watchEvents).mockImplementation(
+    mocked(runtime.watchEvents).mockImplementation(
       async function* watchEvents(signal) {
         while (!signal.aborted) {
           if (busEvents.length === 0) await waitForNextBusEvent(signal);
@@ -14123,7 +14118,7 @@ describe("createTuiApp", () => {
     await app.submit("/resume session-recovered");
     expect(app.tui.render(80).join("\n")).toContain("Loading");
     expect(app.tui.render(80).join("\n")).not.toContain("Loading · 0s");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.watchSessionTurn).toHaveBeenCalledWith(
         "session-recovered",
         "turn-recovered",
@@ -14132,7 +14127,7 @@ describe("createTuiApp", () => {
     );
 
     activeRecoveredTurn = false;
-    const historyCallsBeforeTerminal = vi.mocked(runtime.getMessages).mock.calls
+    const historyCallsBeforeTerminal = mocked(runtime.getMessages).mock.calls
       .length;
     durableMessages = [
       {
@@ -14158,12 +14153,12 @@ describe("createTuiApp", () => {
     wakeBus?.();
     wakeBus = undefined;
 
-    await vi.waitFor(() =>
-      expect(vi.mocked(runtime.getMessages).mock.calls.length).toBeGreaterThan(
+    await waitFor(() =>
+      expect(mocked(runtime.getMessages).mock.calls.length).toBeGreaterThan(
         historyCallsBeforeTerminal,
       ),
     );
-    await vi.waitFor(() => {
+    await waitFor(() => {
       const rendered = app.tui.render(80).join("\n");
       expect(rendered).not.toContain("Esc to interrupt");
       expect(app.transcript.snapshot()).toEqual(
@@ -14194,14 +14189,14 @@ describe("createTuiApp", () => {
       workspaceDir: "/workspace",
       status: "finished",
     };
-    vi.mocked(runtime.listSessions).mockResolvedValue([
+    mocked(runtime.listSessions).mockResolvedValue([
       firstSession,
       secondSession,
     ]);
-    vi.mocked(runtime.getSession).mockImplementation(async (sessionId) =>
+    mocked(runtime.getSession).mockImplementation(async (sessionId) =>
       sessionId === firstSession.sessionId ? firstSession : secondSession,
     );
-    vi.mocked(runtime.listPendingPermissions).mockImplementation(async () =>
+    mocked(runtime.listPendingPermissions).mockImplementation(async () =>
       controllerSessionId === firstSession.sessionId
         ? [
             {
@@ -14215,7 +14210,7 @@ describe("createTuiApp", () => {
           ]
         : [],
     );
-    vi.mocked(runtime.getPendingQuestionnaire).mockResolvedValue(undefined);
+    mocked(runtime.getPendingQuestionnaire).mockResolvedValue(undefined);
     const app = createTuiApp({
       runtime,
       terminal,
@@ -14249,14 +14244,14 @@ describe("createTuiApp", () => {
         wakeBus = resolve;
         signal.addEventListener("abort", resolve, { once: true });
       });
-    vi.mocked(runtime.listSessions).mockResolvedValue([
+    mocked(runtime.listSessions).mockResolvedValue([
       {
         sessionId: "session-existing",
         title: "Existing",
         workspaceDir: "/workspace",
       },
     ]);
-    vi.mocked(runtime.listQueuedMessages).mockResolvedValue([
+    mocked(runtime.listQueuedMessages).mockResolvedValue([
       {
         itemId: "queue-with-attachment",
         sessionId: "session-existing",
@@ -14281,7 +14276,7 @@ describe("createTuiApp", () => {
         content: "Run the failing follow-up",
       },
     ]);
-    vi.mocked(runtime.watchEvents).mockImplementation(
+    mocked(runtime.watchEvents).mockImplementation(
       async function* watchEvents(signal) {
         while (!signal.aborted) {
           if (busEvents.length === 0) await waitForNextBusEvent(signal);
@@ -14329,7 +14324,7 @@ describe("createTuiApp", () => {
     expect(app.transcript.get("queue:queue-with-attachment")).toBeUndefined();
 
     emitQueueStatus("queue-with-attachment", "running");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.transcript.get("queue:queue-with-attachment")).toMatchObject({
         kind: "user",
         status: "succeeded",
@@ -14354,7 +14349,7 @@ describe("createTuiApp", () => {
     ]);
 
     emitQueueStatus("queue-with-attachment", "completed");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.transcript.get("queue:queue-with-attachment")).toMatchObject({
         kind: "user",
         status: "succeeded",
@@ -14363,7 +14358,7 @@ describe("createTuiApp", () => {
     );
 
     emitQueueStatus("queue-that-fails", "running");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.transcript.get("queue:queue-that-fails")).toMatchObject({
         kind: "user",
         status: "succeeded",
@@ -14374,7 +14369,7 @@ describe("createTuiApp", () => {
       "admission-rejected",
       "provider unavailable",
     );
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.editor.getText()).toBe("Run the failing follow-up"),
     );
     expect(app.tui.render(80).join("\n")).toContain(
@@ -14401,14 +14396,14 @@ describe("createTuiApp", () => {
         wakeBus = resolve;
         signal.addEventListener("abort", resolve, { once: true });
       });
-    vi.mocked(runtime.listSessions).mockResolvedValue([
+    mocked(runtime.listSessions).mockResolvedValue([
       {
         sessionId: "session-existing",
         title: "Existing",
         workspaceDir: "/workspace",
       },
     ]);
-    vi.mocked(runtime.getMessages)
+    mocked(runtime.getMessages)
       .mockResolvedValueOnce([])
       .mockResolvedValue([
         {
@@ -14426,7 +14421,7 @@ describe("createTuiApp", () => {
           timestamp: 101,
         },
       ]);
-    vi.mocked(runtime.watchEvents).mockImplementation(
+    mocked(runtime.watchEvents).mockImplementation(
       async function* watchEvents(signal) {
         while (!signal.aborted) {
           if (busEvents.length === 0) {
@@ -14464,7 +14459,7 @@ describe("createTuiApp", () => {
         queueItemIds: ["queue-1"],
       },
     });
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.tui.render(80).join("\n")).toContain("Loading"),
     );
     expect(app.tui.render(80).join("\n")).not.toContain("Loading · 0s");
@@ -14484,7 +14479,7 @@ describe("createTuiApp", () => {
       },
     });
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(app.transcript.snapshot()).toEqual(
         expect.arrayContaining([
           expect.objectContaining({
@@ -14494,8 +14489,7 @@ describe("createTuiApp", () => {
         ]),
       ),
     );
-    const historyProjectionCalls = vi
-      .mocked(runtime.getMessages)
+    const historyProjectionCalls = mocked(runtime.getMessages)
       .mock.calls.filter(
         ([sessionId, limit]) =>
           sessionId === "session-existing" && limit === undefined,
@@ -14512,14 +14506,14 @@ describe("createTuiApp", () => {
     const busEvents: TuiRuntimeEvent[] = [];
     let wakeBus: (() => void) | undefined;
     let durableMessages: Awaited<ReturnType<TuiRuntime["getMessages"]>> = [];
-    vi.mocked(runtime.listSessions).mockResolvedValue([
+    mocked(runtime.listSessions).mockResolvedValue([
       {
         sessionId: "session-existing",
         title: "Existing",
         workspaceDir: "/workspace",
       },
     ]);
-    vi.mocked(runtime.getMessages).mockImplementation(
+    mocked(runtime.getMessages).mockImplementation(
       async () => durableMessages,
     );
     const waitForBusEvent = (signal: AbortSignal) =>
@@ -14527,7 +14521,7 @@ describe("createTuiApp", () => {
         wakeBus = resolve;
         signal.addEventListener("abort", resolve, { once: true });
       });
-    vi.mocked(runtime.watchEvents).mockImplementation(
+    mocked(runtime.watchEvents).mockImplementation(
       async function* watchEvents(signal) {
         while (!signal.aborted) {
           if (busEvents.length === 0) await waitForBusEvent(signal);
@@ -14566,7 +14560,7 @@ describe("createTuiApp", () => {
           queueItemIds: ["queue-result"],
         },
       });
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(runtime.watchSessionTurn).toHaveBeenCalledWith(
           "session-existing",
           "turn-queued-result",
@@ -14600,7 +14594,7 @@ describe("createTuiApp", () => {
         },
       });
 
-      await vi.waitFor(async () => {
+      await waitFor(async () => {
         const records = (await readFile(resultPath, "utf8"))
           .trim()
           .split("\n")
@@ -14632,7 +14626,7 @@ describe("createTuiApp", () => {
     const runtime = createRuntime();
     let finish: (() => void) | undefined;
     const answer = Array.from({ length: 80 }, (_, index) => `Answer ${index}`).join("\n\n");
-    vi.mocked(runtime.sendMessage).mockImplementation(async function* () {
+    mocked(runtime.sendMessage).mockImplementation(async function* () {
       yield { type: "delta", content: answer };
       await new Promise<void>((resolve) => { finish = resolve; });
       yield { type: "done" };
@@ -14648,7 +14642,7 @@ describe("createTuiApp", () => {
     try {
       await app.ready;
       const sending = app.submit("Write a long answer");
-      await vi.waitFor(() => expect(app.tui.render(80).join("\n")).toContain("Answer 79"));
+      await waitFor(() => expect(app.tui.render(80).join("\n")).toContain("Answer 79"));
       await flush();
       screen.scrollLines(-10);
       const before = screen.getScrollPosition();
@@ -14684,14 +14678,14 @@ describe("createTuiApp", () => {
       let wakeBus: (() => void) | undefined;
       let finishFirstTurn: (() => void) | undefined;
       let finishQueuedStream: (() => void) | undefined;
-      const queuedStreamClosed = vi.fn();
+      const queuedStreamClosed = mock();
       let durableMessages: Awaited<ReturnType<TuiRuntime["getMessages"]>> = [];
       const waitForNextBusEvent = (signal: AbortSignal) =>
         new Promise<void>((resolve) => {
           wakeBus = resolve;
           signal.addEventListener("abort", resolve, { once: true });
         });
-      vi.mocked(runtime.sendMessage).mockImplementation(
+      mocked(runtime.sendMessage).mockImplementation(
         async function* sendMessage() {
           await new Promise<void>((resolve) => {
             finishFirstTurn = resolve;
@@ -14700,7 +14694,7 @@ describe("createTuiApp", () => {
           yield { type: "done" };
         },
       );
-      vi.mocked(runtime.watchSessionTurn).mockImplementation(
+      mocked(runtime.watchSessionTurn).mockImplementation(
         async function* watchSessionTurn() {
           try {
             await new Promise<void>((resolve) => {
@@ -14713,7 +14707,7 @@ describe("createTuiApp", () => {
           }
         },
       );
-      vi.mocked(runtime.enqueueMessage).mockImplementation(
+      mocked(runtime.enqueueMessage).mockImplementation(
         async (sessionId, content) => {
           const item: TuiQueuedMessage = {
             itemId: "queue-b",
@@ -14725,13 +14719,13 @@ describe("createTuiApp", () => {
           return { itemId: item.itemId, status: item.status, position: 1 };
         },
       );
-      vi.mocked(runtime.listQueuedMessages).mockImplementation(async () => [
+      mocked(runtime.listQueuedMessages).mockImplementation(async () => [
         ...queuedItems,
       ]);
-      vi.mocked(runtime.getMessages).mockImplementation(
+      mocked(runtime.getMessages).mockImplementation(
         async () => durableMessages,
       );
-      vi.mocked(runtime.watchEvents).mockImplementation(
+      mocked(runtime.watchEvents).mockImplementation(
         async function* watchEvents(signal) {
           while (!signal.aborted) {
             if (busEvents.length === 0) await waitForNextBusEvent(signal);
@@ -14771,17 +14765,17 @@ describe("createTuiApp", () => {
       try {
         await app.ready;
         const first = app.submit("A");
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(app.controller.snapshot().activeTurnId).toBeDefined(),
         );
         terminal.input?.(`\x1b[200~${queuedText}\x1b[201~`);
         assertScreen();
         terminal.input?.("\x1b\r");
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(runtime.enqueueMessage).toHaveBeenCalledOnce(),
         );
-        await vi.waitFor(() => expect(app.editor.getText()).toBe(""));
-        expect(vi.mocked(runtime.enqueueMessage).mock.calls[0]?.[1]).toBe(queuedText);
+        await waitFor(() => expect(app.editor.getText()).toBe(""));
+        expect(mocked(runtime.enqueueMessage).mock.calls[0]?.[1]).toBe(queuedText);
         expect(app.tui.render(80).join("\n")).toContain(
           "Next · after current response",
         );
@@ -14816,7 +14810,7 @@ describe("createTuiApp", () => {
             queueItemIds: ["queue-b"],
           },
         });
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(app.tui.render(80).join("\n")).toContain("Loading"),
         );
         expect(app.tui.render(80).join("\n")).not.toContain("Loading · 0s");
@@ -14854,7 +14848,7 @@ describe("createTuiApp", () => {
           },
         ];
         finishQueuedStream?.();
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(queuedStreamClosed).toHaveBeenCalledOnce(),
         );
         emit({
@@ -14868,14 +14862,14 @@ describe("createTuiApp", () => {
           },
         });
 
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(
             app.transcript
               .snapshot()
               .filter((cell) => cell.content === "Queued answer"),
           ).toHaveLength(1),
         );
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(
             app.transcript.get("turn-duration:turn_queue_b"),
           ).toMatchObject({
@@ -14913,7 +14907,7 @@ describe("createTuiApp", () => {
     await app.ready;
     app.editor.setText("Remember this draft");
     app.editor.handleInput("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(runtime.sendMessage).toHaveBeenCalledTimes(1),
     );
     app.editor.handleInput("\u001b[A");
@@ -14931,7 +14925,7 @@ describe("createTuiApp", () => {
       dataDir,
       workspaceDir: "/workspace",
     });
-    const flush = vi.spyOn(TuiDraftRecovery.prototype, "flush");
+    const flush = spyOn(TuiDraftRecovery.prototype, "flush");
     try {
       await app.ready;
       flush.mockRejectedValue(
@@ -14939,7 +14933,7 @@ describe("createTuiApp", () => {
       );
       app.editor.setText("hello");
       app.editor.handleInput("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(
           app.transcript.snapshot().filter((cell) => cell.kind === "warning"),
         ).toHaveLength(1),
@@ -14954,17 +14948,17 @@ describe("createTuiApp", () => {
         composerText("draftRecoveryUnavailable"),
       );
       expect(warnings[0]?.content).toContain("deletion denied");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(runtime.sendMessage).toHaveBeenCalledOnce(),
       );
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(app.controller.snapshot().activeTurnId).toBeUndefined(),
       );
       await expect(app.openSession("session-2")).resolves.toBeUndefined();
       expect(app.controller.snapshot().session?.sessionId).toBe("session-2");
       app.editor.setText("after switching");
       app.editor.handleInput("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(runtime.sendMessage).toHaveBeenCalledTimes(2),
       );
       await expect(app.stop()).resolves.toBeUndefined();
@@ -14989,7 +14983,7 @@ describe("createTuiApp", () => {
       first.editor.setText("/exit");
       await first.stop();
 
-      const loadDraft = vi.spyOn(TuiDraftRecovery.prototype, "load");
+      const loadDraft = spyOn(TuiDraftRecovery.prototype, "load");
       const restored = createTuiApp({
         runtime: createRuntime(),
         terminal: new FakeTerminal(),
@@ -15053,7 +15047,7 @@ describe("createTuiApp", () => {
     const dataDir = await mkdtemp(join(tmpdir(), "mcode-app-pending-draft-"));
     try {
       const runtime = createRuntime();
-      vi.spyOn(runtime, "sendMessage").mockImplementation(
+      spyOn(runtime, "sendMessage").mockImplementation(
         async function* sendMessage(
           _req: SendMessageReq,
           signal?: AbortSignal,
@@ -15083,7 +15077,7 @@ describe("createTuiApp", () => {
       await new Promise((resolve) => setTimeout(resolve, 300));
 
       first.editor.handleInput("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(runtime.sendMessage).toHaveBeenCalledOnce(),
       );
       await first.stop();
@@ -15114,7 +15108,7 @@ describe("createTuiApp", () => {
     const dataDir = await mkdtemp(join(tmpdir(), "mcode-app-accepted-draft-"));
     try {
       const runtime = createRuntime();
-      vi.mocked(runtime.sendMessage).mockImplementation(
+      mocked(runtime.sendMessage).mockImplementation(
         async function* sendMessage(
           _req: SendMessageReq,
           signal?: AbortSignal,
@@ -15137,7 +15131,7 @@ describe("createTuiApp", () => {
       await new Promise((resolve) => setTimeout(resolve, 300));
 
       first.editor.handleInput("\r");
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(runtime.sendMessage).toHaveBeenCalledOnce(),
       );
       await first.stop();
@@ -15237,15 +15231,15 @@ describe.each([
     terminal.write(Array.from({ length: 80 }, (_, i) => `OLD TRANSCRIPT ${i}\r\n`).join(""));
     await terminal.flush();
     const runtime = createRuntime();
-    runtime.listBackgroundTasks = vi.fn(async () => []);
-    vi.mocked(runtime.listSessions).mockResolvedValue([
+    runtime.listBackgroundTasks = mock(async () => []);
+    mocked(runtime.listSessions).mockResolvedValue([
       { sessionId: "existing", workspaceDir: "/workspace", updatedAt: 10 },
     ]);
     const messages = Array.from({ length: count }, (_, i) => ({
       id: `restored-${i}`, role: "user" as const, content: `Restored message ${i}`,
     }));
-    vi.mocked(runtime.getMessages).mockResolvedValue(messages);
-    vi.mocked(runtime.listMessagePage).mockResolvedValue({ messages, hasMore: false });
+    mocked(runtime.getMessages).mockResolvedValue(messages);
+    mocked(runtime.listMessagePage).mockResolvedValue({ messages, hasMore: false });
     let app: ReturnType<typeof createTuiApp> | undefined;
     const running = launchTui(
       { version: "0.5.7", dataDir, terminal, workspaceDir: "/workspace", tuiMode: mode, ...resume },
@@ -15267,7 +15261,7 @@ describe.each([
       },
     );
     try {
-      await vi.waitFor(() => expect(app?.editor.disableSubmit).toBe(false));
+      await waitFor(() => expect(app?.editor.disableSubmit).toBe(false));
       app!.tui.renderNow();
       await terminal.flush();
       const history = terminal.getScrollBuffer().join("\n");
@@ -15344,7 +15338,7 @@ describe("interactive CLI model startup", () => {
       const dataDir = await mkdtemp(join(tmpdir(), "mcode-model-startup-"));
       const terminal = new FakeTerminal();
       const runtime = createRuntime();
-      runtime.listBackgroundTasks = vi.fn(async () => []);
+      runtime.listBackgroundTasks = mock(async () => []);
       const models = new Map<string, { providerId: string; modelId: string; variant?: string }>();
       const requested = {
         providerId: "custom_provider:relay",
@@ -15352,46 +15346,46 @@ describe("interactive CLI model startup", () => {
         variant: "thinking",
       };
       const existing = { sessionId: "existing", workspaceDir: "/workspace", updatedAt: 10 };
-      vi.mocked(runtime.listSessions).mockResolvedValue([existing]);
-      vi.mocked(runtime.listSessionPage).mockResolvedValue({
+      mocked(runtime.listSessions).mockResolvedValue([existing]);
+      mocked(runtime.listSessionPage).mockResolvedValue({
         sessions: [existing],
         hasMore: false,
       });
-      vi.mocked(runtime.getSession).mockImplementation(async (id) => ({
+      mocked(runtime.getSession).mockImplementation(async (id) => ({
         sessionId: id,
         workspaceDir: "/workspace",
         model: models.get(id),
       }));
       const failedResume = _name === "missing session" || _name === "empty continue";
       if (_name === "missing session")
-        vi.mocked(runtime.getSession).mockRejectedValue(new Error("Session not found"));
-      if (_name === "empty continue") vi.mocked(runtime.listSessions).mockResolvedValue([]);
-      runtime.selectModel = vi.fn(async () => true);
-      runtime.selectSessionModel = vi.fn(async (model, id) => {
+        mocked(runtime.getSession).mockRejectedValue(new Error("Session not found"));
+      if (_name === "empty continue") mocked(runtime.listSessions).mockResolvedValue([]);
+      runtime.selectModel = mock(async () => true);
+      runtime.selectSessionModel = mock(async (model, id) => {
         if (model.providerId !== requested.providerId || model.modelId !== requested.modelId) {
           throw new Error("Unknown provider or model");
         }
         models.set(id, model);
         return true;
       });
-      vi.mocked(runtime.listModels).mockImplementation(async (id) => [
+      mocked(runtime.listModels).mockImplementation(async (id) => [
         { ...requested, name: "Startup model", selected: Boolean(id && models.has(id)) },
       ]);
       // A global managed default needs login; the selected BYOK Session does not.
-      vi.mocked(runtime.getAccountStatus).mockImplementation(async (id) => ({
+      mocked(runtime.getAccountStatus).mockImplementation(async (id) => ({
         status: id && models.has(id) ? "ready" : "needs-login",
         modelSource: id && models.has(id) ? "byok" : "token-plan",
         managedTokenPresent: false,
         warnings: [],
       }));
       const sentModels: unknown[] = [];
-      vi.mocked(runtime.sendMessage).mockImplementation(async function* (request) {
+      mocked(runtime.sendMessage).mockImplementation(async function* (request) {
         sentModels.push(models.get(request.id));
         yield { type: "delta", content: "offline reply" };
         yield { type: "done" };
       });
       const invalid = _name.startsWith("invalid");
-      const stderr = vi.fn((_text: string, callback?: () => void) => callback?.());
+      const stderr = mock((_text: string, callback?: () => void) => callback?.());
       const processRef = {
         title: "test",
         argv: ["node", "cli.js", ...args],
@@ -15400,10 +15394,10 @@ describe("interactive CLI model startup", () => {
         stdout: {
           destroyed: false,
           writableEnded: false,
-          write: vi.fn((_text: string, cb?: () => void) => cb?.()),
+          write: mock((_text: string, cb?: () => void) => cb?.()),
         },
         stderr: { destroyed: false, writableEnded: false, write: stderr },
-        exit: vi.fn(),
+        exit: mock(),
         exitCode: 0,
       };
       let app: ReturnType<typeof createTuiApp> | undefined;
@@ -15438,12 +15432,12 @@ describe("interactive CLI model startup", () => {
           expect(stderr.mock.calls.flat().join(" ")).toContain("Unknown provider or model");
           expect(runtime.sendMessage).not.toHaveBeenCalled();
         } else if (failedResume) {
-          await vi.waitFor(() => expect(app?.editor.disableSubmit).toBe(false));
+          await waitFor(() => expect(app?.editor.disableSubmit).toBe(false));
           expect(runtime.selectSessionModel).not.toHaveBeenCalled();
           expect(runtime.createSession).not.toHaveBeenCalled();
           expect(runtime.sendMessage).not.toHaveBeenCalled();
         } else {
-          await vi.waitFor(() => {
+          await waitFor(() => {
             expect(app?.editor.disableSubmit).toBe(false);
             expect(app?.controller.snapshot().session?.model).toEqual(requested);
             if (hasPrompt) expect(sentModels).toEqual([requested]);
@@ -15456,7 +15450,7 @@ describe("interactive CLI model startup", () => {
             await app?.submit("later prompt");
             expect(sentModels).toEqual([requested]);
           }
-          await vi.waitFor(() => expect(app?.controller.snapshot().status).toBe("idle"));
+          await waitFor(() => expect(app?.controller.snapshot().status).toBe("idle"));
           await app?.submit("/new");
           expect(app?.controller.snapshot().session).toBeUndefined();
           expect(runtime.selectSessionModel).toHaveBeenCalledOnce();
@@ -15473,14 +15467,14 @@ describe("interactive CLI model startup", () => {
 
 describe("interactive model argument contract", () => {
   function program() {
-    const launch = vi.fn(async () => undefined);
+    const launch = mock(async () => undefined);
     const command = createTuiProgram({
       version: "test",
       launchTui: launch,
-      runExec: vi.fn(),
-      runLogin: vi.fn(),
-      runLogout: vi.fn(),
-      runUpdate: vi.fn(),
+      runExec: mock(),
+      runLogin: mock(),
+      runLogout: mock(),
+      runUpdate: mock(),
     })
       .exitOverride()
       .configureOutput({ writeErr: () => undefined });
@@ -15596,7 +15590,7 @@ describe("regular-mode native history during a live run", () => {
     const queue: TuiStreamEvent[] = [];
     let wake: (() => void) | undefined;
     let finished = false;
-    vi.mocked(runtime.sendMessage).mockImplementation(async function* () {
+    mocked(runtime.sendMessage).mockImplementation(async function* () {
       for (;;) {
         while (queue.length > 0) yield queue.shift()!;
         if (finished) return;
@@ -15627,11 +15621,11 @@ describe("regular-mode native history during a live run", () => {
       runtime,
       settle,
       async submit(prompt: string) {
-        const calls = vi.mocked(runtime.sendMessage).mock.calls.length;
+        const calls = mocked(runtime.sendMessage).mock.calls.length;
         finished = false;
         app.editor.setText(prompt);
         terminal.sendInput("\r");
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(runtime.sendMessage).toHaveBeenCalledTimes(calls + 1),
         );
         await settle();
@@ -15798,8 +15792,8 @@ describe("regular-mode native history during a live run", () => {
   it("keeps history when a long run is stopped", async () => {
     const terminal = new HistoryTerminal(80, 16);
     const runtime = createRuntime();
-    vi.mocked(runtime.abortSession).mockResolvedValue(true);
-    vi.mocked(runtime.sendMessage).mockImplementation(async function* (
+    mocked(runtime.abortSession).mockResolvedValue(true);
+    mocked(runtime.sendMessage).mockImplementation(async function* (
       _request: SendMessageReq,
       signal?: AbortSignal,
     ) {
@@ -15821,14 +15815,14 @@ describe("regular-mode native history during a live run", () => {
       await app.ready;
       app.editor.setText("long task");
       terminal.sendInput("\r");
-      await vi.waitFor(async () => {
+      await waitFor(async () => {
         app.tui.renderNow();
         await terminal.flush();
         expect(terminal.getScrollBuffer().join("\n")).toContain("PARTIAL 29");
       });
       terminal.output = "";
       terminal.sendInput("\x1b");
-      await vi.waitFor(() => expect(app.controller.snapshot().status).not.toBe("running"));
+      await waitFor(() => expect(app.controller.snapshot().status).not.toBe("running"));
       await new Promise((resolve) => setTimeout(resolve, 30));
       app.tui.renderNow();
       await terminal.flush();

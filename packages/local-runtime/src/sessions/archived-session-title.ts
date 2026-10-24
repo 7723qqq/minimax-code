@@ -1,16 +1,18 @@
-import { getLocaleLanguage } from '../utils/locale.js';
+import { translateRuntimeText } from '@mavis/shared/i18n';
 
 /** The default title given to newly created or promoted root sessions. */
 export const DEFAULT_ROOT_SESSION_TITLE = 'Main';
 
-const ARCHIVED_SESSION_TITLE_PREFIX: Record<string, string> = {
-  zh: '记忆归档：',
-  en: 'Memory archive: ',
-};
-
-const ARCHIVED_SESSION_TITLE_PREFIX_FALLBACK = 'Memory archive: ';
-
-/** Build the synchronous archive fallback; V2 owns model-generated titles. */
+/**
+ * Build the synchronous archive fallback; V2 owns model-generated titles.
+ *
+ * The prefix lives in the shared runtime catalog because local-runtime-v2
+ * composes the same title for model-generated summaries. Keeping a copy here
+ * meant the two packages could drift — the Chinese form uses a full-width colon
+ * and no trailing space, while the English form uses an ASCII colon and one
+ * space, so the separator is part of the catalog value rather than something a
+ * caller appends.
+ */
 export function buildArchivedRootSessionTitle(opts: {
   oldTitle?: string | null;
   fallbackName: string;
@@ -21,8 +23,8 @@ export function buildArchivedRootSessionTitle(opts: {
     !oldTitle || oldTitle.toLowerCase() === DEFAULT_ROOT_SESSION_TITLE.toLowerCase()
       ? opts.fallbackName
       : oldTitle;
-  // preview_train's shared normalizer: also handles `zh_CN`-style separators.
-  const language = getLocaleLanguage(opts.locale);
-  const prefix = ARCHIVED_SESSION_TITLE_PREFIX[language] ?? ARCHIVED_SESSION_TITLE_PREFIX_FALLBACK;
+  // The catalog keys off the language subtag, so `zh_CN`-style separators are
+  // normalized by the shared resolver instead of by a local parse.
+  const prefix = translateRuntimeText(opts.locale, 'archiveTitle.prefix');
   return `${prefix}${label}`;
 }

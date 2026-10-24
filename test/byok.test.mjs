@@ -17,7 +17,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import Database from "better-sqlite3";
+import { Database } from "bun:sqlite";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { withoutProxyEnvironment } from "./offline-environment.mjs";
 
@@ -187,6 +187,10 @@ test(
       MCODE_TEST_NETWORK_AUDIT: networkAudit,
       MCODE_TEST_MANAGED_OFFLINE: "1",
       MCODE_TEST_PROCESS_PROBE: "1",
+      // The assertions below quote English product copy. Pin the CLI's own
+      // locale so the fixture reads the same on a zh-CN developer machine as it
+      // does in CI; `Intl` alone would follow the host.
+      MCODE_LOCALE: "en",
       NODE_OPTIONS: `--import=${new URL("./network-deny.mjs", import.meta.url).href}`,
     };
     let commandSequence = 0;
@@ -524,7 +528,7 @@ test(
       assert.ok(!JSON.stringify(requests.slice(beforeResume)).includes(marker),
         "The resumed provider request must not contain Hook display messages");
     }
-    const displayDb = new Database(dbPath, { readonly: true });
+    const displayDb = new Database(dbPath, { readonly: true, create: false });
     try {
       const notices = displayDb.prepare("SELECT data_json FROM local_runtime_message_rows").all()
         .map((row) => JSON.parse(row.data_json))

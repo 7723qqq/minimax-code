@@ -29,6 +29,8 @@ import {
 import { resolveTuiComposerInputIntent } from '../../commands/input-intent.js';
 import { formatTuiTerminalTitle } from '../../platform/terminal-title.js';
 import type { TuiProgramStatus } from '../../platform/terminal-program-status.js';
+import { controllerText } from '../copy.js';
+import { controllerProductText } from './copy.js';
 
 type PresentationSink<K extends keyof TuiVisiblePresentation> = {
   setState(state: TuiVisiblePresentation[K]): void;
@@ -152,8 +154,8 @@ export class TuiChromeFlow {
       !snapshot.cancelling &&
       !snapshot.retiringTurnId &&
       !this.options.liveRunId(snapshot) &&
-      (this.transientHint === 'Stopping the current response. Your draft is preserved.' ||
-        this.transientHint === 'Runtime is still stopping; your draft is preserved.')
+      (this.transientHint === controllerText('common.stoppingDraftPreserved') ||
+        this.transientHint === controllerProductText('common.runtimeStopping'))
     ) {
       this.setHint(undefined);
     }

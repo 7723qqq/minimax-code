@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { presentTranscriptCell } from '../../src/tui/transcript/presentation/content.js';
 import { createTranscriptCell } from '../../src/tui/transcript/model.js';
 import { TranscriptPresentationController } from '../../src/tui/transcript/presentation/state.js';

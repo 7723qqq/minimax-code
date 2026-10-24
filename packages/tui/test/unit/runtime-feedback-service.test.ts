@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 
 import { TuiFeedbackService } from '../../src/runtime/feedback/service.js';
 
@@ -14,7 +14,7 @@ function ticketResponse(ticketId = 'ticket-1'): Response {
 describe('TuiFeedbackService', () => {
   it('keeps credentials and upload state behind the TUI runtime adapter', async () => {
     const calls: string[] = [];
-    const diagnosticLogUploader = vi.fn(async () => {
+    const diagnosticLogUploader = mock(async () => {
       calls.push('diagnostics');
       return { uploadId: 'upload-1' };
     });
@@ -23,7 +23,7 @@ describe('TuiFeedbackService', () => {
       appVersion: '0.1.0-test',
       authContextGetter: () => ({ accessToken: 'managed-token', realUserID: 'user-1' }),
       diagnosticLogUploader,
-      fetchImpl: vi.fn(async (_input, init) => {
+      fetchImpl: mock(async (_input, init) => {
         calls.push('ticket');
         requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
         return ticketResponse();
@@ -94,7 +94,7 @@ describe('TuiFeedbackService', () => {
     const service = new TuiFeedbackService({
       appVersion: '0.1.0-test',
       authContextGetter: () => ({ accessToken: 'managed-token', realUserID: 'user-1' }),
-      fetchImpl: vi.fn(async () =>
+      fetchImpl: mock(async () =>
         Response.json({
           base_resp: { status_code: 0, status_msg: 'ok' },
           data: {
@@ -119,7 +119,7 @@ describe('TuiFeedbackService', () => {
     const service = new TuiFeedbackService({
       appVersion: '0.1.0-test',
       authContextGetter: () => ({ accessToken: 'managed-token', realUserID: 'user-1' }),
-      fetchImpl: vi.fn(async () =>
+      fetchImpl: mock(async () =>
         Response.json({
           base_resp: { status_code: 0, status_msg: 'ok' },
           data: {},
@@ -138,7 +138,7 @@ describe('TuiFeedbackService', () => {
     const service = new TuiFeedbackService({
       appVersion: '0.1.0-test',
       authContextGetter: () => ({ accessToken: 'managed-token', realUserID: 'user-1' }),
-      fetchImpl: vi.fn(async () => new Response(null, { status: 204 })),
+      fetchImpl: mock(async () => new Response(null, { status: 204 })),
     });
     const preview = service.prepare({ description: 'Empty successful response' });
 
@@ -150,7 +150,7 @@ describe('TuiFeedbackService', () => {
 
   it('confirms a ticket created during an ambiguous failed response before offering retry', async () => {
     const requests: Array<{ method: string; url: URL; headers: Headers }> = [];
-    const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
+    const fetchImpl = mock<typeof fetch>(async (input, init) => {
       requests.push({
         method: init?.method ?? 'GET',
         url: new URL(String(input)),
@@ -191,7 +191,7 @@ describe('TuiFeedbackService', () => {
   });
 
   it('does not confirm an older ticket with the same description', async () => {
-    const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => {
+    const fetchImpl = mock<typeof fetch>(async (_input, init) => {
       if (init?.method === 'POST') return new Response('upstream failed', { status: 502 });
       return Response.json({
         tickets: [
@@ -223,7 +223,7 @@ describe('TuiFeedbackService', () => {
     const service = new TuiFeedbackService({
       appVersion: '0.1.0-test',
       authContextGetter: () => ({ accessToken: 'managed-token', realUserID: 'user-1' }),
-      fetchImpl: vi.fn(async () =>
+      fetchImpl: mock(async () =>
         Response.json({
           statusInfo: { code: 1_000_048, message: 'login required' },
         }),
@@ -240,7 +240,7 @@ describe('TuiFeedbackService', () => {
   });
 
   it('includes a redacted response body in an HTTP failure diagnostic', async () => {
-    const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => {
+    const fetchImpl = mock<typeof fetch>(async (_input, init) => {
       if (init?.method === 'GET') {
         return Response.json({ tickets: [], base_resp: { status_code: 0 } });
       }
@@ -261,19 +261,22 @@ describe('TuiFeedbackService', () => {
     const preview = service.prepare({ description: 'Detailed HTTP failure' });
 
     const error = await service.submit(preview.draftId).catch((value: unknown) => value);
+    // `toMatchObject` writes the matcher instance into the object it asserts
+    // on, so the message is read before the assertion replaces it.
+    const message = (error as Error).message;
     expect(error).toMatchObject({
       code: 'feedback_upload_failed',
       statusCode: 503,
       message: expect.stringContaining('Feedback POST returned HTTP 503'),
     });
-    expect((error as Error).message).toContain('request-feedback-1');
-    expect((error as Error).message).toContain('token":"[redacted]');
-    expect((error as Error).message).not.toContain('must-not-leak');
+    expect(message).toContain('request-feedback-1');
+    expect(message).toContain('token":"[redacted]');
+    expect(message).not.toContain('must-not-leak');
   });
 
   it('requires login before diagnostics or ticket upload', async () => {
-    const diagnosticLogUploader = vi.fn(async () => ({ uploadId: 'unused' }));
-    const fetchImpl = vi.fn<typeof fetch>();
+    const diagnosticLogUploader = mock(async () => ({ uploadId: 'unused' }));
+    const fetchImpl = mock<typeof fetch>();
     const service = new TuiFeedbackService({
       appVersion: '0.1.0-test',
       authContextGetter: () => undefined,
@@ -291,9 +294,8 @@ describe('TuiFeedbackService', () => {
   });
 
   it('reuses a successful diagnostic upload when ticket submission is retried', async () => {
-    const diagnosticLogUploader = vi.fn(async () => ({ uploadId: 'upload-retry' }));
-    const fetchImpl = vi
-      .fn<typeof fetch>()
+    const diagnosticLogUploader = mock(async () => ({ uploadId: 'upload-retry' }));
+    const fetchImpl = mock<typeof fetch>()
       .mockResolvedValueOnce(new Response('unavailable', { status: 503 }))
       .mockResolvedValueOnce(Response.json({ tickets: [], base_resp: { status_code: 0 } }))
       .mockResolvedValueOnce(ticketResponse('ticket-retry'));
@@ -321,10 +323,10 @@ describe('TuiFeedbackService', () => {
     const service = new TuiFeedbackService({
       appVersion: '0.1.0-test',
       authContextGetter: () => ({ accessToken: 'managed-token', realUserID: 'user-1' }),
-      diagnosticLogUploader: vi.fn(async () => {
+      diagnosticLogUploader: mock(async () => {
         throw new Error('log rotated');
       }),
-      fetchImpl: vi.fn(async (_input, init) => {
+      fetchImpl: mock(async (_input, init) => {
         requestBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
         return ticketResponse('ticket-without-diagnostics');
       }),
@@ -342,7 +344,7 @@ describe('TuiFeedbackService', () => {
 
   it('refreshes a rejected ticket request once without invalidating shared login state', async () => {
     let auth = { accessToken: 'expired', realUserID: 'user-1' };
-    const authContextResolver = vi.fn(async ({ forceRefresh }: { forceRefresh: boolean }) => {
+    const authContextResolver = mock(async ({ forceRefresh }: { forceRefresh: boolean }) => {
       if (forceRefresh) auth = { accessToken: 'fresh', realUserID: 'user-1' };
       return auth;
     });
@@ -351,8 +353,8 @@ describe('TuiFeedbackService', () => {
       appVersion: '0.1.0-test',
       authContextGetter: () => auth,
       authContextResolver,
-      diagnosticLogUploader: vi.fn(async () => ({ uploadId: 'upload-1' })),
-      fetchImpl: vi.fn(async (input, init) => {
+      diagnosticLogUploader: mock(async () => ({ uploadId: 'upload-1' })),
+      fetchImpl: mock(async (input, init) => {
         requests.push({ url: new URL(String(input)), headers: new Headers(init?.headers) });
         return requests.length === 1
           ? new Response('expired', { status: 401 })
@@ -376,12 +378,12 @@ describe('TuiFeedbackService', () => {
   });
 
   it('does not treat feedback permission rejection as an expired login', async () => {
-    const authContextResolver = vi.fn();
+    const authContextResolver = mock();
     const service = new TuiFeedbackService({
       appVersion: '0.1.0-test',
       authContextGetter: () => ({ accessToken: 'managed-token', realUserID: 'user-1' }),
       authContextResolver,
-      fetchImpl: vi.fn(async () => new Response('forbidden', { status: 403 })),
+      fetchImpl: mock(async () => new Response('forbidden', { status: 403 })),
     });
     const preview = service.prepare({ description: 'Forbidden feedback' });
 
@@ -397,11 +399,11 @@ describe('TuiFeedbackService', () => {
     const service = new TuiFeedbackService({
       appVersion: '0.1.0-test',
       authContextGetter: () => ({ accessToken: 'managed-token' }),
-      authContextResolver: vi.fn(async () => ({
+      authContextResolver: mock(async () => ({
         accessToken: 'managed-token',
         realUserID: 'resolved-user',
       })),
-      fetchImpl: vi.fn(async (input) => {
+      fetchImpl: mock(async (input) => {
         requests.push(new URL(String(input)));
         return ticketResponse('ticket-with-identity');
       }),

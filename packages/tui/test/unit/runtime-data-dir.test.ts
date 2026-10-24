@@ -1,6 +1,7 @@
+import { describe, expect, it, mock } from 'bun:test';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { describe, expect, it, vi } from 'vitest';
+
 import {
   getTuiDataDirPath,
   prepareTuiDataDir,
@@ -33,7 +34,7 @@ describe('TUI data directory', () => {
   });
 
   it('passes the selected directory to runtime initialization', async () => {
-    const configureRuntimeEnvironment = vi.fn();
+    const configureRuntimeEnvironment = mock();
     await expect(prepareTuiDataDir({
       environment: { MINIMAX_DATA_DIR: ' /selected ' },
       getBuildEnv: () => 'prod',

@@ -1,4 +1,6 @@
 import type { TuiQuestionnaireReplyAnswer, TuiQuestionnaireRequest } from '../../runtime/port.js';
+import { translateRuntimeText } from '@mavis/shared/i18n';
+
 import { sanitizeTerminalText } from '../rendering/terminal-text.js';
 
 export interface QuestionnaireAnswerDraft {
@@ -95,6 +97,22 @@ export function buildQuestionnaireReplyAnswers(
   return answers;
 }
 
+/**
+ * The label for a question that was answered with nothing.
+ *
+ * The shared runtime catalog owns it, because the IM serializer renders the
+ * same label for the same questionnaire; a second English copy here is what
+ * let the two drift.
+ */
+function noAnswerLabel(): string {
+  return translateRuntimeText(undefined, 'questionnaire.noAnswer');
+}
+
+/** The label for a questionnaire that was closed without any answer. */
+function noAnswersSentLabel(): string {
+  return translateRuntimeText(undefined, 'questionnaire.noAnswersSent');
+}
+
 export function formatQuestionnaireAnswerSummary(state: ActiveTuiQuestionnaire): string {
   const lines: string[] = [];
   for (const step of state.request.steps) {
@@ -108,9 +126,9 @@ export function formatQuestionnaireAnswerSummary(state: ActiveTuiQuestionnaire):
     if (draft.answer.selectedOther && draft.answer.otherText) {
       answers.push(sanitizeTerminalText(draft.answer.otherText).trim());
     }
-    lines.push(`${label}  ${answers.join(', ') || 'No answer'}`);
+    lines.push(`${label}  ${answers.join(', ') || noAnswerLabel()}`);
   }
-  return lines.join('\n') || 'No answers sent.';
+  return lines.join('\n') || noAnswersSentLabel();
 }
 
 export function extractQuestionnaireResponseSummary(content: string): string | undefined {
@@ -138,7 +156,7 @@ export function extractQuestionnaireResponseSummary(content: string): string | u
     if (!question) continue;
     const answer = /^A:\s*(.*)$/u.exec(lines[index + 1] ?? '')?.[1]?.trim();
     if (answer === undefined) continue;
-    answers.push(`${question}  ${answer || 'No answer'}`);
+    answers.push(`${question}  ${answer || noAnswerLabel()}`);
     index += 1;
   }
   return answers.join('\n');

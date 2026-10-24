@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { buildMcpServerRuntimeName, buildMcpToolRuntimeName } from '../src/index.js';
 import { normalizeMcpNameSegment } from '../src/runtime/tool-name.js';
 

@@ -1,5 +1,6 @@
+import { mocked, waitFor } from '../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock, spyOn } from 'bun:test';
 import * as acp from '@agentclientprotocol/sdk';
-import { describe, expect, it, vi } from 'vitest';
 
 import { TUI_ACP_AVAILABLE_COMMANDS } from '../../src/acp/commands.js';
 import { createTuiAcpAgent } from '../../src/acp/agent.js';
@@ -54,52 +55,52 @@ function createRuntime(
       signal.addEventListener('abort', () => resolve(undefined), { once: true });
     });
   };
-  const createSession = vi.fn(async ({ workspaceDir }: { workspaceDir: string }) => ({
+  const createSession = mock(async ({ workspaceDir }: { workspaceDir: string }) => ({
     sessionId: 'session-1',
     workspaceDir,
   }));
-  const clearSessionMcpServers = vi.fn(async () => undefined);
-  const configureSessionMcpServers = vi.fn(async () => undefined);
-  const deleteSession = vi.fn(async () => undefined);
-  const listSessionPage = vi.fn(async () => ({ sessions: [], hasMore: false }));
-  const getSession = vi.fn(async (sessionId: string) => ({
+  const clearSessionMcpServers = mock(async () => undefined);
+  const configureSessionMcpServers = mock(async () => undefined);
+  const deleteSession = mock(async () => undefined);
+  const listSessionPage = mock(async () => ({ sessions: [], hasMore: false }));
+  const getSession = mock(async (sessionId: string) => ({
     sessionId,
     workspaceDir: '/workspace',
   }));
-  const listMessagePage = vi.fn(async () => ({ messages: [], hasMore: false }));
-  const sendMessageCall = vi.fn(async () => undefined);
-  const abortSession = vi.fn(async () => {
+  const listMessagePage = mock(async () => ({ messages: [], hasMore: false }));
+  const sendMessageCall = mock(async () => undefined);
+  const abortSession = mock(async () => {
     aborted = true;
     releaseRun?.();
     return true;
   });
-  const listModels = vi.fn(async () => [...(options.models ?? [])]);
-  const selectModel = vi.fn(async () => true);
-  const selectSessionModel = vi.fn(async () => true);
-  const getContextSnapshot = vi.fn(async () =>
+  const listModels = mock(async () => [...(options.models ?? [])]);
+  const selectModel = mock(async () => true);
+  const selectSessionModel = mock(async () => true);
+  const getContextSnapshot = mock(async () =>
     Promise.resolve(options.contextSnapshot ?? { status: 'empty' as const }),
   );
-  const getSessionUsage = vi.fn(async () => options.sessionUsage ?? {});
-  const listSkills = vi.fn<TuiAcpRuntime['listSkills']>(async () => options.skills ?? {});
-  const listMcpServers = vi.fn(async () => [...(options.mcpServers ?? [])]);
-  const requestCompaction = vi.fn(async () => ({ success: true }));
-  const getPlanModeCapabilities = vi.fn(async () => ({ entryEnabled: true }));
-  const getPermissionMode = vi.fn(async () => 'default' as const);
-  const setPermissionMode = vi.fn(
+  const getSessionUsage = mock(async () => options.sessionUsage ?? {});
+  const listSkills = mock<TuiAcpRuntime['listSkills']>(async () => options.skills ?? {});
+  const listMcpServers = mock(async () => [...(options.mcpServers ?? [])]);
+  const requestCompaction = mock(async () => ({ success: true }));
+  const getPlanModeCapabilities = mock(async () => ({ entryEnabled: true }));
+  const getPermissionMode = mock(async () => 'default' as const);
+  const setPermissionMode = mock(
     async (mode: 'default' | 'auto' | 'bypassPermissions' | 'off') => mode,
   );
-  const steer = vi.fn(async (input: Parameters<TuiAcpRuntime['steer']>[0]) => {
+  const steer = mock(async (input: Parameters<TuiAcpRuntime['steer']>[0]) => {
     const result = { turnId: 'turn-active', mode: 'steered' as const };
     await input.preDelivery?.accept(result);
     return result;
   });
-  const listQueuedMessages = vi.fn(async () => []);
-  const enqueueMessage = vi.fn(async () => ({ itemId: 'queue-1', position: 1 }));
-  const updateQueuedMessageContent = vi.fn(async () => undefined);
-  const deleteQueuedMessage = vi.fn(async () => undefined);
-  const steerQueuedMessage = vi.fn(async () => ({ queueItemId: 'queue-1', turnId: 'turn-2' }));
-  const getGoal = vi.fn(async () => undefined);
-  const createGoal = vi.fn(async ({ sessionId, objective, tokenBudget }) => ({
+  const listQueuedMessages = mock(async () => []);
+  const enqueueMessage = mock(async () => ({ itemId: 'queue-1', position: 1 }));
+  const updateQueuedMessageContent = mock(async () => undefined);
+  const deleteQueuedMessage = mock(async () => undefined);
+  const steerQueuedMessage = mock(async () => ({ queueItemId: 'queue-1', turnId: 'turn-2' }));
+  const getGoal = mock(async () => undefined);
+  const createGoal = mock(async ({ sessionId, objective, tokenBudget }) => ({
     goalId: 'goal-1',
     sessionId,
     objective,
@@ -111,7 +112,7 @@ function createRuntime(
     tokenBudget: tokenBudget ?? null,
     hasKickoffAttachments: false,
   }));
-  const patchGoal = vi.fn(async (sessionId, patch) => ({
+  const patchGoal = mock(async (sessionId, patch) => ({
     goalId: 'goal-1',
     sessionId,
     objective: patch.objective ?? 'Ship ACP',
@@ -123,13 +124,13 @@ function createRuntime(
     tokenBudget: patch.tokenBudget ?? null,
     hasKickoffAttachments: false,
   }));
-  const clearGoal = vi.fn(async () => true);
-  const getDelegationSnapshot = vi.fn(async (rootSessionId: string) => ({
+  const clearGoal = mock(async () => true);
+  const getDelegationSnapshot = mock(async (rootSessionId: string) => ({
     schemaVersion: 1 as const,
     rootSessionId,
     members: [],
   }));
-  const stopDelegation = vi.fn(async (rootSessionId: string) => ({
+  const stopDelegation = mock(async (rootSessionId: string) => ({
     schemaVersion: 1 as const,
     rootSessionId,
     rootStopped: true,
@@ -137,12 +138,12 @@ function createRuntime(
     activeSessionIds: [],
     failedSessionIds: [],
   }));
-  const getSessionForkOptions = vi.fn(async () => ({
+  const getSessionForkOptions = mock(async () => ({
     canFork: true,
     worktreeVisible: false,
     worktreeEligible: false,
   }));
-  const forkSession = vi.fn(async () => ({
+  const forkSession = mock(async () => ({
     session: { sessionId: 'session-fork', workspaceDir: '/workspace' },
   }));
   const runtime = {
@@ -153,10 +154,10 @@ function createRuntime(
     listSessionPage,
     getSession,
     listMessagePage,
-    getAccountStatus: vi.fn(
+    getAccountStatus: mock(
       async () => options.accountStatus ?? { status: 'ready' as const, warnings: [] },
     ),
-    getRuntimeDiagnostics: vi.fn(async () => options.runtimeDiagnostics ?? { warnings: [] }),
+    getRuntimeDiagnostics: mock(async () => options.runtimeDiagnostics ?? { warnings: [] }),
     getContextSnapshot,
     getSessionUsage,
     listSkills,
@@ -171,7 +172,7 @@ function createRuntime(
     updateQueuedMessageContent,
     deleteQueuedMessage,
     steerQueuedMessage,
-    isGoalEnabled: vi.fn(() => options.goalEnabled ?? true),
+    isGoalEnabled: mock(() => options.goalEnabled ?? true),
     getGoal,
     createGoal,
     patchGoal,
@@ -180,7 +181,7 @@ function createRuntime(
     stopDelegation,
     getSessionForkOptions,
     forkSession,
-    sendMessage: vi.fn(async function* sendMessage(req, signal) {
+    sendMessage: mock(async function* sendMessage(req, signal) {
       await sendMessageCall(req, signal);
       if (!options.holdRunAfterEvents) {
         await runGate;
@@ -201,10 +202,10 @@ function createRuntime(
     listModels,
     selectModel,
     selectSessionModel,
-    replyPermission: vi.fn(async () => true),
-    replyQuestionnaire: vi.fn(async () => true),
-    dismissQuestionnaire: vi.fn(async () => true),
-    watchEvents: vi.fn((signal: AbortSignal) =>
+    replyPermission: mock(async () => true),
+    replyQuestionnaire: mock(async () => true),
+    dismissQuestionnaire: mock(async () => true),
+    watchEvents: mock((signal: AbortSignal) =>
       (async function* runtimeEvents() {
         while (!signal.aborted) {
           const event = await nextRuntimeEvent(signal);
@@ -213,7 +214,7 @@ function createRuntime(
         }
       })(),
     ),
-    watchSessionTurn: vi.fn(() =>
+    watchSessionTurn: mock(() =>
       (async function* sessionEvents() {
         yield { type: 'session-status', status: 'finished' } as const;
       })(),
@@ -349,7 +350,7 @@ describe('MiniMax Code ACP agent', () => {
             },
           ],
         };
-        await vi.waitFor(() => expect(roster()).toEqual(expected));
+        await waitFor(() => expect(roster()).toEqual(expected));
         expect(listSkills).toHaveBeenCalledWith(
           method === 'new' ? undefined : 'reviewer',
           undefined,
@@ -396,7 +397,7 @@ describe('MiniMax Code ACP agent', () => {
             cwd: '/workspace',
             mcpServers: [],
           });
-          await vi.waitFor(() =>
+          await waitFor(() =>
             expect(updates).toContainEqual({
               sessionId,
               update: {
@@ -444,14 +445,14 @@ describe('MiniMax Code ACP agent', () => {
             cwd: '/workspace',
             mcpServers: [],
           });
-          await vi.waitFor(() => expect(listSkills).toHaveBeenCalledOnce());
+          await waitFor(() => expect(listSkills).toHaveBeenCalledOnce());
           await connection.request(acp.methods.agent.session[method], {
             sessionId,
             cwd: '/workspace',
             mcpServers: [],
           });
           if (method === 'resume') {
-            await vi.waitFor(() =>
+            await waitFor(() =>
               expect(updates).toContainEqual({
                 sessionId,
                 update: {
@@ -509,7 +510,7 @@ describe('MiniMax Code ACP agent', () => {
         mcpServers: [],
       });
 
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(updates).toContainEqual({
           sessionId: session.sessionId,
           update: {
@@ -1204,11 +1205,14 @@ describe('MiniMax Code ACP agent', () => {
         cwd: '/workspace',
         mcpServers: [],
       });
+      // `toMatchObject` writes the matcher instance into the value it asserts
+      // on, so the config options are matched on their own.
+      const configOptions = session.configOptions;
       expect(session).toMatchObject({
         sessionId: 'session-1',
         modes: { currentModeId: 'default' },
-        configOptions: expect.arrayContaining([expect.objectContaining({ id: 'permissionMode' })]),
       });
+      expect(configOptions?.map((option) => option.id)).toContain('permissionMode');
 
       await expect(
         connection.request(acp.methods.agent.session.prompt, {
@@ -1271,10 +1275,10 @@ describe('MiniMax Code ACP agent', () => {
         ),
       );
       for (const creation of creations) void creation.catch(() => undefined);
-      await vi.waitFor(() => expect(listModels).toHaveBeenCalledTimes(8));
+      await waitFor(() => expect(listModels).toHaveBeenCalledTimes(8));
       for (const cancellation of cancellations) cancellation.abort();
       await Promise.all(creations.map((creation) => expect(creation).rejects.toThrow('cancel')));
-      await vi.waitFor(() => expect(deleteSession).toHaveBeenCalledTimes(8));
+      await waitFor(() => expect(deleteSession).toHaveBeenCalledTimes(8));
 
       await expect(
         connection.request(acp.methods.agent.session.new, {
@@ -1313,7 +1317,7 @@ describe('MiniMax Code ACP agent', () => {
         cwd: '/workspace',
         mcpServers: [],
       });
-      await vi.waitFor(() => expect(listModels).toHaveBeenCalledOnce());
+      await waitFor(() => expect(listModels).toHaveBeenCalledOnce());
       await expect(
         connection.request(acp.methods.agent.session.close, { sessionId: 'session-1' }),
       ).rejects.toThrow();
@@ -1347,7 +1351,7 @@ describe('MiniMax Code ACP agent', () => {
         { cancellationSignal: cancellation.signal },
       );
       void creation.catch(() => undefined);
-      await vi.waitFor(() => expect(listModels).toHaveBeenCalledOnce());
+      await waitFor(() => expect(listModels).toHaveBeenCalledOnce());
       const resume = connection.request(acp.methods.agent.session.resume, {
         sessionId: 'session-1',
         cwd: '/workspace',
@@ -1359,7 +1363,7 @@ describe('MiniMax Code ACP agent', () => {
 
       cancellation.abort();
       await expect(creation).rejects.toThrow('cancel');
-      await vi.waitFor(() => expect(deleteSession).toHaveBeenCalledWith('session-1'));
+      await waitFor(() => expect(deleteSession).toHaveBeenCalledWith('session-1'));
       await expect(resume).rejects.toThrow();
       expect(getSession).toHaveBeenCalledWith('session-1');
     });
@@ -1639,7 +1643,7 @@ describe('MiniMax Code ACP agent', () => {
         mcpServers: [],
       });
       void load.catch(() => undefined);
-      await vi.waitFor(() => expect(listMessagePage).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(listMessagePage).toHaveBeenCalledTimes(2));
       await connection.request(acp.methods.agent.session.close, {
         sessionId: 'session-existing',
       });
@@ -1675,7 +1679,7 @@ describe('MiniMax Code ACP agent', () => {
         sessionId: session.sessionId,
         prompt: [{ type: 'text', text: 'Keep working' }],
       });
-      await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledOnce());
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledOnce());
 
       await expect(
         connection.request(acp.methods.agent.session.close, {
@@ -1716,7 +1720,7 @@ describe('MiniMax Code ACP agent', () => {
       const close = connection.request(acp.methods.agent.session.close, {
         sessionId: session.sessionId,
       });
-      await vi.waitFor(() => expect(clearSessionMcpServers).toHaveBeenCalledOnce());
+      await waitFor(() => expect(clearSessionMcpServers).toHaveBeenCalledOnce());
 
       const resume = connection.request(acp.methods.agent.session.resume, {
         sessionId: session.sessionId,
@@ -1770,7 +1774,7 @@ describe('MiniMax Code ACP agent', () => {
         sessionId: session.sessionId,
         modeId: 'plan',
       });
-      await vi.waitFor(() => expect(getSession).toHaveBeenCalledOnce());
+      await waitFor(() => expect(getSession).toHaveBeenCalledOnce());
       const prompt = connection.request(acp.methods.agent.session.prompt, {
         sessionId: session.sessionId,
         prompt: [{ type: 'text', text: 'Do not start after cancellation' }],
@@ -1821,7 +1825,7 @@ describe('MiniMax Code ACP agent', () => {
         sessionId: session.sessionId,
         modeId: 'plan',
       });
-      await vi.waitFor(() => expect(getSession).toHaveBeenCalledOnce());
+      await waitFor(() => expect(getSession).toHaveBeenCalledOnce());
       const cancellation = new AbortController();
       const prompt = connection.request(
         acp.methods.agent.session.prompt,
@@ -1869,14 +1873,14 @@ describe('MiniMax Code ACP agent', () => {
         mcpServers: [],
       });
       void load.catch(() => undefined);
-      await vi.waitFor(() => expect(listMessagePage).toHaveBeenCalledOnce());
+      await waitFor(() => expect(listMessagePage).toHaveBeenCalledOnce());
 
       await expect(
         connection.request(acp.methods.agent.session.close, {
           sessionId: 'session-existing',
         }),
       ).resolves.toEqual({});
-      await vi.waitFor(() => expect(clearSessionMcpServers).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(clearSessionMcpServers).toHaveBeenCalledTimes(2));
     });
   });
 
@@ -1898,7 +1902,7 @@ describe('MiniMax Code ACP agent', () => {
           mcpServers: [],
         });
         void load.catch(() => undefined);
-        await vi.waitFor(() => expect(listMessagePage).toHaveBeenCalledTimes(generation + 1));
+        await waitFor(() => expect(listMessagePage).toHaveBeenCalledTimes(generation + 1));
         await connection.request(acp.methods.agent.session.close, {
           sessionId: 'session-existing',
         });
@@ -1938,7 +1942,7 @@ describe('MiniMax Code ACP agent', () => {
         }),
       );
       for (const request of admitted) void request.catch(() => undefined);
-      await vi.waitFor(() => expect(getSession).toHaveBeenCalledOnce());
+      await waitFor(() => expect(getSession).toHaveBeenCalledOnce());
 
       await expect(
         connection.request(acp.methods.agent.session.setMode, {
@@ -1972,7 +1976,7 @@ describe('MiniMax Code ACP agent', () => {
         prompt: [{ type: 'text', text: '/compact' }],
       });
       void command.catch(() => undefined);
-      await vi.waitFor(() => expect(requestCompaction).toHaveBeenCalledOnce());
+      await waitFor(() => expect(requestCompaction).toHaveBeenCalledOnce());
 
       await expect(
         connection.request(acp.methods.agent.session.close, {
@@ -2048,7 +2052,7 @@ describe('MiniMax Code ACP agent', () => {
     clearSessionMcpServers
       .mockResolvedValueOnce(undefined)
       .mockImplementationOnce(() => new Promise(() => undefined));
-    const permissionRequest = vi.fn(() => ({
+    const permissionRequest = mock(() => ({
       outcome: { outcome: 'selected' as const, optionId: 'allow-once' },
     }));
     const agent = createTuiAcpAgent({ runtime, version: '1.2.3' });
@@ -2078,7 +2082,7 @@ describe('MiniMax Code ACP agent', () => {
         ],
       });
       void resume.catch(() => undefined);
-      await vi.waitFor(() => expect(clearSessionMcpServers).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(clearSessionMcpServers).toHaveBeenCalledTimes(2));
 
       await expect(
         connection.request<{ sessionId: string }, { sessionId: string }>('session/activate', {
@@ -2116,7 +2120,7 @@ describe('MiniMax Code ACP agent', () => {
         mcpServers: [],
       });
       void resume.catch(() => undefined);
-      await vi.waitFor(() => expect(clearSessionMcpServers).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(clearSessionMcpServers).toHaveBeenCalledTimes(2));
 
       await expect(
         connection.request<{ sessionId: string }, { sessionId: string }>('session/activate', {
@@ -2302,7 +2306,7 @@ describe('MiniMax Code ACP agent', () => {
         },
       });
 
-      await vi.waitFor(() => expect(replyPermission).toHaveBeenCalledOnce());
+      await waitFor(() => expect(replyPermission).toHaveBeenCalledOnce());
     });
 
     expect(permissionRequests).toEqual([
@@ -2349,7 +2353,7 @@ describe('MiniMax Code ACP agent', () => {
       });
       emitRuntimeEvent(permissionEvent('permission-forged-always'));
 
-      await vi.waitFor(() => expect(replyPermission).toHaveBeenCalledOnce());
+      await waitFor(() => expect(replyPermission).toHaveBeenCalledOnce());
     });
 
     expect(permissionRequests[0]?.options).not.toContainEqual(
@@ -2399,7 +2403,7 @@ describe('MiniMax Code ACP agent', () => {
         },
       });
 
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(replyPermission).toHaveBeenCalledWith('mcode', 'permission-child', 'allowOnce'),
       );
       await new Promise<void>((resolve) => setImmediate(resolve));
@@ -2450,7 +2454,7 @@ describe('MiniMax Code ACP agent', () => {
       });
       emitRuntimeEvent(permissionEvent('permission-existing-child', 'session-child'));
 
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(replyPermission).toHaveBeenCalledWith(
           'mcode',
           'permission-existing-child',
@@ -2495,7 +2499,7 @@ describe('MiniMax Code ACP agent', () => {
       answerPermission?.({
         outcome: { outcome: 'selected', optionId: 'allow-always' },
       });
-      await vi.waitFor(() => expect(replyPermission).toHaveBeenCalledOnce());
+      await waitFor(() => expect(replyPermission).toHaveBeenCalledOnce());
     });
 
     expect(replyPermission).toHaveBeenCalledWith('mcode', 'permission-close-race', 'deny');
@@ -2536,7 +2540,7 @@ describe('MiniMax Code ACP agent', () => {
         mcpServers: [],
       });
       emitRuntimeEvent(permissionEvent('permission-a', 'session-1'));
-      await vi.waitFor(() => expect(permissionRequests).toEqual(['session-1']));
+      await waitFor(() => expect(permissionRequests).toEqual(['session-1']));
       emitRuntimeEvent({
         type: 'session.title_updated',
         timestampMs: 2,
@@ -2546,10 +2550,10 @@ describe('MiniMax Code ACP agent', () => {
       });
       emitRuntimeEvent(permissionEvent('permission-b', 'session-2'));
 
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(replyPermission).toHaveBeenCalledWith('mcode', 'permission-b', 'deny'),
       );
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(updates).toContainEqual({
           sessionId: 'session-2',
           update: {
@@ -2597,7 +2601,7 @@ describe('MiniMax Code ACP agent', () => {
           emitRuntimeEvent(permissionEvent(`permission-${index}`, `session-${index}`));
         }
 
-        await vi.waitFor(() => expect(connection.signal.aborted).toBe(true), { timeout: 3_000 });
+        await waitFor(() => expect(connection.signal.aborted).toBe(true), { timeout: 3_000 });
       })
       .catch(() => undefined);
 
@@ -2624,10 +2628,10 @@ describe('MiniMax Code ACP agent', () => {
         mcpServers: [],
       });
       emitRuntimeEvent(permissionEvent('permission-1'));
-      await vi.waitFor(() => expect(replyPermission).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(replyPermission).toHaveBeenCalledTimes(1));
 
       emitRuntimeEvent(permissionEvent('permission-2'));
-      await vi.waitFor(() => expect(replyPermission).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(replyPermission).toHaveBeenCalledTimes(2));
     });
 
     expect(replyPermission).toHaveBeenLastCalledWith('mcode', 'permission-2', 'deny');
@@ -2714,7 +2718,7 @@ describe('MiniMax Code ACP agent', () => {
         },
       });
 
-      await vi.waitFor(() => expect(replyQuestionnaire).toHaveBeenCalledOnce());
+      await waitFor(() => expect(replyQuestionnaire).toHaveBeenCalledOnce());
     });
 
     expect(elicitationRequests).toEqual([
@@ -2861,7 +2865,7 @@ describe('MiniMax Code ACP agent', () => {
         },
       });
 
-      await vi.waitFor(() => expect(replyQuestionnaire).toHaveBeenCalledOnce());
+      await waitFor(() => expect(replyQuestionnaire).toHaveBeenCalledOnce());
     });
 
     expect(requests[0]?.requestedSchema.properties).toEqual({
@@ -2945,7 +2949,7 @@ describe('MiniMax Code ACP agent', () => {
       await questionnaireRequested;
       await connection.request(acp.methods.agent.session.close, { sessionId: session.sessionId });
       answerQuestionnaire?.({ action: 'accept', content: { approach: 'Safe' } });
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(dismissQuestionnaire).toHaveBeenCalledWith('mcode', 'questionnaire-close-race'),
       );
     });
@@ -2973,7 +2977,7 @@ describe('MiniMax Code ACP agent', () => {
     const blockedRunGate = new Promise<void>((resolve) => {
       releaseBlockedRun = resolve;
     });
-    vi.mocked(runtime.sendMessage).mockImplementation(() =>
+    mocked(runtime.sendMessage).mockImplementation(() =>
       (async function* blockedRunEvents() {
         await blockedRunGate;
         yield {
@@ -2984,7 +2988,7 @@ describe('MiniMax Code ACP agent', () => {
         } as const;
       })(),
     );
-    vi.mocked(runtime.replyQuestionnaire).mockImplementation(async () => {
+    mocked(runtime.replyQuestionnaire).mockImplementation(async () => {
       emitRuntimeEvent({
         type: 'session.start',
         timestampMs: 3,
@@ -2995,7 +2999,7 @@ describe('MiniMax Code ACP agent', () => {
       });
       return true;
     });
-    vi.mocked(runtime.watchSessionTurn).mockImplementation((_sessionId, turnId) =>
+    mocked(runtime.watchSessionTurn).mockImplementation((_sessionId, turnId) =>
       (async function* continuedTurnEvents() {
         expect(turnId).toBe('turn-2');
         yield {
@@ -3043,7 +3047,7 @@ describe('MiniMax Code ACP agent', () => {
         sessionId: session.sessionId,
         prompt: [{ type: 'text', text: 'Ask me a question' }],
       });
-      await vi.waitFor(() => expect(runtime.sendMessage).toHaveBeenCalledOnce());
+      await waitFor(() => expect(runtime.sendMessage).toHaveBeenCalledOnce());
 
       emitRuntimeEvent({
         type: 'questionnaire.ask',
@@ -3074,7 +3078,7 @@ describe('MiniMax Code ACP agent', () => {
           ],
         },
       });
-      await vi.waitFor(() => expect(replyQuestionnaire).toHaveBeenCalledOnce());
+      await waitFor(() => expect(replyQuestionnaire).toHaveBeenCalledOnce());
       await expect(
         connection.request('mcode/session/steer', {
           sessionId: session.sessionId,
@@ -3154,7 +3158,7 @@ describe('MiniMax Code ACP agent', () => {
         },
       });
 
-      await vi.waitFor(() => expect(replyQuestionnaire).toHaveBeenCalledOnce());
+      await waitFor(() => expect(replyQuestionnaire).toHaveBeenCalledOnce());
     });
 
     expect(permissionRequests).toHaveLength(1);
@@ -3232,7 +3236,7 @@ describe('MiniMax Code ACP agent', () => {
         },
       });
 
-      await vi.waitFor(() => expect(replyQuestionnaire).toHaveBeenCalledOnce());
+      await waitFor(() => expect(replyQuestionnaire).toHaveBeenCalledOnce());
     });
 
     expect(permissionRequests).toEqual([
@@ -3288,7 +3292,7 @@ describe('MiniMax Code ACP agent', () => {
         sessionId: session.sessionId,
         prompt: [{ type: 'text', text: 'Keep running' }],
       });
-      await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledOnce());
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledOnce());
 
       await connection.notify(acp.methods.agent.session.cancel, { sessionId: session.sessionId });
 
@@ -3359,7 +3363,7 @@ describe('MiniMax Code ACP agent', () => {
         },
         { cancellationSignal: cancellation.signal },
       );
-      await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledOnce());
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledOnce());
 
       cancellation.abort();
 
@@ -3406,7 +3410,7 @@ describe('MiniMax Code ACP agent', () => {
         },
         { cancellationSignal: cancellation.signal },
       );
-      await vi.waitFor(() => expect(requestCompaction).toHaveBeenCalledOnce());
+      await waitFor(() => expect(requestCompaction).toHaveBeenCalledOnce());
       cancellation.abort();
       releaseCompaction();
 
@@ -3672,7 +3676,7 @@ describe('MiniMax Code ACP agent', () => {
             value: 'auto',
           }),
         ).resolves.toEqual(expect.objectContaining({ configOptions: expect.any(Array) }));
-        await vi.waitFor(() => expect(connection.signal.aborted).toBe(true));
+        await waitFor(() => expect(connection.signal.aborted).toBe(true));
       })
       .catch(() => undefined);
 
@@ -3724,7 +3728,7 @@ describe('MiniMax Code ACP agent', () => {
         value: 'bypassPermissions',
       });
       void oldWrite.catch(() => undefined);
-      await vi.waitFor(() => expect(setPermissionMode).toHaveBeenCalledOnce());
+      await waitFor(() => expect(setPermissionMode).toHaveBeenCalledOnce());
       await connection.request(acp.methods.agent.session.close, { sessionId: first.sessionId });
       const newWrite = connection.request(acp.methods.agent.session.setConfigOption, {
         sessionId: second.sessionId,
@@ -3788,11 +3792,11 @@ describe('MiniMax Code ACP agent', () => {
         value: 'bypassPermissions',
       });
       void write.catch(() => undefined);
-      await vi.waitFor(() => expect(setPermissionMode).toHaveBeenCalledOnce());
+      await waitFor(() => expect(setPermissionMode).toHaveBeenCalledOnce());
       await connection.request(acp.methods.agent.session.close, { sessionId: first.sessionId });
       releaseWrite();
       await expect(write).rejects.toThrow('cancelled');
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(updates).toContainEqual({
           sessionId: second.sessionId,
           update: {
@@ -4036,7 +4040,7 @@ describe('MiniMax Code ACP agent', () => {
         ),
       );
       for (const request of admitted) void request.catch(() => undefined);
-      await vi.waitFor(() => expect(forkSession).toHaveBeenCalledTimes(8));
+      await waitFor(() => expect(forkSession).toHaveBeenCalledTimes(8));
       for (const cancellation of cancellations) cancellation.abort();
       await Promise.all(admitted.map((request) => expect(request).rejects.toThrow('cancel')));
 
@@ -4078,7 +4082,7 @@ describe('MiniMax Code ACP agent', () => {
         { sessionId: session.sessionId, cwd: '/workspace', mcpServers: [] },
         { cancellationSignal: cancellation.signal },
       );
-      await vi.waitFor(() => expect(forkSession).toHaveBeenCalledOnce());
+      await waitFor(() => expect(forkSession).toHaveBeenCalledOnce());
       cancellation.abort();
       releaseFork();
 
@@ -4332,8 +4336,8 @@ describe('MiniMax Code ACP agent', () => {
         sessionId: session.sessionId,
         prompt: [{ type: 'text', text: 'Start working' }],
       });
-      await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledOnce());
-      await vi.waitFor(() =>
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledOnce());
+      await waitFor(() =>
         expect(activeUpdates).toEqual(
           expect.arrayContaining([
             expect.objectContaining({
@@ -4418,7 +4422,7 @@ describe('MiniMax Code ACP agent', () => {
         sessionId: session.sessionId,
         prompt: [{ type: 'text', text: 'Wait for admission' }],
       });
-      await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledOnce());
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledOnce());
 
       await expect(
         connection.request('mcode/session/steer', {
@@ -4469,8 +4473,8 @@ describe('MiniMax Code ACP agent', () => {
         sessionId: session.sessionId,
         prompt: [{ type: 'text', text: 'Start admitted work' }],
       });
-      await vi.waitFor(() => expect(sendMessage).toHaveBeenCalledOnce());
-      await vi.waitFor(() =>
+      await waitFor(() => expect(sendMessage).toHaveBeenCalledOnce());
+      await waitFor(() =>
         expect(updates).toEqual(
           expect.arrayContaining([
             expect.objectContaining({
@@ -4551,7 +4555,7 @@ describe('MiniMax Code ACP agent', () => {
           objective: 'Should not persist',
         }),
       ).rejects.toThrow('Goal extensions are disabled');
-      const goalGateChecks = vi.mocked(runtime.isGoalEnabled).mock.calls.length;
+      const goalGateChecks = mocked(runtime.isGoalEnabled).mock.calls.length;
       emitRuntimeEvent({
         type: 'thread_goal.updated',
         timestampMs: 1,
@@ -4577,7 +4581,7 @@ describe('MiniMax Code ACP agent', () => {
         sessionId: 'session-1',
         goalId: 'goal-1',
       });
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(runtime.isGoalEnabled).toHaveBeenCalledTimes(goalGateChecks + 2),
       );
       expect(goalUpdates).toEqual([]);
@@ -4590,7 +4594,7 @@ describe('MiniMax Code ACP agent', () => {
   });
 
   it('projects session info, usage, plans, and opted-in extension notifications', async () => {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const consoleError = spyOn(console, 'error').mockImplementation(() => undefined);
     const { runtime, emitRuntimeEvent, listQueuedMessages } = createRuntime([], {
       contextSnapshot: {
         status: 'live',
@@ -4691,7 +4695,7 @@ describe('MiniMax Code ACP agent', () => {
         },
       });
 
-      await vi.waitFor(() => {
+      await waitFor(() => {
         expect(queueUpdates).toHaveLength(1);
         expect(updates).toContainEqual({
           sessionId: 'session-1',
@@ -4782,9 +4786,9 @@ describe('MiniMax Code ACP agent', () => {
           });
           emitRuntimeEvent(planReviewEvent(index));
         }
-        await vi.waitFor(() => expect(planUpdates).toBe(65));
-        await vi.waitFor(() => expect(getSession).toHaveBeenCalledTimes(65));
-        await vi.waitFor(() => expect(answerQuestionnaires).toHaveLength(8));
+        await waitFor(() => expect(planUpdates).toBe(65));
+        await waitFor(() => expect(getSession).toHaveBeenCalledTimes(65));
+        await waitFor(() => expect(answerQuestionnaires).toHaveLength(8));
 
         const priorSessionReads = getSession.mock.calls.length;
         getSession.mockImplementation(() => new Promise(() => undefined));
@@ -4798,22 +4802,22 @@ describe('MiniMax Code ACP agent', () => {
             queueItemIds: [],
           });
         }
-        await vi.waitFor(() => expect(getSession).toHaveBeenCalledTimes(priorSessionReads + 8));
+        await waitFor(() => expect(getSession).toHaveBeenCalledTimes(priorSessionReads + 8));
 
         for (let settled = 0; settled < 64; ) {
           const nextSettled = Math.min(settled + 8, 64);
-          await vi.waitFor(() =>
+          await waitFor(() =>
             expect(answerQuestionnaires.length).toBeGreaterThanOrEqual(nextSettled),
           );
           for (let index = settled; index < nextSettled; index += 1) {
             answerQuestionnaires[index]?.({ action: 'cancel' });
           }
           settled = nextSettled;
-          await vi.waitFor(() => expect(dismissQuestionnaire).toHaveBeenCalledTimes(settled));
+          await waitFor(() => expect(dismissQuestionnaire).toHaveBeenCalledTimes(settled));
         }
-        await vi.waitFor(() => expect(answerQuestionnaires).toHaveLength(65));
+        await waitFor(() => expect(answerQuestionnaires).toHaveLength(65));
         answerQuestionnaires[64]?.({ action: 'cancel' });
-        await vi.waitFor(() => expect(connection.signal.aborted).toBe(true));
+        await waitFor(() => expect(connection.signal.aborted).toBe(true));
       })
       .catch(() => undefined);
   });
@@ -4856,7 +4860,7 @@ describe('MiniMax Code ACP agent', () => {
         emitRuntimeEvent(planReviewEvent(1));
         await delivered;
         releaseQuestionnaire({ action: 'cancel' });
-        await vi.waitFor(() => expect(connection.signal.aborted).toBe(true));
+        await waitFor(() => expect(connection.signal.aborted).toBe(true));
       })
       .catch(() => undefined);
   });
@@ -4917,11 +4921,11 @@ describe('MiniMax Code ACP agent', () => {
             queueItemIds: [],
           });
         }
-        await vi.waitFor(() =>
+        await waitFor(() =>
           expect(getSession.mock.calls.length).toBeGreaterThanOrEqual(priorSessionReads + 8),
         );
         settlePlan({ action: 'cancel' });
-        await vi.waitFor(() => expect(connection.signal.aborted).toBe(true));
+        await waitFor(() => expect(connection.signal.aborted).toBe(true));
       })
       .catch(() => undefined);
   });
@@ -4967,7 +4971,7 @@ describe('MiniMax Code ACP agent', () => {
           cwd: '/workspace',
           mcpServers: [],
         });
-        await vi.waitFor(() => expect(connection.signal.aborted).toBe(true));
+        await waitFor(() => expect(connection.signal.aborted).toBe(true));
       })
       .catch(() => undefined);
   });
@@ -5036,7 +5040,7 @@ describe('MiniMax Code ACP agent', () => {
         },
       });
 
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(replyQuestionnaire).toHaveBeenCalledWith(
           'mcode',
           'questionnaire-with-stalled-projection',
@@ -5050,7 +5054,7 @@ describe('MiniMax Code ACP agent', () => {
         sessionId: 'session-1',
         title: 'Projection recovered',
       });
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(updates).toContainEqual({
           sessionId: 'session-1',
           update: {
@@ -5156,10 +5160,10 @@ describe('MiniMax Code ACP agent', () => {
         title: 'Independent projection lane',
       });
 
-      await vi.waitFor(() => expect(replyQuestionnaire).toHaveBeenCalledTimes(3));
-      await vi.waitFor(() => expect(getSession).toHaveBeenCalledOnce());
-      await vi.waitFor(() => expect(listQueuedMessages).toHaveBeenCalledOnce());
-      await vi.waitFor(() =>
+      await waitFor(() => expect(replyQuestionnaire).toHaveBeenCalledTimes(3));
+      await waitFor(() => expect(getSession).toHaveBeenCalledOnce());
+      await waitFor(() => expect(listQueuedMessages).toHaveBeenCalledOnce());
+      await waitFor(() =>
         expect(updates).toContainEqual({
           sessionId: 'session-1',
           update: {
@@ -5209,7 +5213,7 @@ describe('MiniMax Code ACP agent', () => {
         turnId: 'turn-closing',
         queueItemIds: [],
       });
-      await vi.waitFor(() => expect(getSession).toHaveBeenCalledOnce());
+      await waitFor(() => expect(getSession).toHaveBeenCalledOnce());
       await connection.request(acp.methods.agent.session.close, { sessionId: session.sessionId });
 
       resolveProjection?.({
@@ -5268,7 +5272,7 @@ describe('MiniMax Code ACP agent', () => {
         turnId: 'turn-old',
         queueItemIds: [],
       });
-      await vi.waitFor(() => expect(getSession).toHaveBeenCalledOnce());
+      await waitFor(() => expect(getSession).toHaveBeenCalledOnce());
       emitRuntimeEvent({
         type: 'questionnaire.dismiss',
         timestampMs: 2,
@@ -5348,8 +5352,8 @@ describe('MiniMax Code ACP agent', () => {
         queueItemIds: [],
       });
 
-      await vi.waitFor(() => expect(getSession).toHaveBeenCalledOnce());
-      await vi.waitFor(() =>
+      await waitFor(() => expect(getSession).toHaveBeenCalledOnce());
+      await waitFor(() =>
         expect(updates).toContainEqual({
           sessionId: 'session-1',
           update: expect.objectContaining({
@@ -5402,7 +5406,7 @@ describe('MiniMax Code ACP agent', () => {
         turnId: 'turn-1',
         queueItemIds: [],
       });
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(updates).toContainEqual({
           sessionId: 'session-1',
           update: {
@@ -5427,7 +5431,7 @@ describe('MiniMax Code ACP agent', () => {
         queueItemIds: [],
       });
 
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(updates).toContainEqual({
           sessionId: 'session-1',
           update: {
@@ -5488,14 +5492,14 @@ describe('MiniMax Code ACP agent', () => {
         sessionId: 'session-1',
         requestId: 'question-newer',
       });
-      await vi.waitFor(() => expect(getSession).toHaveBeenCalledOnce());
+      await waitFor(() => expect(getSession).toHaveBeenCalledOnce());
       resolveOlder?.({
         sessionId: 'session-1',
         workspaceDir: '/workspace',
         interactionMode: 'plan',
       });
-      await vi.waitFor(() => expect(getSession).toHaveBeenCalledTimes(2));
-      await vi.waitFor(() =>
+      await waitFor(() => expect(getSession).toHaveBeenCalledTimes(2));
+      await waitFor(() =>
         expect(
           updates
             .filter(({ update }) => update.sessionUpdate === 'current_mode_update')
@@ -5542,7 +5546,7 @@ describe('MiniMax Code ACP agent', () => {
         });
       }
 
-      await vi.waitFor(() => expect(getSession).toHaveBeenCalledTimes(8));
+      await waitFor(() => expect(getSession).toHaveBeenCalledTimes(8));
       await new Promise<void>((resolve) => setImmediate(resolve));
       expect(getSession).toHaveBeenCalledTimes(8);
     });
@@ -5602,10 +5606,10 @@ describe('MiniMax Code ACP agent', () => {
         parentSessionId: 'session-root',
       });
 
-      await vi.waitFor(() => expect(getDelegationSnapshot).toHaveBeenCalledOnce());
+      await waitFor(() => expect(getDelegationSnapshot).toHaveBeenCalledOnce());
       expect(activeSnapshots).toBe(1);
       releaseSnapshot();
-      await vi.waitFor(() => expect(delegationUpdates).toHaveLength(3));
+      await waitFor(() => expect(delegationUpdates).toHaveLength(3));
     });
 
     expect(getDelegationSnapshot).toHaveBeenCalledOnce();
@@ -5677,7 +5681,7 @@ describe('MiniMax Code ACP agent', () => {
         decision: 'deny',
       });
       emitRuntimeEvent(permissionEvent('permission-next'));
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(replyPermission).toHaveBeenCalledWith('mcode', 'permission-next', 'allowOnce'),
       );
     });
@@ -5713,7 +5717,7 @@ describe('MiniMax Code ACP agent', () => {
         for (let index = 0; index < 3; index += 1) {
           const requestId = `permission-detached-${index}`;
           emitRuntimeEvent(permissionEvent(requestId));
-          await vi.waitFor(() => expect(requested).toContain(requestId));
+          await waitFor(() => expect(requested).toContain(requestId));
           emitRuntimeEvent({
             type: 'permission.resolved',
             timestampMs: 2 + index,
@@ -5723,7 +5727,7 @@ describe('MiniMax Code ACP agent', () => {
             decision: 'deny',
           });
         }
-        await vi.waitFor(() => expect(connection.signal.aborted).toBe(true));
+        await waitFor(() => expect(connection.signal.aborted).toBe(true));
       })
       .catch(() => undefined);
   });
@@ -5750,14 +5754,14 @@ describe('MiniMax Code ACP agent', () => {
         mcpServers: [],
       });
       emitRuntimeEvent(permissionEvent('permission-reused'));
-      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      await waitFor(() => expect(answers).toHaveLength(1));
       await connection.request(acp.methods.agent.session.resume, {
         sessionId: session.sessionId,
         cwd: '/workspace',
         mcpServers: [],
       });
       emitRuntimeEvent(permissionEvent('permission-reused'));
-      await vi.waitFor(() => expect(answers).toHaveLength(2));
+      await waitFor(() => expect(answers).toHaveLength(2));
 
       emitRuntimeEvent({
         type: 'permission.resolved',
@@ -5768,7 +5772,7 @@ describe('MiniMax Code ACP agent', () => {
         decision: 'deny',
       });
       answers[1]?.({ outcome: { outcome: 'selected', optionId: 'allow-once' } });
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(replyPermission).toHaveBeenCalledWith('mcode', 'permission-reused', 'allowOnce'),
       );
     });
@@ -5797,7 +5801,7 @@ describe('MiniMax Code ACP agent', () => {
       });
       emitRuntimeEvent(permissionEvent('permission-duplicate'));
       emitRuntimeEvent(permissionEvent('permission-duplicate'));
-      await vi.waitFor(() => expect(answers).toHaveLength(1));
+      await waitFor(() => expect(answers).toHaveLength(1));
       emitRuntimeEvent({
         type: 'permission.resolved',
         timestampMs: 2,
@@ -5806,9 +5810,9 @@ describe('MiniMax Code ACP agent', () => {
         requestId: 'permission-duplicate',
         decision: 'deny',
       });
-      await vi.waitFor(() => expect(answers).toHaveLength(2));
+      await waitFor(() => expect(answers).toHaveLength(2));
       answers[1]?.({ outcome: { outcome: 'selected', optionId: 'allow-once' } });
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(replyPermission).toHaveBeenCalledWith('mcode', 'permission-duplicate', 'allowOnce'),
       );
     });
@@ -5824,7 +5828,7 @@ describe('MiniMax Code ACP agent', () => {
     const runStarted = new Promise<void>((resolve) => {
       markRunStarted = resolve;
     });
-    vi.mocked(runtime.sendMessage).mockImplementation(() =>
+    mocked(runtime.sendMessage).mockImplementation(() =>
       (async function* blockedRunEvents() {
         markRunStarted();
         await blockedRun;
@@ -5914,7 +5918,7 @@ describe('MiniMax Code ACP agent', () => {
       releaseFirst = resolve;
     });
     const requests: Array<{ clientIntent?: string }> = [];
-    vi.mocked(runtime.sendMessage).mockImplementation((request) =>
+    mocked(runtime.sendMessage).mockImplementation((request) =>
       (async function* modeRuns() {
         requests.push(request);
         if (requests.length === 1) await firstGate;
@@ -5941,7 +5945,7 @@ describe('MiniMax Code ACP agent', () => {
         sessionId: session.sessionId,
         prompt: [{ type: 'text', text: 'Plan first' }],
       });
-      await vi.waitFor(() => expect(requests).toHaveLength(1));
+      await waitFor(() => expect(requests).toHaveLength(1));
       await expect(
         connection.request(acp.methods.agent.session.setMode, {
           sessionId: session.sessionId,
@@ -5983,7 +5987,7 @@ describe('MiniMax Code ACP agent', () => {
         mcpServers: [],
       });
       emitRuntimeEvent(planReviewEvent(1));
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(updates).toContainEqual({
           sessionId: 'session-1',
           update: expect.objectContaining({
@@ -5997,7 +6001,7 @@ describe('MiniMax Code ACP agent', () => {
         cwd: '/workspace',
         mcpServers: [],
       });
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(updates).toContainEqual({
           sessionId: 'session-1',
           update: { sessionUpdate: 'plan_removed', planId: 'plan-1' },
@@ -6033,7 +6037,7 @@ describe('MiniMax Code ACP agent', () => {
         cwd: '/workspace',
         mcpServers: [{ name: 'fork-tools', command: '/bin/fork', args: [], env: [] }],
       });
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(configureSessionMcpServers).toHaveBeenCalledWith(
           'session-fork',
           expect.arrayContaining([expect.objectContaining({ name: 'fork-tools' })]),
@@ -6096,14 +6100,14 @@ describe('MiniMax Code ACP agent', () => {
         mcpServers: [{ name: 'fork-tools', command: '/bin/fork', args: [], env: [] }],
       });
       void fork.catch(() => undefined);
-      await vi.waitFor(() => expect(configureSessionMcpServers).toHaveBeenCalledOnce());
+      await waitFor(() => expect(configureSessionMcpServers).toHaveBeenCalledOnce());
       const resume = connection.request(acp.methods.agent.session.resume, {
         sessionId: 'session-fork',
         cwd: '/workspace',
         mcpServers: [{ name: 'resume-tools', command: '/bin/resume', args: [], env: [] }],
       });
       failForkMcp();
-      await vi.waitFor(() => expect(deleteSession).toHaveBeenCalledWith('session-fork'));
+      await waitFor(() => expect(deleteSession).toHaveBeenCalledWith('session-fork'));
       expect(clearSessionMcpServers).not.toHaveBeenCalled();
       finishDelete();
       await expect(fork).rejects.toThrow();
@@ -6135,10 +6139,10 @@ describe('MiniMax Code ACP agent', () => {
         { sessionId: session.sessionId, cwd: '/workspace', mcpServers: [] },
         { cancellationSignal: cancellation.signal },
       );
-      await vi.waitFor(() => expect(listMessagePage).toHaveBeenCalledOnce());
+      await waitFor(() => expect(listMessagePage).toHaveBeenCalledOnce());
       cancellation.abort();
       await expect(load).rejects.toThrow('cancel');
-      await vi.waitFor(() => expect(clearSessionMcpServers).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(clearSessionMcpServers).toHaveBeenCalledTimes(2));
       await expect(
         connection.request(acp.methods.agent.session.close, { sessionId: session.sessionId }),
       ).rejects.toThrow();
@@ -6170,7 +6174,7 @@ describe('MiniMax Code ACP agent', () => {
       );
 
       await expect(resume).rejects.toThrow('cancel');
-      await vi.waitFor(() => expect(clearSessionMcpServers.mock.calls.length).toBeGreaterThan(1));
+      await waitFor(() => expect(clearSessionMcpServers.mock.calls.length).toBeGreaterThan(1));
       await expect(
         connection.request(acp.methods.agent.session.close, {
           sessionId: 'session-existing',

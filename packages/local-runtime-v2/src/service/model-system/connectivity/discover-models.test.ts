@@ -1,10 +1,10 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, mock } from 'bun:test';
 
 import { ModelDiscoveryClient } from './discover-models.js';
 
 describe('ModelDiscoveryClient', () => {
   it('discovers models with the same normalized base and custom headers', async () => {
-    const fetchImpl = vi.fn(
+    const fetchImpl = mock(
       async () =>
         new Response(
           JSON.stringify({ data: [{ id: 'gpt-5.2', name: 'GPT 5.2' }, { id: 'gpt-5.3' }] }),
@@ -39,7 +39,7 @@ describe('ModelDiscoveryClient', () => {
   it.each(['anthropic-messages', 'openai-completions', 'openai-responses'] as const)(
     'sends both common API key headers when discovering %s models',
     async (api) => {
-      const fetchImpl = vi.fn(
+      const fetchImpl = mock(
         async () => new Response(JSON.stringify({ data: [] }), { status: 200 }),
       );
       const client = new ModelDiscoveryClient(fetchImpl as unknown as typeof fetch);
@@ -54,7 +54,7 @@ describe('ModelDiscoveryClient', () => {
   );
 
   it('attributes OpenRouter model discovery to MiniMax Code', async () => {
-    const fetchImpl = vi.fn(
+    const fetchImpl = mock(
       async () => new Response(JSON.stringify({ data: [] }), { status: 200 }),
     );
     const client = new ModelDiscoveryClient(fetchImpl as unknown as typeof fetch);
@@ -73,7 +73,7 @@ describe('ModelDiscoveryClient', () => {
   });
 
   it.each([401, 403])('sanitizes an HTTP %i authentication failure', async (status) => {
-    const fetchImpl = vi.fn(async () => new Response('secret upstream body', { status }));
+    const fetchImpl = mock(async () => new Response('secret upstream body', { status }));
     const client = new ModelDiscoveryClient(fetchImpl as unknown as typeof fetch);
     const result = await client.discover({
       api: 'openai-completions',
@@ -86,7 +86,7 @@ describe('ModelDiscoveryClient', () => {
   });
 
   it('reports non-authentication HTTP failures', async () => {
-    const fetchImpl = vi.fn(async () => new Response('upstream body', { status: 503 }));
+    const fetchImpl = mock(async () => new Response('upstream body', { status: 503 }));
     const client = new ModelDiscoveryClient(fetchImpl as unknown as typeof fetch);
 
     await expect(
@@ -101,7 +101,7 @@ describe('ModelDiscoveryClient', () => {
   it.each(['null', '[]', '{}', '{"data":"models"}', 'not-json'])(
     'rejects an invalid discovery payload %s',
     async (body) => {
-      const fetchImpl = vi.fn(async () => new Response(body, { status: 200 }));
+      const fetchImpl = mock(async () => new Response(body, { status: 200 }));
       const client = new ModelDiscoveryClient(fetchImpl as unknown as typeof fetch);
 
       await expect(
@@ -115,7 +115,7 @@ describe('ModelDiscoveryClient', () => {
   );
 
   it('filters malformed models and prefers display_name', async () => {
-    const fetchImpl = vi.fn(
+    const fetchImpl = mock(
       async () =>
         new Response(
           JSON.stringify({
@@ -140,7 +140,7 @@ describe('ModelDiscoveryClient', () => {
 
   it('distinguishes aborts from network failures', async () => {
     const abortError = Object.assign(new Error('aborted'), { name: 'AbortError' });
-    const abortingJson = vi.fn(
+    const abortingJson = mock(
       async () =>
         ({
           ok: true,
@@ -161,7 +161,7 @@ describe('ModelDiscoveryClient', () => {
       errorMessage: 'Request timed out after 25ms',
     });
 
-    const failingFetch = vi.fn(async () => Promise.reject(new Error('socket closed')));
+    const failingFetch = mock(async () => Promise.reject(new Error('socket closed')));
     const failed = new ModelDiscoveryClient(failingFetch as unknown as typeof fetch);
     await expect(
       failed.discover({
@@ -175,7 +175,7 @@ describe('ModelDiscoveryClient', () => {
 
 describe('ModelDiscoveryClient Messages endpoint fallback', () => {
   it('falls back to the OpenAI-style models endpoint when Messages discovery is missing', async () => {
-    const fetchImpl = vi.fn(async (url: string) =>
+    const fetchImpl = mock(async (url: string) =>
       url === 'https://api.example.com/models'
         ? new Response(JSON.stringify({ data: [{ id: 'deepseek-v4-pro' }] }), { status: 200 })
         : new Response('not found', { status: 404 }),
@@ -196,7 +196,7 @@ describe('ModelDiscoveryClient Messages endpoint fallback', () => {
   });
 
   it('falls back to the origin models endpoint when Messages is mounted under a subpath', async () => {
-    const fetchImpl = vi.fn(async (url: string) =>
+    const fetchImpl = mock(async (url: string) =>
       url === 'https://api.example.com/models'
         ? new Response(
             JSON.stringify({
@@ -226,7 +226,7 @@ describe('ModelDiscoveryClient Messages endpoint fallback', () => {
   it.each([404, 405])(
     'reports a missing model list endpoint when every candidate answers HTTP %i',
     async (status) => {
-      const fetchImpl = vi.fn(async () => new Response('not found', { status }));
+      const fetchImpl = mock(async () => new Response('not found', { status }));
       const client = new ModelDiscoveryClient(fetchImpl as unknown as typeof fetch);
 
       await expect(
@@ -245,7 +245,7 @@ describe('ModelDiscoveryClient Messages endpoint fallback', () => {
   );
 
   it('does not fall back when the Messages credentials are rejected', async () => {
-    const fetchImpl = vi.fn(async () => new Response('denied', { status: 401 }));
+    const fetchImpl = mock(async () => new Response('denied', { status: 401 }));
     const client = new ModelDiscoveryClient(fetchImpl as unknown as typeof fetch);
 
     await expect(
@@ -259,7 +259,7 @@ describe('ModelDiscoveryClient Messages endpoint fallback', () => {
   });
 
   it('skips the origin fallback when the base URL cannot be parsed', async () => {
-    const fetchImpl = vi.fn(async () => new Response('not found', { status: 404 }));
+    const fetchImpl = mock(async () => new Response('not found', { status: 404 }));
     const client = new ModelDiscoveryClient(fetchImpl as unknown as typeof fetch);
 
     await expect(

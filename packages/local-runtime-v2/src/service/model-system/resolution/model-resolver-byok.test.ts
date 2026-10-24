@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import {
   firstBuiltinModel,
@@ -224,10 +224,16 @@ describe('BYOK config helpers', () => {
     expect(firstBuiltinModel({ empty: {} })).toBeUndefined();
   });
 
+  // `[]` is one of the cases under test, and Bun expands each row with
+  // `apply`-style spread. A single-parameter callback therefore receives no
+  // argument for that row and is treated as a done-callback test, which then
+  // waits until the timeout. Collecting the row with a rest parameter keeps the
+  // callback arity non-zero so every row runs immediately; the value under test
+  // is the first element, which is `undefined` for the empty row.
   it.each([undefined, null, [], 'invalid', {}, { Invalid: 1 }])(
     'rejects a non-string header record %j',
-    (value) => {
-      expect(readStringRecord(value)).toBeUndefined();
+    (...row: unknown[]) => {
+      expect(readStringRecord(row[0])).toBeUndefined();
     },
   );
 

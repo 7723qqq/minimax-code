@@ -12,11 +12,12 @@
  *      so the gate sees the actual command name. Bails (returns
  *      undefined) on env-var-target deception shapes
  *      (`TARGET=/etc/shadow cat $TARGET`).
- *   2. {@link formatHardBlockedBashReason} — user-facing message
+ *   2. {@link hardBlockedBashReasonBody} — user-facing message
  *      builder for HARD_BLOCKED categories surfaced to the ASK card
  *      or final deny.
  */
 
+import type { PermissionReasonBodyInput } from '../reason-format.js';
 import { shellTokenize } from './shell-tokenize.js';
 import { consumeShellWrapperPrefix } from './bash-wrapper-unwrap.js';
 
@@ -108,23 +109,29 @@ export function pureReadFirstWord(command: string): string | undefined {
 }
 
 /**
- * User-facing reason text for HARD_BLOCKED categories. Surfaced on
+ * User-facing reason body for HARD_BLOCKED categories. Surfaced on
  * permission cards (ASK) and final deny messages.
+ *
+ * The body is a catalog key plus values, not a finished sentence: the
+ * formatter renders it in the reader's locale and prefixes the action label.
+ * `action` states the label the body itself carries — the encoded-execution
+ * block reads "Blocked" even though the decision asks for confirmation.
  */
-export function formatHardBlockedBashReason(
+export function hardBlockedBashReasonBody(
   command: string,
   category: string,
   description: string,
-): string {
+): PermissionReasonBodyInput {
+  const values = { command, reason: description };
   if (
     category === 'sensitive-read' ||
     category === 'system-secret' ||
     category === 'ssh-credential'
   ) {
-    return `Needs confirmation: sensitive credential or system-secret read requires LLM review and explicit approval if the LLM cannot allow it. Command: ${command}. Reason: ${description}.`;
+    return { key: 'body.bash.sensitiveCredentialRead', values, action: 'ask' };
   }
   if (category === 'data-exfil') {
-    return `Blocked: command appears to exfiltrate credential or secret material. Command: ${command}. Reason: ${description}.`;
+    return { key: 'body.bash.dataExfil', values, action: 'deny' };
   }
   if (
     category === 'irrecoverable-delete' ||
@@ -136,17 +143,21 @@ export function formatHardBlockedBashReason(
     category === 'fs-inode-direct' ||
     category === 'archive-remove-source'
   ) {
-    const base = `Blocked: command can irreversibly destroy files, disks, or backups. Command: ${command}. Reason: ${description}.`;
     if (category === 'windows-delete') {
-      return `${base} Use \`mavis-trash <path>\` for recoverable removal, or drop bypass for this call.`;
+      return {
+        key: 'body.bash.irrecoverableDelete',
+        values,
+        action: 'deny',
+        suffix: { key: 'body.bash.recoverableRemovalHint' },
+      };
     }
-    return base;
+    return { key: 'body.bash.irrecoverableDelete', values, action: 'deny' };
   }
-  if (category === 'reverse-shell' || category === 'encoding-bypass') {
-    if (category === 'encoding-bypass') {
-      return `Blocked: encoded shell execution hides the payload and has no reliable review surface. Command: ${command}. Reason: ${description}.`;
-    }
-    return `Needs confirmation: command opens a raw shell/network channel and requires LLM review; if the LLM cannot allow it, explicit approval is required. Command: ${command}. Reason: ${description}.`;
+  if (category === 'encoding-bypass') {
+    return { key: 'body.bash.encodedExecution', values, action: 'deny' };
   }
-  return `Blocked: command matches a final safety boundary. Command: ${command}. Reason: ${description}.`;
+  if (category === 'reverse-shell') {
+    return { key: 'body.bash.rawShellChannel', values, action: 'ask' };
+  }
+  return { key: 'body.bash.finalSafetyBoundary', values, action: 'deny' };
 }

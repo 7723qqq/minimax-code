@@ -10,6 +10,7 @@ import {
   extractQuestionnaireResponseSummary,
 } from '../../interaction/questionnaire.js';
 import { visibleSessionMutationContent } from '../../features/session-mutation/transport.js';
+import { transcriptText } from '../../features/transcript/copy.js';
 import type { TranscriptStore } from '../../transcript/store.js';
 
 export class TuiUserProjection {
@@ -25,7 +26,7 @@ export class TuiUserProjection {
           id: requestId ? `question:${requestId}` : `history:question:${messageId}`,
           kind: 'question',
           status: 'resolved',
-          title: 'Answers sent',
+          title: transcriptText('cell.title.answersSent'),
           content: questionnaireSummary,
           turnId,
           createdAtMs: timestamp,
@@ -61,7 +62,7 @@ export class TuiUserProjection {
         this.transcript.upsert({
           id: question.id,
           status: 'resolved',
-          title: 'Answers sent',
+          title: transcriptText('cell.title.answersSent'),
           content: questionnaireSummary,
           ephemeral: false,
           updatedAtMs: timestamp,

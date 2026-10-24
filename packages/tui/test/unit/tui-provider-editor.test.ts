@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { waitFor } from '../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock } from 'bun:test';
+
 import type { McodeProviderView } from "../../src/provider/contract.js";
 import { TuiProviderEditor } from "../../src/tui/features/provider/editor.js";
 import { stripAnsi } from "../../src/tui/rendering/text.js";
@@ -16,15 +18,15 @@ const provider: McodeProviderView = {
   configRevision: "rev-1",
   models: [{ modelId: "chat", selected: true }, { modelId: "reasoner" }],
 };
-function setup(onSave = vi.fn(async () => ({ success: true }))) {
-  const onSaved = vi.fn();
-  const onCancel = vi.fn();
+function setup(onSave = mock(async () => ({ success: true }))) {
+  const onSaved = mock();
+  const onCancel = mock();
   const editor = new TuiProviderEditor({
     provider,
     onSave,
     onSaved,
     onCancel,
-    requestRender: vi.fn(),
+    requestRender: mock(),
   });
   const save = () => {
     for (let i = 0; i < 4; i++) editor.handleInput("\u001b[B");
@@ -37,7 +39,7 @@ describe("TuiProviderEditor", () => {
   it("omits unchanged credentials and models from the revision-checked update", async () => {
     const { save, onSave } = setup();
     save();
-    await vi.waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
     expect(onSave).toHaveBeenCalledWith({
       providerId: provider.providerId,
       expectedRevision: "rev-1",
@@ -50,8 +52,7 @@ describe("TuiProviderEditor", () => {
   });
 
   it("retains the draft on test failure and redacts the replacement Key from errors", async () => {
-    const onSave = vi
-      .fn()
+    const onSave = mock()
       .mockResolvedValueOnce({
         success: false,
         status: { lastErrorMessage: "Rejected new-secret" },
@@ -62,7 +63,7 @@ describe("TuiProviderEditor", () => {
     h.editor.handleInput("new-secret");
     h.editor.handleInput("\r");
     h.save();
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(stripAnsi(h.editor.render(200).join("\n"))).toContain(
         "Changes were not saved",
       ),
@@ -72,7 +73,7 @@ describe("TuiProviderEditor", () => {
       "new-secret",
     );
     h.editor.handleInput("\r");
-    await vi.waitFor(() => expect(h.onSaved).toHaveBeenCalledWith(true));
+    await waitFor(() => expect(h.onSaved).toHaveBeenCalledWith(true));
     expect(onSave.mock.calls[1]?.[0]).toEqual(onSave.mock.calls[0]?.[0]);
   });
 
@@ -110,7 +111,7 @@ describe("TuiProviderEditor", () => {
     h.editor.handleInput("\u001b[B");
     h.editor.handleInput("\u001b[B");
     h.editor.handleInput("\r");
-    await vi.waitFor(() => expect(h.onSave).toHaveBeenCalledOnce());
+    await waitFor(() => expect(h.onSave).toHaveBeenCalledOnce());
     expect(h.onSave).toHaveBeenCalledWith(
       expect.objectContaining({
         models: [{ modelId: "chat" }, { modelId: "new-model" }],
@@ -122,7 +123,7 @@ describe("TuiProviderEditor", () => {
   it("does not reopen a disposed editor after a pending save", async () => {
     let resolve!: (result: { success: boolean }) => void;
     const h = setup(
-      vi.fn(
+      mock(
         () =>
           new Promise((done) => {
             resolve = done;

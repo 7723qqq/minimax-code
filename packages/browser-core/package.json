@@ -12,6 +12,9 @@
       "default": "./dist/index.js"
     }
   },
+  "dependencies": {
+    "@mavis/shared": "workspace:^"
+  },
   "devDependencies": {
     "@types/node": "^20",
     "typescript": "^5",

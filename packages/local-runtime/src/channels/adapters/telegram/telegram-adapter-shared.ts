@@ -7,6 +7,7 @@ import type { LocalMessageAttachment } from '../../../messages/input.js';
 import type { LocalChannelPlatformAdapter } from '../../adapter.js';
 import type { ChannelInboundAttachmentRef, ChannelInboundEnvelope } from '../../envelope.js';
 import type { LocalChannelContext } from '../../infra.js';
+import { telegramText } from './telegram-copy.js';
 
 /**
  * Minimal dispatchInbound input. Kept loose so the wire does not pull
@@ -94,8 +95,8 @@ export function ensureUnifiedInboundText(
   if (text.trim()) return text;
   if (!refs || refs.length === 0) return text;
   const primary = refs[0]!;
-  if (primary.type === 'image') return '[图片]';
-  if (primary.type === 'audio') return '[语音]';
-  if (primary.type === 'video') return '[视频]';
-  return `[文件] ${primary.name ?? primary.key ?? ''}`.trim();
+  if (primary.type === 'image') return telegramText('attachment.image');
+  if (primary.type === 'audio') return telegramText('attachment.audio');
+  if (primary.type === 'video') return telegramText('attachment.video');
+  return telegramText('attachment.file', { name: primary.name ?? primary.key ?? '' }).trim();
 }

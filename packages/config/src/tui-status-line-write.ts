@@ -1,4 +1,6 @@
 import { randomBytes } from 'node:crypto';
+
+import { configText } from './copy.js';
 import { promises as fs } from 'node:fs';
 import { dirname, join } from 'node:path';
 import yaml from 'js-yaml';
@@ -47,9 +49,7 @@ export async function writeTuiStatusLineSetting(
     await fs.rename(temporaryPath, targetPath);
   } catch {
     // Parser errors can contain unrelated credentials from the config source.
-    throw new Error(
-      'Unable to save status line settings. Check config.yaml syntax and permissions.',
-    );
+    throw new Error(configText('config.statusLine.saveFailed'));
   } finally {
     if (temporaryCreated && temporaryPath) await fs.unlink(temporaryPath).catch(() => undefined);
     await release?.().catch(() => undefined);

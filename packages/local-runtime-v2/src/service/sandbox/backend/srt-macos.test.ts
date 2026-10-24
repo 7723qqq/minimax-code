@@ -1,3 +1,5 @@
+import { mocked } from '../../../../../../test/bun-test-setup.js';
+import { afterAll, describe, expect, it, mock } from 'bun:test';
 import { spawnSync } from "node:child_process";
 import {
   existsSync,
@@ -12,8 +14,6 @@ import {
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-
-import { afterAll, describe, expect, it, vi } from "vitest";
 
 import {
   getSandboxConfigDefaults,
@@ -310,13 +310,13 @@ describe("srt-macos backend failure and lifecycle edges", () => {
   });
 
   it("unsubscribes and rethrows when SRT initialization fails", async () => {
-    const unsubscribe = vi.fn();
+    const unsubscribe = mock();
     const manager = fakeManager();
-    manager.getSandboxViolationStore = vi.fn(() => ({
+    manager.getSandboxViolationStore = mock(() => ({
       getTotalCount: () => 0,
       subscribe: () => unsubscribe,
     }));
-    vi.mocked(manager.initialize).mockRejectedValueOnce(
+    mocked(manager.initialize).mockRejectedValueOnce(
       new Error("native init failed"),
     );
     const backend = createSrtMacosBackend(manager, "test");
@@ -335,7 +335,7 @@ describe("srt-macos backend failure and lifecycle edges", () => {
     "normalizes SRT wrap failures without retrying: %s",
     async (failure, message) => {
       const manager = fakeManager();
-      vi.mocked(manager.wrapWithSandbox).mockRejectedValueOnce(failure);
+      mocked(manager.wrapWithSandbox).mockRejectedValueOnce(failure);
       const backend = createSrtMacosBackend(manager, "test");
 
       await expect(backend.wrap(wrapInput())).rejects.toMatchObject({
@@ -356,7 +356,7 @@ describe("srt-macos backend failure and lifecycle edges", () => {
     ];
     let listener: (items: typeof history) => void = () => undefined;
     const manager = fakeManager();
-    manager.getSandboxViolationStore = vi.fn(() => ({
+    manager.getSandboxViolationStore = mock(() => ({
       getTotalCount: () => total,
       subscribe: (next: (items: typeof history) => void) => {
         listener = next;
@@ -364,7 +364,7 @@ describe("srt-macos backend failure and lifecycle edges", () => {
         return () => undefined;
       },
     }));
-    const reportViolation = vi.fn();
+    const reportViolation = mock();
     const backend = createSrtMacosBackend(manager, "test");
     await backend.initialize(effectivePolicy("open", "allow_all"), {
       reportViolation,
@@ -384,9 +384,9 @@ describe("srt-macos backend failure and lifecycle edges", () => {
     let listener: (
       violations: Array<{ line: string; command?: string; timestamp: Date }>,
     ) => void = () => undefined;
-    const unsubscribe = vi.fn();
+    const unsubscribe = mock();
     const manager = fakeManager();
-    manager.getSandboxViolationStore = vi.fn(() => ({
+    manager.getSandboxViolationStore = mock(() => ({
       getTotalCount: () => total,
       subscribe: (
         next: Parameters<
@@ -399,7 +399,7 @@ describe("srt-macos backend failure and lifecycle edges", () => {
         return unsubscribe;
       },
     }));
-    const reportViolation = vi.fn();
+    const reportViolation = mock();
     const backend = createSrtMacosBackend(manager, "test");
     await backend.initialize(effectivePolicy("open", "allow_all"), {
       reportViolation,
@@ -526,7 +526,7 @@ async function subscribedBackend(backendHooks: SandboxBackendHooks): Promise<{
     violations: Array<{ line: string; command?: string; timestamp: Date }>,
   ) => void = () => undefined;
   const manager = fakeManager();
-  manager.getSandboxViolationStore = vi.fn(() => ({
+  manager.getSandboxViolationStore = mock(() => ({
     getTotalCount: () => total,
     subscribe: (
       next: Parameters<
@@ -534,7 +534,7 @@ async function subscribedBackend(backendHooks: SandboxBackendHooks): Promise<{
       >[0],
     ) => {
       listener = next;
-      return vi.fn();
+      return mock();
     },
   }));
   const backend = createSrtMacosBackend(manager, "test");
@@ -1206,7 +1206,7 @@ function effectivePolicy(
 }
 
 function hooks(): SandboxBackendHooks {
-  return { reportViolation: vi.fn() };
+  return { reportViolation: mock() };
 }
 
 function wrapInput(): SandboxWrapInput {
@@ -1231,7 +1231,7 @@ function wrapInput(): SandboxWrapInput {
 function firstInitializeCall(
   manager: SrtMacosManagerPort,
 ): Parameters<SrtMacosManagerPort["initialize"]> {
-  const call = vi.mocked(manager.initialize).mock.calls[0];
+  const call = mocked(manager.initialize).mock.calls[0];
   if (!call) throw new Error("Expected SRT initialize call");
   return call;
 }
@@ -1239,15 +1239,15 @@ function firstInitializeCall(
 function fakeManager(): SrtMacosManagerPort {
   let config: Parameters<SrtMacosManagerPort["initialize"]>[0] | undefined;
   return {
-    initialize: vi.fn(async (next) => {
+    initialize: mock(async (next) => {
       config = next;
     }),
-    getConfig: vi.fn(() => config),
-    updateConfig: vi.fn((next) => {
+    getConfig: mock(() => config),
+    updateConfig: mock((next) => {
       config = next;
     }),
-    wrapWithSandbox: vi.fn(async () => "wrapped command"),
-    getSandboxViolationStore: vi.fn(() => ({
+    wrapWithSandbox: mock(async () => "wrapped command"),
+    getSandboxViolationStore: mock(() => ({
       getTotalCount: () => 0,
       subscribe: (
         listener: Parameters<
@@ -1257,11 +1257,11 @@ function fakeManager(): SrtMacosManagerPort {
         >[0],
       ) => {
         listener([]);
-        return vi.fn();
+        return mock();
       },
     })),
-    cleanupAfterCommand: vi.fn(),
-    reset: vi.fn(async () => {
+    cleanupAfterCommand: mock(),
+    reset: mock(async () => {
       config = undefined;
     }),
   };

@@ -9,7 +9,7 @@ import {
   type Context,
   type Model,
 } from "@earendil-works/pi-ai";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 
 import {
   RuntimeEventStatus,

@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { waitFor } from '../../../../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock, spyOn } from 'bun:test';
 
 import type {
   TuiActiveRunSnapshot,
@@ -51,21 +52,21 @@ function queued(status: string): TuiQueuedMessage {
 
 function createObservability(): {
   observability: TuiObservability;
-  recordRunLifecycle: ReturnType<typeof vi.fn>;
+  recordRunLifecycle: ReturnType<typeof mock>;
 } {
-  const recordRunLifecycle = vi.fn();
+  const recordRunLifecycle = mock();
   return {
     recordRunLifecycle,
     observability: {
-      recordStartup: vi.fn(),
-      recordAccess: vi.fn(),
-      recordEventStream: vi.fn(),
-      recordTerminal: vi.fn(),
-      recordProcessStop: vi.fn(),
-      observeRender: vi.fn(),
+      recordStartup: mock(),
+      recordAccess: mock(),
+      recordEventStream: mock(),
+      recordTerminal: mock(),
+      recordProcessStop: mock(),
+      observeRender: mock(),
       recordRunLifecycle,
-      snapshot: vi.fn(),
-      flush: vi.fn(async () => undefined),
+      snapshot: mock(),
+      flush: mock(async () => undefined),
     } as unknown as TuiObservability,
   };
 }
@@ -86,33 +87,33 @@ function createFixture(options?: {
     }),
     (action) => stateStore.dispatch(action),
   );
-  const refreshQueue = vi.fn(async () => []);
+  const refreshQueue = mock(async () => []);
   const activeRunFlow = {
-    refresh: vi.fn(async () => undefined),
-    currentSnapshot: vi.fn(() => activeRun('idle')),
+    refresh: mock(async () => undefined),
+    currentSnapshot: mock(() => activeRun('idle')),
   };
   const stateCoordinator = {
-    project: vi.fn(),
+    project: mock(),
   };
   const sessionFlow = {
-    reconcileRuntimeEvent: vi.fn(async () => undefined),
+    reconcileRuntimeEvent: mock(async () => undefined),
   };
   const delegationFlow = {
-    handleRuntimeEvent: vi.fn(async () => undefined),
-    handleSettledRuntimeEvent: vi.fn(),
-    refresh: vi.fn(async () => undefined),
+    handleRuntimeEvent: mock(async () => undefined),
+    handleSettledRuntimeEvent: mock(),
+    refresh: mock(async () => undefined),
   };
   const interactionFlow = {
-    handleRuntimeEvent: vi.fn(async () => false),
-    replaceFromActiveSession: vi.fn(),
-    hasPending: vi.fn(() => false),
-    continuesTurn: vi.fn(options?.interactionContinuesTurn ?? (() => false)),
+    handleRuntimeEvent: mock(async () => false),
+    replaceFromActiveSession: mock(),
+    hasPending: mock(() => false),
+    continuesTurn: mock(options?.interactionContinuesTurn ?? (() => false)),
   };
   const runProjection = new TuiRunProjection();
   const runtime = {
     getActiveRun:
-      options?.runtimeActiveRun ?? vi.fn(async () => activeRun('idle')),
-    listQueuedMessages: options?.queuedMessages ?? vi.fn(async () => []),
+      options?.runtimeActiveRun ?? mock(async () => activeRun('idle')),
+    listQueuedMessages: options?.queuedMessages ?? mock(async () => []),
     watchEvents: async function* watchEvents(signal: AbortSignal) {
       const event = await new Promise<TuiRuntimeEvent | undefined>(
         (resolve) => {
@@ -125,36 +126,36 @@ function createFixture(options?: {
     },
     watchSessionTurn: async function* watchSessionTurn() {},
   };
-  const settleRuntimeTurnProjection = vi.fn();
-  const reconcileOwnerHistory = vi.fn(async () => true);
+  const settleRuntimeTurnProjection = mock();
+  const reconcileOwnerHistory = mock(async () => true);
   const turnStarts = new TuiTurnStartLedger();
   const controller = {
-    snapshot: vi.fn(() => ({
+    snapshot: mock(() => ({
       session: { sessionId: 'session-1' },
       activeTurnId: options?.currentControllerTurnId?.(),
     })),
-    refreshCurrentSessionHistory: vi.fn(async () => undefined),
-    refreshSessionMetadata: vi.fn(async () => undefined),
-    beginRuntimeTurn: vi.fn(),
+    refreshCurrentSessionHistory: mock(async () => undefined),
+    refreshSessionMetadata: mock(async () => undefined),
+    beginRuntimeTurn: mock(),
     recordTurnStart: (turnId: string, timestampMs: number) =>
       turnStarts.record(turnId, timestampMs),
     turnStartedAtMs: (turnId: string) => turnStarts.get(turnId),
-    applyRuntimeTurnEvent: vi.fn(),
+    applyRuntimeTurnEvent: mock(),
     runtimeTurnSettlement: {
-      settle: vi.fn(async () => undefined),
+      settle: mock(async () => undefined),
       settleProjection: settleRuntimeTurnProjection,
-      enabled: vi.fn(() => false),
-      prepare: vi.fn((sessionId: string, turnId: string, status: string) => ({
+      enabled: mock(() => false),
+      prepare: mock((sessionId: string, turnId: string, status: string) => ({
         sessionId,
         turnId,
         status,
       })),
-      publish: vi.fn(async () => undefined),
+      publish: mock(async () => undefined),
     },
-    latestDurableMessageId: vi.fn(() => 'message-anchor'),
+    latestDurableMessageId: mock(() => 'message-anchor'),
     reconcileOwnerHistory,
-    refreshStatusMetricsNow: vi.fn(),
-    refreshSessionUsageNow: vi.fn(),
+    refreshStatusMetricsNow: mock(),
+    refreshSessionUsageNow: mock(),
   };
   const flow = new TuiRuntimeEventFlow({
     runtime: runtime as never,
@@ -167,22 +168,22 @@ function createFixture(options?: {
     activeRunFlow: activeRunFlow as never,
     interactionFlow: interactionFlow as never,
     runProjection,
-    releaseQueueItem: vi.fn(async () => undefined),
+    releaseQueueItem: mock(async () => undefined),
     transcript: new TranscriptStore(),
     refreshQueue,
-    projectQueueItem: vi.fn(),
-    restoreFailedQueueItem: vi.fn(),
-    onLlmRetryChanged: vi.fn(),
-    onRetryAvailabilityChanged: vi.fn(),
-    goalFlow: { project: vi.fn(), refresh: vi.fn(async () => undefined) },
-    updateFollowUpPanel: vi.fn(),
-    onChanged: vi.fn(),
-    append: vi.fn(),
+    projectQueueItem: mock(),
+    restoreFailedQueueItem: mock(),
+    onLlmRetryChanged: mock(),
+    onRetryAvailabilityChanged: mock(),
+    goalFlow: { project: mock(), refresh: mock(async () => undefined) },
+    updateFollowUpPanel: mock(),
+    onChanged: mock(),
+    append: mock(),
     isStopped: () => false,
     queueEnabled: true,
     ...(options?.observability ? { observability: options.observability } : {}),
     staleRunCheckIntervalMs: 0,
-    notify: vi.fn(),
+    notify: mock(),
   });
 
   return {
@@ -212,8 +213,8 @@ describe('TuiRuntimeEventFlow stale-run safety net', () => {
     const { observability, recordRunLifecycle } = createObservability();
     const fixture = createFixture({
       observability,
-      runtimeActiveRun: vi.fn(async () => activeRun('terminal')),
-      queuedMessages: vi.fn(async () => [queued('queued')]),
+      runtimeActiveRun: mock(async () => activeRun('terminal')),
+      queuedMessages: mock(async () => [queued('queued')]),
     });
     fixture.flow.adoptRuntimeTurn('session-1', 'turn-stale', 100);
     expect(fixture.runProjection.snapshot().latestRuntimeTurnId).toBe(
@@ -260,10 +261,10 @@ describe('TuiRuntimeEventFlow stale-run safety net', () => {
     ];
     let read = 0;
     const fixture = createFixture({
-      runtimeActiveRun: vi.fn(
+      runtimeActiveRun: mock(
         async () => reads[Math.min(read, reads.length - 1)]!.run,
       ),
-      queuedMessages: vi.fn(
+      queuedMessages: mock(
         async () => reads[Math.min(read++, reads.length - 1)]!.queue,
       ),
     });
@@ -281,8 +282,8 @@ describe('TuiRuntimeEventFlow stale-run safety net', () => {
 
   it('keeps the projected run while an accepted Queue handoff is not yet Runtime-visible', async () => {
     const fixture = createFixture({
-      runtimeActiveRun: vi.fn(async () => activeRun('idle')),
-      queuedMessages: vi.fn(async () => []),
+      runtimeActiveRun: mock(async () => activeRun('idle')),
+      queuedMessages: mock(async () => []),
     });
     fixture.runProjection.markRecoveredTurn('turn-stale');
     fixture.runProjection.markQueueHandoffPending();
@@ -303,8 +304,7 @@ describe('TuiRuntimeEventFlow stale-run safety net', () => {
   it('rechecks Queue handoff ownership after Runtime reads finish', async () => {
     let resolveActiveRun!: (value: TuiActiveRunSnapshot) => void;
     let resolveQueuedMessages!: (value: TuiQueuedMessage[]) => void;
-    const runtimeActiveRun = vi
-      .fn<() => Promise<TuiActiveRunSnapshot>>()
+    const runtimeActiveRun = mock<() => Promise<TuiActiveRunSnapshot>>()
       .mockResolvedValueOnce(activeRun('idle'))
       .mockImplementationOnce(
         () =>
@@ -312,8 +312,7 @@ describe('TuiRuntimeEventFlow stale-run safety net', () => {
             resolveActiveRun = resolve;
           }),
       );
-    const queuedMessages = vi
-      .fn<() => Promise<TuiQueuedMessage[]>>()
+    const queuedMessages = mock<() => Promise<TuiQueuedMessage[]>>()
       .mockResolvedValueOnce([])
       .mockImplementationOnce(
         () =>
@@ -326,7 +325,7 @@ describe('TuiRuntimeEventFlow stale-run safety net', () => {
     await expect(fixture.flow.reconcileStaleRun()).resolves.toBe(false);
 
     const pendingCheck = fixture.flow.reconcileStaleRun();
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(runtimeActiveRun).toHaveBeenCalledTimes(2);
       expect(queuedMessages).toHaveBeenCalledTimes(2);
     });
@@ -346,8 +345,7 @@ describe('TuiRuntimeEventFlow stale-run safety net', () => {
   });
 
   it('restarts confirmation after a Runtime ownership read fails', async () => {
-    const runtimeActiveRun = vi
-      .fn<() => Promise<TuiActiveRunSnapshot>>()
+    const runtimeActiveRun = mock<() => Promise<TuiActiveRunSnapshot>>()
       .mockResolvedValueOnce(activeRun('idle'))
       .mockRejectedValueOnce(new Error('ownership probe failed'))
       .mockResolvedValue(activeRun('idle'));
@@ -365,12 +363,12 @@ describe('TuiRuntimeEventFlow stale-run safety net', () => {
 
   it('restarts confirmation when the Runtime event stream restarts', async () => {
     const fixture = createFixture({
-      runtimeActiveRun: vi.fn(async () => activeRun('idle')),
+      runtimeActiveRun: mock(async () => activeRun('idle')),
     });
     fixture.runProjection.markRecoveredTurn('turn-stale');
 
     await expect(fixture.flow.reconcileStaleRun()).resolves.toBe(false);
-    vi.spyOn(fixture.flow, 'start').mockImplementation(() => undefined);
+    spyOn(fixture.flow, 'start').mockImplementation(() => undefined);
     fixture.flow.restart();
     await expect(fixture.flow.reconcileStaleRun()).resolves.toBe(false);
 
@@ -382,8 +380,7 @@ describe('TuiRuntimeEventFlow stale-run safety net', () => {
   it('discards an in-flight ownership read when the Runtime event stream restarts', async () => {
     let resolveActiveRun!: (value: TuiActiveRunSnapshot) => void;
     let resolveQueuedMessages!: (value: TuiQueuedMessage[]) => void;
-    const runtimeActiveRun = vi
-      .fn<() => Promise<TuiActiveRunSnapshot>>()
+    const runtimeActiveRun = mock<() => Promise<TuiActiveRunSnapshot>>()
       .mockImplementationOnce(
         () =>
           new Promise<TuiActiveRunSnapshot>((resolve) => {
@@ -391,8 +388,7 @@ describe('TuiRuntimeEventFlow stale-run safety net', () => {
           }),
       )
       .mockResolvedValue(activeRun('idle'));
-    const queuedMessages = vi
-      .fn<() => Promise<TuiQueuedMessage[]>>()
+    const queuedMessages = mock<() => Promise<TuiQueuedMessage[]>>()
       .mockImplementationOnce(
         () =>
           new Promise<TuiQueuedMessage[]>((resolve) => {
@@ -404,11 +400,11 @@ describe('TuiRuntimeEventFlow stale-run safety net', () => {
     fixture.runProjection.markRecoveredTurn('turn-stale');
 
     const pendingCheck = fixture.flow.reconcileStaleRun();
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(runtimeActiveRun).toHaveBeenCalledTimes(1);
       expect(queuedMessages).toHaveBeenCalledTimes(1);
     });
-    vi.spyOn(fixture.flow, 'start').mockImplementation(() => undefined);
+    spyOn(fixture.flow, 'start').mockImplementation(() => undefined);
     fixture.flow.restart();
     resolveActiveRun(activeRun('idle'));
     resolveQueuedMessages([]);
@@ -422,7 +418,7 @@ describe('TuiRuntimeEventFlow stale-run safety net', () => {
 
   it('restarts confirmation when the projected Turn changes between reads', async () => {
     const fixture = createFixture({
-      runtimeActiveRun: vi.fn(async () => activeRun('idle')),
+      runtimeActiveRun: mock(async () => activeRun('idle')),
     });
     fixture.runProjection.markRecoveredTurn('turn-a');
     await expect(fixture.flow.reconcileStaleRun()).resolves.toBe(false);
@@ -438,7 +434,7 @@ describe('TuiRuntimeEventFlow stale-run safety net', () => {
 
   it('does not clear a Turn that a pending interaction keeps open', async () => {
     const fixture = createFixture({
-      runtimeActiveRun: vi.fn(async () => activeRun('terminal')),
+      runtimeActiveRun: mock(async () => activeRun('terminal')),
       interactionContinuesTurn: () => true,
     });
     fixture.runProjection.markRecoveredTurn('turn-question');
@@ -456,7 +452,7 @@ describe('TuiRuntimeEventFlow stale-run safety net', () => {
     const fixture = createFixture({
       observability,
       currentControllerTurnId: () => 'turn-local',
-      runtimeActiveRun: vi.fn(async () => activeRun('idle')),
+      runtimeActiveRun: mock(async () => activeRun('idle')),
     });
     for (let index = 0; index < 4; index += 1) {
       await expect(fixture.flow.reconcileStaleRun()).resolves.toBe(false);
@@ -538,7 +534,7 @@ describe('TuiRuntimeEventFlow Turn start ledger', () => {
     // Switching back re-adopts the still-running Turn at the switch time.
     fixture.flow.adoptRuntimeTurn('session-1', 'turn-main', 5_000);
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(fixture.controller.beginRuntimeTurn).toHaveBeenCalledWith('turn-main', 100),
     );
     expect(fixture.controller.turnStartedAtMs('turn-main')).toBe(100);

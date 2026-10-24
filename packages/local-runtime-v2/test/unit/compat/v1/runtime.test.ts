@@ -5,7 +5,7 @@ import {
 import { DeferredRuntimeConversation } from "@mavis/conversation-contract";
 import type { ThreadGoalState, ThreadGoalStore } from "@mavis/goal";
 import type { AgentReferenceResolver } from "@mavis/shared";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
 
 import {
   cleanupFailedV1Startup,
@@ -16,46 +16,59 @@ import {
 
 type ThreadGoalIntegration = CreatedLocalRuntimeHost["apiHost"]["threadGoal"];
 
-const mocked = vi.hoisted(() => ({
+// `bun test` runs every file of a suite in one process, and `mock.module()`
+// replaces the module for that whole process. Snapshot the real modules before
+// replacing them and put them back in `afterAll`, so a replacement never leaks
+// into the files that run after this one.
+const actualLocalRuntime = { ...(await import("@mavis/local-runtime")) };
+const actualV1Cron = {
+  ...(await import("../../../../src/compat/v1/cron.js")),
+};
+const actualV1AgentHost = {
+  ...(await import("../../../../src/compat/v1/agent-host.js")),
+};
+const actualV1Session = {
+  ...(await import("../../../../src/compat/v1/session.js")),
+};
+
+// `mock.module()` evaluates its factory lazily, so this plain `const` is picked
+// up as-is.
+const mocked = {
   adapter: { marker: "adapter" },
   agentHost: { marker: "agent-host-capabilities" },
   attachmentRegistration: { marker: "attachment-registration" },
   channel: { marker: "channel-capabilities" },
   bindCalls: [] as unknown[],
   cleanupBindCalls: [] as unknown[],
-  deleteAgentCronTasks: vi.fn(async () => undefined),
+  deleteAgentCronTasks: mock(async () => undefined),
   sessionCompatibility: { marker: "session-v2" },
   sessionCompatibilityHosts: [] as unknown[],
   agentResolver: {
     marker: "agent-resolver",
   } as unknown as AgentReferenceResolver,
-  closeAgentDb: vi.fn(),
-  inspectCollision: vi.fn(),
-  applyCollision: vi.fn(),
+  closeAgentDb: mock(),
+  inspectCollision: mock(),
+  applyCollision: mock(),
+};
+
+mock.module("@mavis/local-runtime", () => ({
+  ...actualLocalRuntime,
+  closeAgentDb: mocked.closeAgentDb,
+  withAgentNameConflictMigrationLock: async (
+    _dataDir: string,
+    operation: (scope: {
+      inspectCollision: () => unknown;
+      applyCollision: (nowMs?: () => number) => unknown;
+    }) => unknown,
+  ) =>
+    operation({
+      inspectCollision: mocked.inspectCollision,
+      applyCollision: mocked.applyCollision,
+    }),
 }));
 
-vi.mock("@mavis/local-runtime", async () => {
-  const actual = await vi.importActual<Record<string, unknown>>(
-    "@mavis/local-runtime",
-  );
-  return {
-    ...actual,
-    closeAgentDb: mocked.closeAgentDb,
-    withAgentNameConflictMigrationLock: async (
-      _dataDir: string,
-      operation: (scope: {
-        inspectCollision: () => unknown;
-        applyCollision: (nowMs?: () => number) => unknown;
-      }) => unknown,
-    ) =>
-      operation({
-        inspectCollision: mocked.inspectCollision,
-        applyCollision: mocked.applyCollision,
-      }),
-  };
-});
-
-vi.mock("../../../../src/compat/v1/cron.js", () => ({
+mock.module("../../../../src/compat/v1/cron.js", () => ({
+  ...actualV1Cron,
   createV1MavisCronAdapterBridge: () => ({
     adapter: mocked.adapter,
     bindHandleRequest: (handleRequest: unknown) =>
@@ -67,18 +80,27 @@ vi.mock("../../../../src/compat/v1/cron.js", () => ({
   }),
 }));
 
-vi.mock("../../../../src/compat/v1/agent-host.js", () => ({
+mock.module("../../../../src/compat/v1/agent-host.js", () => ({
+  ...actualV1AgentHost,
   createV1AttachmentRegistration: () => mocked.attachmentRegistration,
   createV1AgentHostProductCapabilities: () => mocked.agentHost,
   createV1ChannelProductCapabilities: () => mocked.channel,
 }));
 
-vi.mock("../../../../src/compat/v1/session.js", () => ({
+mock.module("../../../../src/compat/v1/session.js", () => ({
+  ...actualV1Session,
   createV1SessionCompatibility: (host: unknown) => {
     mocked.sessionCompatibilityHosts.push(host);
     return mocked.sessionCompatibility;
   },
 }));
+
+afterAll(() => {
+  mock.module("@mavis/local-runtime", () => actualLocalRuntime);
+  mock.module("../../../../src/compat/v1/cron.js", () => actualV1Cron);
+  mock.module("../../../../src/compat/v1/agent-host.js", () => actualV1AgentHost);
+  mock.module("../../../../src/compat/v1/session.js", () => actualV1Session);
+});
 
 function resetRuntimeCompatibilityMocks(): void {
   mocked.bindCalls.length = 0;
@@ -246,7 +268,7 @@ describe("v1 Agent reference compatibility", () => {
     overrides: Partial<AgentReferenceResolver> = {},
   ): AgentReferenceResolver {
     return {
-      resolveAgentReadScope: vi.fn(async (requestedName: string) => ({
+      resolveAgentReadScope: mock(async (requestedName: string) => ({
         requestedName,
         canonicalName: "coder",
         primaryName: "mavis",
@@ -255,9 +277,9 @@ describe("v1 Agent reference compatibility", () => {
         source: "explicit_agent" as const,
         exactOwnerName: "coder",
       })),
-      resolveAgentWriteTarget: vi.fn(async () => "coder"),
-      requireExactAgentKey: vi.fn(async () => "coder"),
-      resolveAgentExecutionTarget: vi.fn(async () => "coder"),
+      resolveAgentWriteTarget: mock(async () => "coder"),
+      requireExactAgentKey: mock(async () => "coder"),
+      resolveAgentExecutionTarget: mock(async () => "coder"),
       ...overrides,
     };
   }
@@ -294,7 +316,7 @@ describe("v1 Agent reference compatibility", () => {
 
   it("rejects the canonical primary/self target before Task resolution", async () => {
     const targetResolver = resolver({
-      resolveAgentReadScope: vi.fn(async (requestedName: string) => ({
+      resolveAgentReadScope: mock(async (requestedName: string) => ({
         requestedName,
         canonicalName: "mavis",
         primaryName: "mavis",
@@ -315,7 +337,7 @@ describe("v1 Agent reference compatibility", () => {
 
   it("fails closed when the trusted roster resolver cannot resolve a target", async () => {
     const targetResolver = resolver({
-      resolveAgentReadScope: vi.fn(async () => {
+      resolveAgentReadScope: mock(async () => {
         throw Object.assign(new Error("missing"), { code: "AGENT_NOT_FOUND" });
       }),
     });
@@ -336,8 +358,8 @@ describe("v1 runtime compatibility Task recovery", () => {
   });
 
   it("binds task ownership and forwards exact recovered Turn evidence to the Task service", async () => {
-    const bindRuntimeOwner = vi.fn();
-    const reconcileStartupLostTasks = vi.fn(async () => []);
+    const bindRuntimeOwner = mock();
+    const reconcileStartupLostTasks = mock(async () => []);
     const compatibility = createCompatibility();
     const host = createdHost({
       backgroundTaskService: {
@@ -441,7 +463,7 @@ describe("v1 runtime compatibility host composition", () => {
     const services = compatibility.createServiceCompatibility(createdHost({}), {
       dataDir: "/tmp/runtime",
     } as CreateLocalRuntimeHostOptions);
-    const cron = { deleteDefinitionsByAgent: vi.fn() };
+    const cron = { deleteDefinitionsByAgent: mock() };
 
     services.cron.bindAgentCleanup(cron);
     await configured.deleteAgentCronTasks?.("coder");
@@ -468,7 +490,7 @@ describe("v1 runtime compatibility seams", () => {
     );
     const serviceCompatibility = compatibility.createServiceCompatibility(
       createdHost({
-        subscribeGlobalEvents: vi.fn(() => () => undefined),
+        subscribeGlobalEvents: mock(() => () => undefined),
       }),
       { dataDir: "/tmp/runtime" } as CreateLocalRuntimeHostOptions,
     );
@@ -476,9 +498,9 @@ describe("v1 runtime compatibility seams", () => {
       configured.runtimeConversation?.query.getSession("session-1");
     const provider = {
       query: {
-        getSession: vi.fn(async () => undefined),
-        listSessions: vi.fn(async () => []),
-        listMessages: vi.fn(async () => ({ messages: [], hasMore: false })),
+        getSession: mock(async () => undefined),
+        listSessions: mock(async () => []),
+        listMessages: mock(async () => ({ messages: [], hasMore: false })),
       },
       lifecycle: {},
       ingress: {},
@@ -504,20 +526,20 @@ describe("v1 runtime compatibility seams", () => {
       preparedPorts(),
     );
     const recovery = deferred();
-    const recoverThreadGoalKickoffs = vi.fn(async () => recovery.promise);
+    const recoverThreadGoalKickoffs = mock(async () => recovery.promise);
     const serviceCompatibility = compatibility.createServiceCompatibility(
       createdHost({
-        subscribeGlobalEvents: vi.fn(() => () => undefined),
+        subscribeGlobalEvents: mock(() => () => undefined),
         recoverThreadGoalKickoffs,
       }),
       { dataDir: "/tmp/runtime" } as CreateLocalRuntimeHostOptions,
     );
-    const getSession = vi.fn(async () => undefined);
+    const getSession = mock(async () => undefined);
     const provider = {
       query: {
         getSession,
-        listSessions: vi.fn(async () => []),
-        listMessages: vi.fn(async () => ({ messages: [], hasMore: false })),
+        listSessions: mock(async () => []),
+        listMessages: mock(async () => ({ messages: [], hasMore: false })),
       },
       lifecycle: {},
       ingress: {},
@@ -561,9 +583,9 @@ describe("v1 runtime compatibility adapters and cleanup", () => {
       mocked.agentResolver,
       preparedPorts(),
     );
-    const apiHost = { subscribeGlobalEvents: vi.fn(() => () => undefined) };
+    const apiHost = { subscribeGlobalEvents: mock(() => () => undefined) };
     const host = createdHost(apiHost);
-    const publish = vi.fn();
+    const publish = mock();
     const event = {
       type: "session.deleted" as const,
       payload: { sessionId: "session-1" },
@@ -589,7 +611,7 @@ describe("v1 runtime compatibility adapters and cleanup", () => {
 describe("v1 safety compatibility", () => {
   it("keeps the concrete content-safety transport in the v1 compatibility seam", () => {
     const compatibility = createCompatibility();
-    const contentSafetyChecker = vi.fn(async () => ({ pass: true as const }));
+    const contentSafetyChecker = mock(async () => ({ pass: true as const }));
     const services = compatibility.createServiceCompatibility(
       createdHost({ contentSafetyChecker }),
       { dataDir: "/tmp/runtime" } as CreateLocalRuntimeHostOptions,
@@ -657,10 +679,10 @@ describe("v1 runtime cleanup", () => {
 
 describe("v1 Agent telemetry compatibility", () => {
   it("bridges Agent facts to v1 telemetry and remains fail-open", () => {
-    const counter = vi.fn();
-    const gauge = vi.fn();
-    const histogram = vi.fn();
-    const emitBusEvent = vi.fn();
+    const counter = mock();
+    const gauge = mock();
+    const histogram = mock();
+    const emitBusEvent = mock();
     const telemetry = createDeferredAgentRuntimeTelemetry();
     telemetry.bind({
       metricsClient: { counter, gauge, histogram },
@@ -772,38 +794,38 @@ const goal: ThreadGoalState = {
 };
 
 function createThreadGoalFixture() {
-  const isReadOnlyLegacySession = vi.fn(async () => false);
+  const isReadOnlyLegacySession = mock(async () => false);
   const store = {
-    create: vi.fn(
+    create: mock(
       async (_input: Parameters<ThreadGoalStore["create"]>[0]) => goal,
     ),
-    getBySession: vi.fn(async () => goal),
-    patch: vi.fn(async (_goalId: string, patch: Partial<ThreadGoalState>) => ({
+    getBySession: mock(async () => goal),
+    patch: mock(async (_goalId: string, patch: Partial<ThreadGoalState>) => ({
       ...goal,
       ...patch,
     })),
-    delete: vi.fn(async () => undefined),
+    delete: mock(async () => undefined),
   };
   const integration = {
-    isEnabled: vi.fn(() => true),
+    isEnabled: mock(() => true),
     store,
-    getGoalForResponse: vi.fn<ThreadGoalIntegration["getGoalForResponse"]>(
+    getGoalForResponse: mock<ThreadGoalIntegration["getGoalForResponse"]>(
       async () => goal,
     ),
-    createGoal: vi.fn(
+    createGoal: mock(
       async (
         input: Parameters<ThreadGoalStore["create"]>[0],
         _options?: { readonly requireKickoffAdmission?: boolean },
       ) => store.create(input),
     ),
-    patchGoal: vi.fn<ThreadGoalIntegration["patchGoal"]>(
+    patchGoal: mock<ThreadGoalIntegration["patchGoal"]>(
       async (_sessionId: string, patch: Partial<ThreadGoalState>) => ({
         ...goal,
         ...patch,
       }),
     ),
-    deleteGoal: vi.fn(async (_sessionId: string) => true),
-    handleChanged: vi.fn(),
+    deleteGoal: mock(async (_sessionId: string) => true),
+    handleChanged: mock(),
   };
   const application = createCompatibility().createServiceCompatibility(
     createdHost(
@@ -1051,15 +1073,15 @@ function createCompatibility() {
 function preparedPorts() {
   return {
     skillEnabledState: {
-      getDisabledLocationUris: vi.fn(async () => new Set<string>()),
-      setEnabled: vi.fn(async () => undefined),
-      forget: vi.fn(async () => undefined),
+      getDisabledLocationUris: mock(async () => new Set<string>()),
+      setEnabled: mock(async () => undefined),
+      forget: mock(async () => undefined),
     },
-    runLegacyImCredentialMigration: vi.fn(async (action: () => Promise<void>) =>
+    runLegacyImCredentialMigration: mock(async (action: () => Promise<void>) =>
       action(),
     ),
     cliSunsetNotice: {
-      evaluate: vi.fn(async () => undefined),
+      evaluate: mock(async () => undefined),
     },
   };
 }
@@ -1073,17 +1095,17 @@ function createdHost(
     apiHost: {
       configGetter: () => ({ promptConfig: { autoUpdate: false } }),
       recoverThreadGoalKickoffs: async () => undefined,
-      contentSafetyChecker: vi.fn(async () => ({ pass: true })),
-      bindQuestionnaireOwnedActionHandler: vi.fn(),
+      contentSafetyChecker: mock(async () => ({ pass: true })),
+      bindQuestionnaireOwnedActionHandler: mock(),
       questionnaireServiceDeps: () => ({
         store: {},
         nowMs: Date.now,
         primaryAgentName: "mavis",
         configGetter: () => ({}),
-        getSessionById: vi.fn(),
-        startUserMessageTurn: vi.fn(),
-        emitBusEvent: vi.fn(),
-        publishGlobalEvent: vi.fn(),
+        getSessionById: mock(),
+        startUserMessageTurn: mock(),
+        emitBusEvent: mock(),
+        publishGlobalEvent: mock(),
       }),
       ...apiHost,
     },

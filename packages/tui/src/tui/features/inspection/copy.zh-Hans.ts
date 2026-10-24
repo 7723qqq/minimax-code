@@ -1,0 +1,225 @@
+import type { InspectionCopyKey } from './copy.en.js';
+
+/**
+ * Simplified Chinese copy for the inspection panels.
+ *
+ * The `satisfies` clause is the completeness check: a key present in the
+ * English catalog but absent here fails `pnpm typecheck`.
+ */
+export const ZH_HANS_INSPECTION_COPY = {
+  // Capabilities panel
+  'capabilities.title.skills': 'Skills',
+  'capabilities.title.mcp': 'MCP 服务器',
+  'capabilities.subtitle.agentScope': '当前 Agent 可用',
+  'capabilities.subtitle.moreResults': '还有更多结果',
+  'capabilities.subtitle.readOnly': '只读目录',
+  'capabilities.subtitle.matching': '匹配“{filter}”',
+  'capabilities.subtitle.runtimeCatalog': 'Runtime 能力目录 · 只读',
+  'capabilities.footer.readOnly': 'Esc 关闭 · 只读',
+  'capabilities.footer.reload': 'Esc 关闭 · /mcp reload',
+  'capabilities.section.builtIn': '内置',
+  'capabilities.section.user': '用户',
+  'capabilities.section.other': '其他',
+  'capabilities.section.userConfigured': '用户配置',
+  'capabilities.section.projectScope': '项目 · .mcp.json',
+  'capabilities.section.clientSession': '客户端会话',
+  'capabilities.section.catalog': '目录',
+  'capabilities.empty.noMatches': '无匹配项',
+  'capabilities.empty.noSkillsConfigured': '未配置任何 Skills',
+  'capabilities.empty.broaderFilter': '关闭本面板，并尝试放宽 /skills 筛选条件。',
+  'capabilities.empty.noVisibleSkills': '当前 Agent 没有可见的 Skills。',
+  'capabilities.empty.noMatchingCapabilities': '当前 Runtime 未在此分组中返回匹配的能力。',
+  'capabilities.empty.noServersInGroup': '没有 {group} 服务器',
+
+  // Report inspection panel
+  'report.escClose': 'Esc 关闭',
+  'report.scrollProgress': '{start}-{end}/{total} · ↑↓ 滚动 · PgUp/PgDn 滚动 · Esc 关闭',
+
+  // Account status
+  'account.loading': '加载中…',
+  'account.notSignedIn': '未登录',
+  'account.signIn': '使用 /login 登录',
+  'account.connected': '已连接 MiniMax',
+  'account.connectedWithWarnings': '已连接，但存在警告',
+  'account.unavailable': 'MiniMax 账号不可用',
+  'account.loadingBadge': '正在加载账号…',
+  'account.footer': '当前配置 · 详情请用 /usage',
+  'account.modelSource.apiKey': 'API key',
+  'account.modelSource.tokenPlan': 'Token Plan',
+  'account.plan.loginHint': '运行 /login 查看套餐和额度',
+
+  // Model
+  'model.sessionSelection': '会话选择',
+  'model.configuredDefault': '配置的默认值',
+  'model.unknownThinking': '未知',
+  'model.notConfigurable': '不可配置',
+  'model.thinkingOn': '开启',
+  'model.thinkingOff': '关闭',
+
+  // Workspace
+  'workspace.branch.detachedHead': '游离 HEAD',
+  'workspace.branch.unborn': '未生成分支',
+  'workspace.branch.notGitRepository': '不是 Git 仓库',
+  'workspace.worktree.notApplicable': '不适用',
+  'workspace.worktree.linked': '已关联',
+  'workspace.worktree.primaryCheckout': '主检出目录',
+
+  // Token Plan quota
+  'quota.noSubscription': '未订阅 Token Plan',
+  'quota.temporarilyUnavailable': '暂时不可用',
+  'quota.unlimited': '无限制',
+  'quota.percentLeft': '剩余 {percent}%',
+  'quota.countLeft': '剩余 {count}',
+  'quota.countOfTotalLeft': '剩余 {count}/{total}',
+  'quota.resetPending': '{value} · 等待重置',
+  'quota.resetsIn': '{value} · {duration} 后重置',
+
+  // Runtime configuration check
+  'runtime.title': '配置检查',
+  'runtime.value.valid': '有效',
+  'runtime.value.needsAttention': '需要处理',
+  'runtime.currentRunImpact': '在修复配置并重启之前，MCode 可能会使用内置默认值。',
+  'runtime.footer': '只读 · 未修改任何文件',
+  'runtime.nextStep.createOrRestore': '创建或还原 {path}，重启 MCode 后再次运行 /doctor。',
+  'runtime.nextStep.checkAccess': '检查 {path} 的访问权限，重启 MCode 后再次运行 /doctor。',
+  'runtime.nextStep.setDefaultModel':
+    '在 {path} 中将 defaultModel 设置为可用的服务商/模型，重启 MCode 后再次运行 /doctor。',
+  'runtime.nextStep.fixConfig': '修复 {path}，重启 MCode 后再次运行 /doctor。',
+
+  // Effective configuration
+  'config.title': '生效的配置',
+  'config.footer': '凭证值已隐藏',
+  'config.runtimeDefault': 'Runtime 默认配置',
+
+  // Usage
+  'usage.noAccountUsage': '暂无账号用量数据。使用 /login 登录后可查看套餐和额度。',
+  'usage.noSessionUsage': '当前会话尚未记录用量。',
+  'usage.title.account': '账号用量',
+  'usage.title.session': '会话用量',
+  'usage.modelUnavailable': '模型不可用',
+
+  // Context snapshot
+  'context.loading': '上下文正在加载。请在当前 Run 启动后再次运行 /context。',
+  'context.unavailable': '当前会话尚无可用的 Runtime 上下文快照。',
+  'context.staleNote': '该快照对应最近一次已完成的 Run。',
+  'context.snapshot.mostRecentRun': '最近一次已完成的 Run',
+  'context.snapshot.current': '当前上下文',
+  'context.footer.providerAnchored': '基于服务商用量统计 · 内容已脱敏',
+  'context.footer.runtimeEstimate': '基于 Runtime 估算 · 内容已脱敏',
+
+  // Skills
+  'skills.noMatches': '没有 Skills 匹配当前 Agent 配置。',
+  'skills.moreExist': '还有更多 Skills；请使用 /skills <filter> 缩小范围。',
+
+  // MCP servers
+  'mcp.ownershipNote': '内置及插件自带的 MCP 服务器由 Runtime 管理，未包含在此列表中。',
+  'mcp.noUserServers': '没有用户配置的 MCP 服务器匹配当前配置。',
+  'mcp.userServersTitle': '用户配置的 MCP 服务器 · {count}',
+  'mcp.hiddenPayloads': '配置内容与凭证引用已隐藏。请重试 MCP 操作，然后再次运行 /mcp。',
+
+  // Pending permissions
+  'permissions.noPendingRequests': '没有待处理的权限请求。',
+  'permissions.policyOwnedByRuntime': '权限策略仍由 Runtime 负责。',
+  'permissions.pendingTitle': '待处理的权限 · {count}',
+  'permissions.awaitingDecision': '等待处理',
+  'permissions.chooseAction': '请在上方选择一项操作以继续。',
+
+  // Shared values
+  'value.notSelected': '未选择',
+  'value.notConfigured': '未配置',
+  'value.unknown': '未知',
+  'value.unavailable': '不可用',
+  'value.unavailableLower': '不可用',
+  'value.notStarted': '未开始',
+  'value.untitled': '未命名',
+  'value.configFile': '配置文件',
+  'value.none': '无',
+  'value.default': '默认',
+  'value.present': '存在',
+  'value.missing': '缺失',
+  'value.planMode': '计划',
+  'value.defaultMode': '默认',
+  'value.nextMessage': '下一条消息',
+  'value.submitting': '提交中',
+
+  // Status line
+  'status.title': 'MCode 状态{version}',
+
+  // Text reports
+  'report.warnings': '警告：',
+  'context.title': '上下文',
+  'context.line.snapshot': '上下文 · {state}',
+  'context.snapshotState.stale': '过期快照',
+  'context.snapshotState.live': '实时快照',
+  'context.line.budget': '预算：{used} 已用 · {remaining} · {utilization}',
+  'context.budget.remaining': '剩余 {count}',
+  'context.line.model': '模型：{model}',
+  'context.line.compaction': '压缩：{state}',
+  'context.componentsHeading': '组成部分：',
+  'context.componentLine': '- {label}：{tokens} tokens',
+
+  // Report labels
+  'label.account': '账号',
+  'label.model': '模型',
+  'label.workspace': '工作区',
+  'label.session': '会话',
+  'label.sessionId': '会话 ID',
+  'label.permissions': '权限',
+  'label.mode': '模式',
+  'label.instructions': '指令',
+  'label.quota': '额度',
+  'label.configFile': '配置文件',
+  'label.issues': '问题',
+  'label.impact': '影响',
+  'label.nextStep': '下一步',
+  'label.location': '位置',
+  'label.credentials': '凭证',
+  'label.runtime': 'Runtime',
+  'label.budget': '预算',
+  'label.components': '组成部分',
+  'label.provider': '服务商',
+  'label.auth': '认证',
+  'label.plan': '套餐',
+  'label.modelSource': '模型来源',
+  'label.thinkEffort': '思考强度',
+  'label.thinking': '思考',
+  'label.source': '来源',
+  'label.directory': '目录',
+  'label.branch': '分支',
+  'label.worktree': 'worktree',
+  'label.title': '标题',
+  'label.globalRules': '全局规则',
+  'label.projectRules': '项目规则',
+  'label.expires': '到期时间',
+  'label.credits': '积分',
+  'label.quotaFiveHour': '5 小时',
+  'label.quotaWeekly': '每周',
+  'label.quotaVideo': '视频',
+  'label.status': '状态',
+  'label.path': '路径',
+  'label.file': '文件',
+  'label.defaultModel': '默认模型',
+  'label.default': '默认值',
+  'label.endpoint': '接入地址',
+  'label.issue': '问题',
+  'label.currentRun': '当前运行',
+  'label.action': '操作',
+  'label.dataDirectory': '数据目录',
+  'label.authMode': '认证方式',
+  'label.authSource': '认证来源',
+  'label.providerApiKey': '服务商 API key',
+  'label.managedCredential': '托管凭证',
+  'label.customProviders': '自定义服务商',
+  'label.used': '已用',
+  'label.remaining': '剩余',
+  'label.utilization': '使用率',
+  'label.window': '窗口',
+  'label.compaction': '压缩',
+  'label.snapshot': '快照',
+  'label.systemPrompt': '系统提示词',
+  'label.memory': '记忆',
+  'label.tools': '工具',
+  'label.skills': 'Skills',
+  'label.messages': '消息',
+  'label.other': '其他',
+} as const satisfies Readonly<Record<InspectionCopyKey, string>>;

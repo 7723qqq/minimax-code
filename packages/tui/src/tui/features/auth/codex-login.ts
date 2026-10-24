@@ -10,6 +10,7 @@ import { wrapTextWithAnsi } from '../../rendering/text.js';
 import { panelLayout } from '../../widgets/panel-frame.js';
 import { SelectList } from '../../widgets/select-list.js';
 import { tuiChalk as chalk, tuiColors as colors, tuiSelectListTheme } from '../../theme/runtime.js';
+import { authText } from './copy.js';
 
 interface CodexLoginOptions {
   application: Pick<
@@ -42,13 +43,13 @@ export class TuiCodexLogin implements Component {
       [
         {
           value: 'browser',
-          label: 'Browser login (default)',
-          description: 'Sign in on this computer',
+          label: authText('browserLoginLabel'),
+          description: authText('browserLoginDescription'),
         },
         {
           value: 'device_code',
-          label: 'Device code login',
-          description: 'SSH / remote development machine',
+          label: authText('deviceCodeLoginLabel'),
+          description: authText('deviceCodeLoginDescription'),
         },
       ],
       2,
@@ -116,10 +117,10 @@ export class TuiCodexLogin implements Component {
   renderViewport(width: number, height: number): string[] {
     const footer =
       this.phase === 'select'
-        ? '↑↓ select · Enter continue · Esc cancel'
+        ? authText('selectContinueCancel')
         : this.phase === 'failed'
-          ? 'Enter retry · Esc cancel'
-          : 'Esc cancel';
+          ? authText('retryCancel')
+          : authText('cancel');
     const layout = panelLayout(width, height, footer);
     const body =
       this.phase === 'select'
@@ -129,24 +130,28 @@ export class TuiCodexLogin implements Component {
   }
 
   private body(): string[] {
-    if (this.cancelling) return ['Cancelling sign-in…'];
-    if (this.phase === 'loading') return ['Checking Codex sign-in…'];
-    if (this.phase === 'starting') return ['Starting Codex sign-in…'];
+    if (this.cancelling) return [authText('cancelling')];
+    if (this.phase === 'loading') return [authText('checking')];
+    if (this.phase === 'starting') return [authText('starting')];
     if (this.error) return [chalk.hex(colors.error)(this.error)];
     const device = this.status?.deviceCode;
     const url = device?.verificationUri ?? this.status?.authUrl;
     return [
       ...(device
-        ? [chalk.bold.hex(colors.signal)(`Enter code: ${sanitizeTerminalText(device.userCode)}`)]
+        ? [
+            chalk.bold.hex(colors.signal)(
+              authText('enterCode', { code: sanitizeTerminalText(device.userCode) }),
+            ),
+          ]
         : []),
       ...(url ? [sanitizeTerminalText(url)] : []),
-      device
-        ? 'Open this link in a browser on your computer and enter the code.'
-        : 'Complete sign-in in your browser.',
-      'Waiting for authorization…',
+      device ? authText('openLinkInBrowser') : authText('completeInBrowser'),
+      authText('waitingForAuthorization'),
       ...(device
         ? [
-            `Code expires in ${Math.max(0, Math.ceil((device.expiresAt - Date.now()) / 60_000))} min.`,
+            authText('codeExpiresIn', {
+              n: Math.max(0, Math.ceil((device.expiresAt - Date.now()) / 60_000)),
+            }),
           ]
         : []),
       ...(this.browserHint ? [this.browserHint] : []),
@@ -194,9 +199,7 @@ export class TuiCodexLogin implements Component {
       this.timer.unref?.();
     } else if (status.state === 'failed' || status.state === 'hidden') {
       this.phase = 'failed';
-      this.error = sanitizeTerminalText(
-        status.error ?? 'Codex sign-in is unavailable in this build.',
-      );
+      this.error = sanitizeTerminalText(status.error ?? authText('unavailableInBuild'));
     } else {
       this.phase = 'select';
     }
@@ -208,7 +211,7 @@ export class TuiCodexLogin implements Component {
       await this.options.openExternalTarget(url);
     } catch {
       if (this.disposed) return;
-      this.browserHint = 'Open the link above manually to continue.';
+      this.browserHint = authText('openLinkManually');
       this.options.requestRender();
     }
   }
@@ -217,7 +220,7 @@ export class TuiCodexLogin implements Component {
     if (this.disposed) return;
     this.phase = 'failed';
     this.error = sanitizeTerminalText(
-      error instanceof Error ? error.message : 'Codex sign-in failed. Retry to continue.',
+      error instanceof Error ? error.message : authText('signInFailed'),
     );
     this.options.requestRender();
   }

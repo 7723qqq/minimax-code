@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it } from 'bun:test';
 import { toSessionMessageView } from "./content-application.js";
 
 it.each(["request_duration_ms", "decode_duration_ms"])(

@@ -172,6 +172,9 @@
       "@mavis/local-runtime-v2/logging": [
         "./packages/local-runtime-v2/src/infra/logging/index.ts"
       ],
+      "@mavis/local-runtime-v2/plugin-hook-session": [
+        "./packages/local-runtime-v2/src/service/turn-system/agent-host/assembly/local-turn-plugin-hooks.ts"
+      ],
       "@mavis/local-runtime-v2/process-local": [
         "./packages/local-runtime-v2/src/local/host-contract.ts"
       ],
@@ -241,6 +244,9 @@
       "@mavis/shared/bounded-json-stringify": [
         "./packages/shared/src/bounded-json-stringify.ts"
       ],
+      "@mavis/shared/bundled-assets": [
+        "./packages/shared/src/bundled-assets.ts"
+      ],
       "@mavis/shared/cron-model": [
         "./packages/shared/src/cron-model.ts"
       ],
@@ -261,6 +267,9 @@
       ],
       "@mavis/shared/global-events": [
         "./packages/shared/src/global-events.ts"
+      ],
+      "@mavis/shared/i18n": [
+        "./packages/shared/src/i18n/index.ts"
       ],
       "@mavis/shared/image-dimensions": [
         "./packages/shared/src/image-dimensions.ts"
@@ -327,6 +336,9 @@
       ],
       "@mavis/shared/models-dev": [
         "./packages/shared/src/models-dev.ts"
+      ],
+      "@mavis/shared/native-addons": [
+        "./packages/shared/src/native-addons.ts"
       ],
       "@mavis/shared/navigation-text": [
         "./packages/shared/src/navigation-text.ts"
@@ -404,6 +416,7 @@
   "include": [
     "packages/tui/src/index.ts",
     "packages/local-runtime/src/types/*.d.ts",
-    "third_party/pi-mono/packages/coding-agent/src/utils/*.d.ts"
+    "third_party/pi-mono/packages/coding-agent/src/utils/*.d.ts",
+    "types/bun-sqlite.d.ts"
   ]
 }

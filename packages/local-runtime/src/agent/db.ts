@@ -1,8 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-import { loadBetterSqlite3Module } from '../persistence/better-sqlite3-loader.js';
-import type { DatabaseConstructor, DatabaseLike } from '../persistence/db.js';
+import { FinalizingSqliteDatabase } from '@mavis/shared';
+import { Database } from 'bun:sqlite';
+
+import type { DatabaseLike } from '../persistence/db.js';
 
 const dbCache = new Map<string, DatabaseLike>();
 
@@ -16,8 +18,7 @@ export function openAgentDb(dataDir: string): DatabaseLike {
   if (cached) return cached;
 
   fs.mkdirSync(path.dirname(dbPath), { recursive: true });
-  const Database = loadBetterSqlite3Module<DatabaseConstructor>();
-  const db = new Database(dbPath);
+  const db = new FinalizingSqliteDatabase(dbPath);
   configureAgentDb(db);
   ensureAgentSchema(db);
   dbCache.set(dbPath, db);

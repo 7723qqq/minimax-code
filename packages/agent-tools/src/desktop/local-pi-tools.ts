@@ -23,7 +23,7 @@ import { fileURLToPath } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { resolveBashDescription } from './local-bash-input.js';
 import {
-  DEFAULT_FOREGROUND_BASH_SOFT_YIELD_MS,
+  resolveForegroundBashSoftYieldMs,
   resolveLocalBashTiming,
   validateBashCommand,
   withLocalBashTiming,
@@ -506,7 +506,7 @@ export class LocalBashTool implements ToolImpl<
       const managed = await this.backgroundAdapter.runManagedForeground(
         ctx,
         foregroundInput,
-        DEFAULT_FOREGROUND_BASH_SOFT_YIELD_MS,
+        resolveForegroundBashSoftYieldMs(),
         signal,
       );
       if (managed.status !== 'completed') {
@@ -844,6 +844,7 @@ function isFsNotFoundError(err: unknown): boolean {
 
 export {
   DEFAULT_FOREGROUND_BASH_TIMEOUT_SECONDS,
-  MAX_FOREGROUND_BASH_TIMEOUT_SECONDS,
   DEFAULT_FOREGROUND_BASH_SOFT_YIELD_MS,
+  MAX_FOREGROUND_BASH_TIMEOUT_SECONDS,
+  resolveForegroundBashSoftYieldMs,
 } from './local-bash-timing.js';

@@ -7,7 +7,7 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { expect, it } from "vitest";
+import { expect, it } from 'bun:test';
 import { whichSync } from "../third_party/sandbox-runtime/src/utils/which.js";
 
 it("finds executable files without starting an external command", () => {

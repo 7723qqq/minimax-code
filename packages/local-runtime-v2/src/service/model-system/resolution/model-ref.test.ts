@@ -1,6 +1,6 @@
 import { DEFAULT_THINKING_MODEL_IDS } from '@earendil-works/pi-ai';
 import { ThinkingLevel, ThinkingMode } from '@mavis/protocol';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 
 import {
   capabilitiesFromModelConfig,

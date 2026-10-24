@@ -16,6 +16,7 @@ import type {
   PluginHookSessionEndFence,
 } from '@mavis/plugin-hooks';
 
+import { v2TurnSystemText } from '../../copy.js';
 import type { AgentExecutionSnapshot } from '../preparation/contracts.js';
 import type { LocalTurnExecutionInput } from '../runner/contracts.js';
 
@@ -103,8 +104,7 @@ export async function emitLocalPluginHookWarnings(input: {
             }
           : {
               category: 'terminal-control',
-              message:
-                'A Plugin Hook requested terminal control output, but this runtime surface does not execute terminal control sequences.',
+              message: v2TurnSystemText('pluginHook.terminalControlUnsupported'),
             },
       );
     }
@@ -177,17 +177,18 @@ function warningDedupeKey(
 }
 
 function diagnosticWarningMessage(pluginName: string, event: string, code: string): string {
-  const outcome =
+  const outcome = v2TurnSystemText(
     event === 'PreToolUse' || event === 'PermissionRequest' || event === 'PostToolUse'
-      ? 'The tool execution and result were not changed by this Hook.'
-      : 'The conversation continued without this Hook.';
+      ? 'pluginHook.outcome.toolUnchanged'
+      : 'pluginHook.outcome.conversationContinued',
+  );
   if (code === 'HOOK_INVALID_INPUT') {
-    return `A compatibility-limited Hook from Plugin "${pluginName}" was skipped during ${event}. ${outcome}`;
+    return v2TurnSystemText('pluginHook.skippedCompatibility', { pluginName, event, outcome });
   }
   if (code === 'HOOK_TIMEOUT') {
-    return `Plugin "${pluginName}" Hook timed out and was skipped during ${event}. ${outcome}`;
+    return v2TurnSystemText('pluginHook.timedOut', { pluginName, event, outcome });
   }
-  return `Plugin "${pluginName}" Hook could not complete and was skipped during ${event}. ${outcome}`;
+  return v2TurnSystemText('pluginHook.incomplete', { pluginName, event, outcome });
 }
 
 async function withWarningEmissionLane(

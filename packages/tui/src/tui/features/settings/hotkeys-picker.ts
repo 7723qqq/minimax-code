@@ -12,6 +12,7 @@ import type {
   TuiKeybindingOverride,
   TuiKeybindingRegistry,
 } from '../../shell/keybindings.js';
+import { settingsItemText } from './copy.js';
 
 export interface TuiHotkeysPickerOptions {
   readonly registry: TuiKeybindingRegistry;
@@ -74,13 +75,13 @@ export class TuiHotkeysPicker implements Component {
 
   renderViewport(width: number, height: number): string[] {
     const selected = this.selectedDefinition();
-    const keys = selected ? this.formatKeys(selected.id) : 'Unbound';
+    const keys = selected ? this.formatKeys(selected.id) : settingsItemText('hotkeys.unbound');
     const layout = panelLayout(
       width,
       height,
       this.editing
-        ? 'Press a key · Enter save · Backspace clear · Esc cancel'
-        : '↑↓ select · Enter modify · r reset · Esc close',
+        ? settingsItemText('hotkeys.footer.editing')
+        : settingsItemText('hotkeys.footer.list'),
     );
     const details = [
       ...(selected && layout.bodyHeight >= 6
@@ -91,7 +92,7 @@ export class TuiHotkeysPicker implements Component {
       ...(this.status ? [chalk.hex(colors.signal)(this.status)] : []),
     ];
     return layout.render({
-      title: 'Keyboard Shortcuts',
+      title: settingsItemText('hotkeys.title'),
       body: [
         ...this.list.renderViewport(
           layout.contentWidth,
@@ -135,7 +136,7 @@ export class TuiHotkeysPicker implements Component {
     const keys = this.options.registry.keys(id);
     return keys.length > 0
       ? keys.map((key) => this.options.registry.format(key)).join(' / ')
-      : 'Unbound';
+      : settingsItemText('hotkeys.unbound');
   }
 
   private beginCapture(): void {
@@ -182,7 +183,7 @@ export class TuiHotkeysPicker implements Component {
     if (this.clearPending) next[selected.id] = [];
     else if (this.pendingKey) next[selected.id] = this.pendingKey;
     else {
-      this.error = 'Press a key first, or use Backspace to clear it.';
+      this.error = settingsItemText('hotkeys.error.pressKeyFirst');
       this.options.requestRender?.();
       return;
     }
@@ -203,7 +204,7 @@ export class TuiHotkeysPicker implements Component {
       this.editing = false;
       this.pendingKey = undefined;
       this.clearPending = false;
-      this.status = `Saved ${selected.id}.`;
+      this.status = settingsItemText('hotkeys.status.saved', { id: selected.id });
       this.list = this.createList();
     } catch (error) {
       this.error = error instanceof Error ? error.message : String(error);
@@ -224,7 +225,7 @@ export class TuiHotkeysPicker implements Component {
     this.options.requestRender?.();
     try {
       await this.options.saveUserOverrides(next);
-      this.status = `Reset ${selected.id} to default.`;
+      this.status = settingsItemText('hotkeys.status.reset', { id: selected.id });
       this.list = this.createList();
     } catch (error) {
       this.error = error instanceof Error ? error.message : String(error);
@@ -235,18 +236,25 @@ export class TuiHotkeysPicker implements Component {
   }
 
   private renderCapture(): string[] {
-    if (this.busy) return [chalk.hex(colors.muted)('Saving…')];
-    if (this.clearPending) return [chalk.hex(colors.warning)('Unbound · press Enter to save')];
+    if (this.busy) return [chalk.hex(colors.muted)(settingsItemText('hotkeys.status.saving'))];
+    if (this.clearPending) {
+      return [chalk.hex(colors.warning)(settingsItemText('hotkeys.capture.unbound'))];
+    }
     return [
       chalk.hex(colors.signal)(
         this.pendingKey
-          ? `Captured: ${this.options.registry.format(this.pendingKey)}`
-          : 'Press a key combination…',
+          ? settingsItemText('hotkeys.capture.captured', {
+              key: this.options.registry.format(this.pendingKey),
+            })
+          : settingsItemText('hotkeys.capture.pressCombination'),
       ),
     ];
   }
 }
 
 function formatConflict(conflict: TuiKeybindingConflict): string {
-  return `Conflict: ${conflict.key} is used by ${conflict.ids.join(' and ')}.`;
+  return settingsItemText('hotkeys.error.conflict', {
+    key: conflict.key,
+    ids: conflict.ids.join(settingsItemText('hotkeys.conflictSeparator')),
+  });
 }

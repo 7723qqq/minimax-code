@@ -5,6 +5,7 @@ import type { Component } from '../../rendering/component.js';
 import { sanitizeTerminalText } from '../../rendering/terminal-text.js';
 import { truncateToWidth, visibleWidth } from '../../rendering/text.js';
 import { tuiChalk, tuiColors as colors } from '../../theme/runtime.js';
+import { goalText, type GoalCopyKey } from './copy.js';
 
 export interface TuiGoalBannerOptions {
   readonly animate?: boolean;
@@ -76,29 +77,32 @@ export class TuiGoalBanner implements Component {
 
     const presentation = goalPresentation(goal);
     const elapsed = formatGoalElapsed(this.elapsedSeconds(this.now()));
-    const attachment = goal.hasKickoffAttachments ? ' · Attachment' : '';
+    const attachment = goal.hasKickoffAttachments ? goalText('goal.header.attachment') : '';
     let header =
       this.chalk.hex(colors.dim)('  ') +
       this.chalk.bold.hex(presentation.color)('◎ Goal') +
       this.chalk.hex(colors.dim)(' · ') +
       this.chalk.bold.hex(presentation.color)(presentation.label) +
-      this.chalk.hex(colors.muted)(` · ${elapsed} active${attachment}`);
+      this.chalk.hex(colors.muted)(
+        goalText('goal.header.activeElapsed', { elapsed, attachment }),
+      );
     if (visibleWidth(header) > width) {
       header =
         this.chalk.bold.hex(presentation.color)('◎ Goal') +
         this.chalk.hex(colors.dim)(' · ') +
         this.chalk.bold.hex(presentation.color)(presentation.label) +
-        this.chalk.hex(colors.muted)(` · ${elapsed}`);
+        this.chalk.hex(colors.muted)(goalText('goal.header.elapsed', { elapsed }));
     }
     const policy = goalPolicySummary(goal);
     const verification = latestVerificationSummary(goal.lastVerification);
-    const objective = oneLine(goal.objective) || 'Untitled Goal';
+    const objective = oneLine(goal.objective) || goalText('goal.objective.untitled');
     const actions = actionHint(goal.status);
     const lines = [fit(header, width, this.chalk), fit(policy, width, this.chalk)];
     if (verification) lines.push(fit(verification, width, this.chalk));
 
-    if (visibleWidth(`${objective} · ${actions}`) <= width) {
-      lines.push(fit(`${objective} · ${actions}`, width, this.chalk));
+    const objectiveLine = goalText('goal.line.objectiveActions', { objective, actions });
+    if (visibleWidth(objectiveLine) <= width) {
+      lines.push(fit(objectiveLine, width, this.chalk));
       return lines;
     }
     lines.push(fit(objective, width, this.chalk), fit(actions, width, this.chalk));
@@ -134,19 +138,24 @@ export function formatGoalElapsed(rawSeconds: number): string {
 
 export function formatGoalCompletionReceipt(goal: GlobalThreadGoal): string {
   return [
-    '✓ Goal complete',
+    goalText('goal.receipt.complete'),
     formatGoalElapsed(goal.timeUsedSeconds),
-    `${formatGoalCount(goal.tokensUsed)} tokens`,
-    `${formatGoalCount(goal.turnsUsed)} turns`,
+    goalText('goal.count.tokens', { n: formatGoalCount(goal.tokensUsed) }),
+    goalText('goal.count.turns', { n: formatGoalCount(goal.turnsUsed) }),
   ].join(' · ');
 }
 
 export function formatGoalSummary(goal: GlobalThreadGoal): string {
   const lines = [
-    `Goal · ${goalPresentation(goal).label}`,
-    `Objective: ${oneLine(goal.objective) || 'Untitled Goal'}`,
-    `Time used: ${formatGoalElapsed(goal.timeUsedSeconds)}`,
-    `${formatGoalCount(goal.tokensUsed)} tokens · ${formatGoalCount(goal.turnsUsed)} turns`,
+    goalText('goal.summary.title', { label: goalPresentation(goal).label }),
+    goalText('goal.summary.objective', {
+      objective: oneLine(goal.objective) || goalText('goal.objective.untitled'),
+    }),
+    goalText('goal.summary.timeUsed', { elapsed: formatGoalElapsed(goal.timeUsedSeconds) }),
+    goalText('goal.summary.usage', {
+      tokens: formatGoalCount(goal.tokensUsed),
+      turns: formatGoalCount(goal.turnsUsed),
+    }),
   ];
   const verification = latestVerificationSummary(goal.lastVerification);
   if (verification) lines.push(verification);
@@ -155,29 +164,30 @@ export function formatGoalSummary(goal: GlobalThreadGoal): string {
 }
 
 function actionHint(status: GlobalThreadGoal['status']): string {
-  if (status === 'active') return '/goal pause · /goal edit · /goal clear';
+  if (status === 'active') return goalText('goal.action.active');
   if (status === 'complete') {
-    return '/goal <objective> starts a new Goal · /goal clear removes this Goal';
+    return goalText('goal.action.complete');
   }
   if (status === 'budget_limited') {
-    return '/goal clear, then /goal <objective> starts a new Goal';
+    return goalText('goal.action.budgetLimited');
   }
-  if (status === 'paused') {
-    return '/goal resume · /goal edit · /goal clear';
-  }
-  return '/goal resume · /goal edit · /goal clear';
+  return goalText('goal.action.resume');
 }
 
 function statusPresentation(status: GlobalThreadGoal['status']): {
   readonly label: string;
   readonly color: string;
 } {
-  if (status === 'active') return { label: 'Active', color: colors.orbit };
-  if (status === 'paused') return { label: 'Paused', color: colors.warning };
-  if (status === 'blocked') return { label: 'Blocked', color: colors.error };
-  if (status === 'complete') return { label: 'Complete', color: colors.success };
-  if (status === 'budget_limited') return { label: 'Budget limited', color: colors.warning };
-  return { label: 'Usage limited', color: colors.warning };
+  if (status === 'active') return { label: goalText('goal.status.active'), color: colors.orbit };
+  if (status === 'paused') return { label: goalText('goal.status.paused'), color: colors.warning };
+  if (status === 'blocked') return { label: goalText('goal.status.blocked'), color: colors.error };
+  if (status === 'complete') {
+    return { label: goalText('goal.status.complete'), color: colors.success };
+  }
+  if (status === 'budget_limited') {
+    return { label: goalText('goal.status.budgetLimited'), color: colors.warning };
+  }
+  return { label: goalText('goal.status.usageLimited'), color: colors.warning };
 }
 
 /**
@@ -196,32 +206,39 @@ function goalPresentation(goal: GlobalThreadGoal): {
 } {
   const presentation = statusPresentation(goal.status);
   const wait = goal.status === 'active' ? goal.executionWait : undefined;
-  return wait ? { ...presentation, label: WAIT_LABELS[wait.reason] } : presentation;
+  return wait ? { ...presentation, label: goalText(WAIT_LABELS[wait.reason]) } : presentation;
 }
 
 /**
  * Full-key map, deliberately not a partial lookup with a fallback: adding a
  * wait reason to the shared enum must fail this compile rather than silently
  * degrade the TUI to showing "Active" for a Goal that is in fact parked.
- * Wording tracks the Desktop `goal.banner.wait.*` strings.
+ * The map holds catalog keys, so the coverage check still fails the build and
+ * the wording stays localizable. Wording tracks the Desktop `goal.banner.wait.*`
+ * strings.
  */
-const WAIT_LABELS: Record<NonNullable<GlobalThreadGoal['executionWait']>['reason'], string> = {
-  questionnaire: 'Waiting for your answer',
-  permission: 'Waiting for permission',
-  plan: 'Waiting for Plan to finish',
-  required_background: 'Waiting for background tasks',
-  automation_owner_conflict: 'Waiting for automation',
-  dependency_unavailable: 'Waiting for a dependency',
-  verification: 'Verifying the result',
-  unknown: 'Waiting for requirements',
+const WAIT_LABELS: Record<
+  NonNullable<GlobalThreadGoal['executionWait']>['reason'],
+  GoalCopyKey
+> = {
+  questionnaire: 'goal.wait.questionnaire',
+  permission: 'goal.wait.permission',
+  plan: 'goal.wait.plan',
+  required_background: 'goal.wait.requiredBackground',
+  automation_owner_conflict: 'goal.wait.automationOwnerConflict',
+  dependency_unavailable: 'goal.wait.dependencyUnavailable',
+  verification: 'goal.wait.verification',
+  unknown: 'goal.wait.unknown',
 };
 
 function goalPolicySummary(goal: GlobalThreadGoal): string {
   const items = [
-    `${formatGoalCount(goal.tokensUsed)} tokens`,
-    `${formatGoalCount(goal.turnsUsed)} turns`,
+    goalText('goal.count.tokens', { n: formatGoalCount(goal.tokensUsed) }),
+    goalText('goal.count.turns', { n: formatGoalCount(goal.turnsUsed) }),
   ];
-  if (goal.status === 'usage_limited') items.push('Resume after provider access recovers');
+  if (goal.status === 'usage_limited') {
+    items.push(goalText('goal.policy.resumeAfterProvider'));
+  }
   return items.join(' · ');
 }
 
@@ -229,14 +246,25 @@ function latestVerificationSummary(
   verification: GlobalThreadGoal['lastVerification'],
 ): string | undefined {
   if (!verification) return undefined;
-  const items = [`Latest verifier: ${verdictPresentation(verification.verdict)}`];
+  const items = [
+    goalText('goal.verification.latest', { verdict: verdictPresentation(verification.verdict) }),
+  ];
   if (verification.verdict === 'not_met') {
-    items.push(`not-met streak ${Math.max(0, Math.floor(verification.notMetStreak))}`);
+    items.push(
+      goalText('goal.verification.notMetStreak', {
+        n: Math.max(0, Math.floor(verification.notMetStreak)),
+      }),
+    );
     const missing = verification.missing.map(oneLine).filter(Boolean);
     if (missing.length > 0) {
       const visible = missing.slice(0, 2).join('; ');
       const omitted = Math.max(0, missing.length - 2);
-      items.push(`missing: ${visible}${omitted > 0 ? ` +${omitted}` : ''}`);
+      items.push(
+        goalText('goal.verification.missing', {
+          list: visible,
+          omitted: omitted > 0 ? goalText('goal.verification.omitted', { n: omitted }) : '',
+        }),
+      );
     }
   }
   return items.join(' · ');
@@ -245,10 +273,10 @@ function latestVerificationSummary(
 function verdictPresentation(
   verdict: NonNullable<GlobalThreadGoal['lastVerification']>['verdict'],
 ): string {
-  if (verdict === 'met') return 'Met';
-  if (verdict === 'not_met') return 'Not met';
-  if (verdict === 'impossible') return 'Impossible';
-  return 'Inconclusive';
+  if (verdict === 'met') return goalText('goal.verdict.met');
+  if (verdict === 'not_met') return goalText('goal.verdict.notMet');
+  if (verdict === 'impossible') return goalText('goal.verdict.impossible');
+  return goalText('goal.verdict.inconclusive');
 }
 
 export function formatGoalCount(rawValue: number): string {

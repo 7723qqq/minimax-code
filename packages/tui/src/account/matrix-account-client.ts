@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 
 import type { LocalRuntimeAuthContextSnapshot, MavisBuildEnv, MavisRegion } from '@mavis/config';
 
+import { tuiAuthText } from '../auth/copy.js';
 import type { TuiTokenPlanQuota, TuiTokenPlanSummary } from '../runtime/port.js';
 
 const MATRIX_ORIGINS: Readonly<Record<MavisRegion, Record<MavisBuildEnv, string>>> = {
@@ -587,7 +588,7 @@ export class TuiAuthenticationError extends Error {
   override readonly name = 'TuiAuthenticationError';
 
   constructor(readonly status: 401 | 403) {
-    super('MiniMax sign-in expired. Run /login, then retry.');
+    super(tuiAuthText('auth.signInExpired'));
   }
 }
 

@@ -4,17 +4,14 @@ import os from 'node:os';
 import path from 'node:path';
 import type { AgentMessage } from '@mavis/agent-core/protocol/agent-message';
 
-import { loadBetterSqlite3Module } from '../persistence/better-sqlite3-loader.js';
+import { FinalizingSqliteDatabase } from '@mavis/shared';
+import { Database } from 'bun:sqlite';
+
 import type {
   LocalSessionRecord,
   LocalSessionStatus,
   LocalSessionType,
 } from '../sessions/controller.js';
-
-type DatabaseConstructor = new (
-  filename?: string | Buffer,
-  options?: Record<string, unknown>,
-) => DatabaseLike;
 
 interface DatabaseLike {
   prepare(sql: string): {
@@ -314,7 +311,7 @@ export class LegacyOpencodeStore {
    * time. The underlying read-only DB handle is opened once for the whole
    * iteration and closed when the generator finishes or the consumer stops
    * early (`for await` + `break`/`return` both trigger the `finally`). Pages are
-   * read through better-sqlite3's forward iterator so neither OFFSET rescans nor
+   * read through the SQLite driver's forward iterator so neither OFFSET rescans nor
    * a second raw-row array stays resident while the consumer writes a page.
    *
    * Both message count and serialized source bytes bound a page. A single row
@@ -328,13 +325,11 @@ export class LegacyOpencodeStore {
     maxPageBytes: number = DEFAULT_MESSAGE_PAGE_BYTES,
   ): AsyncGenerator<AgentMessage[], void, void> {
     const dbPath = path.join(this.dataDir, 'sqlite.db');
-    if (!fs.existsSync(dbPath)) return;
-    const Database = loadBetterSqlite3();
-    if (!Database) return;
+    if (!pathExists(dbPath)) return;
     const limit = Number.isFinite(pageSize) && pageSize > 0 ? Math.floor(pageSize) : 500;
     let db: DatabaseLike;
     try {
-      db = new Database(dbPath, { readonly: true, fileMustExist: true });
+      db = new FinalizingSqliteDatabase(dbPath, { readonly: true, create: false });
     } catch {
       return;
     }
@@ -491,22 +486,22 @@ export class LegacyOpencodeStore {
     const manifest: LegacyOpencodeSourceManifest = {
       sourceDataDir: this.dataDir,
       sourceSqlitePath: sqlitePath,
-      sourceSqliteExists: fs.existsSync(sqlitePath),
+      sourceSqliteExists: pathExists(sqlitePath),
       ...fileSizeField('sourceSqliteSizeBytes', sqlitePath),
       sourceSqliteWalPath: walPath,
-      sourceSqliteWalExists: fs.existsSync(walPath),
+      sourceSqliteWalExists: pathExists(walPath),
       ...fileSizeField('sourceSqliteWalSizeBytes', walPath),
       sourceSqliteShmPath: shmPath,
-      sourceSqliteShmExists: fs.existsSync(shmPath),
+      sourceSqliteShmExists: pathExists(shmPath),
       ...fileSizeField('sourceSqliteShmSizeBytes', shmPath),
       sourceOpenCodeDataPath,
-      sourceOpenCodeDataExists: fs.existsSync(sourceOpenCodeDataPath),
+      sourceOpenCodeDataExists: pathExists(sourceOpenCodeDataPath),
       sourceOpenCodeStatePath,
-      sourceOpenCodeStateExists: fs.existsSync(sourceOpenCodeStatePath),
+      sourceOpenCodeStateExists: pathExists(sourceOpenCodeStatePath),
       sourceOpenCodeXdgDataPath,
-      sourceOpenCodeXdgDataExists: fs.existsSync(sourceOpenCodeXdgDataPath),
+      sourceOpenCodeXdgDataExists: pathExists(sourceOpenCodeXdgDataPath),
       sourceOpenCodeXdgStatePath,
-      sourceOpenCodeXdgStateExists: fs.existsSync(sourceOpenCodeXdgStatePath),
+      sourceOpenCodeXdgStateExists: pathExists(sourceOpenCodeXdgStatePath),
       opencodeNative: inspectOpenCodeNativeSources({
         sandboxDataPath: sourceOpenCodeDataPath,
         sandboxStatePath: sourceOpenCodeStatePath,
@@ -589,12 +584,10 @@ export class LegacyOpencodeStore {
 
   private withDb<T>(fn: (db: DatabaseLike) => T): T | undefined {
     const dbPath = path.join(this.dataDir, 'sqlite.db');
-    if (!fs.existsSync(dbPath)) return undefined;
-    const Database = loadBetterSqlite3();
-    if (!Database) return undefined;
+    if (!pathExists(dbPath)) return undefined;
     let db: DatabaseLike;
     try {
-      db = new Database(dbPath, { readonly: true, fileMustExist: true });
+      db = new FinalizingSqliteDatabase(dbPath, { readonly: true, create: false });
     } catch {
       return undefined;
     }
@@ -606,12 +599,10 @@ export class LegacyOpencodeStore {
   }
 
   private withNativeDb<T>(dbPath: string, fn: (db: DatabaseLike) => T): T | undefined {
-    if (!fs.existsSync(dbPath)) return undefined;
-    const Database = loadBetterSqlite3();
-    if (!Database) return undefined;
+    if (!pathExists(dbPath)) return undefined;
     let db: DatabaseLike;
     try {
-      db = new Database(dbPath, { readonly: true, fileMustExist: true });
+      db = new FinalizingSqliteDatabase(dbPath, { readonly: true, create: false });
     } catch {
       return undefined;
     }
@@ -1218,14 +1209,6 @@ function qualifiedColumn(tableAlias: string, columnName: string): string {
   return `${quoteIdentifier(tableAlias)}.${quoteIdentifier(columnName)}`;
 }
 
-function loadBetterSqlite3(): DatabaseConstructor | undefined {
-  try {
-    return loadBetterSqlite3Module<DatabaseConstructor>();
-  } catch {
-    return undefined;
-  }
-}
-
 function toSessionType(value: number): LocalSessionType {
   return value === 1 ? 'root' : 'branch';
 }
@@ -1497,9 +1480,9 @@ function inspectOpenCodeNativeCandidate(
   const base: LegacyOpenCodeNativeCandidate = {
     kind,
     path: candidatePath,
-    exists: fs.existsSync(candidatePath),
+    exists: pathExists(candidatePath),
     dbPath,
-    dbExists: fs.existsSync(dbPath),
+    dbExists: pathExists(dbPath),
     ...fileSizeField('dbSizeBytes', dbPath),
   };
   if (!base.dbExists) return base;
@@ -1510,11 +1493,9 @@ function inspectOpenCodeNativeCandidate(
 function inspectSqliteSchemaFile(
   dbPath: string,
 ): Pick<LegacyOpenCodeNativeCandidate, 'schemaFingerprint' | 'tables' | 'error'> {
-  const Database = loadBetterSqlite3();
-  if (!Database) return { error: 'better_sqlite3_unavailable' };
   let db: DatabaseLike;
   try {
-    db = new Database(dbPath, { readonly: true, fileMustExist: true });
+    db = new FinalizingSqliteDatabase(dbPath, { readonly: true, create: false });
   } catch (err) {
     return { error: err instanceof Error ? err.message : String(err) };
   }
@@ -1546,7 +1527,6 @@ function fingerprintJson(value: unknown): string {
 
 function fileSizeField(key: string, filePath: string): Record<string, number> {
   try {
-    if (!fs.existsSync(filePath)) return {};
     return { [key]: fs.statSync(filePath).size };
   } catch {
     return {};
@@ -1675,4 +1655,23 @@ function scanMessageRows(rows: Iterable<MessageRow>): LegacyOpencodeMessageScan 
     rawChecksum: rawHash.digest('hex'),
     parsedChecksum: parsedHash.digest('hex'),
   };
+}
+
+/**
+ * Whether `target` exists.
+ *
+ * A `statSync` inside a `try` answers the same question as `existsSync` for a
+ * file, a directory, a missing entry and an unreadable path. It also removes the
+ * second syscall the paired call sites used to pay: `existsSync` is the Node
+ * compatibility surface and measures roughly an order of magnitude slower per
+ * call in this runtime, while `statSync` reports what those sites then inspect.
+ * This module is synchronous throughout, so `Bun.file()` does not apply.
+ */
+function pathExists(target: string): boolean {
+  try {
+    fs.statSync(target);
+    return true;
+  } catch {
+    return false;
+  }
 }

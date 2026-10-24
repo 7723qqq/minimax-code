@@ -1,5 +1,6 @@
+import { waitFor } from '../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock } from 'bun:test';
 import { stripVTControlCharacters } from 'node:util';
-import { describe, expect, it, vi } from 'vitest';
 
 import { TuiPluginManager } from '../../src/tui/features/plugin/manager.js';
 import { CURSOR_MARKER } from '../../src/tui/engine/public.js';
@@ -39,12 +40,12 @@ const plugins = [
 function createManager() {
   const options = {
     plugins,
-    onInstall: vi.fn(async (plugin) => ({ ...plugin, installed: true, enabled: true })),
-    onRemove: vi.fn(async (plugin) => ({ ...plugin, installed: false, enabled: false })),
-    onSetEnabled: vi.fn(async (plugin, enabled) => ({ ...plugin, enabled })),
-    onRefresh: vi.fn(async () => plugins),
-    onCancel: vi.fn(),
-    requestRender: vi.fn(),
+    onInstall: mock(async (plugin) => ({ ...plugin, installed: true, enabled: true })),
+    onRemove: mock(async (plugin) => ({ ...plugin, installed: false, enabled: false })),
+    onSetEnabled: mock(async (plugin, enabled) => ({ ...plugin, enabled })),
+    onRefresh: mock(async () => plugins),
+    onCancel: mock(),
+    requestRender: mock(),
   };
   return { manager: new TuiPluginManager(options), options };
 }
@@ -71,7 +72,7 @@ describe('TuiPluginManager', () => {
     expect(stripVTControlCharacters(manager.render(80).join('\n'))).not.toContain('Documents');
 
     manager.handleInput('\r');
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(options.onInstall).toHaveBeenCalledWith(expect.objectContaining({ name: 'calendar' })),
     );
     expect(stripVTControlCharacters(manager.render(80).join('\n'))).toContain('[*]');
@@ -80,7 +81,7 @@ describe('TuiPluginManager', () => {
     manager.handleInput('\t');
     expect(stripVTControlCharacters(manager.render(80).join('\n'))).toContain('[Installed (3)]');
     manager.handleInput(' ');
-    await vi.waitFor(() => expect(options.onSetEnabled).toHaveBeenCalled());
+    await waitFor(() => expect(options.onSetEnabled).toHaveBeenCalled());
   });
 
   it('loads an initial search query without interpreting spaces as actions', () => {
@@ -117,7 +118,7 @@ describe('TuiPluginManager', () => {
 
     manager.handleInput(' ');
 
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(options.onSetEnabled).toHaveBeenCalledWith(
         expect.objectContaining({ name: 'docs' }),
         false,
@@ -145,10 +146,10 @@ describe('TuiPluginManager', () => {
   it('keeps Space and Delete as Plugin actions while the Pi search Input is empty', async () => {
     const { manager, options } = createManager();
     manager.handleInput(' ');
-    await vi.waitFor(() => expect(options.onSetEnabled).toHaveBeenCalledOnce());
+    await waitFor(() => expect(options.onSetEnabled).toHaveBeenCalledOnce());
 
     manager.handleInput('\u001B[3~');
-    await vi.waitFor(() => expect(options.onRemove).toHaveBeenCalledOnce());
+    await waitFor(() => expect(options.onRemove).toHaveBeenCalledOnce());
   });
 
   it('uses the Pi Input cursor marker and accepts an IME commit as one input event', () => {
@@ -175,24 +176,24 @@ describe('TuiPluginManager', () => {
     const manager = new TuiPluginManager(options);
 
     manager.handleInput(' ');
-    await vi.waitFor(() => expect(options.onSetEnabled).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(options.onSetEnabled).toHaveBeenCalledTimes(1));
     let rendered = stripVTControlCharacters(manager.render(80).join('\n'));
     expect(rendered).toContain("Couldn't update Documents");
     expect(rendered).toContain('[*] Documents');
 
     manager.handleInput(' ');
-    await vi.waitFor(() => expect(options.onSetEnabled).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(options.onSetEnabled).toHaveBeenCalledTimes(2));
     rendered = stripVTControlCharacters(manager.render(80).join('\n'));
     expect(rendered).toContain('[-] Documents');
 
     manager.handleInput('\x12');
-    await vi.waitFor(() => expect(options.onRefresh).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(options.onRefresh).toHaveBeenCalledTimes(1));
     rendered = stripVTControlCharacters(manager.render(80).join('\n'));
     expect(rendered).toContain("Couldn't refresh Plugins");
     expect(rendered).toContain('Documents');
 
     manager.handleInput('\x12');
-    await vi.waitFor(() => expect(options.onRefresh).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(options.onRefresh).toHaveBeenCalledTimes(2));
     expect(stripVTControlCharacters(manager.render(80).join('\n'))).toContain(
       'Plugin catalogs refreshed.',
     );
@@ -206,7 +207,7 @@ describe('TuiPluginManager', () => {
     const manager = new TuiPluginManager(options);
 
     manager.handleInput(' ');
-    await vi.waitFor(() => expect(options.onSetEnabled).toHaveBeenCalledOnce());
+    await waitFor(() => expect(options.onSetEnabled).toHaveBeenCalledOnce());
 
     const rendered = stripVTControlCharacters(manager.render(100).join('\n'));
     expect(rendered).toContain('Run /login, then retry.');
@@ -220,7 +221,7 @@ describe('TuiPluginManager', () => {
     const { manager, options } = createManager();
     options.onSetEnabled.mockReturnValueOnce(mutation);
     manager.handleInput(' ');
-    await vi.waitFor(() => expect(options.onSetEnabled).toHaveBeenCalledOnce());
+    await waitFor(() => expect(options.onSetEnabled).toHaveBeenCalledOnce());
     const rendersBeforeDispose = options.requestRender.mock.calls.length;
 
     manager.dispose();

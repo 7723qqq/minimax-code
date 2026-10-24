@@ -1,9 +1,9 @@
+import { afterEach, describe, expect, it, mock } from 'bun:test';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { createAuthNamespace, type OAuthClient } from '@mavis/oauth-core';
-import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createMcodeSharedAuthSession } from '../../src/runtime/auth-session.js';
 
@@ -18,11 +18,11 @@ describe('createMcodeSharedAuthSession', () => {
     const dataDir = await mkdtemp(join(tmpdir(), 'mcode-tui-auth-session-'));
     roots.push(dataDir);
     const namespace = createAuthNamespace({ dataDir, buildEnv: 'test', region: 'en' });
-    const unused = vi.fn(async () => {
+    const unused = mock(async () => {
       throw new Error('OAuth network should not be used for a valid stored credential');
     });
     const oauthClient: OAuthClient = {
-      startDeviceAuthorization: vi.fn(async () => ({
+      startDeviceAuthorization: mock(async () => ({
         deviceCode: 'device-secret',
         codeVerifier: 'pkce-secret',
         userCode: 'ABCD-EFGH',
@@ -30,7 +30,7 @@ describe('createMcodeSharedAuthSession', () => {
         expiresInSec: 300,
         intervalSec: 1,
       })),
-      pollDeviceToken: vi.fn(async () => ({
+      pollDeviceToken: mock(async () => ({
         accessToken: 'shared-access-token',
         refreshToken: 'shared-refresh-token',
         tokenType: 'Bearer',

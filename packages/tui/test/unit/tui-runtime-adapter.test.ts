@@ -1,13 +1,14 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, mock } from 'bun:test';
+
 import { TuiRuntimeAdapter } from "../../src/runtime/adapter.js";
 import { LIGHTWEIGHT_SESSION_PURPOSE } from "@mavis/protocol/local";
 
 describe("TuiRuntimeAdapter process-local facades", () => {
   it("marks only newly created root Sessions as lightweight", async () => {
-    const createSession = vi.fn(async () => ({ sessionId: "created" }));
+    const createSession = mock(async () => ({ sessionId: "created" }));
     const adapter = new TuiRuntimeAdapter(
       {
-        listModels: vi.fn(async () => []),
+        listModels: mock(async () => []),
         createSession,
       } as never,
       { contextMode: "lightweight" },
@@ -34,9 +35,9 @@ describe("TuiRuntimeAdapter process-local facades", () => {
   });
 
   it("leaves the standard Session creation request byte-for-byte unchanged", async () => {
-    const createSession = vi.fn(async () => ({ sessionId: "created" }));
+    const createSession = mock(async () => ({ sessionId: "created" }));
     const adapter = new TuiRuntimeAdapter({
-      listModels: vi.fn(async () => []),
+      listModels: mock(async () => []),
       createSession,
     } as never);
 
@@ -49,7 +50,7 @@ describe("TuiRuntimeAdapter process-local facades", () => {
 
   it("preserves the persisted mode when reopening Sessions regardless of launch mode", async () => {
     const reopenedLightweight = new TuiRuntimeAdapter({
-      getSession: vi.fn(async () => ({
+      getSession: mock(async () => ({
         session: {
           sessionId: "lightweight",
           purpose: LIGHTWEIGHT_SESSION_PURPOSE,
@@ -58,7 +59,7 @@ describe("TuiRuntimeAdapter process-local facades", () => {
     } as never);
     const reopenedStandardFromLightweightLaunch = new TuiRuntimeAdapter(
       {
-        getSession: vi.fn(async () => ({
+        getSession: mock(async () => ({
           session: { sessionId: "standard" },
         })),
       } as never,
@@ -74,7 +75,7 @@ describe("TuiRuntimeAdapter process-local facades", () => {
   });
 
   it("projects active and recent terminal Runtime background work for the current Session", async () => {
-    const listBackgroundTasks = vi.fn(
+    const listBackgroundTasks = mock(
       async (input: { statuses?: readonly string[] }) =>
         input.statuses?.includes("succeeded")
           ? [
@@ -177,7 +178,7 @@ describe("TuiRuntimeAdapter process-local facades", () => {
     "does not treat non-string command metadata as Bash source: %s",
     async (command) => {
       const adapter = new TuiRuntimeAdapter({
-        listBackgroundTasks: vi.fn(async () => [
+        listBackgroundTasks: mock(async () => [
           {
             taskId: "legacy",
             kind: "bash",
@@ -201,7 +202,7 @@ describe("TuiRuntimeAdapter process-local facades", () => {
 
   it("reattaches a foreground Turn without asking resumeSession to drain the Queue", async () => {
     const cliService = {
-      resumeSession: vi.fn(async () => ({
+      resumeSession: mock(async () => ({
         ok: true as const,
         source: [{ dataJson: "[DONE]" }],
       })),
@@ -244,11 +245,11 @@ describe("TuiRuntimeAdapter process-local facades", () => {
       hasKickoffAttachments: true,
     };
     const cliService = {
-      isGoalEnabled: vi.fn(() => true),
-      getGoal: vi.fn(async () => goal),
-      createGoal: vi.fn(async () => goal),
-      patchGoal: vi.fn(async () => ({ ...goal, status: "paused" as const })),
-      clearGoal: vi.fn(async () => true),
+      isGoalEnabled: mock(() => true),
+      getGoal: mock(async () => goal),
+      createGoal: mock(async () => goal),
+      patchGoal: mock(async () => ({ ...goal, status: "paused" as const })),
+      clearGoal: mock(async () => true),
     };
     const adapter = new TuiRuntimeAdapter(cliService as never);
 
@@ -298,7 +299,7 @@ describe("TuiRuntimeAdapter process-local facades", () => {
 
   it("uses process-local questionnaire and permission facades", async () => {
     const cliService = {
-      getPendingQuestionnaire: vi.fn(async () => ({
+      getPendingQuestionnaire: mock(async () => ({
         request: {
           id: "question-1",
           schemaVersion: 2,
@@ -310,9 +311,9 @@ describe("TuiRuntimeAdapter process-local facades", () => {
           steps: [],
         },
       })),
-      replyQuestionnaire: vi.fn(async () => ({ ok: true })),
-      dismissQuestionnaire: vi.fn(async () => ({ ok: true })),
-      listPendingPermissions: vi.fn(async () => ({
+      replyQuestionnaire: mock(async () => ({ ok: true })),
+      dismissQuestionnaire: mock(async () => ({ ok: true })),
+      listPendingPermissions: mock(async () => ({
         requests: [
           {
             requestId: "permission-1",
@@ -326,7 +327,7 @@ describe("TuiRuntimeAdapter process-local facades", () => {
           },
         ],
       })),
-      replyPermission: vi.fn(async () => ({ success: true })),
+      replyPermission: mock(async () => ({ success: true })),
     };
     const adapter = new TuiRuntimeAdapter(cliService as never);
 
@@ -372,18 +373,18 @@ describe("TuiRuntimeAdapter process-local facades", () => {
 
   it("uses process-local product capability facades", async () => {
     const cliService = {
-      listRuntimeSkills: vi.fn(async () => ({
+      listRuntimeSkills: mock(async () => ({
         skills: [{ name: "docs", enabled: true }],
         refreshedAt: 123,
       })),
-      listMcpServers: vi.fn(async () => ({
+      listMcpServers: mock(async () => ({
         servers: [{ name: "browser", enabled: true }],
       })),
-      getSessionUsage: vi.fn(async () => ({
+      getSessionUsage: mock(async () => ({
         summary: { totalTokens: 120, turns: 1 },
         rows: [],
       })),
-      requestCompaction: vi.fn(async () => ({
+      requestCompaction: mock(async () => ({
         success: true,
         sessionId: "session-1",
         compactionId: "compact-1",
@@ -428,7 +429,7 @@ describe("TuiRuntimeAdapter process-local facades", () => {
 
   it("projects Runtime-owned Plugin catalogs without exposing generated DTOs", async () => {
     const cliService = {
-      listInstalledPlugins: vi.fn(async () => ({
+      listInstalledPlugins: mock(async () => ({
         plugins: [
           {
             name: "docs",
@@ -452,7 +453,7 @@ describe("TuiRuntimeAdapter process-local facades", () => {
         ],
         hasMore: false,
       })),
-      listMarketplacePlugins: vi.fn(async () => ({
+      listMarketplacePlugins: mock(async () => ({
         plugins: [
           {
             name: "calendar",
@@ -504,19 +505,19 @@ describe("TuiRuntimeAdapter process-local facades", () => {
 
   it("routes Plugin mutations and refresh through CliService", async () => {
     const cliService = {
-      installPlugin: vi.fn(async () => ({
+      installPlugin: mock(async () => ({
         installExists: true,
         enabled: true,
       })),
-      disablePlugin: vi.fn(async () => ({
+      disablePlugin: mock(async () => ({
         installExists: true,
         enabled: false,
       })),
-      uninstallPlugin: vi.fn(async () => ({
+      uninstallPlugin: mock(async () => ({
         installExists: false,
         enabled: false,
       })),
-      refreshPlugins: vi.fn(async () => undefined),
+      refreshPlugins: mock(async () => undefined),
     };
     const adapter = new TuiRuntimeAdapter(cliService as never);
 
@@ -557,7 +558,7 @@ describe("TuiRuntimeAdapter process-local facades", () => {
 
   it("reads Runtime events through CliService", async () => {
     const cliService = {
-      watchEvents: vi.fn(async function* watchEvents() {
+      watchEvents: mock(async function* watchEvents() {
         yield {
           type: "permission.ask",
           timestamp: 123,
@@ -589,8 +590,7 @@ describe("TuiRuntimeAdapter process-local facades", () => {
 
   it("exposes the session-mutation Runtime facade through the adapter", async () => {
     const cliService = {
-      listSessionInputSummaries: vi
-        .fn()
+      listSessionInputSummaries: mock()
         .mockResolvedValueOnce({
           summaries: [
             {
@@ -617,7 +617,7 @@ describe("TuiRuntimeAdapter process-local facades", () => {
           ],
           hasMore: false,
         }),
-      getSessionForkOptions: vi.fn(async () => ({
+      getSessionForkOptions: mock(async () => ({
         canFork: true,
         suggestedTitle: "Fork of: hi",
         nextForkOrdinal: 2,
@@ -625,7 +625,7 @@ describe("TuiRuntimeAdapter process-local facades", () => {
         worktreeVisible: true,
         worktreeEligible: true,
       })),
-      forkSession: vi.fn(async () => ({
+      forkSession: mock(async () => ({
         session: {
           sessionId: "child-1",
           agentName: "mavis",
@@ -637,7 +637,7 @@ describe("TuiRuntimeAdapter process-local facades", () => {
         displayRevision: "rev-1",
         historyRevision: "hist-1",
       })),
-      getSessionRewindPreview: vi.fn(async () => ({
+      getSessionRewindPreview: mock(async () => ({
         turns: [
           {
             turnId: "turn-1",
@@ -647,7 +647,7 @@ describe("TuiRuntimeAdapter process-local facades", () => {
           },
         ],
       })),
-      rewindSession: vi.fn(async () => ({
+      rewindSession: mock(async () => ({
         rewound: true,
         displayRevision: "disp-1",
         historyRevision: "hist-1",
@@ -657,7 +657,7 @@ describe("TuiRuntimeAdapter process-local facades", () => {
           revertedTurnIds: ["turn-1"],
         },
       })),
-      editSessionMessage: vi.fn(async () => ({
+      editSessionMessage: mock(async () => ({
         rewound: true,
         turnId: "turn-edit-1",
         userMessageId: "msg-user-v1-edited",
@@ -828,7 +828,7 @@ describe("TuiRuntimeAdapter process-local facades", () => {
 
   it("fails closed when the Runtime omits the forked Session", async () => {
     const adapter = new TuiRuntimeAdapter({
-      forkSession: vi.fn(async () => ({})),
+      forkSession: mock(async () => ({})),
     } as never);
 
     await expect(
@@ -844,7 +844,7 @@ describe("TuiRuntimeAdapter process-local facades", () => {
     "forwards rewindTurnDiff=%s without generating an operation id",
     async (rewindTurnDiff) => {
       const cliService = {
-        rewindSession: vi.fn(async (input: { rewindTurnDiff?: boolean }) => ({
+        rewindSession: mock(async (input: { rewindTurnDiff?: boolean }) => ({
           rewound: true,
           turnDiffRewind: { status: "rewound" },
           rewindTurnDiff: input.rewindTurnDiff,

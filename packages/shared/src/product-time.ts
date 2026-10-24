@@ -1,19 +1,79 @@
+import { createCatalogSet, translate } from './i18n/catalog.js';
+import { resolveLocaleName, resolveTimeZone, type LocaleName } from './i18n/locale.js';
+
 const MINUTE_MS = 60 * 1000;
 const HOUR_MS = 60 * MINUTE_MS;
 const DAY_MS = 24 * HOUR_MS;
 const FOUR_DAYS_MS = 4 * DAY_MS;
 const RECENT_CALENDAR_DAYS = 7;
 
-const EN_WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
-const ZH_WEEKDAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'] as const;
+/**
+ * Product-time copy.
+ *
+ * Date patterns, weekday names and relative-time phrases are user-visible text,
+ * so they live in a catalog instead of inline `isChineseLocale(...)` ternaries.
+ * Patterns carry placeholders rather than concatenated separators: the Chinese
+ * date form is year-first and hyphenated, which is a different arrangement, not
+ * a different separator.
+ */
+const EN_PRODUCT_TIME_COPY = {
+  'date.monthDay': '{month}/{day}',
+  'date.yearMonthDay': '{month}/{day}/{year}',
+  'weekday.sun': 'Sun',
+  'weekday.mon': 'Mon',
+  'weekday.tue': 'Tue',
+  'weekday.wed': 'Wed',
+  'weekday.thu': 'Thu',
+  'weekday.fri': 'Fri',
+  'weekday.sat': 'Sat',
+  'time.now': 'Now',
+  'time.yesterday': 'Yesterday',
+  'time.minutesAgo': '{minutes}m',
+  'time.hoursAgo': '{hours}h',
+  'time.daysAgo': '{days}d',
+  'time.clock': '{hour}:{minute}',
+  'time.withClock': '{label} {clock}',
+  'time.dateWithClock': '{date} {clock}',
+} as const;
 
-const DEFAULT_TIME_ZONE = (() => {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  } catch {
-    return 'UTC';
-  }
-})();
+const ZH_HANS_PRODUCT_TIME_COPY = {
+  'date.monthDay': '{month}-{day}',
+  'date.yearMonthDay': '{year}-{month}-{day}',
+  'weekday.sun': '周日',
+  'weekday.mon': '周一',
+  'weekday.tue': '周二',
+  'weekday.wed': '周三',
+  'weekday.thu': '周四',
+  'weekday.fri': '周五',
+  'weekday.sat': '周六',
+  'time.now': '刚刚',
+  'time.yesterday': '昨天',
+  'time.minutesAgo': '{minutes}分钟前',
+  'time.hoursAgo': '{hours}小时前',
+  'time.daysAgo': '{days}天前',
+  'time.clock': '{hour}:{minute}',
+  'time.withClock': '{label} {clock}',
+  'time.dateWithClock': '{date} {clock}',
+} as const satisfies Readonly<Record<keyof typeof EN_PRODUCT_TIME_COPY, string>>;
+
+const PRODUCT_TIME_CATALOG = createCatalogSet(EN_PRODUCT_TIME_COPY, {
+  'zh-Hans': ZH_HANS_PRODUCT_TIME_COPY,
+});
+
+type ProductTimeCopyKey = keyof typeof EN_PRODUCT_TIME_COPY;
+
+/** Weekday label keys indexed by `Date#getUTCDay()`. */
+const WEEKDAY_KEYS = [
+  'weekday.sun',
+  'weekday.mon',
+  'weekday.tue',
+  'weekday.wed',
+  'weekday.thu',
+  'weekday.fri',
+  'weekday.sat',
+] as const satisfies readonly ProductTimeCopyKey[];
+
+const DEFAULT_TIME_ZONE = resolveTimeZone();
 
 const formatterCache = new Map<string, Intl.DateTimeFormat>();
 
@@ -36,7 +96,15 @@ export interface ProductTimeOptions {
   timeZone?: string;
 }
 
-type ProductTimeLocale = 'en' | 'zh';
+type ProductTimeLocale = LocaleName;
+
+function text(
+  locale: ProductTimeLocale,
+  key: ProductTimeCopyKey,
+  values?: Readonly<Record<string, string | number>>,
+): string {
+  return translate(PRODUCT_TIME_CATALOG, locale, key, values);
+}
 
 interface ZonedDateParts {
   year: number;
@@ -79,15 +147,18 @@ function getZonedDateParts(timestampMs: number, timeZone: string): ZonedDatePart
 }
 
 function resolveLocale(locale?: string): ProductTimeLocale {
-  return (locale ?? '').toLowerCase().startsWith('zh') ? 'zh' : 'en';
+  return resolveLocaleName(locale);
 }
 
 function padTwo(value: number): string {
   return String(value).padStart(2, '0');
 }
 
-function formatTime(parts: ZonedDateParts): string {
-  return `${padTwo(parts.hour)}:${padTwo(parts.minute)}`;
+function formatTime(parts: ZonedDateParts, locale: ProductTimeLocale): string {
+  return text(locale, 'time.clock', {
+    hour: padTwo(parts.hour),
+    minute: padTwo(parts.minute),
+  });
 }
 
 function isSameDay(left: ZonedDateParts, right: ZonedDateParts): boolean {
@@ -101,8 +172,8 @@ function formatDate(
 ): string {
   const month = padTwo(parts.month);
   const day = padTwo(parts.day);
-  if (!includeYear) return locale === 'zh' ? `${month}-${day}` : `${month}/${day}`;
-  return locale === 'zh' ? `${parts.year}-${month}-${day}` : `${month}/${day}/${parts.year}`;
+  if (!includeYear) return text(locale, 'date.monthDay', { month, day });
+  return text(locale, 'date.yearMonthDay', { year: parts.year, month, day });
 }
 
 function formatDateTime(
@@ -110,7 +181,10 @@ function formatDateTime(
   locale: ProductTimeLocale,
   includeYear: boolean,
 ): string {
-  return `${formatDate(parts, locale, includeYear)} ${formatTime(parts)}`;
+  return text(locale, 'time.dateWithClock', {
+    date: formatDate(parts, locale, includeYear),
+    clock: formatTime(parts, locale),
+  });
 }
 
 function calendarDayIndex(parts: ZonedDateParts): number {
@@ -119,8 +193,8 @@ function calendarDayIndex(parts: ZonedDateParts): number {
 
 function formatWeekday(parts: ZonedDateParts, locale: ProductTimeLocale): string {
   const weekday = new Date(Date.UTC(parts.year, parts.month - 1, parts.day)).getUTCDay();
-  const labels = locale === 'zh' ? ZH_WEEKDAYS : EN_WEEKDAYS;
-  return labels[weekday] ?? labels[0];
+  const key = WEEKDAY_KEYS[weekday] ?? WEEKDAY_KEYS[0];
+  return text(locale, key);
 }
 
 function formatSocialTime(
@@ -139,17 +213,21 @@ function formatSocialTime(
   }
 
   const elapsedMs = nowMs - timestampMs;
-  if (elapsedMs < MINUTE_MS) return locale === 'zh' ? '刚刚' : 'Now';
-  if (isSameDay(timestamp, now)) return formatTime(timestamp);
+  if (elapsedMs < MINUTE_MS) return text(locale, 'time.now');
+  if (isSameDay(timestamp, now)) return formatTime(timestamp, locale);
 
   const dayDelta = calendarDayIndex(now) - calendarDayIndex(timestamp);
   if (dayDelta === 1) {
-    const yesterday = locale === 'zh' ? '昨天' : 'Yesterday';
-    return `${yesterday} ${formatTime(timestamp)}`;
+    return text(locale, 'time.withClock', {
+      label: text(locale, 'time.yesterday'),
+      clock: formatTime(timestamp, locale),
+    });
   }
   if (dayDelta > 1 && dayDelta < RECENT_CALENDAR_DAYS) {
     const weekday = formatWeekday(timestamp, locale);
-    return precise ? `${weekday} ${formatTime(timestamp)}` : weekday;
+    return precise
+      ? text(locale, 'time.withClock', { label: weekday, clock: formatTime(timestamp, locale) })
+      : weekday;
   }
 
   return precise
@@ -168,18 +246,15 @@ function formatCommunityTime(
   if (timestampMs > nowMs) return formatDate(timestamp, locale, !sameYear);
 
   const elapsedMs = nowMs - timestampMs;
-  if (elapsedMs < MINUTE_MS) return locale === 'zh' ? '刚刚' : 'Now';
+  if (elapsedMs < MINUTE_MS) return text(locale, 'time.now');
   if (elapsedMs < HOUR_MS) {
-    const minutes = Math.floor(elapsedMs / MINUTE_MS);
-    return locale === 'zh' ? `${minutes}分钟前` : `${minutes}m`;
+    return text(locale, 'time.minutesAgo', { minutes: Math.floor(elapsedMs / MINUTE_MS) });
   }
   if (elapsedMs < DAY_MS) {
-    const hours = Math.floor(elapsedMs / HOUR_MS);
-    return locale === 'zh' ? `${hours}小时前` : `${hours}h`;
+    return text(locale, 'time.hoursAgo', { hours: Math.floor(elapsedMs / HOUR_MS) });
   }
   if (elapsedMs < FOUR_DAYS_MS) {
-    const days = Math.floor(elapsedMs / DAY_MS);
-    return locale === 'zh' ? `${days}天前` : `${days}d`;
+    return text(locale, 'time.daysAgo', { days: Math.floor(elapsedMs / DAY_MS) });
   }
 
   return formatDate(timestamp, locale, !sameYear);
@@ -215,11 +290,11 @@ export function formatProductTime(
       return formatCommunityTime(timestampMs, nowMs, timestamp, now, locale);
     case 'common-precise':
       return isSameDay(timestamp, now)
-        ? formatTime(timestamp)
+        ? formatTime(timestamp, locale)
         : formatDateTime(timestamp, locale, !sameYear);
     case 'common-date':
       return isSameDay(timestamp, now)
-        ? formatTime(timestamp)
+        ? formatTime(timestamp, locale)
         : formatDate(timestamp, locale, !sameYear);
     case 'audit-datetime':
       return formatDateTime(timestamp, locale, true);

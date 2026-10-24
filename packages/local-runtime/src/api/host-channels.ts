@@ -1,3 +1,6 @@
+import { translateRuntimeText } from "@mavis/shared/i18n";
+
+import { resolveLocalRuntimeLocale } from "../runtime/locale.js";
 import {
   LocalChannelBridgeInfra,
   type LocalChannelContext,
@@ -132,23 +135,6 @@ export function resolveChannelAccessControlStore(
 
 const ACCESS_CONTROL_GUIDE_URL =
   "https://vrfi1sk8a0.feishu.cn/docx/Hpx4dmOawomEI9xWqFkcm1kynae";
-const ACCESS_CONTROL_DENY_REPLY_ZH = [
-  "无权限，无法与该 Agent 对话。请联系 owner 开通权限。",
-  `配置指南：${ACCESS_CONTROL_GUIDE_URL}`,
-].join("\n");
-const ACCESS_CONTROL_DENY_REPLY_EN = [
-  "You don't have permission to chat with this Agent. Please contact the owner to grant access.",
-  `Configuration guide: ${ACCESS_CONTROL_GUIDE_URL}`,
-].join("\n");
-
-function resolveAccessControlDenyLocale(): "zh" | "en" {
-  const locale = (
-    process.env.NEXT_PUBLIC_LOCALE ?? process.env.MAVIS_ELECTRON_LOCALE
-  )
-    ?.trim()
-    .toLowerCase();
-  return /^en(?:[-_]|$)/u.test(locale ?? "") ? "en" : "zh";
-}
 
 /**
  * Migration doc §Integration point 7: build a short, non-leaky deny notice for the sender. Never
@@ -156,21 +142,29 @@ function resolveAccessControlDenyLocale(): "zh" | "en" {
  * bridge) appends the `access-control:<reason>` code to its `accessDeniedReason` for ops
  * dashboards, but the user-facing reply uses generic copy so an attacker cannot probe the policy by
  * sending crafted messages.
+ *
+ * The copy comes from the shared runtime catalog so the deny notice follows the
+ * same locale resolution as every other runtime string. This function used to
+ * read `NEXT_PUBLIC_LOCALE`/`MAVIS_ELECTRON_LOCALE` itself with a bare `en`/`zh`
+ * comparison, which ignored `MCODE_LOCALE`, the Desktop handshake and `Intl`,
+ * so a user could see the notice in a language the rest of the app did not use.
  */
 export function formatAccessControlDenyReply(
   reason: import("../channels/access-control-store.js").AccessControlDenyReason,
   isP2p: boolean,
 ): string {
-  const base =
-    resolveAccessControlDenyLocale() === "en"
-      ? ACCESS_CONTROL_DENY_REPLY_EN
-      : ACCESS_CONTROL_DENY_REPLY_ZH;
+  const locale = resolveLocalRuntimeLocale();
   // Reason is logged for ops but never inlined into the user-facing
   // text — keeping the surface generic means the operator can rename
   // a reason later without migrating user-visible copy.
   void reason;
   void isP2p;
-  return base;
+  return [
+    translateRuntimeText(locale, "channel.accessControlDenied"),
+    translateRuntimeText(locale, "channel.accessControlGuide", {
+      url: ACCESS_CONTROL_GUIDE_URL,
+    }),
+  ].join("\n");
 }
 
 /**

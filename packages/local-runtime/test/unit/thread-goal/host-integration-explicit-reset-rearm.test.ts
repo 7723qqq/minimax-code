@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -40,12 +41,12 @@ const OBJECTIVE = "Ship the release train";
 let dataDir: string;
 let integration: LocalThreadGoalIntegration;
 let turnTimings: LocalActiveTurnTimingRegistry;
-let enqueuePostTurnContinuation: ReturnType<typeof vi.fn>;
-let enqueueInitialContinuationTurn: ReturnType<typeof vi.fn>;
-let cancelInitialContinuation: ReturnType<typeof vi.fn>;
-let hasPendingInitialContinuation: ReturnType<typeof vi.fn>;
-let startContinuationTurn: ReturnType<typeof vi.fn>;
-let reportFailure: ReturnType<typeof vi.fn>;
+let enqueuePostTurnContinuation: ReturnType<typeof mock>;
+let enqueueInitialContinuationTurn: ReturnType<typeof mock>;
+let cancelInitialContinuation: ReturnType<typeof mock>;
+let hasPendingInitialContinuation: ReturnType<typeof mock>;
+let startContinuationTurn: ReturnType<typeof mock>;
+let reportFailure: ReturnType<typeof mock>;
 /** Mirrors the Queue's own view of the pending kickoff item. */
 let kickoffQueued: boolean;
 
@@ -53,16 +54,16 @@ beforeEach(async () => {
   dataDir = await mkdtemp(join(tmpdir(), "goal-explicit-reset-rearm-"));
   turnTimings = new LocalActiveTurnTimingRegistry(() => NOW);
   kickoffQueued = false;
-  enqueuePostTurnContinuation = vi.fn(async () => undefined);
-  enqueueInitialContinuationTurn = vi.fn(async () => {
+  enqueuePostTurnContinuation = mock(async () => undefined);
+  enqueueInitialContinuationTurn = mock(async () => {
     kickoffQueued = true;
   });
-  cancelInitialContinuation = vi.fn(async () => {
+  cancelInitialContinuation = mock(async () => {
     kickoffQueued = false;
   });
-  hasPendingInitialContinuation = vi.fn(async () => kickoffQueued);
-  startContinuationTurn = vi.fn(async () => undefined);
-  reportFailure = vi.fn();
+  hasPendingInitialContinuation = mock(async () => kickoffQueued);
+  startContinuationTurn = mock(async () => undefined);
+  reportFailure = mock();
   integration = new LocalThreadGoalIntegration({
     dataDir,
     nowMs: () => NOW,
@@ -82,7 +83,7 @@ beforeEach(async () => {
     cancelInitialContinuation,
     requestQueueDispatch: () => undefined,
     reportFailure,
-    emitRuntimeEvent: vi.fn(),
+    emitRuntimeEvent: mock(),
     formatError: (error) =>
       error instanceof Error ? error.message : String(error),
     isEnabled: () => true,

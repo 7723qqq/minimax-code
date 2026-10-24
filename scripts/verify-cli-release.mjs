@@ -39,7 +39,7 @@ try {
   delete env.NODE_OPTIONS;
   execFileSync('npm', ['install', '--global', '--prefix', prefix,
     '--registry=https://registry.npmjs.org/', '--include=optional', '--ignore-scripts=false',
-    '--allow-scripts=better-sqlite3', '--no-audit', '--no-fund', archive],
+    '--allow-scripts=@minimax-ai/code', '--no-audit', '--no-fund', archive],
   { cwd: home, env, stdio: 'inherit', timeout: 300000 });
   const installed = path.join(prefix, 'lib/node_modules/@minimax-ai/code');
   const release = JSON.parse(readFileSync(path.join(installed, 'release.json'), 'utf8'));
@@ -49,17 +49,19 @@ try {
   const result = execFileSync(path.join(prefix, 'bin/mcode'), ['--version'], { cwd: home, env, encoding: 'utf8', timeout: 30000 });
   assert.equal(result.trim(), version);
   const require = createRequire(path.join(installed, 'package.json'));
-  const Database = require('better-sqlite3');
-  const db = new Database(':memory:');
-  try { assert.equal(db.prepare('select 42 as value').get().value, 42); } finally { db.close(); }
+  // `bun:sqlite` is a Bun builtin, so the better-sqlite3 addon-load check of the
+  // Node era is covered by the Bun-launched `bin/mcode` run above. The Bun
+  // version is recorded so the release publisher can pin it to the matrix.
+  const bunVersion = execFileSync('bun', ['--version'], { encoding: 'utf8', timeout: 30000 }).trim();
+  assert.match(bunVersion, /^\d+\.\d+\.\d+$/);
   assert.match(execFileSync(require('@vscode/ripgrep').rgPath, ['--version'], { encoding: 'utf8' }), /ripgrep/);
-  execFileSync(process.execPath, ['--test', 'test/smoke.test.mjs', 'test/byok.test.mjs'], {
+  execFileSync(process.execPath, [path.join(root, 'scripts/run-bun-tests.mjs'), 'test/smoke.test.mjs', 'test/byok.test.mjs'], {
     cwd: root, env: { ...env, MCODE_TEST_CLI: path.join(installed, 'cli.js') }, stdio: 'inherit', timeout: 240000,
   });
   if (process.env.MCODE_VERIFY_REPORT_DIR) {
     mkdirSync(process.env.MCODE_VERIFY_REPORT_DIR, { recursive: true });
     writeFileSync(path.join(process.env.MCODE_VERIFY_REPORT_DIR, 'package-install.json'), JSON.stringify({
-      status: 'PASS', version, revision, sha256, platform: process.platform, arch: process.arch, node: process.version,
+      status: 'PASS', version, revision, sha256, platform: process.platform, arch: process.arch, node: process.version, bun: bunVersion,
     }, null, 2) + '\n');
   }
   console.log(`Verified npm installation of ${path.basename(archive)} (${sha256}).`);

@@ -7,6 +7,7 @@ import { resolveWslPath } from '../../../host/wsl-path.js';
 import { sanitizeTerminalText } from '../../rendering/terminal-text.js';
 import type { TranscriptAttachment } from '../../transcript/model.js';
 import { getTuiTerminalImagePasteFallbackPath } from './terminal-image-paste.js';
+import { composerText } from './copy.js';
 
 export type { TuiAttachment } from '../../../application/invocation.js';
 
@@ -53,7 +54,7 @@ export async function resolveTuiAttachment(
   options: ResolveTuiAttachmentOptions,
 ): Promise<TuiAttachment> {
   const normalizedReference = stripMatchingQuotes(reference.trim());
-  if (!normalizedReference) throw new Error('Attachment path is required.');
+  if (!normalizedReference) throw new Error(composerText('attachmentPathRequired'));
   const userHome = options.homeDir ?? homedir();
   const expanded = await resolveWslPath(
     normalizedReference === '~'
@@ -78,12 +79,15 @@ export async function resolveTuiAttachment(
     .catch((error: unknown) => {
       const reason = error instanceof Error ? error.message : String(error);
       throw new Error(
-        `Cannot attach ${sanitizeTerminalText(normalizedReference)}: ${sanitizeTerminalText(reason)}`,
+        composerText('attachmentFailed', {
+          reference: sanitizeTerminalText(normalizedReference),
+          reason: sanitizeTerminalText(reason),
+        }),
       );
     });
   if (!info.isFile()) {
     throw new Error(
-      `Cannot attach ${sanitizeTerminalText(normalizedReference)}: path is not a file.`,
+      composerText('attachmentNotAFile', { reference: sanitizeTerminalText(normalizedReference) }),
     );
   }
   const fileName = basename(filePath);

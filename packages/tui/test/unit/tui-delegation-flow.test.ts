@@ -1,5 +1,6 @@
+import { advanceTimersByTimeAsync, waitFor } from '../../../../test/bun-test-setup.js';
+import { afterEach, describe, expect, it, jest, mock } from 'bun:test';
 import { stripVTControlCharacters } from "node:util";
-import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { TuiBackgroundTask } from "../../src/runtime/port.js";
 import { TuiDelegationFlow } from "../../src/tui/controller/delegation-flow.js";
@@ -8,32 +9,32 @@ import { TranscriptStore } from "../../src/tui/transcript/store.js";
 
 function runtime(overrides: Record<string, unknown> = {}) {
   return {
-    getDelegationSnapshot: vi.fn(async () => ({
+    getDelegationSnapshot: mock(async () => ({
       schemaVersion: 1 as const,
       rootSessionId: "root",
       members: [],
     })),
-    stopDelegation: vi.fn(),
-    getActiveRun: vi.fn(async (sessionId: string) => ({
+    stopDelegation: mock(),
+    getActiveRun: mock(async (sessionId: string) => ({
       schemaVersion: 1 as const,
       sessionId,
       state: "idle" as const,
       actions: { steer: false },
     })),
-    getMessages: vi.fn(async () => []),
-    getSession: vi.fn(async (sessionId: string) => ({ sessionId })),
-    watchSessionTurn: vi.fn(async function* watchSessionTurn() {}),
+    getMessages: mock(async () => []),
+    getSession: mock(async (sessionId: string) => ({ sessionId })),
+    watchSessionTurn: mock(async function* watchSessionTurn() {}),
     ...overrides,
   };
 }
 
 describe("TuiDelegationFlow", () => {
-  afterEach(() => vi.useRealTimers());
+  afterEach(() => jest.useRealTimers());
 
   it("recovers delegated agents into an explicit live projection without writing Transcript", async () => {
     const transcript = new TranscriptStore();
     const runtimePort = runtime({
-      getDelegationSnapshot: vi.fn(async () => ({
+      getDelegationSnapshot: mock(async () => ({
         schemaVersion: 1 as const,
         rootSessionId: "root",
         members: [
@@ -48,7 +49,7 @@ describe("TuiDelegationFlow", () => {
           },
         ],
       })),
-      getActiveRun: vi.fn(async () => ({
+      getActiveRun: mock(async () => ({
         schemaVersion: 1 as const,
         sessionId: "child-1",
         state: "running" as const,
@@ -59,7 +60,7 @@ describe("TuiDelegationFlow", () => {
     const flow = new TuiDelegationFlow({
       runtime: runtimePort,
       currentSession: () => ({ sessionId: "root" }),
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     await flow.refresh();
@@ -90,7 +91,7 @@ describe("TuiDelegationFlow", () => {
     const transcript = new TranscriptStore();
     const flow = new TuiDelegationFlow({
       runtime: runtime({
-        getDelegationSnapshot: vi.fn(async () => ({
+        getDelegationSnapshot: mock(async () => ({
           schemaVersion: 1 as const,
           rootSessionId: "root",
           members: [
@@ -110,7 +111,7 @@ describe("TuiDelegationFlow", () => {
             },
           ],
         })),
-        getActiveRun: vi.fn(async (sessionId: string) => ({
+        getActiveRun: mock(async (sessionId: string) => ({
           schemaVersion: 1 as const,
           sessionId,
           state:
@@ -122,7 +123,7 @@ describe("TuiDelegationFlow", () => {
         })),
       }),
       currentSession: () => ({ sessionId: "root" }),
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     await flow.refresh();
@@ -137,7 +138,7 @@ describe("TuiDelegationFlow", () => {
     const transcript = new TranscriptStore();
     const flow = new TuiDelegationFlow({
       runtime: runtime({
-        getDelegationSnapshot: vi.fn(async () => ({
+        getDelegationSnapshot: mock(async () => ({
           schemaVersion: 1 as const,
           rootSessionId: "root",
           members: [
@@ -150,7 +151,7 @@ describe("TuiDelegationFlow", () => {
             },
           ],
         })),
-        getActiveRun: vi.fn(async () => ({
+        getActiveRun: mock(async () => ({
           schemaVersion: 1 as const,
           sessionId: "child-1",
           state: "terminal" as const,
@@ -159,7 +160,7 @@ describe("TuiDelegationFlow", () => {
         })),
       }),
       currentSession: () => ({ sessionId: "root" }),
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     await flow.refresh();
@@ -174,7 +175,7 @@ describe("TuiDelegationFlow", () => {
     const transcript = new TranscriptStore();
     const flow = new TuiDelegationFlow({
       runtime: runtime({
-        getDelegationSnapshot: vi.fn(async () => ({
+        getDelegationSnapshot: mock(async () => ({
           schemaVersion: 1 as const,
           rootSessionId: "root",
           members: [
@@ -187,7 +188,7 @@ describe("TuiDelegationFlow", () => {
             },
           ],
         })),
-        getMessages: vi.fn(async (sessionId: string) =>
+        getMessages: mock(async (sessionId: string) =>
           sessionId === "child-1"
             ? [
                 {
@@ -202,7 +203,7 @@ describe("TuiDelegationFlow", () => {
         ),
       }),
       currentSession: () => ({ sessionId: "root" }),
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     await flow.refresh();
@@ -216,7 +217,7 @@ describe("TuiDelegationFlow", () => {
   it("keeps an idle child queued when durable history has no successful terminal message", async () => {
     const flow = new TuiDelegationFlow({
       runtime: runtime({
-        getDelegationSnapshot: vi.fn(async () => ({
+        getDelegationSnapshot: mock(async () => ({
           schemaVersion: 1 as const,
           rootSessionId: "root",
           members: [
@@ -227,7 +228,7 @@ describe("TuiDelegationFlow", () => {
             },
           ],
         })),
-        getMessages: vi.fn(async (sessionId: string) =>
+        getMessages: mock(async (sessionId: string) =>
           sessionId === "child-1"
             ? [
                 {
@@ -247,7 +248,7 @@ describe("TuiDelegationFlow", () => {
         ),
       }),
       currentSession: () => ({ sessionId: "root" }),
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     await flow.refresh();
@@ -257,10 +258,10 @@ describe("TuiDelegationFlow", () => {
   });
 
   it("keeps background members active until every root delivery Turn is settled", async () => {
-    const onChanged = vi.fn();
+    const onChanged = mock();
     const flow = new TuiDelegationFlow({
       runtime: runtime({
-        getDelegationSnapshot: vi.fn(async () => ({
+        getDelegationSnapshot: mock(async () => ({
           schemaVersion: 1 as const,
           rootSessionId: "root",
           members: [
@@ -312,10 +313,10 @@ describe("TuiDelegationFlow", () => {
   });
 
   it("settles every background Task steered into one owner Turn without reopening on replay", async () => {
-    const onChanged = vi.fn();
+    const onChanged = mock();
     const flow = new TuiDelegationFlow({
       runtime: runtime({
-        getDelegationSnapshot: vi.fn(async () => ({
+        getDelegationSnapshot: mock(async () => ({
           schemaVersion: 1 as const,
           rootSessionId: "root",
           members: [
@@ -390,7 +391,7 @@ describe("TuiDelegationFlow", () => {
   it("does not settle a background member from an unrelated delivery task", async () => {
     const flow = new TuiDelegationFlow({
       runtime: runtime({
-        getDelegationSnapshot: vi.fn(async () => ({
+        getDelegationSnapshot: mock(async () => ({
           schemaVersion: 1 as const,
           rootSessionId: "root",
           members: [
@@ -404,7 +405,7 @@ describe("TuiDelegationFlow", () => {
         })),
       }),
       currentSession: () => ({ sessionId: "root" }),
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
     await flow.refresh();
 
@@ -476,7 +477,7 @@ describe("TuiDelegationFlow", () => {
     ];
     const flow = new TuiDelegationFlow({
       runtime: runtime({
-        getDelegationSnapshot: vi.fn(async () => ({
+        getDelegationSnapshot: mock(async () => ({
           schemaVersion: 1 as const,
           rootSessionId: "root",
           members: [
@@ -496,12 +497,12 @@ describe("TuiDelegationFlow", () => {
             },
           ],
         })),
-        getMessages: vi.fn(async (sessionId: string) =>
+        getMessages: mock(async (sessionId: string) =>
           sessionId === "root" ? taskMessages : [],
         ),
       }),
       currentSession: () => ({ sessionId: "root" }),
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     await flow.refresh();
@@ -553,7 +554,7 @@ describe("TuiDelegationFlow", () => {
     ]);
     const flow = new TuiDelegationFlow({
       runtime: runtime({
-        getDelegationSnapshot: vi.fn(async () => ({
+        getDelegationSnapshot: mock(async () => ({
           schemaVersion: 1 as const,
           rootSessionId: "root",
           members: [
@@ -574,7 +575,7 @@ describe("TuiDelegationFlow", () => {
             },
           ],
         })),
-        getMessages: vi.fn(async (sessionId: string) =>
+        getMessages: mock(async (sessionId: string) =>
           sessionId === "root"
             ? [
                 {
@@ -614,7 +615,7 @@ describe("TuiDelegationFlow", () => {
         ),
       }),
       currentSession: () => ({ sessionId: "root" }),
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     await flow.refresh();
@@ -638,7 +639,7 @@ describe("TuiDelegationFlow", () => {
     const transcript = new TranscriptStore();
     const flow = new TuiDelegationFlow({
       runtime: runtime({
-        getDelegationSnapshot: vi.fn(async () => ({
+        getDelegationSnapshot: mock(async () => ({
           schemaVersion: 1 as const,
           rootSessionId: "root",
           members: [
@@ -651,7 +652,7 @@ describe("TuiDelegationFlow", () => {
         })),
       }),
       currentSession: () => ({ sessionId: "root" }),
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     await flow.refresh();
@@ -664,7 +665,7 @@ describe("TuiDelegationFlow", () => {
     const transcript = new TranscriptStore();
     const flow = new TuiDelegationFlow({
       runtime: runtime({
-        getDelegationSnapshot: vi.fn(async () => ({
+        getDelegationSnapshot: mock(async () => ({
           schemaVersion: 1 as const,
           rootSessionId: "root",
           members: [
@@ -675,7 +676,7 @@ describe("TuiDelegationFlow", () => {
             },
           ],
         })),
-        getActiveRun: vi.fn(async () => ({
+        getActiveRun: mock(async () => ({
           schemaVersion: 1 as const,
           sessionId: "child-1",
           state: "running" as const,
@@ -684,7 +685,7 @@ describe("TuiDelegationFlow", () => {
         })),
       }),
       currentSession: () => ({ sessionId: "root" }),
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
     await flow.refresh();
     transcript.upsert(
@@ -722,7 +723,7 @@ describe("TuiDelegationFlow", () => {
 
   it("refreshes when a Runtime V2 visible task child is created under the active root", async () => {
     const runtimePort = runtime({
-      getDelegationSnapshot: vi.fn(async () => ({
+      getDelegationSnapshot: mock(async () => ({
         schemaVersion: 1 as const,
         rootSessionId: "root",
         members: [],
@@ -731,7 +732,7 @@ describe("TuiDelegationFlow", () => {
     const flow = new TuiDelegationFlow({
       runtime: runtimePort,
       currentSession: () => ({ sessionId: "root" }),
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     await flow.handleRuntimeEvent({
@@ -751,8 +752,7 @@ describe("TuiDelegationFlow", () => {
 
   it("refreshes when a delegated agent creates a nested task child", async () => {
     const runtimePort = runtime({
-      getDelegationSnapshot: vi
-        .fn()
+      getDelegationSnapshot: mock()
         .mockResolvedValueOnce({
           schemaVersion: 1,
           rootSessionId: "root",
@@ -773,7 +773,7 @@ describe("TuiDelegationFlow", () => {
     const flow = new TuiDelegationFlow({
       runtime: runtimePort,
       currentSession: () => ({ sessionId: "root" }),
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
     await flow.refresh();
 
@@ -791,13 +791,13 @@ describe("TuiDelegationFlow", () => {
 
   it("does not let a projection refresh failure break the Runtime event loop", async () => {
     const error = new Error("catalog unavailable");
-    const onError = vi.fn();
+    const onError = mock();
     const flow = new TuiDelegationFlow({
       runtime: runtime({
-        getDelegationSnapshot: vi.fn(async () => Promise.reject(error)),
+        getDelegationSnapshot: mock(async () => Promise.reject(error)),
       }),
       currentSession: () => ({ sessionId: "root" }),
-      onChanged: vi.fn(),
+      onChanged: mock(),
       onError,
     });
 
@@ -808,7 +808,7 @@ describe("TuiDelegationFlow", () => {
   });
 
   it("hydrates durable child activity after overflow and resumes without the stale anchor", async () => {
-    const watchSessionTurn = vi.fn(async function* watchSessionTurn(
+    const watchSessionTurn = mock(async function* watchSessionTurn(
       _sessionId: string,
       _turnId: string,
       _signal: AbortSignal,
@@ -832,7 +832,7 @@ describe("TuiDelegationFlow", () => {
       };
     });
     const runtimePort = runtime({
-      getDelegationSnapshot: vi.fn(async () => ({
+      getDelegationSnapshot: mock(async () => ({
         schemaVersion: 1 as const,
         rootSessionId: "root",
         members: [
@@ -845,14 +845,14 @@ describe("TuiDelegationFlow", () => {
           },
         ],
       })),
-      getActiveRun: vi.fn(async () => ({
+      getActiveRun: mock(async () => ({
         schemaVersion: 1 as const,
         sessionId: "child-1",
         state: "running" as const,
         turnId: "turn-1",
         actions: { steer: false },
       })),
-      getMessages: vi.fn(async () => [
+      getMessages: mock(async () => [
         { id: "message-anchor", turnId: "turn-1", role: "assistant" as const },
       ]),
       watchSessionTurn,
@@ -860,12 +860,12 @@ describe("TuiDelegationFlow", () => {
     const flow = new TuiDelegationFlow({
       runtime: runtimePort,
       currentSession: () => ({ sessionId: "root" }),
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     await flow.refresh();
 
-    await vi.waitFor(() => {
+    await waitFor(() => {
       expect(flow.snapshot().members[0]).toMatchObject({
         activity: "Reading packages/tui/src/tui/app.ts",
         toolCount: 1,
@@ -888,10 +888,10 @@ describe("TuiDelegationFlow", () => {
   });
 
   it("restarts a child watcher when a same-turn stream closes before the Run is terminal", async () => {
-    vi.useFakeTimers();
-    const watchSessionTurn = vi.fn(async function* watchSessionTurn() {});
+    jest.useFakeTimers();
+    const watchSessionTurn = mock(async function* watchSessionTurn() {});
     const runtimePort = runtime({
-      getDelegationSnapshot: vi.fn(async () => ({
+      getDelegationSnapshot: mock(async () => ({
         schemaVersion: 1 as const,
         rootSessionId: "root",
         members: [
@@ -902,7 +902,7 @@ describe("TuiDelegationFlow", () => {
           },
         ],
       })),
-      getActiveRun: vi.fn(async () => ({
+      getActiveRun: mock(async () => ({
         schemaVersion: 1 as const,
         sessionId: "child-1",
         state: "running" as const,
@@ -914,21 +914,21 @@ describe("TuiDelegationFlow", () => {
     const flow = new TuiDelegationFlow({
       runtime: runtimePort,
       currentSession: () => ({ sessionId: "root" }),
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     await flow.refresh();
-    await vi.waitFor(() => expect(watchSessionTurn).toHaveBeenCalledOnce());
-    await vi.advanceTimersByTimeAsync(300);
-    await vi.waitFor(() =>
+    await waitFor(() => expect(watchSessionTurn).toHaveBeenCalledOnce());
+    await advanceTimersByTimeAsync(300);
+    await waitFor(() =>
       expect(watchSessionTurn.mock.calls.length).toBeGreaterThan(1),
     );
     flow.stop();
   });
 
   it("retries after stream and active Run inspection fail together", async () => {
-    vi.useFakeTimers();
-    const watchSessionTurn = vi.fn(async function* watchSessionTurn() {});
+    jest.useFakeTimers();
+    const watchSessionTurn = mock(async function* watchSessionTurn() {});
     const running = {
       schemaVersion: 1 as const,
       sessionId: "child-1",
@@ -936,14 +936,13 @@ describe("TuiDelegationFlow", () => {
       turnId: "turn-1",
       actions: { steer: false },
     };
-    const getActiveRun = vi
-      .fn()
+    const getActiveRun = mock()
       .mockResolvedValueOnce(running)
       .mockRejectedValueOnce(new Error("inspection unavailable"))
       .mockResolvedValue(running);
     const flow = new TuiDelegationFlow({
       runtime: runtime({
-        getDelegationSnapshot: vi.fn(async () => ({
+        getDelegationSnapshot: mock(async () => ({
           schemaVersion: 1 as const,
           rootSessionId: "root",
           members: [
@@ -958,13 +957,13 @@ describe("TuiDelegationFlow", () => {
         watchSessionTurn,
       }),
       currentSession: () => ({ sessionId: "root" }),
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     await flow.refresh();
-    await vi.waitFor(() => expect(watchSessionTurn).toHaveBeenCalledOnce());
-    await vi.advanceTimersByTimeAsync(300);
-    await vi.waitFor(() =>
+    await waitFor(() => expect(watchSessionTurn).toHaveBeenCalledOnce());
+    await advanceTimersByTimeAsync(300);
+    await waitFor(() =>
       expect(watchSessionTurn.mock.calls.length).toBeGreaterThan(1),
     );
     expect(getActiveRun.mock.calls.length).toBeGreaterThanOrEqual(3);
@@ -972,9 +971,9 @@ describe("TuiDelegationFlow", () => {
   });
 
   it("coalesces simultaneous child watcher retries into one team refresh", async () => {
-    vi.useFakeTimers();
-    const watchSessionTurn = vi.fn(async function* watchSessionTurn() {});
-    const getDelegationSnapshot = vi.fn(async () => ({
+    jest.useFakeTimers();
+    const watchSessionTurn = mock(async function* watchSessionTurn() {});
+    const getDelegationSnapshot = mock(async () => ({
       schemaVersion: 1 as const,
       rootSessionId: "root",
       members: ["child-1", "child-2"].map((sessionId) => ({
@@ -986,7 +985,7 @@ describe("TuiDelegationFlow", () => {
     const flow = new TuiDelegationFlow({
       runtime: runtime({
         getDelegationSnapshot,
-        getActiveRun: vi.fn(async (sessionId: string) => ({
+        getActiveRun: mock(async (sessionId: string) => ({
           schemaVersion: 1 as const,
           sessionId,
           state: "running" as const,
@@ -996,13 +995,13 @@ describe("TuiDelegationFlow", () => {
         watchSessionTurn,
       }),
       currentSession: () => ({ sessionId: "root" }),
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     await flow.refresh();
-    await vi.waitFor(() => expect(watchSessionTurn).toHaveBeenCalledTimes(2));
-    await vi.advanceTimersByTimeAsync(300);
-    await vi.waitFor(() => expect(watchSessionTurn).toHaveBeenCalledTimes(4));
+    await waitFor(() => expect(watchSessionTurn).toHaveBeenCalledTimes(2));
+    await advanceTimersByTimeAsync(300);
+    await waitFor(() => expect(watchSessionTurn).toHaveBeenCalledTimes(4));
     expect(getDelegationSnapshot).toHaveBeenCalledTimes(2);
     flow.stop();
   });
@@ -1010,7 +1009,7 @@ describe("TuiDelegationFlow", () => {
   it("aborts child watchers when the active Session changes", async () => {
     let watcherSignal: AbortSignal | undefined;
     const runtimePort = runtime({
-      getDelegationSnapshot: vi.fn(async () => ({
+      getDelegationSnapshot: mock(async () => ({
         schemaVersion: 1 as const,
         rootSessionId: "root",
         members: [
@@ -1021,14 +1020,14 @@ describe("TuiDelegationFlow", () => {
           },
         ],
       })),
-      getActiveRun: vi.fn(async () => ({
+      getActiveRun: mock(async () => ({
         schemaVersion: 1 as const,
         sessionId: "child-1",
         state: "running" as const,
         turnId: "turn-1",
         actions: { steer: false },
       })),
-      watchSessionTurn: vi.fn(async function* watchSessionTurn(
+      watchSessionTurn: mock(async function* watchSessionTurn(
         _sessionId: string,
         _turnId: string,
         signal: AbortSignal,
@@ -1043,11 +1042,11 @@ describe("TuiDelegationFlow", () => {
     const flow = new TuiDelegationFlow({
       runtime: runtimePort,
       currentSession: () => ({ sessionId: "root" }),
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     await flow.refresh();
-    await vi.waitFor(() => expect(watcherSignal).toBeDefined());
+    await waitFor(() => expect(watcherSignal).toBeDefined());
     flow.reset();
 
     expect(watcherSignal?.aborted).toBe(true);
@@ -1056,7 +1055,7 @@ describe("TuiDelegationFlow", () => {
   it("keeps a same-turn watcher alive across authoritative refreshes", async () => {
     let watcherSignal: AbortSignal | undefined;
     const runtimePort = runtime({
-      getDelegationSnapshot: vi.fn(async () => ({
+      getDelegationSnapshot: mock(async () => ({
         schemaVersion: 1 as const,
         rootSessionId: "root",
         members: [
@@ -1067,14 +1066,14 @@ describe("TuiDelegationFlow", () => {
           },
         ],
       })),
-      getActiveRun: vi.fn(async () => ({
+      getActiveRun: mock(async () => ({
         schemaVersion: 1 as const,
         sessionId: "child-1",
         state: "running" as const,
         turnId: "turn-1",
         actions: { steer: false },
       })),
-      watchSessionTurn: vi.fn(async function* watchSessionTurn(
+      watchSessionTurn: mock(async function* watchSessionTurn(
         _sessionId: string,
         _turnId: string,
         signal: AbortSignal,
@@ -1089,11 +1088,11 @@ describe("TuiDelegationFlow", () => {
     const flow = new TuiDelegationFlow({
       runtime: runtimePort,
       currentSession: () => ({ sessionId: "root" }),
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     await flow.refresh();
-    await vi.waitFor(() => expect(watcherSignal).toBeDefined());
+    await waitFor(() => expect(watcherSignal).toBeDefined());
     await flow.refresh();
 
     expect(watcherSignal?.aborted).toBe(false);
@@ -1114,15 +1113,15 @@ describe("TuiDelegationFlow", () => {
       endedAtMs: 190,
       lastError: "exit code 1",
     };
-    const onBackgroundTasksChanged = vi.fn();
+    const onBackgroundTasksChanged = mock();
     const runtimePort = runtime({
-      listBackgroundTasks: vi.fn(async () => [task]),
+      listBackgroundTasks: mock(async () => [task]),
     });
     const flow = new TuiDelegationFlow({
       runtime: runtimePort,
       currentSession: () => ({ sessionId: "root" }),
       onBackgroundTasksChanged,
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     await flow.refresh();
@@ -1130,14 +1129,14 @@ describe("TuiDelegationFlow", () => {
     expect(runtimePort.listBackgroundTasks).toHaveBeenCalledWith("root");
     expect(onBackgroundTasksChanged).toHaveBeenLastCalledWith([task]);
     const updated = { ...task, command: "pnpm test --filter regression" };
-    runtimePort.listBackgroundTasks = vi.fn(async () => [updated]);
+    runtimePort.listBackgroundTasks = mock(async () => [updated]);
     await flow.refresh();
     expect(onBackgroundTasksChanged).toHaveBeenLastCalledWith([updated]);
     flow.stop();
   });
 
   it("polls background work for a newly created root Session before manual refresh", async () => {
-    vi.useFakeTimers();
+    jest.useFakeTimers();
     const task = {
       taskId: "bg-new-session",
       kind: "bash" as const,
@@ -1147,13 +1146,13 @@ describe("TuiDelegationFlow", () => {
       createdAtMs: 100,
       updatedAtMs: 200,
     };
-    const listBackgroundTasks = vi.fn(async () => [task]);
-    const onBackgroundTasksChanged = vi.fn();
+    const listBackgroundTasks = mock(async () => [task]);
+    const onBackgroundTasksChanged = mock();
     const flow = new TuiDelegationFlow({
       runtime: runtime({ listBackgroundTasks }),
       currentSession: () => ({ sessionId: "root" }),
       onBackgroundTasksChanged,
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     try {
@@ -1167,19 +1166,19 @@ describe("TuiDelegationFlow", () => {
       });
       expect(listBackgroundTasks).not.toHaveBeenCalled();
 
-      await vi.advanceTimersByTimeAsync(1_000);
+      await advanceTimersByTimeAsync(1_000);
 
       expect(listBackgroundTasks).toHaveBeenCalledWith("root");
       expect(onBackgroundTasksChanged).toHaveBeenLastCalledWith([task]);
     } finally {
       flow.stop();
-      vi.useRealTimers();
+      jest.useRealTimers();
     }
   });
 
   it("does not keep polling when only delivered terminal task history remains", async () => {
-    vi.useFakeTimers();
-    const listBackgroundTasks = vi.fn(async () => [
+    jest.useFakeTimers();
+    const listBackgroundTasks = mock(async () => [
       {
         taskId: "bg-delivered",
         kind: "bash" as const,
@@ -1196,19 +1195,19 @@ describe("TuiDelegationFlow", () => {
     const flow = new TuiDelegationFlow({
       runtime: runtime({ listBackgroundTasks }),
       currentSession: () => ({ sessionId: "root" }),
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     try {
       await flow.refresh();
       expect(listBackgroundTasks).toHaveBeenCalledOnce();
 
-      await vi.advanceTimersByTimeAsync(5_000);
+      await advanceTimersByTimeAsync(5_000);
 
       expect(listBackgroundTasks).toHaveBeenCalledOnce();
     } finally {
       flow.stop();
-      vi.useRealTimers();
+      jest.useRealTimers();
     }
   });
 
@@ -1222,9 +1221,9 @@ describe("TuiDelegationFlow", () => {
       createdAtMs: 100,
       updatedAtMs: 200,
     };
-    const openSession = vi.fn(async () => undefined);
-    const taskClose = vi.fn(() => true);
-    const transcriptClose = vi.fn(() => true);
+    const openSession = mock(async () => undefined);
+    const taskClose = mock(() => true);
+    const transcriptClose = mock(() => true);
     let screen:
       | {
           readonly id: string;
@@ -1232,7 +1231,7 @@ describe("TuiDelegationFlow", () => {
           handleInput(data: string): void;
         }
       | undefined;
-    const pushFeature = vi.fn((input: { screen: typeof screen }) => {
+    const pushFeature = mock((input: { screen: typeof screen }) => {
       screen = input.screen;
       return {
         id: input.screen?.id ?? "unknown",
@@ -1242,7 +1241,7 @@ describe("TuiDelegationFlow", () => {
     });
     const flow = new TuiDelegationFlow({
       runtime: runtime({
-        getDelegationSnapshot: vi.fn(async () => ({
+        getDelegationSnapshot: mock(async () => ({
           schemaVersion: 1 as const,
           rootSessionId: "root",
           members: [
@@ -1257,14 +1256,14 @@ describe("TuiDelegationFlow", () => {
             },
           ],
         })),
-        getActiveRun: vi.fn(async (sessionId: string) => ({
+        getActiveRun: mock(async (sessionId: string) => ({
           schemaVersion: 1 as const,
           sessionId,
           state: "running" as const,
           turnId: "turn-child",
           actions: { steer: false },
         })),
-        getMessages: vi.fn(async () => [
+        getMessages: mock(async () => [
           {
             id: "assistant-1",
             turnId: "turn-child",
@@ -1273,12 +1272,12 @@ describe("TuiDelegationFlow", () => {
             timestamp: 200,
           },
         ]),
-        listBackgroundTasks: vi.fn(async () => [backgroundTask]),
+        listBackgroundTasks: mock(async () => [backgroundTask]),
       }),
       currentSession: () => ({ sessionId: "root" }),
       surfaceHost: { pushFeature } as never,
       openSession,
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     await flow.showTasks();
@@ -1288,7 +1287,7 @@ describe("TuiDelegationFlow", () => {
     expect(screen?.render(100).join("\n")).toContain("reviewer");
     expect(screen?.render(100).join("\n")).toContain("pnpm test");
     screen?.handleInput("\r");
-    await vi.waitFor(() => expect(pushFeature).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(pushFeature).toHaveBeenCalledTimes(2));
     expect(screen?.id).toBe("transcript");
     screen?.handleInput("\r");
     expect(
@@ -1301,7 +1300,7 @@ describe("TuiDelegationFlow", () => {
 
   it("does not open a stale Agent transcript after the task center closes", async () => {
     let resolveMessages: ((messages: readonly []) => void) | undefined;
-    const getMessages = vi.fn(
+    const getMessages = mock(
       async () =>
         new Promise<readonly []>((resolve) => {
           resolveMessages = resolve;
@@ -1315,7 +1314,7 @@ describe("TuiDelegationFlow", () => {
         }
       | undefined;
     let taskScreenActive = true;
-    const pushFeature = vi.fn(
+    const pushFeature = mock(
       (input: {
         screen:
           | {
@@ -1338,7 +1337,7 @@ describe("TuiDelegationFlow", () => {
     );
     const flow = new TuiDelegationFlow({
       runtime: runtime({
-        getDelegationSnapshot: vi.fn(async () => ({
+        getDelegationSnapshot: mock(async () => ({
           schemaVersion: 1 as const,
           rootSessionId: "root",
           members: [
@@ -1351,7 +1350,7 @@ describe("TuiDelegationFlow", () => {
             },
           ],
         })),
-        getActiveRun: vi.fn(async (sessionId: string) => ({
+        getActiveRun: mock(async (sessionId: string) => ({
           schemaVersion: 1 as const,
           sessionId,
           state: "running" as const,
@@ -1359,21 +1358,21 @@ describe("TuiDelegationFlow", () => {
           actions: { steer: false },
         })),
         getMessages,
-        listBackgroundTasks: vi.fn(async () => []),
+        listBackgroundTasks: mock(async () => []),
       }),
       currentSession: () => ({ sessionId: "root" }),
       surfaceHost: { pushFeature } as never,
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     await flow.showTasks();
     taskScreen?.handleInput("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(getMessages).toHaveBeenCalledWith("child-1", 200),
     );
     taskScreen?.handleInput("\u001B");
     resolveMessages?.([]);
-    await vi.waitFor(() => expect(taskScreenActive).toBe(false));
+    await waitFor(() => expect(taskScreenActive).toBe(false));
     await new Promise((resolve) => setTimeout(resolve, 0));
 
     expect(pushFeature).toHaveBeenCalledOnce();
@@ -1381,7 +1380,7 @@ describe("TuiDelegationFlow", () => {
   });
 
   it("polls once more when the root Turn finishes during an older background task query", async () => {
-    vi.useFakeTimers();
+    jest.useFakeTimers();
     const task = {
       taskId: "bg-after-finish",
       kind: "bash" as const,
@@ -1394,8 +1393,7 @@ describe("TuiDelegationFlow", () => {
     let finishStalePoll:
       | ((tasks: readonly (typeof task)[]) => void)
       | undefined;
-    const listBackgroundTasks = vi
-      .fn()
+    const listBackgroundTasks = mock()
       .mockResolvedValueOnce([])
       .mockImplementationOnce(
         () =>
@@ -1404,10 +1402,10 @@ describe("TuiDelegationFlow", () => {
           }),
       )
       .mockResolvedValueOnce([task]);
-    const onBackgroundTasksChanged = vi.fn();
+    const onBackgroundTasksChanged = mock();
     const flow = new TuiDelegationFlow({
       runtime: runtime({
-        getActiveRun: vi.fn(async (sessionId: string) => ({
+        getActiveRun: mock(async (sessionId: string) => ({
           schemaVersion: 1 as const,
           sessionId,
           state:
@@ -1418,12 +1416,12 @@ describe("TuiDelegationFlow", () => {
       }),
       currentSession: () => ({ sessionId: "root" }),
       onBackgroundTasksChanged,
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     try {
       await flow.refresh();
-      await vi.advanceTimersByTimeAsync(1_000);
+      await advanceTimersByTimeAsync(1_000);
       expect(finishStalePoll).toBeTypeOf("function");
 
       await flow.handleRuntimeEvent({
@@ -1435,24 +1433,24 @@ describe("TuiDelegationFlow", () => {
         queueItemIds: [],
       });
       finishStalePoll?.([]);
-      await vi.waitFor(() =>
+      await waitFor(() =>
         expect(listBackgroundTasks).toHaveBeenCalledTimes(2),
       );
 
-      await vi.advanceTimersByTimeAsync(1_000);
-      await vi.waitFor(() =>
+      await advanceTimersByTimeAsync(1_000);
+      await waitFor(() =>
         expect(listBackgroundTasks).toHaveBeenCalledTimes(3),
       );
       expect(onBackgroundTasksChanged).toHaveBeenLastCalledWith([task]);
     } finally {
       flow.stop();
-      vi.useRealTimers();
+      jest.useRealTimers();
     }
   });
 
   it("finds the root team when opened from a nested child Session", async () => {
     const transcript = new TranscriptStore();
-    const getSession = vi.fn(async (sessionId: string) => {
+    const getSession = mock(async (sessionId: string) => {
       if (sessionId === "child-a") {
         return {
           sessionId,
@@ -1478,7 +1476,7 @@ describe("TuiDelegationFlow", () => {
         sessionKind: "task",
         visibility: "visible",
       }),
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
 
     await flow.refresh();
@@ -1494,7 +1492,7 @@ describe("TuiDelegationFlow", () => {
 
   it("marks a child as waiting when its Runtime interaction blocks", async () => {
     const runtimePort = runtime({
-      getDelegationSnapshot: vi.fn(async () => ({
+      getDelegationSnapshot: mock(async () => ({
         schemaVersion: 1 as const,
         rootSessionId: "root",
         members: [
@@ -1505,7 +1503,7 @@ describe("TuiDelegationFlow", () => {
           },
         ],
       })),
-      getActiveRun: vi.fn(async () => ({
+      getActiveRun: mock(async () => ({
         schemaVersion: 1 as const,
         sessionId: "child-1",
         state: "running" as const,
@@ -1516,7 +1514,7 @@ describe("TuiDelegationFlow", () => {
     const flow = new TuiDelegationFlow({
       runtime: runtimePort,
       currentSession: () => ({ sessionId: "root" }),
-      onChanged: vi.fn(),
+      onChanged: mock(),
     });
     await flow.refresh();
 
@@ -1573,18 +1571,18 @@ describe("TuiDelegationFlow", () => {
     }
 
     it('counts only queued, running and stopping Tasks, as listed by the Runtime', async () => {
-      vi.useFakeTimers();
+      jest.useFakeTimers();
       let tasks: TuiBackgroundTask[] = [];
       const flow = new TuiDelegationFlow({
-        runtime: runtime({ listBackgroundTasks: vi.fn(async () => tasks) }),
+        runtime: runtime({ listBackgroundTasks: mock(async () => tasks) }),
         currentSession: () => ({ sessionId: 'root' }),
-        onChanged: vi.fn(),
+        onChanged: mock(),
       });
 
       try {
         await flow.handleRuntimeEvent(rootLifecycle('session.start', 'turn-1'));
         tasks = [bashTask(), bashTask({ taskId: 'bash-2', status: 'stopping' })];
-        await vi.advanceTimersByTimeAsync(1_000);
+        await advanceTimersByTimeAsync(1_000);
         expect(flow.backgroundTaskCount()).toBe(2);
 
         await flow.handleRuntimeEvent(rootLifecycle('session.finish', 'turn-1'));
@@ -1595,7 +1593,7 @@ describe("TuiDelegationFlow", () => {
           bashTask({ status: 'succeeded', endedAtMs: 300, updatedAtMs: 300 }),
           bashTask({ taskId: 'bash-2', status: 'canceled', endedAtMs: 300, updatedAtMs: 300 }),
         ];
-        await vi.advanceTimersByTimeAsync(1_000);
+        await advanceTimersByTimeAsync(1_000);
         expect(flow.backgroundTaskCount()).toBe(0);
       } finally {
         flow.stop();
@@ -1605,7 +1603,7 @@ describe("TuiDelegationFlow", () => {
     it('keeps sub-Agent Tasks in agents and ignores finished bash history', async () => {
       const flow = new TuiDelegationFlow({
         runtime: runtime({
-          getDelegationSnapshot: vi.fn(async () => ({
+          getDelegationSnapshot: mock(async () => ({
             schemaVersion: 1 as const,
             rootSessionId: 'root',
             members: [
@@ -1617,12 +1615,12 @@ describe("TuiDelegationFlow", () => {
               },
             ],
           })),
-          listBackgroundTasks: vi.fn(async () => [
+          listBackgroundTasks: mock(async () => [
             bashTask({ status: 'succeeded', endedAtMs: 200, deliveredAtMs: 200 }),
           ]),
         }),
         currentSession: () => ({ sessionId: 'root' }),
-        onChanged: vi.fn(),
+        onChanged: mock(),
       });
       await flow.refresh();
 
@@ -1634,13 +1632,13 @@ describe("TuiDelegationFlow", () => {
     it('excludes a foreground-owned bash Task that has not been promoted to the background', async () => {
       const flow = new TuiDelegationFlow({
         runtime: runtime({
-          listBackgroundTasks: vi.fn(async () => [
+          listBackgroundTasks: mock(async () => [
             bashTask({ foreground: true }),
             bashTask({ taskId: 'bash-2', status: 'running' }),
           ]),
         }),
         currentSession: () => ({ sessionId: 'root' }),
-        onChanged: vi.fn(),
+        onChanged: mock(),
       });
       await flow.refresh();
       expect(flow.backgroundTaskCount()).toBe(1);
@@ -1648,10 +1646,9 @@ describe("TuiDelegationFlow", () => {
     });
 
     it('never reports zero before a Task list requested after the root settle succeeds', async () => {
-      vi.useFakeTimers();
+      jest.useFakeTimers();
       let finishStalePoll: ((tasks: readonly TuiBackgroundTask[]) => void) | undefined;
-      const listBackgroundTasks = vi
-        .fn()
+      const listBackgroundTasks = mock()
         .mockResolvedValueOnce([])
         .mockImplementationOnce(
           () =>
@@ -1661,10 +1658,10 @@ describe("TuiDelegationFlow", () => {
         )
         .mockRejectedValueOnce(new Error('list unavailable'))
         .mockResolvedValueOnce([]);
-      const onChanged = vi.fn();
+      const onChanged = mock();
       const flow = new TuiDelegationFlow({
         runtime: runtime({
-          getActiveRun: vi.fn(async (sessionId: string) => ({
+          getActiveRun: mock(async (sessionId: string) => ({
             schemaVersion: 1 as const,
             sessionId,
             state: 'running' as const,
@@ -1679,7 +1676,7 @@ describe("TuiDelegationFlow", () => {
       try {
         await flow.refresh();
         expect(flow.backgroundTaskCount()).toBe(0);
-        await vi.advanceTimersByTimeAsync(1_000);
+        await advanceTimersByTimeAsync(1_000);
         expect(finishStalePoll).toBeTypeOf('function');
 
         await flow.handleRuntimeEvent(rootLifecycle('session.finish', 'turn-1'));
@@ -1687,20 +1684,20 @@ describe("TuiDelegationFlow", () => {
 
         // A list requested before the settle cannot prove that no Task was yielded.
         finishStalePoll?.([]);
-        await vi.advanceTimersByTimeAsync(0);
+        await advanceTimersByTimeAsync(0);
         expect(flow.backgroundTaskCount()).toBe(1);
 
-        await vi.advanceTimersByTimeAsync(1_000);
+        await advanceTimersByTimeAsync(1_000);
         expect(listBackgroundTasks).toHaveBeenCalledTimes(3);
         expect(flow.backgroundTaskCount()).toBe(1);
 
         onChanged.mockClear();
-        await vi.advanceTimersByTimeAsync(1_000);
+        await advanceTimersByTimeAsync(1_000);
         expect(listBackgroundTasks).toHaveBeenCalledTimes(4);
         expect(flow.backgroundTaskCount()).toBe(0);
         expect(onChanged).toHaveBeenCalledOnce();
 
-        await vi.advanceTimersByTimeAsync(5_000);
+        await advanceTimersByTimeAsync(5_000);
         expect(listBackgroundTasks).toHaveBeenCalledTimes(4);
       } finally {
         flow.stop();

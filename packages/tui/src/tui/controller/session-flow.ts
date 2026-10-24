@@ -11,6 +11,8 @@ import type { TuiComposerDraft } from '../features/composer/draft.js';
 import type { TuiRunProjection } from '../state/run-projection.js';
 import type { TuiStateStore } from '../state/store.js';
 import type { TuiChatController } from './chat-controller.js';
+import { controllerText } from './copy.js';
+import { tuiText } from '../copy.js';
 import type { TuiFeatureFlow } from './product/feature-flow.js';
 import type { TuiInteractionFlow } from './interaction/interaction-flow.js';
 import type { TuiQueueFlow } from './run/queue-flow.js';
@@ -24,7 +26,7 @@ import {
 import {
   BTW_SIDE_SESSION_PURPOSE,
   BTW_SIDE_SESSION_TITLE,
-  BTW_REJECT_NO_BOUNDARY,
+
   isSideSession,
   resolveBtwStartDecision,
 } from '../commands/side-session.js';
@@ -219,7 +221,7 @@ export class TuiSessionFlow {
     this.options.onChanged();
     if (requestedSessionId !== targetSessionId) {
       this.options.append(
-        'Sub-agent Sessions are internal. Opened the parent Session instead.',
+        controllerText('session.subAgentInternal'),
         'warning',
       );
     }
@@ -279,7 +281,7 @@ export class TuiSessionFlow {
     const index = Number(normalized);
     if (Number.isInteger(index) && index >= 1) {
       this.options.append(
-        'Numeric Session references are deprecated; use /sessions or a Session ID.',
+        controllerText('session.numericReferenceDeprecated'),
         'warning',
       );
       const indexed = this.options.controller.snapshot().sessions[index - 1];
@@ -292,7 +294,7 @@ export class TuiSessionFlow {
     if (!session) {
       if (!options.silent) {
         this.options.append(
-          `Session not found or reference is ambiguous: ${normalized}`,
+          controllerText('session.referenceAmbiguous', { reference: normalized }),
           'warning',
         );
       }
@@ -310,7 +312,7 @@ export class TuiSessionFlow {
     if (!this.allowUserSessionNavigation('/parent')) return;
     const current = this.options.controller.snapshot().session;
     if (!current?.parentSessionId) {
-      this.options.append('The active session has no parent session.', 'warning');
+      this.options.append(controllerText('session.noParentSession'), 'warning');
       return;
     }
     await this.activateSessionById(current.parentSessionId);
@@ -327,7 +329,7 @@ export class TuiSessionFlow {
       // Normally unreachable because the catalog rejects /btw in side mode;
       // kept as a defensive guard for non-catalog callers.
       this.options.append(
-        'A side conversation is already open. Press Ctrl+C to return before starting another.',
+        controllerText('session.sideAlreadyOpen'),
         'warning',
       );
       this.options.onChanged();
@@ -338,7 +340,7 @@ export class TuiSessionFlow {
     const probe = this.options.runtime.getSessionForkOptions;
     if (!probe) {
       this.options.append(
-        'This Runtime does not support side sessions; update Runtime to use /btw.',
+        controllerText('session.sideUnsupported'),
         'warning',
       );
       this.options.onChanged();
@@ -379,7 +381,9 @@ export class TuiSessionFlow {
         code === 'assistant-not-settled' ||
         code === 'invalid-boundary';
       this.options.append(
-        noBoundary ? BTW_REJECT_NO_BOUNDARY : "Couldn't open a side conversation. Try again.",
+        noBoundary
+          ? tuiText('sideSession.reject.noBoundary')
+          : controllerText('session.sideOpenFailed'),
         noBoundary ? 'warning' : 'error',
       );
       this.options.onChanged();
@@ -406,7 +410,7 @@ export class TuiSessionFlow {
       this.sideConversation = undefined;
       this.options.onSideConversationChanged?.(undefined);
       await this.options.runtime.deleteSession(side.sessionId).catch(() => undefined);
-      this.options.append("Couldn't open a side conversation. Try again.", 'error');
+      this.options.append(controllerText('session.sideOpenFailed'), 'error');
       this.options.onChanged();
       return undefined;
     }
@@ -454,7 +458,7 @@ export class TuiSessionFlow {
       const stillRunning = active?.state === 'running' || active?.state === 'decision-blocked';
       if (stopped !== true || stillRunning || !active) {
         this.options.append(
-          "Couldn't close the side conversation because Runtime did not confirm that its response stopped. Press Esc and retry.",
+          controllerText('session.sideCloseUnconfirmed'),
           'warning',
         );
         this.options.onChanged();
@@ -535,7 +539,7 @@ export class TuiSessionFlow {
         await this.options.runtime.deleteSession(sideSessionId);
       } catch {
         this.options.append(
-          'Returned to the main Session, but temporary side-session cleanup failed. Runtime will keep it hidden; retry after reconnecting.',
+          controllerText('session.sideCleanupFailed'),
           'error',
         );
       }
@@ -552,7 +556,7 @@ export class TuiSessionFlow {
           session.visibility !== 'hidden',
       );
     if (!latest) {
-      this.options.append('No saved Session exists in the current workspace.', 'warning');
+      this.options.append(controllerText('session.noSavedSession'), 'warning');
       return false;
     }
     await this.activateSessionById(latest.sessionId);
@@ -655,7 +659,10 @@ export class TuiSessionFlow {
 
   private allowUserSessionNavigation(command: string): boolean {
     if (!this.options.hasLiveRun?.()) return true;
-    this.options.append(`Stop the running turn before using ${command}.`, 'warning');
+    this.options.append(
+      controllerText('common.stopBeforeCommand', { command }),
+      'warning',
+    );
     this.options.onChanged();
     return false;
   }

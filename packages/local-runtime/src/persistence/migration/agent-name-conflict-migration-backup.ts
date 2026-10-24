@@ -2,10 +2,11 @@ import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { FinalizingSqliteDatabase } from '@mavis/shared';
+import { Database } from 'bun:sqlite';
+
 import { resolveAgentDbPath } from '../../agent/db.js';
-import { loadBetterSqlite3Module } from '../better-sqlite3-loader.js';
-import type { DatabaseLike } from '../db.js';
-import { openLocalRuntimeDb } from '../db.js';
+import { openLocalRuntimeDb, type DatabaseLike } from '../db.js';
 import type { AgentNameMapping } from './agent-name-conflict-migration-manifest.js';
 import {
   isRecord,
@@ -49,12 +50,8 @@ export function ensureBackup(
   fs.mkdirSync(backupDir, { recursive: true, mode: 0o700 });
   backupSqlite(agentDb, path.join(backupDir, path.basename(resolveAgentDbPath(dataDir))));
   const runtimeDbPath = resolveV2DirectoryContract(dataDir).runtimeStateDb;
-  if (fs.existsSync(runtimeDbPath)) {
-    const Database =
-      loadBetterSqlite3Module<
-        new (filename: string, options?: Record<string, unknown>) => DatabaseLike
-      >();
-    const source = new Database(runtimeDbPath, { readonly: true, fileMustExist: true });
+  if (pathExists(runtimeDbPath)) {
+    const source = new FinalizingSqliteDatabase(runtimeDbPath, { readonly: true, create: false });
     try {
       backupSqlite(source, path.join(backupDir, path.basename(runtimeDbPath)));
     } finally {
@@ -98,15 +95,15 @@ function ensureBackupArtifacts(
   const fileBackupDir = path.join(backupDir, 'files');
   for (const file of files) {
     const source = path.join(dataDir, file);
-    if (!fs.existsSync(source)) continue;
+    if (!pathExists(source)) continue;
     fs.mkdirSync(fileBackupDir, { recursive: true, mode: 0o700 });
     const target = path.join(fileBackupDir, file);
-    if (!fs.existsSync(target)) fs.copyFileSync(source, target);
+    if (!pathExists(target)) fs.copyFileSync(source, target);
   }
   const agentBackupDir = path.join(backupDir, 'agents');
   for (const mapping of mappings) {
     const source = path.join(dataDir, 'agents', mapping.from);
-    if (!fs.existsSync(source)) continue;
+    if (!pathExists(source)) continue;
     fs.mkdirSync(agentBackupDir, { recursive: true, mode: 0o700 });
     const target = path.join(agentBackupDir, mapping.from);
     backupMappedAgentDirectory(source, target);
@@ -114,16 +111,16 @@ function ensureBackupArtifacts(
   const credentialsBackupDir = path.join(backupDir, 'credentials');
   for (const mapping of mappings) {
     const source = path.join(dataDir, 'credentials', mapping.from);
-    if (!fs.existsSync(source)) continue;
+    if (!pathExists(source)) continue;
     const target = path.join(credentialsBackupDir, mapping.from);
-    if (fs.existsSync(target)) continue;
+    if (pathExists(target)) continue;
     fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
     fs.cpSync(source, target, { recursive: true });
   }
   const planBackupDir = path.join(backupDir, 'plans');
   for (const plan of readAffectedPlanFiles(dataDir, mappings)) {
     const target = path.join(planBackupDir, plan.planId, 'plan.json');
-    if (fs.existsSync(target)) continue;
+    if (pathExists(target)) continue;
     fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
     fs.copyFileSync(plan.filePath, target);
   }
@@ -146,7 +143,7 @@ function ensureBackupArtifacts(
     fs.mkdirSync(target, { recursive: true, mode: 0o700 });
     for (const file of [sessionPaths.ledger, sessionPaths.snapshot]) {
       const targetFile = path.join(target, path.basename(file));
-      if (fs.existsSync(file) && !fs.existsSync(targetFile)) fs.copyFileSync(file, targetFile);
+      if (pathExists(file) && !pathExists(targetFile)) fs.copyFileSync(file, targetFile);
     }
   }
   for (const session of discoverAffectedLedgerSessions(dataDir, mappings)) {
@@ -154,16 +151,16 @@ function ensureBackupArtifacts(
     fs.mkdirSync(target, { recursive: true, mode: 0o700 });
     for (const file of [session.paths.ledger, session.paths.snapshot]) {
       const targetFile = path.join(target, path.basename(file));
-      if (fs.existsSync(file) && !fs.existsSync(targetFile)) fs.copyFileSync(file, targetFile);
+      if (pathExists(file) && !pathExists(targetFile)) fs.copyFileSync(file, targetFile);
     }
   }
   const trackingDir = path.join(dataDir, 'memory', 'tracking');
-  if (fs.existsSync(trackingDir)) {
+  if (pathExists(trackingDir)) {
     const target = path.join(backupDir, 'memory', 'tracking');
     fs.mkdirSync(target, { recursive: true, mode: 0o700 });
     for (const file of fs.readdirSync(trackingDir)) {
       const targetFile = path.join(target, file);
-      if (file.endsWith('.json') && !fs.existsSync(targetFile))
+      if (file.endsWith('.json') && !pathExists(targetFile))
         fs.copyFileSync(path.join(trackingDir, file), targetFile);
     }
   }
@@ -178,7 +175,7 @@ function ensureBackupArtifacts(
 function backupMappedAgentDirectory(source: string, target: string): void {
   // Backups are immutable once published. Their existence means a previous
   // invocation completed the entire Agent directory backup.
-  if (fs.existsSync(target)) return;
+  if (pathExists(target)) return;
 
   const sourceAgentDefinition = path.resolve(source, ROOT_AGENT_DEFINITION_FILE);
   const staging = `${target}.agent-name-conflict-staging`;
@@ -245,7 +242,7 @@ function rootAgentDefinitionAccessFailure(
 }
 
 function backupSqlite(db: DatabaseLike, target: string): void {
-  if (fs.existsSync(target)) return;
+  if (pathExists(target)) return;
   const temporary = `${target}.tmp-${process.pid}-${randomUUID()}`;
   fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
   try {
@@ -283,17 +280,17 @@ export function applyDirectoryAndPrimaryRename(
   if (sourceRow && targetRow) {
     throw new Error(`rename_target_already_exists:${mapping.from}:${mapping.to}`);
   }
-  if ((fs.existsSync(sourceDir) || fs.existsSync(stagingDir)) && fs.existsSync(targetDir)) {
+  if ((pathExists(sourceDir) || pathExists(stagingDir)) && pathExists(targetDir)) {
     throw new Error(`rename_directory_target_already_exists:${mapping.from}:${mapping.to}`);
   }
   if (
-    (fs.existsSync(sourceCredentialsDir) || fs.existsSync(stagingCredentialsDir)) &&
-    fs.existsSync(targetCredentialsDir)
+    (pathExists(sourceCredentialsDir) || pathExists(stagingCredentialsDir)) &&
+    pathExists(targetCredentialsDir)
   ) {
     throw new Error(`rename_credentials_target_already_exists:${mapping.from}:${mapping.to}`);
   }
-  if (fs.existsSync(sourceDir) && !fs.existsSync(stagingDir)) fs.renameSync(sourceDir, stagingDir);
-  if (fs.existsSync(sourceCredentialsDir) && !fs.existsSync(stagingCredentialsDir)) {
+  if (pathExists(sourceDir) && !pathExists(stagingDir)) fs.renameSync(sourceDir, stagingDir);
+  if (pathExists(sourceCredentialsDir) && !pathExists(stagingCredentialsDir)) {
     fs.renameSync(sourceCredentialsDir, stagingCredentialsDir);
   }
   if (sourceRow) {
@@ -303,8 +300,8 @@ export function applyDirectoryAndPrimaryRename(
       mapping.from,
     );
   }
-  if (fs.existsSync(stagingDir) && !fs.existsSync(targetDir)) fs.renameSync(stagingDir, targetDir);
-  if (fs.existsSync(stagingCredentialsDir) && !fs.existsSync(targetCredentialsDir)) {
+  if (pathExists(stagingDir) && !pathExists(targetDir)) fs.renameSync(stagingDir, targetDir);
+  if (pathExists(stagingCredentialsDir) && !pathExists(targetCredentialsDir)) {
     fs.renameSync(stagingCredentialsDir, targetCredentialsDir);
   }
   if (sourceRow && !db.prepare('SELECT 1 FROM agents WHERE agent_name = ?').get(mapping.to)) {
@@ -367,4 +364,23 @@ function rewritePrimaryPinnedItemsPreference(
     row.rowid,
   );
   return count;
+}
+
+/**
+ * Whether `target` exists.
+ *
+ * A `statSync` inside a `try` answers the same question as `existsSync` for a
+ * file, a directory, a missing entry and an unreadable path, and avoids the
+ * separate `existsSync` lookup this module used to pay before every copy:
+ * `existsSync` is the Node compatibility surface and measures roughly an order
+ * of magnitude slower per call in this runtime. This module is synchronous
+ * throughout, so `Bun.file()` does not apply.
+ */
+function pathExists(target: string): boolean {
+  try {
+    fs.statSync(target);
+    return true;
+  } catch {
+    return false;
+  }
 }

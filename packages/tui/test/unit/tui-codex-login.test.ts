@@ -1,4 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { advanceTimersByTimeAsync, waitFor } from '../../../../test/bun-test-setup.js';
+import { afterEach, describe, expect, it, jest, mock } from 'bun:test';
+
 import type { McodeCodexOAuthStatus } from "../../src/provider/contract.js";
 import { TuiCodexLogin } from "../../src/tui/features/auth/codex-login.js";
 import { stripAnsi, visibleWidth } from "../../src/tui/rendering/text.js";
@@ -21,25 +23,25 @@ const device: McodeCodexOAuthStatus = {
 
 function harness(initial = disconnected) {
   const application = {
-    getCodexOAuthStatus: vi.fn(
+    getCodexOAuthStatus: mock(
       async (): Promise<McodeCodexOAuthStatus> => initial,
     ),
-    connectCodexOAuth: vi.fn(
+    connectCodexOAuth: mock(
       async (): Promise<McodeCodexOAuthStatus> => device,
     ),
-    cancelCodexOAuthLogin: vi.fn(
+    cancelCodexOAuthLogin: mock(
       async (): Promise<McodeCodexOAuthStatus> => disconnected,
     ),
   };
-  const openExternalTarget = vi.fn(async () => undefined);
-  const onConnected = vi.fn();
-  const onClose = vi.fn();
+  const openExternalTarget = mock(async () => undefined);
+  const onConnected = mock();
+  const onClose = mock();
   const panel = new TuiCodexLogin({
     application,
     openExternalTarget,
     onConnected,
     onClose,
-    requestRender: vi.fn(),
+    requestRender: mock(),
   });
   return {
     panel,
@@ -51,7 +53,7 @@ function harness(initial = disconnected) {
   };
 }
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => jest.useRealTimers());
 
 describe("Codex sign-in panel", () => {
   it("defaults to browser login and displays its URL when browser launch fails", async () => {
@@ -65,7 +67,7 @@ describe("Codex sign-in panel", () => {
     h.openExternalTarget.mockRejectedValue(new Error("No browser"));
     await h.panel.resume();
     h.panel.handleInput("\r");
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(h.text()).toContain("Open the link above manually"),
     );
     expect(h.application.connectCodexOAuth).toHaveBeenCalledWith({
@@ -78,13 +80,13 @@ describe("Codex sign-in panel", () => {
   });
 
   it("selects device code, displays the code and polls until connected even without a browser", async () => {
-    vi.useFakeTimers();
+    jest.useFakeTimers();
     const h = harness();
     h.openExternalTarget.mockRejectedValue(new Error("xdg-open unavailable"));
     await h.panel.resume();
     h.panel.handleInput("\u001b[B");
     h.panel.handleInput("\r");
-    await vi.advanceTimersByTimeAsync(0);
+    await advanceTimersByTimeAsync(0);
     expect(h.application.connectCodexOAuth).toHaveBeenCalledWith({
       method: "device_code",
     });
@@ -95,7 +97,7 @@ describe("Codex sign-in panel", () => {
       ...disconnected,
       state: "connected",
     });
-    await vi.advanceTimersByTimeAsync(1000);
+    await advanceTimersByTimeAsync(1000);
     expect(h.onConnected).toHaveBeenCalledOnce();
     h.panel.dispose();
   });
@@ -106,7 +108,7 @@ describe("Codex sign-in panel", () => {
     expect(h.application.connectCodexOAuth).not.toHaveBeenCalled();
     expect(h.text()).toContain("ABCD-EFGH");
     h.panel.handleInput("\u001b");
-    await vi.waitFor(() => expect(h.onClose).toHaveBeenCalledOnce());
+    await waitFor(() => expect(h.onClose).toHaveBeenCalledOnce());
     expect(h.application.cancelCodexOAuthLogin).toHaveBeenCalledWith(
       "attempt-1",
     );
@@ -128,7 +130,7 @@ describe("Codex sign-in panel", () => {
     h.panel.handleInput("\u001b");
     h.panel.dispose();
     release(device);
-    await vi.waitFor(() =>
+    await waitFor(() =>
       expect(h.application.cancelCodexOAuthLogin).toHaveBeenCalledWith(
         "attempt-1",
       ),
@@ -137,7 +139,7 @@ describe("Codex sign-in panel", () => {
   });
 
   it("shows expiry and retries the selected method, and stops polling after disposal", async () => {
-    vi.useFakeTimers();
+    jest.useFakeTimers();
     const h = harness(device);
     await h.panel.resume();
     h.application.getCodexOAuthStatus.mockResolvedValue({
@@ -145,16 +147,16 @@ describe("Codex sign-in panel", () => {
       state: "failed",
       error: "Device code expired. Start login again.",
     });
-    await vi.advanceTimersByTimeAsync(1000);
+    await advanceTimersByTimeAsync(1000);
     expect(h.text()).toContain("Device code expired");
     h.panel.handleInput("\r");
-    await vi.advanceTimersByTimeAsync(0);
+    await advanceTimersByTimeAsync(0);
     expect(h.application.connectCodexOAuth).toHaveBeenCalledWith({
       method: "device_code",
     });
     h.panel.dispose();
     const calls = h.application.getCodexOAuthStatus.mock.calls.length;
-    await vi.advanceTimersByTimeAsync(10_000);
+    await advanceTimersByTimeAsync(10_000);
     expect(h.application.getCodexOAuthStatus).toHaveBeenCalledTimes(calls);
   });
 

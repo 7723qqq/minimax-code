@@ -2,7 +2,7 @@ import { pathToFileURL } from 'node:url';
 import { stripVTControlCharacters } from 'node:util';
 import { visibleWidth } from '../../src/tui/rendering/text.js';
 import { getCapabilities, setCapabilities } from '../../src/tui/engine/public.js';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'bun:test';
 import { TranscriptView, resolveTuiDecisionColor } from '../../src/tui/transcript/view.js';
 import { createTranscriptCell } from '../../src/tui/transcript/model.js';
 import { TranscriptStore } from '../../src/tui/transcript/store.js';

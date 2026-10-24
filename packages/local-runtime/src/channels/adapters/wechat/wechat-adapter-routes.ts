@@ -18,6 +18,7 @@ import type { ChannelInboundAttachmentRef, ChannelInboundEnvelope } from '../../
 import type { LocalChannelContext } from '../../infra.js';
 import type { LocalMessageAttachment } from '../../../messages/input.js';
 import { wechatClientId } from '../../wechat.js';
+import { wechatText } from './wechat-copy.js';
 
 export interface WeChatAdapterRouteDispatcher {
   dispatchInbound?: (input: {
@@ -133,8 +134,8 @@ function ensureUnifiedInboundText(
   if (text.trim()) return text;
   if (!refs || refs.length === 0) return text;
   const primary = refs[0]!;
-  if (primary.type === 'image') return '[图片]';
-  if (primary.type === 'audio') return '[语音]';
-  if (primary.type === 'video') return '[视频]';
-  return `[文件] ${primary.name ?? primary.key ?? ''}`.trim();
+  if (primary.type === 'image') return wechatText('attachment.image');
+  if (primary.type === 'audio') return wechatText('attachment.audio');
+  if (primary.type === 'video') return wechatText('attachment.video');
+  return wechatText('attachment.file', { name: primary.name ?? primary.key ?? '' }).trim();
 }

@@ -1,52 +1,99 @@
-export const MINIMAX_CODE_WELCOME_PASTE_IMAGE_SHORTCUT = '{paste-image-shortcut}';
-const MINIMAX_CODE_WELCOME_CHECKIN_TIP = '/checkin claims the daily reward.';
+import { shellText } from '../copy.js';
 
-export const MINIMAX_CODE_WELCOME_DESIGN = {
-  sectionTitles: {
-    tips: 'Tips for getting started',
-    news: "What's new · /changelog for history",
+/**
+ * Token that marks where the paste-image shortcut belongs.
+ *
+ * The welcome banner is built before the keybinding registry is known, so the
+ * catalog keeps this token in place and the banner replaces it with the
+ * formatted shortcut once the registry is available.
+ */
+export const MINIMAX_CODE_WELCOME_PASTE_IMAGE_SHORTCUT = '{paste-image-shortcut}';
+
+/** Shape of the welcome banner content. */
+export interface TuiWelcomeDesign {
+  readonly sectionTitles: { readonly tips: string; readonly news: string };
+  readonly tipPool: readonly string[];
+  readonly wide: { readonly tips: readonly string[]; readonly news: readonly string[] };
+  readonly stacked: { readonly tips: readonly string[]; readonly news: readonly string[] };
+  readonly compact: { readonly tips: readonly string[]; readonly news: readonly string[] };
+  readonly hero: {
+    readonly fullMinWidth: number;
+    readonly mediumMinWidth: number;
+    readonly microMinWidth: number;
+    readonly fallbackTitle: string;
+  };
+}
+
+/**
+ * Welcome banner content.
+ *
+ * The wording lives in the shell catalog, so every copy-bearing member is a
+ * getter: the banner renders in the language that is active when it is drawn
+ * rather than the one that was active when the module was loaded. The hero
+ * metrics are layout constants and stay plain values.
+ */
+export const MINIMAX_CODE_WELCOME_DESIGN: TuiWelcomeDesign = {
+  get sectionTitles() {
+    return {
+      tips: shellText('welcome.section.tips'),
+      news: shellText('welcome.section.news'),
+    };
   },
-  tipPool: [
-    'Say what you want and how to verify it.',
-    `Use @ for files; ${MINIMAX_CODE_WELCOME_PASTE_IMAGE_SHORTCUT} for images.`,
-    'Run /init to teach MCode this repo.',
-    'Use /plan before a change that needs design or investigation.',
-    'Use /context to check the current Session context budget.',
-    'Use /sessions to resume earlier work.',
-    'Use /history to review and branch from earlier prompts.',
-    'Use /goal to keep long-running work focused on a finish line.',
-    'Use /permission to choose how MCode handles tool approvals.',
-    'Use /feedback to preview a redacted report before upload.',
-    MINIMAX_CODE_WELCOME_CHECKIN_TIP,
-  ],
-  wide: {
-    tips: [
-      'Say what you want and how to verify it.',
-      `Use @ for files; ${MINIMAX_CODE_WELCOME_PASTE_IMAGE_SHORTCUT} for images.`,
-      'Run /init to teach MCode this repo.',
-      MINIMAX_CODE_WELCOME_CHECKIN_TIP,
-    ],
-    news: [
-      'Send follow-ups while MCode works.',
-      '/context shows read-only session context.',
-      '/feedback previews before upload.',
-    ],
+  get tipPool() {
+    return [
+      shellText('welcome.tip.sayWhatYouWant'),
+      shellText('welcome.tip.filesAndImages'),
+      shellText('welcome.tip.init'),
+      shellText('welcome.tip.plan'),
+      shellText('welcome.tip.context'),
+      shellText('welcome.tip.sessions'),
+      shellText('welcome.tip.history'),
+      shellText('welcome.tip.goal'),
+      shellText('welcome.tip.permission'),
+      shellText('welcome.tip.feedback'),
+      shellText('welcome.tip.checkin'),
+    ];
   },
-  stacked: {
-    tips: [
-      'Say what you want and how to verify it.',
-      `@ files · ${MINIMAX_CODE_WELCOME_PASTE_IMAGE_SHORTCUT} images · /init guidance`,
-      '/checkin daily reward',
-    ],
-    news: ['Follow-ups wait while MCode works.', '/context budget · /feedback preview'],
+  get wide() {
+    return {
+      tips: [
+        shellText('welcome.tip.sayWhatYouWant'),
+        shellText('welcome.tip.filesAndImages'),
+        shellText('welcome.tip.init'),
+        shellText('welcome.tip.checkin'),
+      ],
+      news: [
+        shellText('welcome.news.followUps'),
+        shellText('welcome.news.context'),
+        shellText('welcome.news.feedback'),
+      ],
+    };
   },
-  compact: {
-    tips: [
-      `@ files · ${MINIMAX_CODE_WELCOME_PASTE_IMAGE_SHORTCUT} images`,
-      '/init repo guidance',
-      '/checkin reward',
-    ],
-    news: ['Follow-ups wait', '/context · /feedback'],
+  get stacked() {
+    return {
+      tips: [
+        shellText('welcome.tip.sayWhatYouWant'),
+        shellText('welcome.tip.stackedFiles'),
+        shellText('welcome.tip.stackedCheckin'),
+      ],
+      news: [
+        shellText('welcome.news.stackedFollowUps'),
+        shellText('welcome.news.stackedContextFeedback'),
+      ],
+    };
+  },
+  get compact() {
+    return {
+      tips: [
+        shellText('welcome.tip.compactFiles'),
+        shellText('welcome.tip.compactInit'),
+        shellText('welcome.tip.compactCheckin'),
+      ],
+      news: [
+        shellText('welcome.news.compactFollowUps'),
+        shellText('welcome.news.compactContextFeedback'),
+      ],
+    };
   },
   hero: {
     fullMinWidth: 91,
@@ -54,7 +101,7 @@ export const MINIMAX_CODE_WELCOME_DESIGN = {
     microMinWidth: 11,
     fallbackTitle: 'M',
   },
-} as const;
+};
 
 export const MINIMAX_CODE_TERMINAL_WORDMARK = [
   '███╗   ███╗██╗███╗   ██╗██╗███╗   ███╗ █████╗ ██╗  ██╗     ██████╗ ██████╗ ██████╗ ███████╗',

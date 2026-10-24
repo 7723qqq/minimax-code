@@ -1,4 +1,6 @@
-import { describe, expect, it, vi } from 'vitest';
+import { advanceTimersByTimeAsync, waitFor } from '../../../../../../../test/bun-test-setup.js';
+import { describe, expect, it, jest, mock } from 'bun:test';
+
 import {
   CURSOR_MARKER,
   getKeybindings,
@@ -13,7 +15,7 @@ import { Editor, type EditorOptions } from '../../../../../src/tui/widgets/edito
 function createEditor(options: EditorOptions = {}) {
   const ui = {
     terminal: { rows: 24 },
-    requestRender: vi.fn(),
+    requestRender: mock(),
   };
   const passthrough = (value: string): string => value;
   const editor = new Editor(
@@ -46,7 +48,7 @@ describe('Editor behavior', () => {
     ]);
     editor.handleInput('after [Image #1]');
     const original = editor.captureDraft();
-    const submitted = vi.fn();
+    const submitted = mock();
     editor.onSubmit = submitted;
     editor.handleInput('\r');
     const content = submitted.mock.calls[0]?.[0] as string;
@@ -101,7 +103,7 @@ describe('Editor behavior', () => {
     editor.handleInput('\x1b[D');
     editor.handleInput('\x1b[D');
     expect(editor.getAttachmentPreview()?.id).toBe('/a.png');
-    const onSubmit = vi.fn();
+    const onSubmit = mock();
     editor.onSubmit = onSubmit;
     editor.handleInput('\r');
     expect(onSubmit).toHaveBeenCalledWith('x', expect.anything());
@@ -303,7 +305,7 @@ describe('Editor behavior', () => {
     );
     try {
       const { editor } = createEditor();
-      const selected = vi.fn();
+      const selected = mock();
       editor.onAutocompleteSelect = selected;
       editor.setAutocompleteProvider({
         triggerCharacters: ['@'],
@@ -321,7 +323,7 @@ describe('Editor behavior', () => {
         }),
       });
       editor.handleInput('@');
-      await vi.waitFor(() => expect(editor.render(80).join('\n')).toContain('second'));
+      await waitFor(() => expect(editor.render(80).join('\n')).toContain('second'));
 
       editor.handleInput('\x0e');
       editor.handleInput('\x0f');
@@ -350,13 +352,13 @@ describe('Editor behavior', () => {
 
   it('reports autocomplete menu views once per open menu and selected items', async () => {
     const { editor } = createEditor();
-    const onAutocompleteView = vi.fn();
-    const onAutocompleteSelect = vi.fn();
+    const onAutocompleteView = mock();
+    const onAutocompleteSelect = mock();
     editor.onAutocompleteView = onAutocompleteView;
     editor.onAutocompleteSelect = onAutocompleteSelect;
     editor.setAutocompleteProvider({
       triggerCharacters: ['/'],
-      getSuggestions: vi.fn(async () => ({
+      getSuggestions: mock(async () => ({
         prefix: '/',
         items: [{ value: 'help', label: 'help' }],
       })),
@@ -364,9 +366,9 @@ describe('Editor behavior', () => {
     });
 
     editor.handleInput('/');
-    await vi.waitFor(() => expect(onAutocompleteView).toHaveBeenCalledOnce());
+    await waitFor(() => expect(onAutocompleteView).toHaveBeenCalledOnce());
     editor.handleInput('h');
-    await vi.waitFor(() => expect(editor.render(80).join('\n')).toContain('help'));
+    await waitFor(() => expect(editor.render(80).join('\n')).toContain('help'));
     expect(onAutocompleteView).toHaveBeenCalledOnce();
 
     editor.handleInput('\r');
@@ -708,14 +710,14 @@ describe('Editor behavior', () => {
   });
 
   it('debounces attachment autocomplete while typing', async () => {
-    vi.useFakeTimers();
+    jest.useFakeTimers();
     const provider = {
       triggerCharacters: ['@'],
-      getSuggestions: vi.fn(async () => ({
+      getSuggestions: mock(async () => ({
         prefix: '@mai',
         items: [{ value: '@main.ts', label: 'main.ts' }],
       })),
-      applyCompletion: vi.fn(),
+      applyCompletion: mock(),
     };
     const { editor } = createEditor();
     editor.setAutocompleteProvider(provider);
@@ -726,15 +728,15 @@ describe('Editor behavior', () => {
     editor.handleInput('i');
 
     expect(provider.getSuggestions).not.toHaveBeenCalled();
-    await vi.advanceTimersByTimeAsync(20);
+    await advanceTimersByTimeAsync(20);
     expect(provider.getSuggestions).toHaveBeenCalledTimes(1);
-    vi.useRealTimers();
+    jest.useRealTimers();
   });
 
   it('cancels autocomplete work when the editor is disposed', async () => {
     let activeSignal: AbortSignal | undefined;
     const provider = {
-      getSuggestions: vi.fn(
+      getSuggestions: mock(
         (
           _lines: string[],
           _cursorLine: number,
@@ -745,7 +747,7 @@ describe('Editor behavior', () => {
           return new Promise<null>(() => undefined);
         },
       ),
-      applyCompletion: vi.fn(),
+      applyCompletion: mock(),
     };
     const { editor } = createEditor();
 

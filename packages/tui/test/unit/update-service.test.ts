@@ -1,10 +1,12 @@
+import { waitFor } from '../../../../test/bun-test-setup.js';
+import { afterEach, describe, expect, it, mock } from 'bun:test';
 import { execFileSync } from 'node:child_process';
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+
 import { McodeUpdateService, type McodeUpdateDependencies } from '../../src/update/service.js';
 import { resolveMcodeNpmDistribution } from '../../src/update/install-source.js';
 import type { McodeReleaseManifestV1 } from '../../src/update/release.js';
@@ -204,7 +206,7 @@ describe('McodeUpdateService', () => {
   it('checks a signed channel manifest without mutating the install root', async () => {
     const root = temporaryRoot();
     const fixture = releaseFixture();
-    const fetchBytes = vi.fn(async (url: string) =>
+    const fetchBytes = mock(async (url: string) =>
       url.endsWith('.sig') ? Buffer.from(fixture.signature) : fixture.manifestBytes,
     );
     const service = new McodeUpdateService({
@@ -234,7 +236,7 @@ describe('McodeUpdateService', () => {
       const root = temporaryRoot();
       const currentFile = path.join(root, 'current');
       const dependencies: Partial<McodeUpdateDependencies> = {
-        fetchBytes: vi.fn(async () => {
+        fetchBytes: mock(async () => {
           throw failure;
         }),
       };
@@ -253,15 +255,15 @@ describe('McodeUpdateService', () => {
     const root = temporaryRoot();
     const fixture = releaseFixture();
     const dependencies: Partial<McodeUpdateDependencies> = {
-      fetchBytes: vi.fn(async (url: string) =>
+      fetchBytes: mock(async (url: string) =>
         url.endsWith('.sig')
           ? Buffer.from(fixture.signature)
           : url.endsWith('.tgz')
             ? Buffer.from('wrong bytes')
             : fixture.manifestBytes,
       ),
-      installArtifact: vi.fn(async () => undefined),
-      validateInstalledVersion: vi.fn(async () => undefined),
+      installArtifact: mock(async () => undefined),
+      validateInstalledVersion: mock(async () => undefined),
     };
     const service = new McodeUpdateService({
       currentVersion: '1.2.3',
@@ -278,14 +280,14 @@ describe('McodeUpdateService', () => {
   it('activates only after staging installation and validation succeed', async () => {
     const root = temporaryRoot();
     const fixture = releaseFixture();
-    const installArtifact = vi.fn(async () => undefined);
-    const validateInstalledVersion = vi.fn(async () => undefined);
+    const installArtifact = mock(async () => undefined);
+    const validateInstalledVersion = mock(async () => undefined);
     const service = new McodeUpdateService({
       currentVersion: '1.2.3',
       installRoot: root,
       publicKey: fixture.publicKey,
       dependencies: {
-        fetchBytes: vi.fn(async (url: string) =>
+        fetchBytes: mock(async (url: string) =>
           url.endsWith('.sig')
             ? Buffer.from(fixture.signature)
             : url.endsWith('.tgz')
@@ -317,15 +319,15 @@ describe('McodeUpdateService', () => {
       installRoot: root,
       publicKey: fixture.publicKey,
       dependencies: {
-        fetchBytes: vi.fn(async (url: string) =>
+        fetchBytes: mock(async (url: string) =>
           url.endsWith('.sig')
             ? Buffer.from(fixture.signature)
             : url.endsWith('.tgz')
               ? fixture.artifact
               : fixture.manifestBytes,
         ),
-        installArtifact: vi.fn(async () => undefined),
-        validateInstalledVersion: vi.fn(async () => {
+        installArtifact: mock(async () => undefined),
+        validateInstalledVersion: mock(async () => {
           throw new Error('installed binary smoke failed');
         }),
       },
@@ -344,7 +346,7 @@ describe('McodeUpdateService', () => {
       installRoot: root,
       publicKey: fixture.publicKey,
       dependencies: {
-        fetchBytes: vi.fn(async (url: string) =>
+        fetchBytes: mock(async (url: string) =>
           url.endsWith('.sig') ? Buffer.from(fixture.signature) : fixture.manifestBytes,
         ),
       },
@@ -365,7 +367,7 @@ describe('McodeUpdateService', () => {
       installRoot: root,
       publicKey: fixture.publicKey,
       dependencies: {
-        fetchBytes: vi.fn(async (url: string) =>
+        fetchBytes: mock(async (url: string) =>
           url.endsWith('.sig')
             ? Buffer.from(fixture.signature)
             : url.endsWith('.tgz')
@@ -402,15 +404,15 @@ describe('McodeUpdateService', () => {
       installRoot: root,
       publicKey: fixture.publicKey,
       dependencies: {
-        fetchBytes: vi.fn(async (url: string) =>
+        fetchBytes: mock(async (url: string) =>
           url.endsWith('.sig')
             ? Buffer.from(fixture.signature)
             : url.endsWith('.tgz')
               ? fixture.artifact
               : fixture.manifestBytes,
         ),
-        installArtifact: vi.fn(async () => undefined),
-        validateInstalledVersion: vi.fn(async () => undefined),
+        installArtifact: mock(async () => undefined),
+        validateInstalledVersion: mock(async () => undefined),
       },
     });
 
@@ -436,7 +438,7 @@ describe('McodeUpdateService', () => {
     const fixture = releaseFixture();
     const controller = new AbortController();
     let finishInstall: (() => void) | undefined;
-    const installArtifact = vi.fn(
+    const installArtifact = mock(
       () =>
         new Promise<void>((resolve) => {
           finishInstall = resolve;
@@ -447,7 +449,7 @@ describe('McodeUpdateService', () => {
       installRoot: root,
       publicKey: fixture.publicKey,
       dependencies: {
-        fetchBytes: vi.fn(async (url: string) =>
+        fetchBytes: mock(async (url: string) =>
           url.endsWith('.sig')
             ? Buffer.from(fixture.signature)
             : url.endsWith('.tgz')
@@ -455,7 +457,7 @@ describe('McodeUpdateService', () => {
               : fixture.manifestBytes,
         ),
         installArtifact,
-        validateInstalledVersion: vi.fn(async () => undefined),
+        validateInstalledVersion: mock(async () => undefined),
       },
     });
 
@@ -469,7 +471,7 @@ describe('McodeUpdateService', () => {
         }
       },
     });
-    await vi.waitFor(() => expect(installArtifact).toHaveBeenCalledOnce());
+    await waitFor(() => expect(installArtifact).toHaveBeenCalledOnce());
     expect(installArtifact).toHaveBeenCalledWith(
       expect.not.objectContaining({ signal: expect.anything() }),
     );

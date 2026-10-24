@@ -3,14 +3,14 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 const LOCAL_NTFS_REQUIREMENT =
-  "Windows source checkouts must be on a local NTFS volume. pnpm workspace links require NTFS junctions; FAT32/exFAT volumes and network shares are not supported. Keep cloud-synced folders outside the checkout.";
+  "Windows source checkouts must be on a local NTFS volume. the workspace install layout and native builds require NTFS; FAT32/exFAT volumes and network shares are not supported. Keep cloud-synced folders outside the checkout.";
 
 function fail(reason) {
   return { ok: false, reason: `${LOCAL_NTFS_REQUIREMENT} ${reason}` };
 }
 
 /**
- * Validate the Windows volume before pnpm attempts to create workspace links.
+ * Validate the Windows volume before dependencies are installed.
  *
  * The function is exported so the platform-specific policy can be tested without
  * requiring a Windows host. Non-Windows platforms are intentionally a no-op.

@@ -7,6 +7,8 @@ import {
   unwrapCommandWrappers,
 } from '@mavis/permission';
 
+import { permissionReasonText } from './copy.js';
+
 export type LocalPermissionCheckerBehavior = 'deny' | 'ask';
 
 /**
@@ -39,6 +41,11 @@ export interface LocalPermissionCheckerInput {
   input: Record<string, unknown>;
   workspaceDir?: string;
   platform?: NodeJS.Platform;
+  /**
+   * User-language hint for the rendered reason. The facade resolves it from the
+   * recent user messages; when it is absent the runtime locale decides.
+   */
+  locale?: string;
 }
 
 function parseDirectTrashTargets(command: string): string[] {
@@ -688,23 +695,28 @@ const HUGE_SCAN_ROOTS = new Set([
 export function evaluateLocalPermissionCheck(
   input: LocalPermissionCheckerInput,
 ): LocalPermissionCheckerResult | undefined {
-  const immune = buildLocalBypassImmuneDenyReason(input.toolName, input.input, input.workspaceDir);
+  const immune = buildLocalBypassImmuneDenyReason(
+    input.toolName,
+    input.input,
+    input.workspaceDir,
+    input.locale,
+  );
   if (immune) return { behavior: 'deny', reason: immune, denyKind: 'bypass-immune' };
 
   const windowsPathSafety = evaluateWindowsPathSafetyCheck(input);
   if (windowsPathSafety) return windowsPathSafety;
 
-  const policy = buildLocalPolicyDenyReason(input.toolName, input.input);
+  const policy = buildLocalPolicyDenyReason(input.toolName, input.input, input.locale);
   if (policy) return { behavior: 'deny', reason: policy, denyKind: 'policy' };
 
   if (input.toolName === 'bash') {
     const command = readPermissionCommand(input.input);
     if (!command) return undefined;
-    return evaluateLocalBashCommand(command);
+    return evaluateLocalBashCommand(command, input.locale);
   }
 
   if (FS_PERMISSION_TOOLS.has(input.toolName)) {
-    return evaluateLocalFsTool(input.toolName, input.input, input.workspaceDir);
+    return evaluateLocalFsTool(input.toolName, input.input, input.workspaceDir, input.locale);
   }
 
   return undefined;
@@ -726,21 +738,23 @@ export function buildLocalBypassImmuneDenyReason(
   toolName: string,
   input: Record<string, unknown>,
   workspaceDir?: string,
+  locale?: string,
 ): string | undefined {
   const networkShare = findNetworkShareAccess(toolName, input, workspaceDir);
   if (networkShare) {
-    return (
-      `Local hard safety policy blocked ${toolName}: direct access to the network share ` +
-      `"${networkShare}" is not supported from built-in or bash tools. Copy the file into a local workspace first.`
+    return permissionReasonText(
+      'bypassImmune.networkShare',
+      { tool: toolName, share: networkShare },
+      locale,
     );
   }
   if (toolName === 'bash') {
     const command = readPermissionCommand(input);
     if (command && isRootRecursiveDelete(command)) {
-      return (
-        `Local hard safety policy blocked ${toolName}: recursive deletion targets a root or home ` +
-        `directory, which is unrecoverable. Target a specific sub-path instead of "/", a drive ` +
-        `root, or the home directory.`
+      return permissionReasonText(
+        'bypassImmune.rootRecursiveDelete',
+        { tool: toolName },
+        locale,
       );
     }
   }
@@ -760,24 +774,25 @@ export function buildLocalBypassImmuneDenyReason(
 export function buildLocalPolicyDenyReason(
   toolName: string,
   input: Record<string, unknown>,
+  locale?: string,
 ): string | undefined {
   if (toolName === 'web_fetch' || toolName === 'website_deploy') {
     if (toolName === 'web_fetch') {
       const url = typeof input.url === 'string' ? input.url.trim() : '';
-      return (
-        `Local permission check requires approval: web_fetch will request ` +
-        `${url || 'a URL'} from this device's local network context.`
-      );
+      return url
+        ? permissionReasonText('policy.webFetchApproval', { url }, locale)
+        : permissionReasonText('policy.webFetchApprovalNoUrl', undefined, locale);
     }
-    return (
-      'Local permission check requires approval: website_deploy publishes files to a public endpoint ' +
-      'on this device network context.'
-    );
+    return permissionReasonText('policy.websiteDeployApproval', undefined, locale);
   }
   const values = collectPermissionPathOrCommandStrings(toolName, input);
   const sensitive = values.find(containsSensitiveLocalPath);
   if (sensitive) {
-    return `Local hard safety policy blocked ${toolName}: sensitive credential path in ${sensitive}`;
+    return permissionReasonText(
+      'policy.sensitiveCredentialPath',
+      { tool: toolName, path: sensitive },
+      locale,
+    );
   }
   return undefined;
 }
@@ -792,38 +807,42 @@ export function buildLocalHardDenyReason(
   toolName: string,
   input: Record<string, unknown>,
   workspaceDir?: string,
+  locale?: string,
 ): string | undefined {
   return (
-    buildLocalBypassImmuneDenyReason(toolName, input, workspaceDir) ??
-    buildLocalPolicyDenyReason(toolName, input)
+    buildLocalBypassImmuneDenyReason(toolName, input, workspaceDir, locale) ??
+    buildLocalPolicyDenyReason(toolName, input, locale)
   );
 }
 
-function evaluateLocalBashCommand(command: string): LocalPermissionCheckerResult | undefined {
+function evaluateLocalBashCommand(
+  command: string,
+  locale?: string,
+): LocalPermissionCheckerResult | undefined {
   const trimmed = command.trim();
   if (!trimmed) return undefined;
   if (hasCurlPipeShell(trimmed)) {
     return {
       behavior: 'ask',
-      reason: 'Local permission check requires approval: curl-pipe-shell command.',
+      reason: permissionReasonText('ask.curlPipeShell', undefined, locale),
     };
   }
   if (hasShellSubstitution(trimmed)) {
     return {
       behavior: 'ask',
-      reason: 'Local permission check requires approval: shell substitution in bash command.',
+      reason: permissionReasonText('ask.shellSubstitution', undefined, locale),
     };
   }
   if (isSlowWholeTreeScan(trimmed)) {
     return {
       behavior: 'ask',
-      reason: 'Local permission check requires approval: slow unbounded filesystem scan.',
+      reason: permissionReasonText('ask.slowUnboundedScan', undefined, locale),
     };
   }
   if (isRecursiveRmCommand(trimmed)) {
     return {
       behavior: 'ask',
-      reason: 'Local permission check requires approval: recursive rm command.',
+      reason: permissionReasonText('ask.recursiveRm', undefined, locale),
     };
   }
   return undefined;
@@ -833,6 +852,7 @@ function evaluateLocalFsTool(
   toolName: string,
   input: Record<string, unknown>,
   workspaceDir: string | undefined,
+  locale?: string,
 ): LocalPermissionCheckerResult | undefined {
   if (!workspaceDir) return undefined;
   const target = readFsToolPath(toolName, input);
@@ -840,7 +860,11 @@ function evaluateLocalFsTool(
   if (isWorkspacePathEscape(target, workspaceDir)) {
     return {
       behavior: 'ask',
-      reason: `Local permission check requires approval: ${toolName} path escapes workspace (${target}).`,
+      reason: permissionReasonText(
+        'ask.workspaceEscape',
+        { tool: toolName, target },
+        locale,
+      ),
     };
   }
   return undefined;

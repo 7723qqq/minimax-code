@@ -15,6 +15,7 @@ import type {
 } from '../analytics/business-telemetry.js';
 import { resolveMcodeAuthEnvironment } from './environment.js';
 import { buildMcodeLogoutUrl } from './logout-url.js';
+import { tuiAuthText } from './copy.js';
 
 export type McodeAuthProgress = {
   readonly state: 'device-authorization';
@@ -99,11 +100,13 @@ export class McodeAuthApplication implements McodeAuthPort {
           : ('authenticated' as const),
         message: alreadyAuthenticated
           ? switchesRegion
-            ? `Already signed in with ${formatRegion(requestedScope.region)}.`
-            : 'Already signed in with MiniMax.'
+            ? tuiAuthText('auth.alreadySignedInRegion', {
+                region: formatRegion(requestedScope.region),
+              })
+            : tuiAuthText('auth.alreadySignedIn')
           : switchesRegion
-            ? `Signed in with ${formatRegion(requestedScope.region)}.`
-            : 'Signed in with MiniMax.',
+            ? tuiAuthText('auth.signedInRegion', { region: formatRegion(requestedScope.region) })
+            : tuiAuthText('auth.signedIn'),
         ...(switchesRegion ? { restartRequired: true as const } : {}),
       };
       this.trackLoginResult('1', '');
@@ -123,15 +126,19 @@ export class McodeAuthApplication implements McodeAuthPort {
     const result = await this.options.sharedAuthCore.logout({ revoke: true });
     const logoutUrl = buildMcodeLogoutUrl(this.scope);
     if (status.status === 'anonymous' && result.status === 'anonymous') {
-      return { state: 'already-signed-out', message: 'Already signed out of MiniMax.', logoutUrl };
+      return {
+        state: 'already-signed-out',
+        message: tuiAuthText('auth.alreadySignedOut'),
+        logoutUrl,
+      };
     }
     return {
       state: 'signed-out',
       logoutUrl,
       message:
         result.status === 'logout_pending'
-          ? `Signed out locally from ${formatRegion(this.scope.region)} across MCode. Server revocation is pending until the network recovers.`
-          : `Signed out of ${formatRegion(this.scope.region)} on Desktop, CLI/TUI, and embedded mcode-tools.`,
+          ? tuiAuthText('auth.signedOutLocally', { region: formatRegion(this.scope.region) })
+          : tuiAuthText('auth.signedOut', { region: formatRegion(this.scope.region) }),
     };
   }
 

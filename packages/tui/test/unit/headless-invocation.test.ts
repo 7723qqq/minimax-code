@@ -1,8 +1,7 @@
+import { afterEach, describe, expect, it, mock } from 'bun:test';
 import { mkdtemp, mkdir, realpath, rm, symlink, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-
-import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   resolveTuiExecInvocation,
@@ -24,7 +23,7 @@ async function workspace(): Promise<string> {
 describe('headless invocation', () => {
   it('resolves exec review as a fixed local-changes operation without stdin', async () => {
     const cwd = await workspace();
-    const readStdin = vi.fn(async () => 'ignored');
+    const readStdin = mock(async () => 'ignored');
 
     await expect(
       resolveTuiExecInvocation(
@@ -53,7 +52,7 @@ describe('headless invocation', () => {
 
   it('carries a trimmed --effort for exec and exec review and rejects a blank level', async () => {
     const cwd = await workspace();
-    const readStdin = vi.fn(async () => 'ignored');
+    const readStdin = mock(async () => 'ignored');
 
     await expect(
       resolveTuiExecInvocation('prompt', { cwd, effort: ' xhigh ' }, readStdin),
@@ -97,7 +96,7 @@ describe('headless invocation', () => {
 
   it('defaults to smart permissions and rejects interactive ask before reading input', async () => {
     const cwd = await workspace();
-    const readStdin = vi.fn(async () => 'ignored');
+    const readStdin = mock(async () => 'ignored');
 
     await expect(
       resolveTuiExecInvocation('prompt', { cwd }, readStdin),
@@ -113,7 +112,7 @@ describe('headless invocation', () => {
 
   it('opts only new exec Sessions into lightweight mode', async () => {
     const cwd = await workspace();
-    const readStdin = vi.fn(async () => 'ignored');
+    const readStdin = mock(async () => 'ignored');
 
     await expect(
       resolveTuiExecInvocation('hi', { cwd, mode: 'lightweight' }, readStdin),

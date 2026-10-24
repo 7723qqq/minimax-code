@@ -1,7 +1,6 @@
 import { createHash } from 'node:crypto';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 
+import { execGitStdout } from './git-exec.js';
 import type {
   AnnotationTargetResolution,
   ReviewAnchor,
@@ -24,7 +23,6 @@ export {
   type ReviewChangeAnchorInput,
 } from './change-anchor.js';
 
-const execFileAsync = promisify(execFile);
 const ANCHOR_CONTEXT_LINES = 3;
 const ANCHOR_VERSION = 'review-line-anchor-v2';
 
@@ -78,15 +76,9 @@ export async function resolveDeletedFileTarget(
 ): Promise<AnnotationTargetResolution> {
   try {
     await validateWorkspaceRelativePath(input.workspace, input.path);
-    const [{ stdout: statusOutput }, { stdout: blobOutput }] = await Promise.all([
-      execFileAsync('git', ['diff', '--name-status', '-z', 'HEAD', '--', input.path], {
-        cwd: input.workspace,
-        encoding: 'utf8',
-      }),
-      execFileAsync('git', ['rev-parse', `HEAD:${input.path}`], {
-        cwd: input.workspace,
-        encoding: 'utf8',
-      }),
+    const [statusOutput, blobOutput] = await Promise.all([
+      execGitStdout(input.workspace, ['diff', '--name-status', '-z', 'HEAD', '--', input.path]),
+      execGitStdout(input.workspace, ['rev-parse', `HEAD:${input.path}`]),
     ]);
     const blobOid = blobOutput.trim();
     if (!/^[a-f0-9]{40,64}$/u.test(blobOid)) {
@@ -342,15 +334,14 @@ async function readCurrentDiffRanges(
 ): Promise<ReviewChangedRange[]> {
   await validateWorkspaceRelativePath(workspace, sourcePath);
   try {
-    const { stdout } = await execFileAsync(
-      'git',
-      ['diff', '--unified=0', '--no-color', 'HEAD', '--', sourcePath],
-      {
-        cwd: workspace,
-        encoding: 'utf8',
-        maxBuffer: 16 * 1024 * 1024,
-      },
-    );
+    const stdout = await execGitStdout(workspace, [
+      'diff',
+      '--unified=0',
+      '--no-color',
+      'HEAD',
+      '--',
+      sourcePath,
+    ]);
     return parseChangedLineRanges(stdout);
   } catch {
     throw new ReviewTargetError('invalid', 'Unable to read the current Git diff');

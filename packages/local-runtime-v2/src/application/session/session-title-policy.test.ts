@@ -1,7 +1,7 @@
+import { afterEach, describe, expect, it, mock } from 'bun:test';
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DatabaseClient } from "../../infra/db/client.js";
 import { initializeDatabase } from "../../infra/db/initialize.js";
@@ -46,11 +46,11 @@ function fixture(
   } = {},
 ) {
   // Signed-out managed gateway. The BYOK path must never send the title here.
-  const review = vi.fn(async (): Promise<SafetyCheckResult> => ({
+  const review = mock(async (): Promise<SafetyCheckResult> => ({
     pass: false,
     errorKind: "auth_error",
   }));
-  const readDefinition = vi.fn(async () => options.definition);
+  const readDefinition = mock(async () => options.definition);
   const policy = createSessionTitlePolicy({
     runtimeOwnerKind: options.runtimeOwnerKind ?? "tui",
     config: () => options.config ?? config,
@@ -84,7 +84,7 @@ describe("CLI session title review", () => {
       agents: { getDefaults: async () => undefined },
       runLocation: { resolve: async () => undefined },
       titlePolicy: policy,
-      facts: { handle: vi.fn() },
+      facts: { handle: mock() },
     });
     await records.mutateSession(session.sessionId, {
       title: "Renamed locally",

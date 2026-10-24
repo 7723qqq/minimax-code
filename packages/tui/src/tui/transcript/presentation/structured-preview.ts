@@ -6,6 +6,7 @@ import { sanitizeTerminalText } from '../../rendering/terminal-text.js';
 import { applyBackgroundToLine, truncateToWidth, visibleWidth } from '../../rendering/text.js';
 import { highlightDiffContents, highlightFileLines } from './syntax-highlight.js';
 import { tuiChalk as chalk, tuiColors as colors } from '../../theme/runtime.js';
+import { transcriptText } from '../../features/transcript/copy.js';
 
 export interface RenderTuiStructuredPreviewOptions {
   readonly maxBodyLines?: number;
@@ -28,7 +29,12 @@ export function renderTuiStructuredPreview(
       const remainingBlocks = preview.blocks.length - index;
       lines.push(
         fitPreviewLine(
-          `${prefix}${chalk.hex(colors.dim)('└')} ${chalk.hex(colors.muted)(`${remainingBlocks} more ${remainingBlocks === 1 ? 'change' : 'changes'} hidden`)}`,
+          `${prefix}${chalk.hex(colors.dim)('└')} ${chalk.hex(colors.muted)(
+            transcriptText(
+              remainingBlocks === 1 ? 'preview.blocksHidden.one' : 'preview.blocksHidden.many',
+              { count: remainingBlocks },
+            ),
+          )}`,
           normalizedWidth,
         ),
       );
@@ -48,13 +54,16 @@ function renderBlock(
   prefix: string,
   maxBodyLines: number,
 ): { lines: string[]; bodyLines: number } {
-  const path = sanitizeTerminalText(block.path ?? 'file');
+  const path = sanitizeTerminalText(block.path ?? transcriptText('preview.block.pathFallback'));
   const state = previewStateLabel(preview.state);
   const summary =
     block.kind === 'diff'
       ? `${chalk.hex(colors.success)(`+${block.addedLines}`)} ${chalk.hex(colors.error)(`-${block.removedLines}`)}`
       : block.kind === 'file'
-        ? `${block.lineCount} ${block.lineCount === 1 ? 'line' : 'lines'}`
+        ? transcriptText(
+            block.lineCount === 1 ? 'preview.block.lines.one' : 'preview.block.lines.many',
+            { count: block.lineCount },
+          )
         : undefined;
   const header = fitPreviewLine(
     `${prefix}${chalk.hex(colors.dim)('┌')} ${chalk.bold.hex(colors.text)(path)}${summary ? chalk.hex(colors.muted)(` · ${summary}`) : ''}${chalk.hex(previewStateColor(preview.state))(` · ${state}`)}`,
@@ -97,9 +106,12 @@ function renderBlock(
   });
   const footerLabel =
     omittedLines > 0
-      ? `${omittedLines} ${omittedLines === 1 ? 'line' : 'lines'} hidden`
+      ? transcriptText(
+          omittedLines === 1 ? 'preview.block.linesHidden.one' : 'preview.block.linesHidden.many',
+          { count: omittedLines },
+        )
       : block.truncated
-        ? 'Preview truncated'
+        ? transcriptText('preview.block.truncated')
         : undefined;
   const footer = footerLabel
     ? [
@@ -137,9 +149,9 @@ function colorDiffLine(line: string, highlightedContent: string, width: number):
 }
 
 function previewStateLabel(state: TuiStructuredPreview['state']): string {
-  if (state === 'applied') return 'Applied';
-  if (state === 'not-applied') return 'Not applied';
-  return 'Proposed';
+  if (state === 'applied') return transcriptText('preview.state.applied');
+  if (state === 'not-applied') return transcriptText('preview.state.notApplied');
+  return transcriptText('preview.state.proposed');
 }
 
 function previewStateColor(state: TuiStructuredPreview['state']): string {

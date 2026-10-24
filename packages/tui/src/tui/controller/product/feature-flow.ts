@@ -81,11 +81,17 @@ import { hyperlink } from '../../engine/public.js';
 import { sanitizeTerminalText } from '../../rendering/terminal-text.js';
 import { MINIMAX_CODE_VERSION } from '../../../build-info.js';
 import { formatTuiDailyCheckinOutcome } from '../../../checkin/presentation.js';
+import { controllerText } from '../copy.js';
+import { controllerProductText } from './copy.js';
 
-const OFFICIAL_MODEL_LOGIN_HINT = 'Sign in with /login to use official MiniMax models.';
 const SESSION_MANAGER_PAGE_SIZE = 50;
 const SESSION_MANAGER_MAX_ROWS = 24;
 const SESSION_EXPORT_PAGE_SIZE = 200;
+
+/** Hint shown when an official MiniMax model needs a signed-in account. */
+function officialModelLoginHint(): string {
+  return controllerProductText('feature.officialModelLoginHint');
+}
 
 type FeatureRuntime = TuiSessionPort &
   TuiConfigurationPort &
@@ -269,7 +275,7 @@ export class TuiFeatureFlow {
   stageCommand(command: TuiCommand): void {
     this.options.editor.setText(command.composerTemplate);
     this.options.surfaceHost.setChatFocus(this.options.editor);
-    this.options.setHint(`ready: ${command.usage}`);
+    this.options.setHint(controllerProductText('feature.commandStaged', { usage: command.usage }));
     this.options.onChanged();
   }
 
@@ -281,13 +287,13 @@ export class TuiFeatureFlow {
     if (this.isStopped()) return;
     const session = this.options.controller.snapshot().session;
     if (!session) {
-      this.options.setHint('Start or resume a Session before exporting it.');
+      this.options.setHint(controllerProductText('feature.exportNeedsSession'));
       this.options.onChanged();
       return;
     }
     const exporter = this.options.exportTranscript;
     if (!exporter) {
-      this.options.setHint('Transcript export is unavailable.');
+      this.options.setHint(controllerProductText('feature.exportUnavailable'));
       this.options.onChanged();
       return;
     }
@@ -302,7 +308,7 @@ export class TuiFeatureFlow {
 
     const sessionId = session.sessionId;
     const sessionGeneration = this.sessionGeneration;
-    this.options.setHint('Exporting Session as Markdown…');
+    this.options.setHint(controllerProductText('feature.exportingSession'));
     this.options.onChanged();
     try {
       const messages = await loadAllSessionMessages(this.options.runtime, sessionId);
@@ -312,7 +318,7 @@ export class TuiFeatureFlow {
           (message) => message.role === 'user' || isTurnTranscriptResponseMessage(message),
         )
       ) {
-        throw new Error('No conversation content to export.');
+        throw new Error(controllerProductText('feature.exportNoContent'));
       }
       const exportedAtMs = Date.now();
       const markdown = formatTuiSessionMarkdown(messages, {
@@ -330,15 +336,17 @@ export class TuiFeatureFlow {
       if (!this.isCurrentSession(sessionId, sessionGeneration)) return;
       this.options.setHint('');
       this.options.append(
-        `Exported Markdown: ${hyperlink(basename(file), pathToFileURL(file).href)}`,
+        controllerProductText('feature.exportedMarkdown', {
+          file: hyperlink(basename(file), pathToFileURL(file).href),
+        }),
       );
     } catch (error) {
       if (!this.isCurrentSession(sessionId, sessionGeneration)) return;
       this.options.setHint('');
       this.options.append(
         formatTuiActionFailure(error, {
-          summary: "Couldn't export the Session.",
-          nextStep: 'Check the path and permissions, then retry /export.',
+          summary: controllerProductText('feature.exportFailed'),
+          nextStep: controllerProductText('feature.exportFailedNextStep'),
         }),
         'warning',
       );
@@ -368,7 +376,7 @@ export class TuiFeatureFlow {
         ? {
             exportTranscript: async (markdown: string) => {
               const session = this.options.controller.snapshot().session;
-              if (!session) throw new Error('Start or resume a Session before exporting.');
+              if (!session) throw new Error(controllerProductText('feature.exportNeedsSessionShort'));
               return exporter({
                 sessionId: session.sessionId,
                 markdown,
@@ -395,7 +403,7 @@ export class TuiFeatureFlow {
     if (this.isStopped()) return;
     const reply = latestAssistantReply(this.options.transcript);
     if (!reply) {
-      this.options.setHint('No Assistant response to copy.');
+      this.options.setHint(controllerProductText('feature.noAssistantReply'));
       this.options.onChanged();
       return;
     }
@@ -404,13 +412,13 @@ export class TuiFeatureFlow {
     try {
       await (this.options.writeClipboardText ?? writeTuiClipboardText)(reply);
       if (!this.isCurrentSession(sessionId, sessionGeneration)) return;
-      this.options.setHint('Copied last response as Markdown.');
+      this.options.setHint(controllerProductText('feature.copiedLastReply'));
     } catch (error) {
       if (!this.isCurrentSession(sessionId, sessionGeneration)) return;
       this.options.setHint(
         formatTuiActionFailure(error, {
-          summary: "Couldn't copy the last response.",
-          nextStep: 'Open /transcript and copy it manually.',
+          summary: controllerProductText('feature.copyReplyFailed'),
+          nextStep: controllerProductText('feature.copyReplyFailedNextStep'),
         }),
       );
     }
@@ -439,8 +447,8 @@ export class TuiFeatureFlow {
     } catch (error) {
       this.options.append(
         formatTuiActionFailure(error, {
-          summary: "Couldn't load the packaged changelog.",
-          nextStep: 'Reinstall or update MCode, then retry /changelog.',
+          summary: controllerProductText('feature.changelogLoadFailed'),
+          nextStep: controllerProductText('feature.changelogLoadFailedNextStep'),
         }),
         'warning',
       );
@@ -494,9 +502,9 @@ export class TuiFeatureFlow {
       if (!this.isStopped()) {
         this.options.append(
           formatTuiActionFailure(error, {
-            summary: "Couldn't load all conversations.",
-            nextStep: 'Retry /sessions.',
-            preservation: 'Showing saved results.',
+            summary: controllerProductText('feature.sessionsLoadFailed'),
+            nextStep: controllerProductText('feature.retrySessions'),
+            preservation: controllerProductText('feature.showingSavedResults'),
           }),
           'warning',
         );
@@ -549,7 +557,7 @@ export class TuiFeatureFlow {
       },
       onSelect: async (sessionId) => {
         if (this.rejectLiveSessionNavigation('/sessions')) {
-          throw new Error('Stop the running turn before switching Sessions.');
+          throw new Error(controllerProductText('feature.stopBeforeSwitchSession'));
         }
         await this.options.onOpenSession(sessionId);
         this.options.surface.close(manager);
@@ -561,7 +569,7 @@ export class TuiFeatureFlow {
       },
       onRename: async (sessionId, title) => {
         if (this.rejectLiveSessionNavigation('/rename')) {
-          throw new Error('Stop the running turn before renaming a Session.');
+          throw new Error(controllerProductText('feature.stopBeforeRenameSession'));
         }
         const renamed = await this.options.controller.renameSession(sessionId, title);
         this.options.onChanged();
@@ -570,7 +578,7 @@ export class TuiFeatureFlow {
       onSetArchived: async (sessionId, archived) => {
         const wasCurrent = this.options.controller.snapshot().session?.sessionId === sessionId;
         if (this.rejectLiveSessionNavigation('/sessions')) {
-          throw new Error('Stop the running turn before archiving or restoring a Session.');
+          throw new Error(controllerProductText('feature.stopBeforeArchiveSession'));
         }
         await this.options.controller.setSessionArchived(sessionId, archived);
         if (archived && wasCurrent) await this.options.onArchivedCurrentSession(sessionId);
@@ -610,8 +618,8 @@ export class TuiFeatureFlow {
       if (this.isCurrentSessionRequest(sessionId, sessionGeneration, loadSequence)) {
         this.options.append(
           formatTuiActionFailure(error, {
-            summary: "Couldn't load models.",
-            nextStep: 'Retry /model.',
+            summary: controllerProductText('feature.modelsLoadFailed'),
+            nextStep: controllerProductText('feature.retryModel'),
           }),
           'warning',
         );
@@ -645,7 +653,7 @@ export class TuiFeatureFlow {
             if (result.status !== 'selected') {
               if (result.status === 'rejected') {
                 this.options.append(
-                  "Couldn't switch models. The previous model is still selected. Retry /model.",
+                  controllerProductText('feature.modelSwitchRejected'),
                   'error',
                 );
                 void this.modelState.refresh(sessionId);
@@ -653,22 +661,37 @@ export class TuiFeatureFlow {
               return;
             }
             const contextLabel = model.contextLimit
-              ? ` · Context ${formatContextWindow(model.contextLimit)}`
+              ? controllerProductText('feature.modelContextLabel', {
+                  context: formatContextWindow(model.contextLimit),
+                })
               : '';
-            const effortLabel = chosenEffort ? ` · Effort ${chosenEffort}` : '';
+            const effortLabel = chosenEffort
+              ? controllerProductText('feature.modelEffortLabel', { effort: chosenEffort })
+              : '';
             const thinking = chosenEffort ? undefined : resolveTuiThinkingChoice(model);
             const variant =
               thinking === undefined && !chosenEffort && model.variant ? `#${model.variant}` : '';
-            const thinkingLabel = thinking ? ` · Thinking ${thinking === 'on' ? 'On' : 'Off'}` : '';
+            const thinkingLabel = thinking
+              ? controllerProductText('feature.modelThinkingLabel', {
+                  state: controllerProductText(
+                    thinking === 'on' ? 'feature.modelThinkingOn' : 'feature.modelThinkingOff',
+                  ),
+                })
+              : '';
             // Persist the global default now and also apply the welcome choice
             // to the first Session before its Turn.
             const parked = Boolean(chosenEffort) && !sessionId;
             this.pendingSessionModelSelection =
               parked && chosenEffort ? { model: result.model, effort: chosenEffort } : undefined;
             this.options.append(
-              `Model selected: ${model.providerId}/${model.modelId}${variant}${thinkingLabel}${effortLabel}${contextLabel}${
-                sessionId ? ' for this session and saved as the default' : ' as the default'
-              }.${parked ? ' Think effort applies before the first message is sent.' : ''}`,
+              controllerProductText('feature.modelSelected', {
+                model: `${model.providerId}/${model.modelId}`,
+                details: `${variant}${thinkingLabel}${effortLabel}${contextLabel}`,
+                scope: sessionId
+                  ? controllerProductText('feature.modelSelectedScopeSession')
+                  : controllerProductText('feature.modelSelectedScopeDefault'),
+                parked: parked ? controllerProductText('feature.modelSelectedParked') : '',
+              }),
             );
             this.warnModelCacheImpact(
               models.find((candidate) => candidate.selected),
@@ -689,9 +712,9 @@ export class TuiFeatureFlow {
           if (this.isCurrentSession(sessionId, sessionGeneration)) {
             this.options.append(
               formatTuiActionFailure(error, {
-                summary: "Couldn't switch models.",
-                nextStep: 'Retry /model.',
-                preservation: 'The previous model is still selected.',
+                summary: controllerProductText('feature.modelSwitchFailed'),
+                nextStep: controllerProductText('feature.retryModel'),
+                preservation: controllerProductText('feature.modelUnchanged'),
               }),
               'error',
             );
@@ -705,7 +728,7 @@ export class TuiFeatureFlow {
       },
       {
         isUnavailable: (model) => model.providerKind === 'minimax-managed' && !managedTokenPresent,
-        onUnavailable: () => this.options.append(OFFICIAL_MODEL_LOGIN_HINT, 'warning'),
+        onUnavailable: () => this.options.append(officialModelLoginHint(), 'warning'),
         ...(codexOAuthStatus.state === 'hidden'
           ? {}
           : {
@@ -749,7 +772,7 @@ export class TuiFeatureFlow {
             providerModels[0]?.providerName?.trim() || providerId,
           );
           if (sessionId && providerModels.some((model) => model.selected)) {
-            throw new Error('Switch to another model before deleting this provider');
+            throw new Error(controllerProductText('feature.deleteProviderSwitchModel'));
           }
           await this.providerApplication.remove(providerId);
           if (!this.isCurrentSessionRequest(sessionId, sessionGeneration, loadSequence)) return;
@@ -759,14 +782,19 @@ export class TuiFeatureFlow {
           await this.modelState.refresh(sessionId);
           if (!this.isCurrentSessionRequest(sessionId, sessionGeneration, loadSequence)) return;
           this.options.append(
-            `Provider deleted: ${providerName} · ${providerModels.length} model${providerModels.length === 1 ? '' : 's'} removed.`,
+            providerModels.length === 1
+              ? controllerProductText('feature.providerDeletedOne', { providerName })
+              : controllerProductText('feature.providerDeletedMany', {
+                  providerName,
+                  count: providerModels.length,
+                }),
           );
           this.options.controller.refreshStatusMetricsNow();
           await this.showModelPicker('');
         },
         requestRender: this.options.onChanged,
         ...(!managedTokenPresent && models.some((model) => model.providerKind === 'minimax-managed')
-          ? { unavailableHint: OFFICIAL_MODEL_LOGIN_HINT }
+          ? { unavailableHint: officialModelLoginHint() }
           : {}),
       },
       this.modelState.selectedEffort(),
@@ -784,7 +812,7 @@ export class TuiFeatureFlow {
     const sessionId = this.currentSessionId();
     const sessionGeneration = this.sessionGeneration;
     const loadSequence = ++this.providerLoadSequence;
-    this.options.setHint('Loading provider catalog…');
+    this.options.setHint(controllerProductText('feature.loadingProviderCatalog'));
     this.options.onChanged();
     let templates: readonly McodeProviderTemplate[] = [];
     let catalogWarning: string | undefined;
@@ -793,7 +821,7 @@ export class TuiFeatureFlow {
         this.options.loadProviderTemplates ?? (() => this.options.runtime.listProviderPresets())
       )();
     } catch {
-      catalogWarning = 'Known providers unavailable; Custom remains available.';
+      catalogWarning = controllerProductText('feature.providerCatalogWarning');
     }
     if (
       !this.isCurrentSession(sessionId, sessionGeneration) ||
@@ -812,8 +840,8 @@ export class TuiFeatureFlow {
       ) {
         this.options.append(
           formatTuiActionFailure(error, {
-            summary: "Couldn't load saved connections.",
-            nextStep: 'Retry /model or /provider.',
+            summary: controllerProductText('feature.savedConnectionsLoadFailed'),
+            nextStep: controllerProductText('feature.retryModelOrProvider'),
           }),
           'warning',
         );
@@ -877,12 +905,14 @@ export class TuiFeatureFlow {
       result.providerId ? `${result.providerId}/${result.modelId}` : result.modelId,
     );
     this.options.append(
-      `Provider ${result.reused ? 'updated' : 'added'}: ${providerName} · ${modelRef}.`,
+      result.reused
+        ? controllerProductText('feature.providerUpdated', { providerName, model: modelRef })
+        : controllerProductText('feature.providerAdded', { providerName, model: modelRef }),
     );
     if (selectedModel) this.warnModelCacheImpact(previousModel, selectedModel, sessionId);
     if (!selected) {
       this.options.append(
-        'The provider was saved, but the active Session did not switch models. Select it in /model.',
+        controllerProductText('feature.providerModelNotSwitched'),
         'warning',
       );
     }
@@ -902,7 +932,7 @@ export class TuiFeatureFlow {
       const cell = this.options.transcript.cellAt(index);
       if (cell?.kind !== 'user' && cell?.kind !== 'assistant') continue;
       this.options.append(
-        'Switching models may prevent reuse of the existing prompt cache and incur additional costs.',
+        controllerProductText('feature.modelCacheImpactWarning'),
         'warning',
       );
       return;
@@ -920,8 +950,8 @@ export class TuiFeatureFlow {
       if (!this.isStopped() && loadSequence === this.providerLoadSequence) {
         this.options.append(
           formatTuiActionFailure(error, {
-            summary: "Couldn't load providers.",
-            nextStep: 'Retry /provider.',
+            summary: controllerProductText('feature.providersLoadFailed'),
+            nextStep: controllerProductText('feature.retryProvider'),
           }),
           'warning',
         );
@@ -995,15 +1025,15 @@ export class TuiFeatureFlow {
       await this.modelState.refresh();
       if (this.isStopped()) return;
       this.options.controller.refreshStatusMetricsNow();
-      this.options.append('OpenAI Codex connected.');
+      this.options.append(controllerProductText('feature.codexConnected'));
       if (returnTo === 'model') await this.showModelPicker('');
       else await this.showProviderManager();
     } catch (error) {
       if (!this.isStopped())
         this.options.append(
           formatTuiActionFailure(error, {
-            summary: "Couldn't refresh Codex models.",
-            nextStep: 'Reopen /model to retry.',
+            summary: controllerProductText('feature.codexModelsRefreshFailed'),
+            nextStep: controllerProductText('feature.reopenModel'),
           }),
           'error',
         );
@@ -1021,8 +1051,8 @@ export class TuiFeatureFlow {
       if (!this.isStopped() && loadSequence === this.pluginLoadSequence) {
         this.options.append(
           formatTuiActionFailure(error, {
-            summary: "Couldn't load Plugins.",
-            nextStep: 'Retry /plugins.',
+            summary: controllerProductText('feature.pluginsLoadFailed'),
+            nextStep: controllerProductText('feature.retryPlugins'),
           }),
           'warning',
         );
@@ -1042,8 +1072,8 @@ export class TuiFeatureFlow {
         if (!this.isStopped()) {
           this.options.append(
             formatTuiActionFailure(error, {
-              summary: 'Plugin updated, but its Skills could not be refreshed.',
-              nextStep: 'Restart MCode or retry /plugins.',
+              summary: controllerProductText('feature.pluginSkillsRefreshFailed'),
+              nextStep: controllerProductText('feature.restartMCodeOrRetryPlugins'),
             }),
             'warning',
           );
@@ -1096,8 +1126,10 @@ export class TuiFeatureFlow {
       if (this.isCurrentSession(sessionId, sessionGeneration)) {
         this.options.append(
           formatTuiActionFailure(error, {
-            summary: `Couldn't load ${label.toLocaleLowerCase()}.`,
-            nextStep: 'Retry.',
+            summary: controllerProductText('feature.inspectionLoadFailed', {
+              label: label.toLocaleLowerCase(),
+            }),
+            nextStep: controllerText('common.retry'),
           }),
           'error',
         );
@@ -1107,7 +1139,9 @@ export class TuiFeatureFlow {
 
   async showConfigurationInspection(configOnly: boolean): Promise<void> {
     await this.appendInspection(
-      configOnly ? 'Config inspection' : 'Configuration check',
+      configOnly
+        ? controllerProductText('feature.configInspectionLabel')
+        : controllerProductText('feature.configurationCheckLabel'),
       async () => {
         const diagnostics = await this.options.runtime.getRuntimeDiagnostics();
         return configOnly
@@ -1125,8 +1159,8 @@ export class TuiFeatureFlow {
 
   async showAccountStatus(): Promise<void> {
     await this.showReportInspection(
-      'MCode status',
-      'Loading status…',
+      controllerProductText('feature.accountStatusTitle'),
+      controllerProductText('feature.loadingStatus'),
       async (publish) => {
         const session = this.options.controller.snapshot().session;
         const sessionId = session?.sessionId;
@@ -1166,7 +1200,10 @@ export class TuiFeatureFlow {
           inspection: createTuiAccountStatusInspection(account, presentation),
         };
       },
-      { summary: "Couldn't load account status.", nextStep: 'Retry /status.' },
+      {
+        summary: controllerProductText('feature.accountStatusLoadFailed'),
+        nextStep: controllerProductText('feature.retryStatus'),
+      },
     );
   }
 
@@ -1182,7 +1219,7 @@ export class TuiFeatureFlow {
       this.options.append(formatTuiDailyCheckinOutcome(outcome));
     } catch {
       this.options.append(
-        "Couldn't complete daily check-in. Check the connection, then retry /checkin.",
+        controllerProductText('feature.dailyCheckinFailed'),
         'warning',
       );
     }
@@ -1190,8 +1227,8 @@ export class TuiFeatureFlow {
 
   async showSessionUsage(): Promise<void> {
     await this.showReportInspection(
-      'Usage',
-      'Loading usage…',
+      controllerProductText('feature.usageTitle'),
+      controllerProductText('feature.loadingUsage'),
       async () => {
         const session = this.options.controller.snapshot().session;
         const sessionId = session?.sessionId;
@@ -1218,7 +1255,10 @@ export class TuiFeatureFlow {
           ...(inspection ? { inspection } : {}),
         };
       },
-      { summary: "Couldn't load usage.", nextStep: 'Retry /usage.' },
+      {
+        summary: controllerProductText('feature.usageLoadFailed'),
+        nextStep: controllerProductText('feature.retryUsage'),
+      },
     );
   }
 
@@ -1300,8 +1340,8 @@ export class TuiFeatureFlow {
       if (this.isCurrentSession(sessionId, sessionGeneration)) {
         this.options.append(
           formatTuiActionFailure(error, {
-            summary: "Couldn't load skills.",
-            nextStep: 'Retry /skills.',
+            summary: controllerProductText('feature.skillsLoadFailed'),
+            nextStep: controllerProductText('feature.retrySkills'),
           }),
           'error',
         );
@@ -1334,15 +1374,15 @@ export class TuiFeatureFlow {
       if (this.isStopped()) return;
       if (isRuntimeMethodNotImplemented(error)) {
         this.options.append(
-          'MCP status is not available in this build. Configured MCP tools remain available.',
+          controllerProductText('feature.mcpStatusUnavailable'),
           'warning',
         );
         return;
       }
       this.options.append(
         formatTuiActionFailure(error, {
-          summary: "Couldn't load MCP status.",
-          nextStep: 'Retry /mcp.',
+          summary: controllerProductText('feature.mcpStatusLoadFailed'),
+          nextStep: controllerProductText('feature.retryMcp'),
         }),
         'error',
       );
@@ -1351,7 +1391,7 @@ export class TuiFeatureFlow {
 
   async showPermissions(): Promise<void> {
     if (this.isStopped()) return;
-    await this.appendInspection('Permission inspection', async () =>
+    await this.appendInspection(controllerProductText('feature.permissionInspectionLabel'), async () =>
       formatTuiPermissions(await this.options.runtime.listPendingPermissions()),
     );
   }
@@ -1359,7 +1399,10 @@ export class TuiFeatureFlow {
   async compactSession(customInstructions: string, hasLiveRun: boolean): Promise<void> {
     if (this.isStopped()) return;
     if (hasLiveRun) {
-      this.options.append('Stop the running turn before compacting this Session.', 'warning');
+      this.options.append(
+        controllerProductText('feature.stopBeforeCompact'),
+        'warning',
+      );
       return;
     }
     const session = this.requireActiveSession();
@@ -1376,28 +1419,28 @@ export class TuiFeatureFlow {
       if (!this.isCurrentSession(session.sessionId, sessionGeneration)) return;
       if (result.success) return;
       if (result.code === 'NOTHING_TO_COMPACT' || result.code === 'unchanged') {
-        this.options.append('No compaction is needed for this conversation yet.');
+        this.options.append(controllerProductText('feature.noCompactionNeeded'));
         return;
       }
       this.options.append(
         formatTuiActionFailure(result.error ?? result.code ?? 'Runtime rejected the request', {
-          summary: "Couldn't compact this conversation.",
-          nextStep: 'Retry /compact later.',
-          preservation: 'Your messages are unchanged.',
+          summary: controllerProductText('feature.compactFailed'),
+          nextStep: controllerProductText('feature.retryCompact'),
+          preservation: controllerProductText('feature.messagesUnchanged'),
         }),
         'error',
       );
     } catch (error) {
       if (!this.isCurrentSession(session.sessionId, sessionGeneration)) return;
       if (isRuntimeErrorCode(error, 'NOTHING_TO_COMPACT')) {
-        this.options.append('No compaction is needed for this conversation yet.');
+        this.options.append(controllerProductText('feature.noCompactionNeeded'));
         return;
       }
       this.options.append(
         formatTuiActionFailure(error, {
-          summary: "Couldn't compact this conversation.",
-          nextStep: 'Retry /compact later.',
-          preservation: 'Your messages are unchanged.',
+          summary: controllerProductText('feature.compactFailed'),
+          nextStep: controllerProductText('feature.retryCompact'),
+          preservation: controllerProductText('feature.messagesUnchanged'),
         }),
         'error',
       );
@@ -1414,7 +1457,7 @@ export class TuiFeatureFlow {
 
   private rejectLiveSessionNavigation(command: string): boolean {
     if (!this.options.hasLiveRun?.()) return false;
-    this.options.setHint(`Stop the running turn before using ${command}.`);
+    this.options.setHint(controllerText('common.stopBeforeCommand', { command }));
     this.options.onChanged();
     return true;
   }
@@ -1422,7 +1465,7 @@ export class TuiFeatureFlow {
   requireActiveSession(): TuiSession | undefined {
     const session = this.options.controller.snapshot().session;
     if (!session) {
-      this.options.append('No active session. Send a message or use /sessions first.', 'warning');
+      this.options.append(controllerProductText('feature.noActiveSession'), 'warning');
     }
     return session;
   }
@@ -1568,10 +1611,10 @@ function parseExportPath(rawPath: string): string | undefined {
   const quoted =
     value.length >= 2 && ['"', "'"].includes(value[0] ?? '') && value.at(-1) === value[0];
   const path = quoted ? value.slice(1, -1) : value;
-  if (!path.trim()) throw new Error('Usage: /export [path.md]');
+  if (!path.trim()) throw new Error(controllerProductText('feature.exportUsage'));
   const extension = extname(path).toLocaleLowerCase();
   if (extension && extension !== '.md' && extension !== '.markdown') {
-    throw new Error('Usage: /export [path.md]');
+    throw new Error(controllerProductText('feature.exportUsage'));
   }
   return path;
 }

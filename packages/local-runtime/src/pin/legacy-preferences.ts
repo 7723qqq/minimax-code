@@ -1,9 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { FinalizingSqliteDatabase } from '@mavis/shared';
+import { Database } from 'bun:sqlite';
+
 import { logger } from '../common/logger.js';
-import { loadBetterSqlite3Module } from '../persistence/better-sqlite3-loader.js';
-import type { DatabaseConstructor, DatabaseLike } from '../persistence/db.js';
+import type { DatabaseLike } from '../persistence/db.js';
 
 export interface LegacyPinnedItemRef {
   type: 'agent' | 'session';
@@ -27,8 +29,7 @@ export async function readPreviewTrainPinnedItemsOrderPreference(
   let db: DatabaseLike | undefined;
   try {
     // Open the old database read-only to avoid accidentally modifying preview_train data during migration reads.
-    const Database = loadBetterSqlite3Module<DatabaseConstructor>();
-    db = new Database(dbPath, { readonly: true, fileMustExist: true });
+    db = new FinalizingSqliteDatabase(dbPath, { readonly: true, create: false });
     // Some test profiles or earlier versions have no preferences table, meaning there is no legacy pin order to migrate.
     const hasPreferencesTable = (
       db

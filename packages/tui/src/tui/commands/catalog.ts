@@ -3,6 +3,7 @@ import { fuzzyFilter } from '../engine/public.js';
 import { TuiContributionRegistry } from '../../contributions/index.js';
 import { TUI_COMMAND_DESCRIPTORS } from '../../application/command-descriptors.js';
 import { sessionHistoryText, sessionMutationText } from '../features/session-mutation/copy.js';
+import { controllerText, type ControllerCopyKey } from '../controller/copy.js';
 
 export type TuiCommandCategory =
   | 'Session'
@@ -60,6 +61,8 @@ export interface TuiCommand {
   aliases?: readonly string[];
   description: string;
   category: TuiCommandCategory;
+  /** Localized category label derived from `category` when the source omits it. */
+  categoryLabel?: string;
   /** Runtime-provided Skill invocations carry Agent instructions after their slash token. */
   invocationKind?: 'skill';
   /**
@@ -125,7 +128,9 @@ export interface TuiCommandContribution {
   readonly execute?: TuiCommandHandler;
 }
 
-// Built-in command metadata uses English consistently, independent of the system locale.
+// Command metadata follows the active interface language. The shared
+// descriptors in `packages/tui/src/application/command-descriptors.ts` stay
+// English: they are also rendered outside this interface.
 const COMMAND_SOURCES: readonly TuiCommandSource[] = [
   {
     ...TUI_COMMAND_DESCRIPTORS.help,
@@ -140,70 +145,70 @@ const COMMAND_SOURCES: readonly TuiCommandSource[] = [
   },
   {
     name: 'update',
-    description: 'Check for and install an MCode update',
+    description: controllerText('command.description.update'),
     category: 'Application',
     discoverability: 'search-only',
   },
   {
     name: 'changelog',
-    description: 'Show the packaged MCode update history',
+    description: controllerText('command.description.changelog'),
     category: 'Application',
   },
   {
     name: 'sessions',
     aliases: ['resume'],
-    description: 'Search, resume, and manage sessions',
+    description: controllerText('command.description.sessions'),
     category: 'Session',
     argumentHint: '[query]',
     runAvailability: 'idle',
   },
   {
     name: 'goal',
-    description: 'Start or manage the current Session Goal',
+    description: controllerText('command.description.goal'),
     category: 'Session',
     argumentHint: '<objective | action>',
     getArgumentCompletions: argumentCompleter([
-      ['pause', 'Pause Goal auto-continuation'],
-      ['resume', 'Resume a paused or blocked Goal'],
-      ['edit', 'Edit the current Goal objective'],
-      ['clear', 'Remove the current Goal'],
-      ['help', 'Show Goal syntax and budget examples'],
-      ['budget=', 'Set token budget; enter a value such as 50K'],
-      ['budget=clear', 'Remove the Goal token budget'],
+      ['pause', controllerText('command.argument.goal.pause')],
+      ['resume', controllerText('command.argument.goal.resume')],
+      ['edit', controllerText('command.argument.goal.edit')],
+      ['clear', controllerText('command.argument.goal.clear')],
+      ['help', controllerText('command.argument.goal.help')],
+      ['budget=', controllerText('command.argument.goal.budget')],
+      ['budget=clear', controllerText('command.argument.goal.budgetClear')],
     ]),
   },
   {
     name: 'plan',
-    description: 'Switch Plan Mode or view the latest Plan',
+    description: controllerText('command.description.plan'),
     category: 'Session',
     argumentHint: '[on | off | status | view]',
     getArgumentCompletions: argumentCompleter([
-      ['on', 'Enable Plan Mode'],
-      ['off', 'Return to default mode'],
-      ['status', 'Show the current Plan Mode'],
-      ['view', 'View the latest Plan'],
+      ['on', controllerText('command.argument.plan.on')],
+      ['off', controllerText('command.argument.plan.off')],
+      ['status', controllerText('command.argument.plan.status')],
+      ['view', controllerText('command.argument.plan.view')],
     ]),
     shortcut: 'Shift+Tab',
   },
   {
     name: 'review',
-    description: 'Review staged, unstaged, and untracked local changes',
+    description: controllerText('command.description.review'),
     category: 'Capability',
   },
   {
     name: 'parent',
-    description: 'Return from a sub-agent session to its parent',
+    description: controllerText('command.description.parent'),
     category: 'Session',
     discoverability: 'contextual',
     // SessionFlow keeps ordinary parent navigation idle-only, while a BTW
     // side Session may stop its own foreground Turn and return at any time.
     visibleWhen: (context) => context.hasParentSession,
-    unavailableReason: 'The current Session has no parent.',
+    unavailableReason: controllerText('command.unavailable.noParent'),
   },
   {
     name: 'btw',
     aliases: ['side'],
-    description: 'Ask a side question without interrupting the running task',
+    description: controllerText('command.description.btw'),
     category: 'Session',
     discoverability: 'contextual',
     // Deliberately not `runAvailability: 'idle'`. Asking a side question while
@@ -212,46 +217,46 @@ const COMMAND_SOURCES: readonly TuiCommandSource[] = [
     // running Turn by mistake.
     argumentHint: '[question]',
     visibleWhen: (context) => context.hasSession,
-    unavailableReason: 'Open a Session before starting a side conversation.',
+    unavailableReason: controllerText('command.unavailable.sideNeedsSession'),
   },
   {
     name: 'history',
-    description: sessionHistoryText('commandDescription', 'en'),
+    description: sessionHistoryText('commandDescription'),
     category: 'Session',
     discoverability: 'contextual',
     visibleWhen: (context) => context.hasSession,
-    unavailableReason: sessionHistoryText('commandUnavailable', 'en'),
+    unavailableReason: sessionHistoryText('commandUnavailable'),
   },
   {
     name: 'fork',
-    description: sessionMutationText('sessionMutation.command.fork.description', 'en'),
+    description: sessionMutationText('sessionMutation.command.fork.description'),
     category: 'Session',
     discoverability: 'contextual',
     runAvailability: 'idle',
     visibleWhen: (context) => context.hasSession,
-    unavailableReason: sessionMutationText('sessionMutation.command.fork.unavailable', 'en'),
+    unavailableReason: sessionMutationText('sessionMutation.command.fork.unavailable'),
   },
   {
     name: 'rewind',
-    description: sessionMutationText('sessionMutation.command.rewind.description', 'en'),
+    description: sessionMutationText('sessionMutation.command.rewind.description'),
     category: 'Session',
     discoverability: 'contextual',
     runAvailability: 'idle',
     visibleWhen: (context) => context.hasSession,
-    unavailableReason: sessionMutationText('sessionMutation.command.rewind.unavailable', 'en'),
+    unavailableReason: sessionMutationText('sessionMutation.command.rewind.unavailable'),
   },
   {
     name: 'edit',
-    description: sessionMutationText('sessionMutation.command.edit.description', 'en'),
+    description: sessionMutationText('sessionMutation.command.edit.description'),
     category: 'Session',
     discoverability: 'contextual',
     runAvailability: 'idle',
     visibleWhen: (context) => context.hasSession,
-    unavailableReason: sessionMutationText('sessionMutation.command.edit.unavailable', 'en'),
+    unavailableReason: sessionMutationText('sessionMutation.command.edit.unavailable'),
   },
   {
     name: 'retry',
-    description: 'Resend the last message after a failed response',
+    description: controllerText('command.description.retry'),
     category: 'Session',
     discoverability: 'contextual',
     // A response that is still running (for example a hung provider request)
@@ -259,21 +264,21 @@ const COMMAND_SOURCES: readonly TuiCommandSource[] = [
     // is nothing to retry (#425).
     runAvailability: 'idle',
     visibleWhen: (context) => context.canRetry && !context.hasLiveRun,
-    unavailableReason: 'There is no failed response to retry in this Session.',
+    unavailableReason: controllerText('command.unavailable.nothingToRetry'),
   },
   {
     name: 'rename',
-    description: 'Rename the active session',
+    description: controllerText('command.description.rename'),
     category: 'Session',
     discoverability: 'contextual',
     visibleWhen: (context) => context.hasSession,
-    unavailableReason: 'Start or resume a Session before renaming it.',
+    unavailableReason: controllerText('command.unavailable.renameNeedsSession'),
     argumentHint: '[title]',
     runAvailability: 'idle',
   },
   {
     name: 'archive',
-    description: 'Archive the active session',
+    description: controllerText('command.description.archive'),
     category: 'Session',
     audience: 'internal',
   },
@@ -284,60 +289,60 @@ const COMMAND_SOURCES: readonly TuiCommandSource[] = [
     discoverability: 'contextual',
     runAvailability: 'idle',
     visibleWhen: (context) => context.hasSession,
-    unavailableReason: 'Start or resume a Session before compacting it.',
+    unavailableReason: controllerText('command.unavailable.compactNeedsSession'),
   },
   {
     ...TUI_COMMAND_DESCRIPTORS.status,
     category: 'Runtime',
     readiness: 'controller',
-    preparingHint: 'Loading account status…',
+    preparingHint: controllerText('command.preparing.accountStatus'),
   },
   {
     name: 'tasks',
-    description: 'Inspect background agents and Runtime tasks',
+    description: controllerText('command.description.tasks'),
     category: 'Runtime',
     discoverability: 'contextual',
     visibleWhen: (context) => context.hasSession,
-    unavailableReason: 'Start or resume a Session before opening background tasks.',
+    unavailableReason: controllerText('command.unavailable.tasksNeedsSession'),
   },
   {
     name: 'permission',
-    description: 'Choose or inspect the Runtime permission mode',
+    description: controllerText('command.description.permission'),
     category: 'Runtime',
     argumentHint: '[status | ask | auto | full]',
     getArgumentCompletions: argumentCompleter([
-      ['status', 'Show the current permission mode'],
-      ['ask', 'Use Ask mode'],
-      ['auto', 'Use Auto mode'],
-      ['full', 'Use Full Access mode'],
+      ['status', controllerText('command.argument.permission.status')],
+      ['ask', controllerText('command.argument.permission.ask')],
+      ['auto', controllerText('command.argument.permission.auto')],
+      ['full', controllerText('command.argument.permission.full')],
     ]),
     shortcut: 'Alt+M',
   },
   {
     name: 'login',
-    description: 'Sign in to use MiniMax Code Agent features',
+    description: controllerText('command.description.login'),
     category: 'Runtime',
     discoverability: 'contextual',
     visibleWhen: (context) => !context.managedTokenPresent,
   },
   {
     name: 'logout',
-    description: 'Sign out of the shared Desktop account',
+    description: controllerText('command.description.logout'),
     category: 'Runtime',
     discoverability: 'contextual',
     visibleWhen: (context) => context.managedTokenPresent,
-    unavailableReason: 'No managed MiniMax account is signed in.',
+    unavailableReason: controllerText('command.unavailable.noManagedAccount'),
   },
   {
     ...TUI_COMMAND_DESCRIPTORS.doctor,
     category: 'Runtime',
     discoverability: 'search-only',
     readiness: 'immediate',
-    preparingHint: 'Loading configuration check…',
+    preparingHint: controllerText('command.preparing.configurationCheck'),
   },
   {
     name: 'config',
-    description: 'Show the effective read-only configuration',
+    description: controllerText('command.description.config'),
     category: 'Runtime',
     audience: 'internal',
   },
@@ -346,44 +351,44 @@ const COMMAND_SOURCES: readonly TuiCommandSource[] = [
     category: 'Runtime',
     discoverability: 'contextual',
     visibleWhen: (context) => context.hasSession,
-    unavailableReason: 'Start or resume a Session before viewing context.',
+    unavailableReason: controllerText('command.unavailable.contextNeedsSession'),
   },
   {
     name: 'steer',
-    description: 'Steer current work without interrupting it',
+    description: controllerText('command.description.steer'),
     category: 'Runtime',
     argumentHint: '<message>',
   },
   {
     name: 'feedback',
-    description: 'Review and submit redacted product feedback',
+    description: controllerText('command.description.feedback'),
     category: 'Application',
     argumentHint: '<message>',
     discoverability: 'search-only',
   },
   {
     name: 'checkin',
-    description: 'Claim the daily MiniMax account reward',
+    description: controllerText('command.description.checkin'),
     category: 'Application',
     readiness: 'controller',
-    preparingHint: 'Checking daily reward…',
+    preparingHint: controllerText('command.preparing.dailyReward'),
   },
   {
     name: 'settings',
-    description: 'Configure the MCode terminal interface',
+    description: controllerText('command.description.settings'),
     category: 'Application',
   },
   {
     name: 'statusline',
-    description: 'Choose, reorder, and preview status line items',
+    description: controllerText('command.description.statusline'),
     category: 'Application',
     readiness: 'immediate',
     visibleWhen: (context) => !context.hasPendingInteraction,
-    unavailableReason: 'Finish the pending interaction before configuring the status line.',
+    unavailableReason: controllerText('command.unavailable.statusLineNeedsInteraction'),
   },
   {
     name: 'theme',
-    description: 'Choose the MCode color theme and terminal appearance',
+    description: controllerText('command.description.theme'),
     category: 'Application',
     // Reachable by typing, but kept out of the default slash list: theme
     // selection is a preference, not a primary verb.
@@ -392,17 +397,17 @@ const COMMAND_SOURCES: readonly TuiCommandSource[] = [
   },
   {
     name: 'hotkeys',
-    description: 'View and customize TUI keyboard shortcuts',
+    description: controllerText('command.description.hotkeys'),
     category: 'Application',
     runAvailability: 'idle',
-    unavailableReason: 'Stop the active Turn before opening TUI keyboard shortcuts.',
+    unavailableReason: controllerText('command.unavailable.hotkeysNeedsIdle'),
   },
   {
     name: 'reload',
-    description: 'Reload TUI configuration and Plugins',
+    description: controllerText('command.description.reload'),
     category: 'Application',
     runAvailability: 'idle',
-    unavailableReason: 'Stop the active Turn before reloading TUI configuration.',
+    unavailableReason: controllerText('command.unavailable.reloadNeedsIdle'),
   },
   {
     ...TUI_COMMAND_DESCRIPTORS.model,
@@ -411,12 +416,12 @@ const COMMAND_SOURCES: readonly TuiCommandSource[] = [
   },
   {
     name: 'provider',
-    description: 'View providers and edit MiniMax credentials',
+    description: controllerText('command.description.provider'),
     category: 'Runtime',
   },
   {
     name: 'plugins',
-    description: 'Browse, install, enable, and remove Plugins',
+    description: controllerText('command.description.plugins'),
     category: 'Capability',
     argumentHint: '[filter]',
   },
@@ -434,14 +439,14 @@ const COMMAND_SOURCES: readonly TuiCommandSource[] = [
   },
   {
     name: 'add-dir',
-    description: 'Add a readable and writable workspace directory',
+    description: controllerText('command.description.addDir'),
     category: 'Input',
     argumentHint: '<path>',
     discoverability: 'search-only',
   },
   {
     name: 'decision',
-    description: 'Reopen the pending action panel',
+    description: controllerText('command.description.decision'),
     category: 'Decision',
     audience: 'internal',
   },
@@ -456,71 +461,71 @@ const COMMAND_SOURCES: readonly TuiCommandSource[] = [
     argumentHint: '[path.md]',
     discoverability: 'contextual',
     visibleWhen: (context) => context.hasSession,
-    unavailableReason: 'Start or resume a Session before exporting it.',
+    unavailableReason: controllerText('command.unavailable.exportNeedsSession'),
   },
   {
     name: 'transcript',
-    description: 'Browse, search, and inspect the full conversation',
+    description: controllerText('command.description.transcript'),
     category: 'Transcript',
     discoverability: 'contextual',
     visibleWhen: (context) => context.hasSession,
-    unavailableReason: 'Start or resume a Session before opening the Transcript.',
+    unavailableReason: controllerText('command.unavailable.transcriptNeedsSession'),
   },
   {
     name: 'copy',
-    description: 'Copy last response as Markdown',
+    description: controllerText('command.description.copy'),
     category: 'Transcript',
     discoverability: 'contextual',
     visibleWhen: (context) => context.hasSession,
-    unavailableReason: 'Start or resume a Session before copying a response.',
+    unavailableReason: controllerText('command.unavailable.copyNeedsSession'),
   },
   {
     name: 'allow',
-    description: 'Allow the pending tool once',
+    description: controllerText('command.description.allow'),
     category: 'Decision',
     audience: 'internal',
     inputWhen: (context) => context.hasPendingInteraction === true,
   },
   {
     name: 'always',
-    description: 'Always allow this action class',
+    description: controllerText('command.description.always'),
     category: 'Decision',
     audience: 'internal',
     inputWhen: (context) => context.hasPendingInteraction === true,
   },
   {
     name: 'deny',
-    description: 'Deny the pending tool',
+    description: controllerText('command.description.deny'),
     category: 'Decision',
     audience: 'internal',
     inputWhen: (context) => context.hasPendingInteraction === true,
   },
   {
     name: 'permissions',
-    description: 'Show pending Runtime-owned permission requests',
+    description: controllerText('command.description.permissions'),
     category: 'Decision',
     audience: 'internal',
   },
   {
     name: 'stop',
-    description: 'Interrupt the running turn',
+    description: controllerText('command.description.stop'),
     category: 'Application',
     audience: 'internal',
     readiness: 'immediate',
   },
   {
     name: 'queue',
-    description: 'Manage messages that run after the current response',
+    description: controllerText('command.description.queue'),
     category: 'Input',
     discoverability: 'contextual',
     visibleWhen: (context) =>
       context.queueEnabled && (context.hasLiveRun || context.queuedCount > 0),
-    unavailableReason: 'No messages are waiting and no response is currently running.',
+    unavailableReason: controllerText('command.unavailable.queueEmpty'),
   },
   {
     name: 'quit',
     aliases: ['exit'],
-    description: 'Exit Minimax Code',
+    description: controllerText('command.description.quit'),
     category: 'Application',
     readiness: 'immediate',
   },
@@ -660,8 +665,9 @@ export function createTuiCommandCatalog(
           status: 'unavailable',
           reason:
             command.runAvailability === 'idle' && currentContext.hasLiveRun
-              ? `Stop the running turn before using ${command.usage}.`
-              : (command.unavailableReason ?? `${command.usage} is unavailable right now.`),
+              ? controllerText('command.unavailable.stopBeforeUsage', { usage: command.usage })
+              : (command.unavailableReason ??
+                controllerText('command.unavailable.notAvailableNow', { usage: command.usage })),
         };
       }
       const disposition = await invocation.contribution.execute?.(invocation.command);
@@ -726,6 +732,21 @@ export function matchTuiCommandInput<TCommand extends TuiCommandInputDescriptor>
   return { source, raw, token, args };
 }
 
+/** Localized label for every command category, keyed by its stable English key. */
+const COMMAND_CATEGORY_LABELS: Readonly<Record<TuiCommandCategory, ControllerCopyKey>> = {
+  Session: 'command.category.session',
+  Runtime: 'command.category.runtime',
+  Capability: 'command.category.capability',
+  Input: 'command.category.input',
+  Transcript: 'command.category.transcript',
+  Decision: 'command.category.decision',
+  Application: 'command.category.application',
+};
+
+function commandCategoryLabel(category: TuiCommandCategory): string {
+  return controllerText(COMMAND_CATEGORY_LABELS[category]);
+}
+
 function materializeCommand(source: TuiCommandSource, names: Set<string>): TuiCommand {
   const normalizedNames = [source.name, ...(source.aliases ?? [])].map((name) =>
     name.toLocaleLowerCase(),
@@ -739,6 +760,7 @@ function materializeCommand(source: TuiCommandSource, names: Set<string>): TuiCo
     ...source,
     usage,
     composerTemplate: `/${source.name}${source.argumentHint ? ' ' : ''}`,
+    categoryLabel: source.categoryLabel ?? commandCategoryLabel(source.category),
   };
 }
 
@@ -772,9 +794,9 @@ export function resolveSideModeUnavailableReason(
   command: Pick<TuiCommand, 'name' | 'usage'>,
 ): string {
   if (command.name.toLocaleLowerCase() === 'rename') {
-    return 'Side conversations are ephemeral and cannot be renamed.';
+    return controllerText('command.unavailable.sideRename');
   }
-  return `${command.usage} is unavailable in side conversations. Press Ctrl+C to return to the main session first.`;
+  return controllerText('command.unavailable.sideCommand', { usage: command.usage });
 }
 
 export function isTuiCommandAvailable(command: TuiCommand, context: TuiCommandContext): boolean {

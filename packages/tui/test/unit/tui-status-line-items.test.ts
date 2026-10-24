@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'bun:test';
 
 import { applyTuiRenderTheme, getTuiThemeSnapshot, tuiChalk, tuiColors } from '../../src/tui/theme/runtime.js';
 import { MINIMAX_CODE_DARK_THEME, MINIMAX_CODE_LIGHT_THEME } from '../../src/tui/theme/palettes.js';
@@ -86,13 +86,15 @@ describe('TuiStatusLine default items', () => {
   });
 
   it('localizes the lightweight indicator for a Chinese runtime locale', () => {
-    const locale = vi
-      .spyOn(Intl.DateTimeFormat.prototype, 'resolvedOptions')
-      .mockReturnValue({ locale: 'zh-CN' } as Intl.ResolvedDateTimeFormatOptions);
+    // Use the runtime's own override rather than mocking `Intl`: the resolver
+    // consults `MCODE_LOCALE` before `Intl`, so this exercises the real path.
+    const previous = process.env.MCODE_LOCALE;
+    process.env.MCODE_LOCALE = 'zh-CN';
     try {
       expect(stripAnsi(render({ ...BASE_STATE, lightweightMode: true }))).toContain('轻量模式');
     } finally {
-      locale.mockRestore();
+      if (previous === undefined) delete process.env.MCODE_LOCALE;
+      else process.env.MCODE_LOCALE = previous;
     }
   });
 

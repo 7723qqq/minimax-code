@@ -1,8 +1,10 @@
+import { stubEnv, unstubAllEnvs } from '../../../test/bun-test-setup.js';
+import { afterEach, beforeEach, describe, expect, it, jest, spyOn } from 'bun:test';
 import fs from "node:fs";
 import os from "node:os";
 import { join } from "node:path";
 import yaml from "js-yaml";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
 import {
   getConfigPath,
   resetConfig,
@@ -75,9 +77,9 @@ beforeEach(() => {
   root = fs.mkdtempSync(join(os.tmpdir(), "mcode-config-preservation-"));
   dataDir = join(root, "profile");
   fs.mkdirSync(dataDir);
-  vi.spyOn(os, "homedir").mockReturnValue(root);
-  vi.stubEnv("MINIMAX_DATA_DIR", dataDir);
-  vi.stubEnv("__MAVIS_RUNTIME_MANAGED", "0");
+  spyOn(os, "homedir").mockReturnValue(root);
+  stubEnv("MINIMAX_DATA_DIR", dataDir);
+  stubEnv("__MAVIS_RUNTIME_MANAGED", "0");
   resetConfig();
   setLegacyByokProviderMigrationEnabled(false);
   setManagedPresetBaseUrlSyncEnabled(false);
@@ -85,8 +87,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  vi.restoreAllMocks();
-  vi.unstubAllEnvs();
+  jest.restoreAllMocks();
+  unstubAllEnvs();
   resetConfig();
   setLegacyByokProviderMigrationEnabled(true);
   setManagedPresetBaseUrlSyncEnabled(true);
@@ -104,7 +106,7 @@ describe.each(writers)("%s config updates", (_name, write) => {
     "rejects %s without replacing the original file",
     async (_kind, source) => {
       fs.writeFileSync(configPath, source);
-      const rename = vi.spyOn(fs.promises, "rename");
+      const rename = spyOn(fs.promises, "rename");
 
       await expect(write()).rejects.toThrow(/Invalid config\.yaml/);
 
@@ -127,10 +129,10 @@ describe.each(writers)("%s config updates", (_name, write) => {
   it("aborts on a read failure and releases the lock", async () => {
     const source = `permissionMode: auto\n# ${secret}\n`;
     fs.writeFileSync(configPath, source);
-    const read = vi.spyOn(fs, "readFileSync").mockImplementation(() => {
+    const read = spyOn(fs, "readFileSync").mockImplementation(() => {
       throw Object.assign(new Error(`EACCES ${secret}`), { code: "EACCES" });
     });
-    const rename = vi.spyOn(fs.promises, "rename");
+    const rename = spyOn(fs.promises, "rename");
 
     await expect(write()).rejects.toThrow(
       "Local runtime failed to update config file",

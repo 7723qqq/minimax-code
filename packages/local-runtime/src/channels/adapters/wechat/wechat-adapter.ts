@@ -78,6 +78,7 @@ import {
   WECHAT_CDN_BASE_URL,
 } from './wechat-adapter-helpers.js';
 import { LocalWeChatMonitorWire } from './wechat-monitor-wire.js';
+import { wechatText } from './wechat-copy.js';
 import { formatPermissionText, parsePermissionCommand } from './wechat-permission.js';
 import {
   formatQuestionnaireText,
@@ -452,7 +453,7 @@ export class LocalWeChatChannelAdapter implements LocalChannelPlatformAdapter {
           const name = media.name ?? extractFileName(media.path) ?? media.kind;
           const msg = err instanceof Error ? err.message : String(err);
           logger.error({ err, kind: media.kind, name }, 'WeChat outbound media failed');
-          mediaErrors.push(`[媒体发送失败: ${name} — ${msg}]`);
+          mediaErrors.push(wechatText('attachment.sendFailed', { name, message: msg }));
         }
       }
       if (mediaErrors.length > 0) {

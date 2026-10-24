@@ -1,8 +1,9 @@
+import { stubEnv, unstubAllEnvs } from '../../../test/bun-test-setup.js';
 import fs from "node:fs";
 import os from "node:os";
 import { join } from "node:path";
 import yaml from "js-yaml";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import {
   DEFAULT_MODEL_PRESETS,
   getConfig,
@@ -15,17 +16,17 @@ let dataDir: string;
 
 beforeEach(() => {
   dataDir = fs.mkdtempSync(join(os.tmpdir(), "mcode-model-fallback-"));
-  vi.stubEnv("MINIMAX_DATA_DIR", dataDir);
-  vi.stubEnv("__MAVIS_RUNTIME_DATA_DIR", dataDir);
-  vi.stubEnv("__MAVIS_RUNTIME_MANAGED", "1");
-  vi.stubEnv("__MAVIS_RUNTIME_DISABLE_GIT_AUTO_CONFIG", "1");
-  vi.stubEnv("MAVIS_REGION", "en");
-  vi.stubEnv("MAVIS_BUILD_ENV", "prod");
+  stubEnv("MINIMAX_DATA_DIR", dataDir);
+  stubEnv("__MAVIS_RUNTIME_DATA_DIR", dataDir);
+  stubEnv("__MAVIS_RUNTIME_MANAGED", "1");
+  stubEnv("__MAVIS_RUNTIME_DISABLE_GIT_AUTO_CONFIG", "1");
+  stubEnv("MAVIS_REGION", "en");
+  stubEnv("MAVIS_BUILD_ENV", "prod");
   resetConfig();
 });
 
 afterEach(() => {
-  vi.unstubAllEnvs();
+  unstubAllEnvs();
   resetConfig();
   fs.rmSync(dataDir, { recursive: true, force: true });
 });

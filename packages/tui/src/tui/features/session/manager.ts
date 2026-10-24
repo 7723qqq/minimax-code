@@ -22,6 +22,7 @@ import {
 import { isSurfaceableHiddenBranch } from '../../../runtime/session-visibility.js';
 import { tuiChalk as chalk, tuiColors as colors } from '../../theme/runtime.js';
 import { formatTuiActionFailure } from '../../../user-facing-failure.js';
+import { sessionText } from './copy.js';
 
 type SessionManagerView = 'active' | 'archived';
 type SessionManagerScope = 'workspace' | 'all';
@@ -115,7 +116,7 @@ export class TuiSessionManager implements Component, Focusable {
     if (index < 0) {
       this.status = {
         tone: 'error',
-        text: 'The current Session is not available here. Use /rename <title> to rename it directly.',
+        text: sessionText('session.error.currentUnavailable'),
       };
       this.requestRender();
       return false;
@@ -250,7 +251,10 @@ export class TuiSessionManager implements Component, Focusable {
     const activeCount = scoped.filter((session) => !session.archived).length;
     const archivedCount = scoped.length - activeCount;
     const viewLabel = this.view === 'active' ? 'Recent' : 'Archived';
-    const scopeLabel = this.scope === 'workspace' ? 'This workspace' : 'All sessions';
+    const scopeLabel =
+      this.scope === 'workspace'
+        ? sessionText('session.scope.workspace')
+        : sessionText('session.scope.all');
     const searchLine = this.searchInput.render(Math.max(1, width - 12))[0] ?? '';
     if (maxRows !== undefined && maxRows <= 8) {
       return this.renderInlineCompactList(width, maxRows, visible, viewLabel, searchLine);
@@ -262,25 +266,55 @@ export class TuiSessionManager implements Component, Focusable {
     const primaryFooter = `${
       narrow
         ? width < 30
-          ? '↑↓ · Enter · Esc · Ctrl+A all'
-          : `↑↓ · Enter · Esc · Ctrl+A ${this.scope === 'workspace' ? 'all' : 'current'}${
-              this.hasMore ? ' · Ctrl+L' : ''
-            }`
+          ? `↑↓ · ${sessionText('session.hint.enterEsc')} · Ctrl+A ${sessionText('session.footer.scope.all')}`
+          : `↑↓ · ${sessionText('session.hint.enterEsc')} · Ctrl+A ${
+              sessionText(
+                this.scope === 'workspace'
+                  ? 'session.footer.scope.all'
+                  : 'session.footer.scope.current',
+              )
+            }${this.hasMore ? ' · Ctrl+L' : ''}`
         : compact
-          ? `↑↓ · Enter ${this.view === 'active' ? 'switch' : 'restore'} · Ctrl+A ${
-              this.scope === 'workspace' ? 'all' : 'current'
+          ? `↑↓ · Enter ${
+              sessionText(
+                this.view === 'active' ? 'session.footer.action.switch' : 'session.footer.action.restore',
+              )
+            } · Ctrl+A ${
+              sessionText(
+                this.scope === 'workspace'
+                  ? 'session.footer.scope.all'
+                  : 'session.footer.scope.current',
+              )
             }${this.hasMore ? ' · Ctrl+L more' : ''} · Tab ${
-              this.view === 'active' ? 'archived' : 'recent'
+              sessionText(
+                this.view === 'active' ? 'session.footer.view.archived' : 'session.footer.view.recent',
+              )
             } · Esc`
-          : `↑↓ move · Enter ${this.view === 'active' ? 'switch' : 'restore'} · Tab ${
-              this.view === 'active' ? 'archived' : 'recent'
+          : `${sessionText('session.footer.move')} · Enter ${
+              sessionText(
+                this.view === 'active' ? 'session.footer.action.switch' : 'session.footer.action.restore',
+              )
+            } · Tab ${
+              sessionText(
+                this.view === 'active' ? 'session.footer.view.archived' : 'session.footer.view.recent',
+              )
             }`
     }${listPosition}`;
     const secondaryFooter = !showSecondaryFooter
       ? undefined
-      : `Ctrl+A ${this.scope === 'workspace' ? 'all' : 'current'} · Ctrl+N new · Ctrl+R rename · Ctrl+D ${
-          this.view === 'active' ? 'archive' : 'restore'
-        }${this.hasMore ? ' · More sessions available · Ctrl+L more' : ''} · Esc close`;
+      : `Ctrl+A ${
+          sessionText(
+            this.scope === 'workspace' ? 'session.footer.scope.all' : 'session.footer.scope.current',
+          )
+        } · Ctrl+N ${sessionText('session.footer.action.new')} · Ctrl+R ${sessionText(
+          'session.footer.action.rename',
+        )} · Ctrl+D ${
+          sessionText(
+            this.view === 'active' ? 'session.footer.action.archive' : 'session.footer.action.restore',
+          )
+        }${
+          this.hasMore ? ` · ${sessionText('session.footer.moreAvailable')}` : ''
+        } · ${sessionText('session.footer.close')}`;
     const footerRows = renderPanelFooter(
       [primaryFooter, ...(secondaryFooter ? [secondaryFooter] : [])],
       Math.max(1, width - 4),
@@ -305,8 +339,8 @@ export class TuiSessionManager implements Component, Focusable {
         frameRow(
           chalk.hex(colors.accent)(
             this.searchInput.getValue().trim()
-              ? 'Searching saved sessions…'
-              : 'Loading more sessions…',
+              ? sessionText('session.status.searching')
+              : sessionText('session.status.loadingMore'),
           ),
           width,
         ),
@@ -314,12 +348,7 @@ export class TuiSessionManager implements Component, Focusable {
     }
     lines.push(frameRow(`${chalk.hex(colors.muted)('Search')} ${searchLine}`, width));
     if (!compact) {
-      lines.push(
-        frameRow(
-          chalk.hex(colors.dim)('Filter title, ID, workspace, model, status, or branch'),
-          width,
-        ),
-      );
+      lines.push(frameRow(chalk.hex(colors.dim)(sessionText('session.filter.hint')), width));
     }
 
     if (visible.length === 0) {
@@ -328,9 +357,9 @@ export class TuiSessionManager implements Component, Focusable {
           chalk.hex(colors.warning)(
             this.searchInput.getValue()
               ? this.loadingMore || this.hasMore
-                ? 'Searching saved sessions…'
-                : 'No matching sessions.'
-              : `No ${viewLabel.toLowerCase()} sessions in this workspace.`,
+                ? sessionText('session.status.searching')
+                : sessionText('session.status.noMatches')
+              : sessionText('session.empty.noSessionsInWorkspace', { view: this.viewWord() }),
           ),
           width,
         ),
@@ -363,7 +392,9 @@ export class TuiSessionManager implements Component, Focusable {
           composeLine(
             chalk.bold.hex(colors.text)(
               truncateToWidth(
-                sanitizeTerminalText(selected.title?.trim() || 'Untitled session'),
+                sanitizeTerminalText(
+                  selected.title?.trim() || sessionText('session.title.untitled'),
+                ),
                 Math.max(1, width - 28),
                 '…',
               ),
@@ -397,7 +428,11 @@ export class TuiSessionManager implements Component, Focusable {
           frameRow(
             chalk.hex(colors.muted)(
               `Path ${truncatePath(
-                shortenHome(sanitizeTerminalText(selected.workspaceDir ?? 'Unknown workspace')),
+                shortenHome(
+                  sanitizeTerminalText(
+                    selected.workspaceDir ?? sessionText('session.workspace.unknown'),
+                  ),
+                ),
                 Math.max(1, width - 10),
               )}`,
             ),
@@ -456,9 +491,9 @@ export class TuiSessionManager implements Component, Focusable {
     const header = query ? `Sessions · /${query}` : `Sessions · ${viewLabel}`;
     const emptyMessage = query
       ? this.loadingMore || this.hasMore
-        ? 'Searching saved sessions…'
-        : 'No matching sessions.'
-      : `No ${viewLabel.toLowerCase()} sessions in this workspace.`;
+        ? sessionText('session.status.searching')
+        : sessionText('session.status.noMatches')
+      : sessionText('session.empty.noSessionsInWorkspace', { view: this.viewWord() });
     const selectedLine = selected
       ? this.renderSessionLine(selected, true, width - 4)
       : chalk.hex(colors.warning)(emptyMessage);
@@ -481,7 +516,9 @@ export class TuiSessionManager implements Component, Focusable {
     const isCurrent = session.sessionId === this.activeSessionId;
     const prefix = selected ? chalk.bold.hex(colors.signal)('› ') : chalk.hex(colors.dim)('  ');
     const currentMark = isCurrent ? chalk.hex(colors.success)('● ') : '';
-    const title = sanitizeTerminalText(session.title?.trim() || 'Untitled session');
+    const title = sanitizeTerminalText(
+      session.title?.trim() || sessionText('session.title.untitled'),
+    );
     const delegated = isTuiDelegatedSession(session);
     const identity = delegated
       ? `↳ Sub-agent${session.agentName ? ` · ${sanitizeTerminalText(session.agentName)}` : ''} · ${title}`
@@ -574,9 +611,9 @@ export class TuiSessionManager implements Component, Focusable {
   }
 
   private renderTextMode(width: number, height?: number): string[] {
-    const layout = panelLayout(width, height, 'Ctrl+U clear · Enter save · Esc cancel');
+    const layout = panelLayout(width, height, sessionText('session.hint.rename'));
     return layout.render({
-      title: 'Sessions / Rename session',
+      title: sessionText('session.rename.title'),
       body: [
         this.actionInput.render(Math.max(1, layout.contentWidth))[0] ?? '',
         ...(this.status
@@ -594,12 +631,16 @@ export class TuiSessionManager implements Component, Focusable {
     const target = this.findActionTarget();
     return renderPanelFrame(
       {
-        title: 'Archive session?',
+        title: sessionText('session.archive.title'),
         body: [
-          sanitizeTerminalText(target?.title?.trim() || target?.sessionId || 'Unknown session'),
-          chalk.hex(colors.muted)('History stays available under Archived.'),
+          sanitizeTerminalText(
+            target?.title?.trim() ||
+              target?.sessionId ||
+              sessionText('session.archive.unknownSession'),
+          ),
+          chalk.hex(colors.muted)(sessionText('session.archive.historyNote')),
         ],
-        footer: 'Enter archive · Esc cancel',
+        footer: sessionText('session.archive.hint'),
       },
       width,
       height,
@@ -667,7 +708,10 @@ export class TuiSessionManager implements Component, Focusable {
     this.busy = true;
     this.status = {
       tone: 'info',
-      text: nextScope === 'all' ? 'Loading all sessions…' : 'Loading this workspace…',
+      text:
+        nextScope === 'all'
+          ? sessionText('session.status.loadingAll')
+          : sessionText('session.status.loadingWorkspace'),
     };
     this.requestRender();
     try {
@@ -688,9 +732,9 @@ export class TuiSessionManager implements Component, Focusable {
       this.status = {
         tone: 'error',
         text: formatTuiActionFailure(error, {
-          summary: "Couldn't change the session scope.",
-          nextStep: 'Retry.',
-          preservation: 'The current session list is unchanged.',
+          summary: sessionText('session.error.scopeChanged'),
+          nextStep: sessionText('session.action.retry'),
+          preservation: sessionText('session.error.scopePreserved'),
         }),
       };
     } finally {
@@ -741,13 +785,27 @@ export class TuiSessionManager implements Component, Focusable {
             text:
               this.scope === 'workspace' && scopedAdded === 0
                 ? page.hasMore
-                  ? `${added} session${added === 1 ? '' : 's'} loaded · none in this workspace · Ctrl+A show all.`
-                  : 'All sessions loaded · none new in this workspace.'
+                  ? sessionText(
+                      added === 1
+                        ? 'session.status.loadedNoneInWorkspace.one'
+                        : 'session.status.loadedNoneInWorkspace.many',
+                      { count: added },
+                    )
+                  : sessionText('session.status.allLoadedWorkspace')
                 : page.hasMore
-                  ? `${scopedAdded} more session${scopedAdded === 1 ? '' : 's'}${
-                      this.scope === 'workspace' ? ' in this workspace' : ''
-                    } loaded.`
-                  : 'All matching sessions loaded.',
+                  ? sessionText(
+                      scopedAdded === 1
+                        ? 'session.status.loadedMore.one'
+                        : 'session.status.loadedMore.many',
+                      {
+                        count: scopedAdded,
+                        scope:
+                          this.scope === 'workspace'
+                            ? sessionText('session.scopeSuffix.workspace')
+                            : '',
+                      },
+                    )
+                  : sessionText('session.status.allMatchesLoaded'),
           };
         }
         this.clampSelection();
@@ -798,6 +856,19 @@ export class TuiSessionManager implements Component, Focusable {
     this.selectedSessionId = sessions[this.selectedIndex]?.sessionId;
   }
 
+  /**
+   * The view word used by the empty-state sentence.
+   *
+   * It comes from the catalog instead of `toLowerCase()` on the view label so
+   * that the Chinese sentence reads as a phrase rather than as an English word
+   * dropped into a Chinese sentence.
+   */
+  private viewWord(): string {
+    return this.view === 'active'
+      ? sessionText('session.viewWord.recent')
+      : sessionText('session.viewWord.archived');
+  }
+
   private selectedSession(
     sessions: readonly TuiSession[] = this.visibleSessions(),
   ): TuiSession | undefined {
@@ -837,12 +908,12 @@ export class TuiSessionManager implements Component, Focusable {
     if (this.mode === 'rename') {
       const title = value.trim();
       if (!title) {
-        this.setStatus('Session title cannot be empty.', 'error');
+        this.setStatus(sessionText('session.error.emptyTitle'), 'error');
         return;
       }
       if (title === (target.title?.trim() ?? '')) {
         this.exitActionMode(false);
-        this.setStatus('Session title unchanged.', 'info');
+        this.setStatus(sessionText('session.status.titleUnchanged'), 'info');
         return;
       }
       void this.runAction(async () => {
@@ -850,7 +921,12 @@ export class TuiSessionManager implements Component, Focusable {
         if (this.disposed) return;
         this.replaceSession(renamed);
         this.exitActionMode(false);
-        this.setStatus(`Renamed to ${sanitizeTerminalText(renamed.title ?? title)}.`, 'info');
+        this.setStatus(
+          sessionText('session.status.renamed', {
+            title: sanitizeTerminalText(renamed.title ?? title),
+          }),
+          'info',
+        );
       });
     }
   }
@@ -871,7 +947,7 @@ export class TuiSessionManager implements Component, Focusable {
       if (this.disposed) return;
       this.replaceSession({ ...target, archived: false });
       this.clampSelection();
-      this.setStatus('Session restored.', 'info');
+      this.setStatus(sessionText('session.status.restored'), 'info');
     });
   }
 
@@ -888,13 +964,13 @@ export class TuiSessionManager implements Component, Focusable {
       if (this.activeSessionId === target.sessionId) this.activeSessionId = undefined;
       this.exitActionMode(false);
       this.clampSelection();
-      this.setStatus('Session archived.', 'info');
+      this.setStatus(sessionText('session.status.archived'), 'info');
     });
   }
 
   private async runAction(action: () => Promise<void>): Promise<void> {
     this.busy = true;
-    this.status = { tone: 'info', text: 'Working…' };
+    this.status = { tone: 'info', text: sessionText('session.status.working') };
     this.requestRender();
     try {
       await action();
@@ -903,9 +979,9 @@ export class TuiSessionManager implements Component, Focusable {
       this.status = {
         tone: 'error',
         text: formatTuiActionFailure(error, {
-          summary: 'Session changes were not saved.',
-          nextStep: 'Retry.',
-          preservation: 'The existing session is unchanged.',
+          summary: sessionText('session.error.notSaved'),
+          nextStep: sessionText('session.action.retry'),
+          preservation: sessionText('session.error.unchanged'),
         }),
       };
     } finally {

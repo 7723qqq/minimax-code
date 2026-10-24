@@ -1,5 +1,6 @@
 import type { TuiSession, TuiSessionForkOptions } from '../../runtime/port.js';
 import type { TuiSessionViewState } from '../state/model.js';
+import { tuiText } from '../copy.js';
 
 /**
  * BTW side Sessions reuse the Runtime `peek` model that the desktop app
@@ -32,18 +33,23 @@ export type BtwStartDecision =
   | { readonly kind: 'start'; readonly parentSessionId: string }
   | { readonly kind: 'reject'; readonly reason: string };
 
-/** No Session is open, so there is nothing to branch a side Session from. */
-export const BTW_REJECT_NO_SESSION = 'Open a Session before starting a side conversation.';
+/**
+ * No Session is open, so there is nothing to branch a side Session from.
+ *
+ * These constants resolve when the module loads. Call sites below use the
+ * catalog directly so a live language switch is reflected immediately; the
+ * constants stay exported for consumers that only need the default text.
+ */
+export const BTW_REJECT_NO_SESSION = tuiText('sideSession.reject.noSession');
 
 /** Nesting is not supported: one active side Session per parent Session. */
-export const BTW_REJECT_NESTED =
-  'A side conversation is already open. Press Ctrl+C to return before starting another.';
+export const BTW_REJECT_NESTED = tuiText('sideSession.reject.nested');
 
 /**
  * Runtime has no committed boundary to snapshot yet. The requirement is
  * explicit that this must fail instead of creating a blank pseudo branch.
  */
-export const BTW_REJECT_NO_BOUNDARY = 'This Session is not ready yet; try again in a moment.';
+export const BTW_REJECT_NO_BOUNDARY = tuiText('sideSession.reject.noBoundary');
 
 /**
  * Decides whether `/btw` may open a side Session.
@@ -57,9 +63,15 @@ export function resolveBtwStartDecision(input: {
   readonly forkOptions: Pick<TuiSessionForkOptions, 'canFork'> | undefined;
 }): BtwStartDecision {
   const { current, forkOptions } = input;
-  if (!current?.sessionId) return { kind: 'reject', reason: BTW_REJECT_NO_SESSION };
-  if (isSideSession(current)) return { kind: 'reject', reason: BTW_REJECT_NESTED };
-  if (!forkOptions?.canFork) return { kind: 'reject', reason: BTW_REJECT_NO_BOUNDARY };
+  if (!current?.sessionId) {
+    return { kind: 'reject', reason: tuiText('sideSession.reject.noSession') };
+  }
+  if (isSideSession(current)) {
+    return { kind: 'reject', reason: tuiText('sideSession.reject.nested') };
+  }
+  if (!forkOptions?.canFork) {
+    return { kind: 'reject', reason: tuiText('sideSession.reject.noBoundary') };
+  }
   return { kind: 'start', parentSessionId: current.sessionId };
 }
 
@@ -128,24 +140,29 @@ export function formatSideConversationLabel(
   switchShortcutLabel = 'Ctrl+/',
   closeShortcutLabel = 'Ctrl+C',
 ): string {
-  if (input.view === 'parent') return `${switchShortcutLabel} for side`;
-  const parts = ['Side from main session'];
+  if (input.view === 'parent') {
+    return tuiText('sideSession.label.forSide', { shortcut: switchShortcutLabel });
+  }
+  const parts = [tuiText('sideSession.label.fromMain')];
   if (input.parentStatus) parts.push(sideParentStatusLabel(input.parentStatus));
-  parts.push(`${switchShortcutLabel} to main`, `${closeShortcutLabel} to close`);
+  parts.push(
+    tuiText('sideSession.label.toMain', { shortcut: switchShortcutLabel }),
+    tuiText('sideSession.label.toClose', { shortcut: closeShortcutLabel }),
+  );
   return parts.join(' · ');
 }
 
 function sideParentStatusLabel(status: TuiSideParentStatus): string {
   switch (status) {
     case 'needs-input':
-      return 'main needs input';
+      return tuiText('sideSession.parent.needsInput');
     case 'needs-approval':
-      return 'main needs approval';
+      return tuiText('sideSession.parent.needsApproval');
     case 'failed':
-      return 'main failed';
+      return tuiText('sideSession.parent.failed');
     case 'interrupted':
-      return 'main interrupted';
+      return tuiText('sideSession.parent.interrupted');
     case 'finished':
-      return 'main finished';
+      return tuiText('sideSession.parent.finished');
   }
 }

@@ -37,7 +37,6 @@ export function createLocalContextFootprintMeasurer(
     ...(tools.length > 0 ? [textMessage(strictStringify(tools))] : []),
   ];
   const fixedTokens = estimator.estimateMessages(fixedMessages);
-  strictStringify({ systemPrompt: options.systemPrompt ?? '', tools, messages: [] });
 
   const measureFresh = (messages: readonly AgentMessage[]): ContextFootprint => {
     const projected = projectAgentMessagesForModel(messages, options.model).messages;

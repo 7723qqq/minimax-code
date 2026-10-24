@@ -6,8 +6,7 @@
  * (PATH `rg` fallback) directly on the user machine.
  */
 
-import { spawn } from 'node:child_process';
-import { existsSync, statSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
@@ -64,10 +63,29 @@ function readBundledRgPath(): string | undefined {
 
 let cachedRgBinary: string | undefined;
 
+/**
+ * Resolve the ripgrep path once per process.
+ *
+ * The bundled binary is probed with `Bun.file().stat()`. `existsSync` is the
+ * Node compatibility surface and costs an order of magnitude more per call;
+ * `Bun.file().exists()` cannot stand in for it because it reports `false` for a
+ * directory, and a mistaken directory would then be spawned as the binary.
+ *
+ * Resolved once per process, so the sync read here is one lookup on first use.
+ */
 function getRgBinary(): string {
-  if (cachedRgBinary === undefined) {
-    cachedRgBinary = resolveRgBinaryPath(readBundledRgPath, existsSync);
+  if (cachedRgBinary !== undefined) return cachedRgBinary;
+  let bundled: string | undefined;
+  try {
+    const candidate = readBundledRgPath();
+    if (candidate !== undefined) {
+      const spawnPath = toSpawnableRgPath(candidate);
+      if (statSync(spawnPath).isFile()) bundled = spawnPath;
+    }
+  } catch {
+    // fall through to PATH fallback
   }
+  cachedRgBinary = bundled ?? PATH_RG_FALLBACK;
   return cachedRgBinary;
 }
 
@@ -98,11 +116,23 @@ export interface GrepTarget {
  * from within it; a single file runs rg from the file's parent with just the
  * basename — so `grep` works when pointed at one file, not only a directory
  * (ported from dev `local-search.ts` `resolveGrepTarget`, d8a411b20).
+ *
+ * The entry type comes from one `statSync` inside a `try`. That is the same
+ * answer the previous `existsSync` plus `statSync` pair produced, but without
+ * the second syscall: `existsSync` is the Node compatibility surface and
+ * measures roughly an order of magnitude slower per call here, while `statSync`
+ * already yields the type this function needs. Staying synchronous also keeps
+ * `Bun.file().stat()` out of the call, since its promise overhead is larger than
+ * the syscall it wraps for a single lookup.
  */
 export function resolveGrepTarget(workspaceRoot: string, inputPath?: string): GrepTarget {
   const resolvedPath = resolveSearchRoot(workspaceRoot, inputPath);
-  if (!existsSync(resolvedPath)) throw new Error(`grep path does not exist: ${resolvedPath}`);
-  const stats = statSync(resolvedPath);
+  let stats: ReturnType<typeof statSync>;
+  try {
+    stats = statSync(resolvedPath);
+  } catch {
+    throw new Error(`grep path does not exist: ${resolvedPath}`);
+  }
   if (stats.isDirectory()) return { cwd: resolvedPath, searchPath: '.' };
   if (stats.isFile()) return { cwd: dirname(resolvedPath), searchPath: basename(resolvedPath) };
   throw new Error(`grep path must be a file or directory: ${resolvedPath}`);
@@ -147,8 +177,18 @@ export interface RunRgOptions {
  * escalate to SIGKILL — rg can block in uninterruptible filesystem IO where
  * SIGTERM alone never lands. On Windows `kill('SIGTERM')` throws, so the
  * default `kill()` is used without escalation.
+ *
+ * Expect the first call in a process to be slow on Windows. Spawning a native
+ * executable without a shell costs one multi-second wait per process before the
+ * runtime settles; every later spawn is fast. This is an upstream runtime
+ * characteristic reached through both `Bun.spawn` and `node:child_process`, not
+ * something this runner adds, so it is recorded rather than worked around.
  */
-export function runRg(args: string[], cwd: string, opts: RunRgOptions = {}): Promise<RgResult> {
+export async function runRg(
+  args: string[],
+  cwd: string,
+  opts: RunRgOptions = {},
+): Promise<RgResult> {
   const {
     signal,
     binary,
@@ -161,174 +201,183 @@ export function runRg(args: string[], cwd: string, opts: RunRgOptions = {}): Pro
     maxStdoutRecords,
   } = opts;
   const stdoutCap = maxStdoutBytes ?? MAX_RG_STDOUT_BYTES;
-  return new Promise((resolvePromise, reject) => {
-    if (signal?.aborted) {
-      reject(new Error('Operation aborted'));
-      return;
-    }
+  if (signal?.aborted) throw new Error('Operation aborted');
 
-    const child = spawn(binary ?? getRgBinary(), args, {
+  const executable = binary ?? getRgBinary();
+  let child: Bun.Subprocess<'ignore', 'pipe', 'pipe'>;
+  try {
+    child = Bun.spawn({
+      cmd: [executable, ...args],
       cwd,
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
       windowsHide: true,
     });
-    let stdout = '';
-    let stdoutRemainder = '';
-    let stdoutRecordRemainder = '';
-    const stdoutDecoder = new StringDecoder('utf8');
-    let stderr = '';
-    let stdoutBytes = 0;
-    let stdoutLines = 0;
-    let stdoutRecords = 0;
-    let stdoutTruncated = false;
-    let stdoutLimitReached = false;
-    let timedOut = false;
-    let settled = false;
-    let killTimer: ReturnType<typeof setTimeout> | undefined;
+  } catch (error) {
+    // `Bun.spawn` throws synchronously where `child_process.spawn` emitted
+    // `error`; the ENOENT message callers rely on is produced here instead.
+    if (isEnoent(error)) throw rgNotFoundError();
+    throw error;
+  }
 
-    const terminate = () => {
-      if (process.platform === 'win32') {
-        child.kill();
-        return;
-      }
-      // Re-arming (timeout then abort, cap then abort, ...) replaces the
-      // fallback timer instead of leaking the previous one.
-      clearTimeout(killTimer);
-      child.kill('SIGTERM');
-      killTimer = setTimeout(() => {
-        if (child.exitCode === null) child.kill('SIGKILL');
-      }, killGraceMs ?? KILL_GRACE_MS);
-    };
+  let stdout = '';
+  let stdoutRemainder = '';
+  let stdoutRecordRemainder = '';
+  const stdoutDecoder = new StringDecoder('utf8');
+  let stderr = '';
+  let stdoutBytes = 0;
+  let stdoutLines = 0;
+  let stdoutRecords = 0;
+  let stdoutTruncated = false;
+  let stdoutLimitReached = false;
+  let timedOut = false;
+  let settled = false;
+  let killTimer: ReturnType<typeof setTimeout> | undefined;
 
-    const timer = setTimeout(() => {
-      timedOut = true;
-      terminate();
-    }, timeoutMs ?? DEFAULT_RG_TIMEOUT_MS);
-    const abort = () => {
-      terminate();
-      if (!settled) {
-        settled = true;
-        clearTimeout(timer);
-        // Deliberately do NOT clear killTimer here: the caller gets the
-        // rejection immediately, but the SIGTERM→SIGKILL escalation must
-        // stay armed so a SIGTERM-ignoring rg cannot linger after a user
-        // cancel. close/error clean it up once the process actually dies.
-        reject(new Error('Operation aborted'));
-      }
-    };
-    signal?.addEventListener('abort', abort, { once: true });
+  const terminate = () => {
+    if (process.platform === 'win32') {
+      child.kill();
+      return;
+    }
+    // Re-arming (timeout then abort, cap then abort, ...) replaces the
+    // fallback timer instead of leaking the previous one.
+    clearTimeout(killTimer);
+    child.kill('SIGTERM');
+    killTimer = setTimeout(() => {
+      if (child.exitCode === null) child.kill('SIGKILL');
+    }, killGraceMs ?? KILL_GRACE_MS);
+  };
 
-    const appendStdout = (text: string, processStillRunning = true) => {
-      if (stdoutTruncated) return;
-      stdout += text;
-      stdoutBytes += Buffer.byteLength(text, 'utf-8');
-      if (stdoutBytes > stdoutCap) {
-        stdoutTruncated = true;
-        if (processStillRunning) terminate();
-      }
-    };
-    const normalizePathLine = (line: string) => line.replace(/\r$/, '').replaceAll('\\', '/');
-    const handleStdoutText = (text: string) => {
-      if (stdoutRecordSeparator) {
-        const complete = `${stdoutRecordRemainder}${text}`.split(stdoutRecordSeparator);
-        stdoutRecordRemainder = complete.pop() ?? '';
-        const remainingRecords =
-          maxStdoutRecords === undefined ? complete.length : maxStdoutRecords - stdoutRecords;
-        const selected = complete.slice(0, Math.max(0, remainingRecords));
-        if (selected.length > 0) {
-          appendStdout(`${selected.join(stdoutRecordSeparator)}${stdoutRecordSeparator}`);
-          stdoutRecords += selected.length;
-        }
-        if (
-          !stdoutTruncated &&
-          maxStdoutRecords !== undefined &&
-          stdoutRecords >= maxStdoutRecords
-        ) {
-          stdoutLimitReached = true;
-          stdoutTruncated = true;
-          terminate();
-        }
-        return;
-      }
-      if (!stdoutLineRegex) {
-        appendStdout(text);
-        return;
-      }
-      const complete = `${stdoutRemainder}${text}`.split('\n');
-      stdoutRemainder = complete.pop() ?? '';
-      const matched = complete.filter((line) => stdoutLineRegex.test(normalizePathLine(line)));
-      const remainingLines =
-        maxStdoutLines === undefined ? matched.length : maxStdoutLines - stdoutLines;
-      const selected = matched.slice(0, Math.max(0, remainingLines));
+  const timer = setTimeout(() => {
+    timedOut = true;
+    terminate();
+  }, timeoutMs ?? DEFAULT_RG_TIMEOUT_MS);
+  const abort = () => terminate();
+  signal?.addEventListener('abort', abort, { once: true });
+
+  const appendStdout = (text: string, processStillRunning = true) => {
+    if (stdoutTruncated) return;
+    stdout += text;
+    stdoutBytes += Buffer.byteLength(text, 'utf-8');
+    if (stdoutBytes > stdoutCap) {
+      stdoutTruncated = true;
+      if (processStillRunning) terminate();
+    }
+  };
+  const normalizePathLine = (line: string) => line.replace(/\r$/, '').replaceAll('\\', '/');
+  const handleStdoutText = (text: string) => {
+    if (stdoutRecordSeparator) {
+      const complete = `${stdoutRecordRemainder}${text}`.split(stdoutRecordSeparator);
+      stdoutRecordRemainder = complete.pop() ?? '';
+      const remainingRecords =
+        maxStdoutRecords === undefined ? complete.length : maxStdoutRecords - stdoutRecords;
+      const selected = complete.slice(0, Math.max(0, remainingRecords));
       if (selected.length > 0) {
-        appendStdout(`${selected.join('\n')}\n`);
-        stdoutLines += selected.length;
+        appendStdout(`${selected.join(stdoutRecordSeparator)}${stdoutRecordSeparator}`);
+        stdoutRecords += selected.length;
       }
-      if (!stdoutTruncated && maxStdoutLines !== undefined && stdoutLines >= maxStdoutLines) {
+      if (
+        !stdoutTruncated &&
+        maxStdoutRecords !== undefined &&
+        stdoutRecords >= maxStdoutRecords
+      ) {
+        stdoutLimitReached = true;
         stdoutTruncated = true;
         terminate();
       }
-    };
-    child.stdout?.on('data', (chunk: Buffer) => {
-      if (stdoutTruncated) return;
+      return;
+    }
+    if (!stdoutLineRegex) {
+      appendStdout(text);
+      return;
+    }
+    const complete = `${stdoutRemainder}${text}`.split('\n');
+    stdoutRemainder = complete.pop() ?? '';
+    const matched = complete.filter((line) => stdoutLineRegex.test(normalizePathLine(line)));
+    const remainingLines =
+      maxStdoutLines === undefined ? matched.length : maxStdoutLines - stdoutLines;
+    const selected = matched.slice(0, Math.max(0, remainingLines));
+    if (selected.length > 0) {
+      appendStdout(`${selected.join('\n')}\n`);
+      stdoutLines += selected.length;
+    }
+    if (!stdoutTruncated && maxStdoutLines !== undefined && stdoutLines >= maxStdoutLines) {
+      stdoutTruncated = true;
+      terminate();
+    }
+  };
+
+  const pumpStdout = async () => {
+    for await (const chunk of child.stdout) {
+      if (stdoutTruncated) continue;
       handleStdoutText(stdoutDecoder.write(chunk));
-    });
-    child.stderr?.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString('utf-8');
-    });
-    child.on('error', (err) => {
-      // Cleanup must run even when abort already settled the promise.
-      clearTimeout(timer);
-      clearTimeout(killTimer);
-      signal?.removeEventListener('abort', abort);
-      if (settled) return;
-      settled = true;
-      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-        reject(
-          new Error(
-            'ripgrep binary not found: the bundled @vscode/ripgrep binary is unavailable and `rg` is not on PATH',
-          ),
-        );
-        return;
-      }
-      reject(err);
-    });
-    child.on('close', (exitCode) => {
-      // Cleanup must run even when abort already settled the promise —
-      // this is where the (intentionally kept) abort kill fallback is
-      // finally disarmed, after the process is confirmed dead.
-      clearTimeout(timer);
-      clearTimeout(killTimer);
-      signal?.removeEventListener('abort', abort);
-      if (settled) return;
-      settled = true;
-      if (!stdoutTruncated) handleStdoutText(stdoutDecoder.end());
-      if (!stdoutTruncated && stdoutRecordSeparator && stdoutRecordRemainder.length > 0) {
-        appendStdout(stdoutRecordRemainder, false);
-      } else if (!stdoutTruncated && stdoutLineRegex && stdoutRemainder.length > 0) {
-        if (stdoutLineRegex.test(normalizePathLine(stdoutRemainder))) {
-          appendStdout(stdoutRemainder, false);
-        }
-      }
-      if (stdoutTruncated && !stdoutLimitReached) {
-        // The kill lands mid-chunk, so the tail line is almost certainly torn.
-        // A partial path/content fragment would surface as a hallucinated
-        // result — drop everything after the last complete line (mirrors
-        // reference CLI's torn-tail handling in ripGrepStream).
-        const separator = stdoutRecordSeparator ?? '\n';
-        const lastSeparator = stdout.lastIndexOf(separator);
-        stdout = lastSeparator < 0 ? '' : stdout.slice(0, lastSeparator + separator.length);
-      }
-      resolvePromise({
-        exitCode,
-        stdout,
-        stderr,
-        timedOut,
-        stdoutTruncated,
-        stdoutLimitReached,
-      });
-    });
-  });
+    }
+  };
+  const pumpStderr = async () => {
+    for await (const chunk of child.stderr) {
+      stderr += Buffer.from(chunk).toString('utf-8');
+    }
+  };
+
+  const cleanup = () => {
+    // Cleanup must run even when an abort already settled the promise — this is
+    // where the (intentionally kept) abort kill fallback is finally disarmed,
+    // after the process is confirmed dead.
+    clearTimeout(timer);
+    clearTimeout(killTimer);
+    signal?.removeEventListener('abort', abort);
+  };
+
+  try {
+    await Promise.all([pumpStdout(), pumpStderr(), child.exited]);
+  } finally {
+    cleanup();
+    settled = true;
+  }
+
+  if (signal?.aborted) throw new Error('Operation aborted');
+
+  if (!stdoutTruncated) handleStdoutText(stdoutDecoder.end());
+  if (!stdoutTruncated && stdoutRecordSeparator && stdoutRecordRemainder.length > 0) {
+    appendStdout(stdoutRecordRemainder, false);
+  } else if (!stdoutTruncated && stdoutLineRegex && stdoutRemainder.length > 0) {
+    if (stdoutLineRegex.test(normalizePathLine(stdoutRemainder))) {
+      appendStdout(stdoutRemainder, false);
+    }
+  }
+  if (stdoutTruncated && !stdoutLimitReached) {
+    // The kill lands mid-chunk, so the tail line is almost certainly torn.
+    // A partial path/content fragment would surface as a hallucinated result —
+    // drop everything after the last complete line (mirrors reference CLI's
+    // torn-tail handling in ripGrepStream).
+    const separator = stdoutRecordSeparator ?? '\n';
+    const lastSeparator = stdout.lastIndexOf(separator);
+    stdout = lastSeparator < 0 ? '' : stdout.slice(0, lastSeparator + separator.length);
+  }
+  return {
+    // `Bun.spawn` reports a signalled child as a non-zero code and keeps the
+    // signal on `signalCode`; `child_process` delivered the signal as `null`
+    // exit code. A signal therefore reads as no exit code, as before.
+    exitCode: child.signalCode === null ? (child.exitCode ?? null) : null,
+    stdout,
+    stderr,
+    timedOut,
+    stdoutTruncated,
+    stdoutLimitReached,
+  };
+}
+
+function isEnoent(error: unknown): boolean {
+  return typeof error === 'object' && error !== null && 'code' in error
+    ? (error as { code?: unknown }).code === 'ENOENT'
+    : false;
+}
+
+function rgNotFoundError(): Error {
+  return new Error(
+    'ripgrep binary not found: the bundled @vscode/ripgrep binary is unavailable and `rg` is not on PATH',
+  );
 }
 
 export function textResult(toolName: string, text: string): ToolResult {

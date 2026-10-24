@@ -1,5 +1,6 @@
+import { waitFor } from '../../../../test/bun-test-setup.js';
+import { describe, expect, it, mock } from 'bun:test';
 import { stripVTControlCharacters } from "node:util";
-import { describe, expect, it, vi } from "vitest";
 
 import { TuiBackgroundWorkPanel } from "../../src/tui/background-work/panel.js";
 import type { TuiBackgroundTask } from "../../src/runtime/port.js";
@@ -82,14 +83,14 @@ function backgroundTasks(): readonly TuiBackgroundTask[] {
 
 describe("TuiBackgroundWorkPanel", () => {
   it("renders one unified list for Agent Team and Runtime background tasks", () => {
-    const agentTeam = vi.fn(teamSnapshot);
+    const agentTeam = mock(teamSnapshot);
     const panel = new TuiBackgroundWorkPanel({
       agentTeam,
       backgroundTasks,
       activeSessionId: () => "root",
-      onOpenAgent: vi.fn(),
-      onCancel: vi.fn(),
-      requestRender: vi.fn(),
+      onOpenAgent: mock(),
+      onCancel: mock(),
+      requestRender: mock(),
     });
 
     const rendered = stripVTControlCharacters(panel.render(100).join("\n"));
@@ -106,14 +107,14 @@ describe("TuiBackgroundWorkPanel", () => {
   });
 
   it("opens Agent transcripts and inspects Runtime task details without mutating them", () => {
-    const onOpenAgent = vi.fn();
-    const requestRender = vi.fn();
+    const onOpenAgent = mock();
+    const requestRender = mock();
     const panel = new TuiBackgroundWorkPanel({
       agentTeam: teamSnapshot,
       backgroundTasks,
       activeSessionId: () => "root",
       onOpenAgent,
-      onCancel: vi.fn(),
+      onCancel: mock(),
       requestRender,
     });
 
@@ -155,9 +156,9 @@ describe("TuiBackgroundWorkPanel", () => {
       agentTeam: teamSnapshot,
       backgroundTasks: () => [task],
       activeSessionId: () => "root",
-      onOpenAgent: vi.fn(),
-      onCancel: vi.fn(),
-      requestRender: vi.fn(),
+      onOpenAgent: mock(),
+      onCancel: mock(),
+      requestRender: mock(),
     });
     panel.handleInput("\u001B[B");
     expect(stripVTControlCharacters(panel.render(60).join("\n"))).toContain(
@@ -202,8 +203,8 @@ describe("TuiBackgroundWorkPanel", () => {
       agentTeam: teamSnapshot,
       backgroundTasks: () => [task],
       activeSessionId: () => "root",
-      onOpenAgent: vi.fn(),
-      onCancel: vi.fn(),
+      onOpenAgent: mock(),
+      onCancel: mock(),
       requestRender: () => tui.requestRender(),
     });
     tui.setLayoutRoot(panel.layoutRoot);
@@ -246,9 +247,9 @@ describe("TuiBackgroundWorkPanel", () => {
       agentTeam: teamSnapshot,
       backgroundTasks,
       activeSessionId: () => "root",
-      onOpenAgent: vi.fn(),
-      onCancel: vi.fn(),
-      requestRender: vi.fn(),
+      onOpenAgent: mock(),
+      onCancel: mock(),
+      requestRender: mock(),
     });
     panel.handleInput("\u001B[B");
     panel.handleInput("\r");
@@ -259,14 +260,14 @@ describe("TuiBackgroundWorkPanel", () => {
   });
 
   it("closes from the list, keeps detail escape local, and respects narrow widths", () => {
-    const onCancel = vi.fn();
+    const onCancel = mock();
     const panel = new TuiBackgroundWorkPanel({
       agentTeam: teamSnapshot,
       backgroundTasks,
       activeSessionId: () => "root",
-      onOpenAgent: vi.fn(),
+      onOpenAgent: mock(),
       onCancel,
-      requestRender: vi.fn(),
+      requestRender: mock(),
     });
 
     for (const width of [1, 8, 24, 40]) {
@@ -289,9 +290,9 @@ describe("TuiBackgroundWorkPanel", () => {
       agentTeam: () => snapshot,
       backgroundTasks,
       activeSessionId: () => "root",
-      onOpenAgent: vi.fn(),
-      onCancel: vi.fn(),
-      requestRender: vi.fn(),
+      onOpenAgent: mock(),
+      onCancel: mock(),
+      requestRender: mock(),
     });
     const viewport = (
       panel as unknown as {
@@ -309,7 +310,7 @@ describe("TuiBackgroundWorkPanel", () => {
     panel.render(80);
     panel.handleInput("\u001B[B");
     panel.handleInput("\u001B[B");
-    viewport.updateLayout(3, 1, vi.fn());
+    viewport.updateLayout(3, 1, mock());
     expect(viewport.scrollTop).toBe(2);
 
     snapshot = {
@@ -325,7 +326,7 @@ describe("TuiBackgroundWorkPanel", () => {
       ],
     };
     panel.render(80);
-    viewport.updateLayout(6, 1, vi.fn());
+    viewport.updateLayout(6, 1, mock());
 
     expect(viewport.scrollTop).toBe(5);
     panel.handleInput("\r");
@@ -357,8 +358,8 @@ describe('Tasks in the regular terminal viewport', () => {
         agentTeam: () => ({ ...teamSnapshot(), members: [] }),
         backgroundTasks: () => tasks,
         activeSessionId: () => 'root',
-        onOpenAgent: vi.fn(),
-        onCancel: vi.fn(),
+        onOpenAgent: mock(),
+        onCancel: mock(),
         requestRender: () => tui.requestRender(),
       });
       tui.start();
@@ -427,7 +428,7 @@ describe('Tasks in the regular terminal viewport', () => {
         handle.close();
         tui.renderNow();
         await terminal.flush();
-        await vi.waitFor(async () => {
+        await waitFor(async () => {
           await terminal.flush();
           expect(terminal.getScrollBuffer().join('\n')).not.toContain('task-row-');
         });

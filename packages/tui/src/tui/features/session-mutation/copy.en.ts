@@ -1,3 +1,10 @@
+/**
+ * English copy for the Session history browser.
+ *
+ * The English object is the only source of truth for key shape: the zh-Hans
+ * catalog is typed against it, so a missing translation is a compile error
+ * rather than a blank line in the interface.
+ */
 export const SESSION_HISTORY_COPY = {
   title: 'History',
   helper: 'Search previous prompts, inspect their impact, and choose a safe action.',
@@ -34,8 +41,16 @@ export const SESSION_HISTORY_COPY = {
   commandUnavailable: 'Start or resume a Session before browsing history.',
 } as const;
 
+/** Every key the Session history catalog defines. */
 export type SessionHistoryCopyKey = keyof typeof SESSION_HISTORY_COPY;
 
+/**
+ * English copy for the Session mutation surfaces: fork, edit and rewind.
+ *
+ * The English object is the only source of truth for key shape: the zh-Hans
+ * catalog is typed against it, so a missing translation is a compile error
+ * rather than a blank line in the interface.
+ */
 export const SESSION_MUTATION_COPY = {
   'sessionMutation.history.fork.title': 'Fork from a previous message',
   'sessionMutation.history.fork.helper': 'Pick a user message to fork the session from.',
@@ -61,6 +76,7 @@ export const SESSION_MUTATION_COPY = {
   'sessionMutation.scope.both.description':
     'Drop messages after the target and revert the file changes from that turn.',
   'sessionMutation.scope.hint': '↑↓ select · Enter confirm · Esc cancel',
+  'sessionMutation.scope.preparing': 'Preparing rewind confirmation…',
   'sessionMutation.preview.heading': 'Rewind preview',
   'sessionMutation.preview.editHeading': 'Edit preview',
   'sessionMutation.preview.empty': 'No file changes are queued for this turn.',
@@ -193,4 +209,5 @@ export const SESSION_MUTATION_COPY = {
   'sessionMutation.command.edit.unavailable': 'Start or resume a Session before editing it.',
 } as const;
 
+/** Every key the Session mutation catalog defines. */
 export type SessionMutationCopyKey = keyof typeof SESSION_MUTATION_COPY;

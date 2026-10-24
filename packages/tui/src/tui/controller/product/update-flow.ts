@@ -8,6 +8,7 @@ import { TuiUpdatePanel } from '../../features/update/panel.js';
 import type { TuiInteractionSurface } from '../../shell/interaction-surface.js';
 import { McodeUpdateAdmissionError } from '../../../update/progress.js';
 import { formatTuiActionFailure } from '../../../user-facing-failure.js';
+import { controllerProductText } from './copy.js';
 
 type AppendUpdateNotice = (content: string, kind?: 'warning' | 'error') => void;
 
@@ -81,7 +82,7 @@ export class TuiUpdateFlow {
     if (this.stopped) return;
     if (this.updateTask) {
       this.options.append(
-        'An MCode update is already running. Please wait for it to finish.',
+        controllerProductText('update.alreadyRunning'),
         'warning',
       );
       return;
@@ -94,8 +95,8 @@ export class TuiUpdateFlow {
       if (this.stopped || requestSequence !== this.requestSequence) return;
       this.options.append(
         formatTuiActionFailure(error, {
-          summary: "Couldn't check for updates.",
-          nextStep: 'Retry /update.',
+          summary: controllerProductText('update.checkFailed'),
+          nextStep: controllerProductText('update.retryCommand'),
         }),
         'error',
       );
@@ -106,22 +107,31 @@ export class TuiUpdateFlow {
     if (plan.kind === 'current') {
       this.options.append(
         plan.source === 'managed-installer'
-          ? `MCode ${plan.currentVersion} is current on ${plan.channel}.`
-          : `MCode ${plan.currentVersion} is current on @${plan.packageTag}.`,
+          ? controllerProductText('update.currentOnChannel', {
+              version: plan.currentVersion,
+              channel: plan.channel,
+            })
+          : controllerProductText('update.currentOnPackage', {
+              version: plan.currentVersion,
+              package: plan.packageTag,
+            }),
       );
       return;
     }
     if (plan.kind === 'ahead') {
       this.options.append(
-        `MCode ${plan.currentVersion} is newer than ${
-          plan.source === 'managed-installer' ? plan.channel : `@${plan.packageTag}`
-        } ${plan.latestVersion}.`,
+        controllerProductText('update.newerThan', {
+          version: plan.currentVersion,
+          channel:
+            plan.source === 'managed-installer' ? plan.channel : `@${plan.packageTag}`,
+          latest: plan.latestVersion,
+        }),
       );
       return;
     }
     if (plan.kind === 'manual') {
       this.options.append(
-        `Automatic update is unavailable for this installation. Update manually with: ${plan.command}`,
+        controllerProductText('update.manualUnavailable', { command: plan.command }),
         'warning',
       );
       return;
@@ -156,14 +166,17 @@ export class TuiUpdateFlow {
   ): void {
     if (this.updateTask) {
       this.options.append(
-        'An MCode update is already running. Please wait for it to finish.',
+        controllerProductText('update.alreadyRunning'),
         'warning',
       );
       return;
     }
     this.close(panel);
     this.options.append(
-      `MCode update started in the background (${plan.currentVersion} → ${plan.latestVersion}).`,
+      controllerProductText('update.startedInBackground', {
+        current: plan.currentVersion,
+        latest: plan.latestVersion,
+      }),
     );
     const task = this.requireAdmission()
       .then(() =>
@@ -174,7 +187,9 @@ export class TuiUpdateFlow {
               .map((line) => line.trim())
               .filter(Boolean);
             if (lines.length > 0 && !this.stopped) {
-              this.options.append(`Update: ${lines.at(-1)}`);
+              this.options.append(
+                controllerProductText('update.progress', { line: String(lines.at(-1)) }),
+              );
             }
           },
         }),
@@ -182,7 +197,9 @@ export class TuiUpdateFlow {
       .then(
         (outcome) => {
           if (!this.stopped) {
-            this.options.append(`MCode update completed: ${outcome.message}`);
+            this.options.append(
+              controllerProductText('update.completed', { message: outcome.message }),
+            );
             if (outcome.restartRequired) {
               void this.options.restart();
             }
@@ -191,7 +208,9 @@ export class TuiUpdateFlow {
         (error: unknown) => {
           if (!this.stopped) {
             this.options.append(
-              `MCode update failed: ${error instanceof Error ? error.message : String(error)}`,
+              controllerProductText('update.failed', {
+                message: error instanceof Error ? error.message : String(error),
+              }),
               'error',
             );
           }
@@ -223,7 +242,7 @@ export class TuiUpdateFlow {
     const admission = await this.options.admit?.();
     if (admission && !admission.allowed) {
       throw new McodeUpdateAdmissionError(
-        admission.reason ?? 'Finish active MCode work before updating.',
+        admission.reason ?? controllerProductText('update.admissionReason'),
       );
     }
   }

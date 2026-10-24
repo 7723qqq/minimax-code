@@ -1,4 +1,5 @@
 import { bindTool, type ToolImpl, type ToolResult } from '@mavis/agent-core/tools';
+import { translateRuntimeText } from '@mavis/shared/i18n';
 
 import { LocalCodeReviewToolDef, type LocalCodeReviewToolInput } from './builtin-defs.js';
 import type { LocalCodeReviewAdapter, LocalRuntimeToolContext } from './types.js';
@@ -18,7 +19,7 @@ export class LocalCodeReviewTool implements ToolImpl<
     if (signal?.aborted) throw new Error('Operation aborted');
     const result = await this.adapter.run(ctx, input, signal);
     if (result.status === 'failed') {
-      const errorMessage = result.errorMessage ?? 'Code review failed';
+      const errorMessage = result.errorMessage ?? translateRuntimeText(null, 'review.failed');
       const text = `<code_review_error>${escapeTagText(errorMessage)}</code_review_error>`;
       return {
         tool_name: LocalCodeReviewToolDef.name,
