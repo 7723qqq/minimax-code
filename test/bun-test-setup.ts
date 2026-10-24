@@ -184,3 +184,39 @@ expect.extend({
 });
 
 export { mock };
+
+import { execFileSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+
+/**
+ * The Node executable and its bundled npm CLI for update-flow fixtures.
+ *
+ * The npm-prefix update tests simulate a node+npm installation, so their
+ * fixtures need the real Node runtime whichever runner executes the test file:
+ * under `bun test`, `process.execPath` is Bun and no npm is bundled beside it.
+ * Under Node the running executable is the answer; otherwise Node is resolved
+ * from PATH and npm is taken from beside it, where a Node installation keeps
+ * it. Tests that spawn `npm-cli.js` or assert a receipt's Node always go
+ * through this pair, never through `process.execPath`.
+ */
+export function resolveFixtureNodeAndNpmCli(): { node: string; npmCli: string } {
+  const beside = path.join(
+    path.dirname(process.execPath),
+    'node_modules',
+    'npm',
+    'bin',
+    'npm-cli.js',
+  );
+  if (existsSync(beside)) return { node: process.execPath, npmCli: beside };
+  const finder = process.platform === 'win32' ? 'where' : 'which';
+  const node = execFileSync(finder, ['node'], { encoding: 'utf8' })
+    .trim()
+    .split(/\r?\n/u)[0];
+  if (!node) {
+    throw new Error('update fixtures require Node on PATH when the test runner is Bun');
+  }
+  const npmCli = path.join(path.dirname(node), 'node_modules', 'npm', 'bin', 'npm-cli.js');
+  if (!existsSync(npmCli)) throw new Error(`no npm CLI found beside ${node}`);
+  return { node, npmCli };
+}

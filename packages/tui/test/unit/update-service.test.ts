@@ -1,4 +1,4 @@
-import { waitFor } from '../../../../test/bun-test-setup.js';
+import { resolveFixtureNodeAndNpmCli, waitFor } from '../../../../test/bun-test-setup.js';
 import { afterEach, describe, expect, it, mock } from 'bun:test';
 import { execFileSync } from 'node:child_process';
 import { createHash, generateKeyPairSync, sign } from 'node:crypto';
@@ -88,16 +88,12 @@ describe('McodeUpdateService', () => {
         npm_config_userconfig: path.join(root, 'npmrc'),
       };
       writeFileSync(path.join(root, 'npmrc'), '');
-      const npmCli = path.join(
-        path.dirname(process.execPath),
-        'node_modules',
-        'npm',
-        'bin',
-        'npm-cli.js',
-      );
+      // The fixture needs the real Node and its bundled npm; under `bun test`
+      // `process.execPath` is Bun and no npm sits beside it.
+      const { node: fixtureNode, npmCli } = resolveFixtureNodeAndNpmCli();
       const packed = JSON.parse(
         execFileSync(
-          process.execPath,
+          fixtureNode,
           [npmCli, 'pack', '--json', '--ignore-scripts', '--pack-destination', root],
           { cwd: fixtureRoot, env: environment, encoding: 'utf8', timeout: 30_000 },
         ),
@@ -114,7 +110,7 @@ describe('McodeUpdateService', () => {
         environment.npm_config_bin_links = 'false';
         writeFileSync(
           path.join(wrapperRoot, 'npm.cmd'),
-          `@echo off\r\nset "npm_config_bin_links=true"\r\necho used> "%~dp0invoked"\r\n"${process.execPath}" "${wrapperCli}" %*\r\n`,
+          `@echo off\r\nset "npm_config_bin_links=true"\r\necho used> "%~dp0invoked"\r\n"${fixtureNode}" "${wrapperCli}" %*\r\n`,
         );
         const pathKey = Object.keys(environment)
           .filter((key) => key.toLowerCase() === 'path')

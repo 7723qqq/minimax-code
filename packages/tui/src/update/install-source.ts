@@ -1,9 +1,48 @@
 import { accessSync, constants, existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import spawn from 'cross-spawn';
 import { parseMcodeVersion } from './release.js';
 import { tuiUpdateText } from './copy.js';
 import type { McodeUpdateOperationOptions } from './progress.js';
+
+/**
+ * Locate `npm-cli.js` for npm-based update flows and run it with the current
+ * runtime.
+ *
+ * Spawning an npm shim (`npm.cmd` on Windows) is not portable across runtimes:
+ * Node refuses `.cmd` without a shell, and Bun cannot execute `.cmd` shims
+ * reliably. The npm CLI is plain JavaScript, and the running runtime (Bun in a
+ * packaged CLI, Node in development) executes it directly, so every fallback
+ * npm invocation in the update flows goes through
+ * `[runtime, npmCli, …]` instead of a shim.
+ */
+export function resolveNpmCliInvocation(): { runtime: string; npmCli: string } {
+  const besideRuntime = path.join(
+    path.dirname(process.execPath),
+    'node_modules',
+    'npm',
+    'bin',
+    'npm-cli.js',
+  );
+  if (existsSync(besideRuntime)) return { runtime: process.execPath, npmCli: besideRuntime };
+  const finder = process.platform === 'win32' ? 'where' : 'which';
+  const shimName = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const shim = execFileSync(finder, [shimName], { encoding: 'utf8' })
+    .trim()
+    .split(/\r?\n/u)[0];
+  if (shim) {
+    const besideShim = path.join(
+      path.dirname(realpathSync(shim)),
+      'node_modules',
+      'npm',
+      'bin',
+      'npm-cli.js',
+    );
+    if (existsSync(besideShim)) return { runtime: process.execPath, npmCli: besideShim };
+  }
+  throw new Error('npm-cli.js could not be located for the npm-based update flows');
+}
 
 export const MCODE_INTERNAL_NPM_REGISTRY = 'https://npmmirror.example.invalid/';
 export const MCODE_PUBLIC_NPM_REGISTRY = 'https://registry.npmjs.org/';
@@ -92,7 +131,10 @@ export async function detectMcodeInstallSource(
     packageRoot: dependencies.packageRoot ?? resolveMcodePackageRoot,
     npmGlobalPrefix:
       dependencies.npmGlobalPrefix ??
-      (() => runText(platform === 'win32' ? 'npm.cmd' : 'npm', ['prefix', '--global'])),
+      (async () => {
+        const { runtime, npmCli } = resolveNpmCliInvocation();
+        return runText(runtime, [npmCli, 'prefix', '--global']);
+      }),
     managedInstall: dependencies.managedInstall ?? isManagedMcodeInstallRoot,
     prefixInstall: dependencies.prefixInstall ?? resolveMcodeNpmPrefixInstall,
   };
@@ -276,14 +318,15 @@ export async function resolveLatestMcodeRegistryVersion(
   const distribution = dependencies.distribution ?? resolveMcodeNpmDistribution();
   const run =
     dependencies.run ??
-    ((executable, args) => {
+    (async (executable: string, args: readonly string[]) => {
       const command = { executable, args, display: executable };
-      const bound = dependencies.runtimeExecutable
-        ? bindMcodeNpmCommandToRuntime(command, dependencies.runtimeExecutable)
-        : command;
+      const bound = bindMcodeNpmCommandToRuntime(
+        command,
+        dependencies.runtimeExecutable ?? resolveNpmCliInvocation().runtime,
+      );
       return runText(bound.executable, bound.args, dependencies.environment);
     });
-  const npmExecutable = dependencies.npmExecutable ?? (platform === 'win32' ? 'npm.cmd' : 'npm');
+  const npmExecutable = dependencies.npmExecutable ?? resolveNpmCliInvocation().npmCli;
   const output = await run(npmExecutable, [
     'view',
     `${distribution.packageName}@${tag}`,
@@ -514,6 +557,14 @@ function resolveMcodePackageIdentity(
   entryFile: string | undefined,
 ): { packageName: McodeNpmPackageName; packageRoot: string; version?: string } | undefined {
   if (!entryFile) return undefined;
+  // A test runner executes each test file as the process entry, so under
+  // `bun test` (and `node --test`) `process.argv[1]` is the test file itself.
+  // Walking up from there would adopt the nearest manifest — inside this
+  // checkout that is `packages/tui/package.json`, which carries the internal
+  // package name — and flip update routing to the internal registry. A test
+  // file is never a CLI installation, so it resolves no identity at all and
+  // the callers fall back to the embedded package name.
+  if (/\.(?:test|spec)\.[cm]?[jt]sx?$/u.test(path.basename(entryFile))) return undefined;
   let current: string;
   try {
     const resolved = realpathSync(entryFile);
@@ -743,45 +794,52 @@ function normalizeResolvedPath(value: string, platform: NodeJS.Platform): string
   return platform === 'win32' ? resolved.toLocaleLowerCase() : resolved;
 }
 
-function runText(
+/**
+ * Run one command and collect its stdout, through Bun's own subprocess surface.
+ *
+ * The CLI runs on the Bun runtime, and Bun's `node:child_process` compatibility
+ * layer proved unreliable on Windows for these npm invocations — spawned
+ * Node/npm children intermittently resolved with empty output or surfaced
+ * ENOENT for absolute executable paths. `Bun.spawn` is the runtime's native
+ * path (the same doctrine as `packages/local-runtime/src/review/git-exec.ts`)
+ * and reads both pipes to EOF before reporting the exit code, so a writer can
+ * never block on a full pipe.
+ */
+async function runText(
   command: string,
   args: readonly string[],
   environment: NodeJS.ProcessEnv = process.env,
 ): Promise<string> {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    const child = spawn(command, [...args], {
-      env: environment,
-      shell: false,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true,
-    });
-    const stdout: Buffer[] = [];
-    const stderr: Buffer[] = [];
-    child.stdout?.on('data', (chunk: Buffer) => stdout.push(chunk));
-    child.stderr?.on('data', (chunk: Buffer) => stderr.push(chunk));
-    child.once('error', (error) => {
-      if (settled) return;
-      settled = true;
-      reject(error);
-    });
-    child.once('exit', (code, signal) => {
-      if (settled) return;
-      settled = true;
-      if (code === 0) {
-        resolve(Buffer.concat(stdout).toString('utf8').trim());
-        return;
-      }
-      const details = Buffer.concat([...stderr, ...stdout])
-        .toString('utf8')
-        .trim();
-      reject(
-        new Error(
-          `${command} failed (${
-            signal ? `signal ${signal}` : `exit ${String(code)}`
-          })${details ? `: ${details}` : ''}`,
-        ),
-      );
-    });
+  const child = Bun.spawn({
+    cmd: [command, ...args],
+    env: environment,
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
+    windowsHide: true,
   });
+  const decoder = new TextDecoder();
+  const readAll = async (stream: ReadableStream<Uint8Array> | null): Promise<string> => {
+    if (!stream) return '';
+    const chunks: Uint8Array[] = [];
+    for await (const chunk of stream) chunks.push(chunk);
+    const total = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+    const merged = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      merged.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return decoder.decode(merged);
+  };
+  const [stdout, stderr, exitCode] = await Promise.all([
+    readAll(child.stdout),
+    readAll(child.stderr),
+    child.exited,
+  ]);
+  if (exitCode === 0) return stdout.trim();
+  const details = `${stderr}${stdout}`.trim();
+  throw new Error(
+    `${command} failed (exit ${String(exitCode)})${details ? `: ${details}` : ''}`,
+  );
 }

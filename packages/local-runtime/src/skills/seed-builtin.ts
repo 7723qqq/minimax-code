@@ -116,7 +116,7 @@ function seedFromEmbeddedSkills(
 }
 
 function dirnameOf(file: string): string {
-  const normalized = file.replaceAll('\', '/');
+  const normalized = file.replaceAll('\\', '/');
   const index = normalized.lastIndexOf('/');
   return index <= 0 ? normalized : normalized.slice(0, index);
 }

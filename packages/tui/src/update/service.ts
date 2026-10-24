@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import spawn from 'cross-spawn';
 import { retryWindowsFileSystemOperation } from '@mavis/shared';
-import { resolveMcodeNpmDistribution } from './install-source.js';
+import { resolveMcodeNpmDistribution, resolveNpmCliInvocation } from './install-source.js';
 import { readMcodeBinEntry, resolveMcodePrefixPackageRoot } from './prefix-update.js';
 import {
   McodeUpdateCancelledError,
@@ -346,10 +346,11 @@ async function defaultInstallArtifact(input: {
   registry: string;
   proxyEnvironment: NodeJS.ProcessEnv;
 }): Promise<void> {
-  const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const { runtime, npmCli } = resolveNpmCliInvocation();
   await runMcodeUpdateCommand(
-    npm,
+    runtime,
     [
+      npmCli,
       'install',
       '--global',
       '--prefix',

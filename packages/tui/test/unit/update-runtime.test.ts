@@ -13,6 +13,7 @@ import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
+import { resolveFixtureNodeAndNpmCli } from '../../../../test/bun-test-setup.js';
 import { McodeUpdateApplication } from '../../src/update/application.js';
 import {
   createMcodeNpmRuntimeEnvironment,
@@ -20,6 +21,10 @@ import {
 } from '../../src/update/install-source.js';
 
 const roots: string[] = [];
+// These fixtures simulate a node+npm installation, so every spawned Node and
+// npm-cli.js comes from the real Node runtime, not from the test runner
+// (`process.execPath` is Bun under `bun test`).
+const { node: fixtureNode } = resolveFixtureNodeAndNpmCli();
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
@@ -83,7 +88,7 @@ describe('npm-prefix runtime consistency', () => {
         `#!/usr/bin/env node
 const fs = require('node:fs');
 const path = require('node:path');
-if (process.execPath !== ${JSON.stringify(process.execPath)}) throw new Error('Wrong npm Node');
+if (process.execPath !== ${JSON.stringify(fixtureNode)}) throw new Error('Wrong npm Node');
 const lifecycle = require('node:child_process').spawnSync('node', ['-p', 'process.execPath'], {encoding:'utf8'});
 if (lifecycle.status !== 0 || lifecycle.stdout.trim() !== process.execPath) throw new Error('Wrong lifecycle Node');
 if (process.argv.includes('view')) { console.log(JSON.stringify('1.2.4')); process.exit(0); }
@@ -106,7 +111,7 @@ fs.writeFileSync(path.join(root, 'node_modules/better-sqlite3/index.js'), ${JSON
         {
           currentVersion: '1.2.3',
           entryFile: path.join(prefix, 'missing-old-entry.js'),
-          runtimeExecutable: process.execPath,
+          runtimeExecutable: fixtureNode,
           environment,
           prefixInstall: {
             executable: npm,
@@ -128,7 +133,7 @@ fs.writeFileSync(path.join(root, 'node_modules/better-sqlite3/index.js'), ${JSON
         expect(readFileSync(path.join(prefix, 'current'), 'utf8')).toBe('1.2.4\n');
         expect(
           JSON.parse(readFileSync(path.join(prefix, 'install.json'), 'utf8')).nodeExecutable,
-        ).toBe(process.execPath);
+        ).toBe(fixtureNode);
       }
       expect(environment.PATH.startsWith(shadowBin)).toBe(true);
     },
@@ -145,7 +150,7 @@ fs.writeFileSync(path.join(root, 'node_modules/better-sqlite3/index.js'), ${JSON
     mkdirSync(path.dirname(npmCli), { recursive: true });
     mkdirSync(brewBin, { recursive: true });
     writeFileSync(npm, '#!/bin/sh\nexit 42\n', { mode: 0o755 });
-    symlinkSync(process.execPath, pinnedNode);
+    symlinkSync(fixtureNode, pinnedNode);
     const packageRoot = path.join(
       prefix,
       'releases',
@@ -221,7 +226,7 @@ fs.writeFileSync(path.join(root, 'node_modules/better-sqlite3/index.js'), 'modul
     const releaseLauncher = path.join(prefix, 'releases', '1.2.4', '.mcode-launcher');
     const launcherContents = readFileSync(releaseLauncher, 'utf8');
     expect(launcherContents).toContain(`node='${pinnedNode}'`);
-    expect(launcherContents).not.toContain(process.execPath);
+    expect(launcherContents).not.toContain(fixtureNode);
     expect(spawnSync(releaseLauncher, ['--version']).stdout.toString()).toBe('1.2.4\n');
 
     rmSync(pinnedNode);
@@ -257,8 +262,8 @@ fs.writeFileSync(path.join(root, 'node_modules/better-sqlite3/index.js'), 'modul
 
     const result = await runNpmPrefixUpdate(root, path.join(root, 'removed', 'bin', 'node'));
     expect(result.outcome).toMatchObject({ applied: true });
-    expect(result.receiptNode).toBe(process.execPath);
-    expect(result.launcher).toContain(`node='${process.execPath}'`);
+    expect(result.receiptNode).toBe(fixtureNode);
+    expect(result.launcher).toContain(`node='${fixtureNode}'`);
   });
 
   it('ignores unusable receipt Node executables and legacy receipts', () => {
@@ -347,14 +352,14 @@ fs.writeFileSync(path.join(root, 'node_modules/better-sqlite3/index.js'), 'modul
 });
 
 // Homebrew's Cellar/node/<version>/bin/node is the real binary, so the fixture
-// places the running Node there via hardlink (copy fallback) to make
+// places the fixture Node there via hardlink (copy fallback) to make
 // process.execPath resolve inside the fake keg.
 function placeNodeBinaryAt(target: string) {
   mkdirSync(path.dirname(target), { recursive: true });
   try {
-    linkSync(process.execPath, target);
+    linkSync(fixtureNode, target);
   } catch {
-    copyFileSync(process.execPath, target);
+    copyFileSync(fixtureNode, target);
   }
   chmodSync(target, 0o755);
 }
@@ -427,6 +432,7 @@ fs.writeFileSync(path.join(root, 'node_modules/better-sqlite3/index.js'), 'modul
     {
       currentVersion: '1.2.3',
       entryFile: path.join(packageRoot, 'cli.js'),
+      runtimeExecutable: fixtureNode,
       environment: { ...process.env },
     },
     {
