@@ -2,11 +2,29 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { versionFromTag } from './lib/cli-release.mjs';
+
+/**
+ * Run npm through `npm-cli.js` and the current runtime instead of the `npm`
+ * shim: the shim's `node` shebang would drag Node into a Bun-only toolchain,
+ * while the npm CLI itself is plain JavaScript the running runtime executes.
+ */
+function resolveNpmCliInvocation() {
+  const besideRuntime = path.join(path.dirname(process.execPath), 'node_modules', 'npm', 'bin', 'npm-cli.js');
+  if (existsSync(besideRuntime)) return { runtime: process.execPath, npmCli: besideRuntime };
+  const shim = execFileSync(process.platform === 'win32' ? 'where' : 'which', [
+    process.platform === 'win32' ? 'npm.cmd' : 'npm',
+  ], { encoding: 'utf8' }).trim().split(/\r?\n/u)[0];
+  if (shim) {
+    const besideShim = path.join(path.dirname(realpathSync(shim)), 'node_modules', 'npm', 'bin', 'npm-cli.js');
+    if (existsSync(besideShim)) return { runtime: process.execPath, npmCli: besideShim };
+  }
+  throw new Error('npm-cli.js could not be located for the release verification');
+}
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const version = versionFromTag(process.env.MCODE_RELEASE_TAG);
@@ -37,7 +55,8 @@ try {
   });
   delete env.NODE_PATH;
   delete env.NODE_OPTIONS;
-  execFileSync('npm', ['install', '--global', '--prefix', prefix,
+  const { runtime, npmCli } = resolveNpmCliInvocation();
+  execFileSync(runtime, [npmCli, 'install', '--global', '--prefix', prefix,
     '--registry=https://registry.npmjs.org/', '--include=optional', '--ignore-scripts=false',
     '--allow-scripts=@minimax-ai/code', '--no-audit', '--no-fund', archive],
   { cwd: home, env, stdio: 'inherit', timeout: 300000 });
