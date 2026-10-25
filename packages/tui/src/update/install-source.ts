@@ -1,10 +1,26 @@
-import { accessSync, constants, existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { accessSync, constants, readFileSync, realpathSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
-import spawn from 'cross-spawn';
 import { parseMcodeVersion } from './release.js';
 import { tuiUpdateText } from './copy.js';
 import type { McodeUpdateOperationOptions } from './progress.js';
+
+/**
+ * Whether `target` exists.
+ *
+ * `existsSync` is the Node compatibility surface and measured roughly an order
+ * of magnitude slower per call in this runtime; a `statSync` inside a `try`
+ * answers the same question for files, directories, missing entries and
+ * unreadable paths at a fraction of the cost.
+ */
+export function pathExists(target: string): boolean {
+  try {
+    statSync(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Locate `npm-cli.js` for npm-based update flows and run it with the current
@@ -25,12 +41,10 @@ export function resolveNpmCliInvocation(): { runtime: string; npmCli: string } {
     'bin',
     'npm-cli.js',
   );
-  if (existsSync(besideRuntime)) return { runtime: process.execPath, npmCli: besideRuntime };
+  if (pathExists(besideRuntime)) return { runtime: process.execPath, npmCli: besideRuntime };
   const finder = process.platform === 'win32' ? 'where' : 'which';
   const shimName = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const shim = execFileSync(finder, [shimName], { encoding: 'utf8' })
-    .trim()
-    .split(/\r?\n/u)[0];
+  const shim = execFileSync(finder, [shimName], { encoding: 'utf8' }).trim().split(/\r?\n/u)[0];
   if (shim) {
     const besideShim = path.join(
       path.dirname(realpathSync(shim)),
@@ -39,7 +53,7 @@ export function resolveNpmCliInvocation(): { runtime: string; npmCli: string } {
       'bin',
       'npm-cli.js',
     );
-    if (existsSync(besideShim)) return { runtime: process.execPath, npmCli: besideShim };
+    if (pathExists(besideShim)) return { runtime: process.execPath, npmCli: besideShim };
   }
   throw new Error('npm-cli.js could not be located for the npm-based update flows');
 }
@@ -383,7 +397,7 @@ export function bindMcodeNpmCommandToRuntime(
     path.join(npmDirectory, '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js'),
   ];
   const npmCli =
-    candidates.find((file) => existsSync(file) && statSync(file).isFile()) ??
+    candidates.find((file) => pathExists(file) && statSync(file).isFile()) ??
     resolvePnpmNpmShim(npmExecutable);
   if (!npmCli)
     throw new Error(`Cannot locate npm-cli.js for the owned npm executable: ${command.executable}`);
@@ -444,53 +458,52 @@ export function runMcodePackageManagerCommand(
   environment: NodeJS.ProcessEnv = process.env,
   options: McodePackageManagerRunOptions = {},
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    const child = spawn(command.executable, [...command.args], {
+  return (async () => {
+    const child = Bun.spawn({
+      cmd: [command.executable, ...command.args],
       env: environment,
-      shell: false,
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
       windowsHide: true,
     });
-    const stdout: Buffer[] = [];
-    const stderr: Buffer[] = [];
-    child.stdout?.on('data', (chunk: Buffer) => {
-      stdout.push(chunk);
-      notifyPackageManagerOutput(options, chunk);
-    });
-    child.stderr?.on('data', (chunk: Buffer) => {
-      stderr.push(chunk);
-      notifyPackageManagerOutput(options, chunk);
-    });
-    child.once('error', (error) => {
-      if (settled) return;
-      settled = true;
-      reject(error);
-    });
-    child.once('exit', (code, signal) => {
-      if (settled) return;
-      settled = true;
-      if (code === 0) {
-        resolve();
-        return;
+    const collect = async (stream: ReadableStream<Uint8Array> | null): Promise<Uint8Array> => {
+      if (!stream) return new Uint8Array();
+      const chunks: Uint8Array[] = [];
+      for await (const chunk of stream) {
+        chunks.push(chunk);
+        notifyPackageManagerOutput(options, chunk);
       }
-      const details = Buffer.concat([...stderr, ...stdout])
-        .toString('utf8')
-        .trim();
-      reject(
-        new Error(
-          `${command.executable} failed (${
-            signal ? `signal ${signal}` : `exit ${String(code)}`
-          })${details ? `: ${details}` : ''}`,
-        ),
-      );
-    });
-  });
+      const total = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+      const merged = new Uint8Array(total);
+      let offset = 0;
+      for (const chunk of chunks) {
+        merged.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      return merged;
+    };
+    const decoder = new TextDecoder();
+    const [stdoutBytes, stderrBytes, exitCode] = await Promise.all([
+      collect(child.stdout),
+      collect(child.stderr),
+      child.exited,
+    ]);
+    if (exitCode === 0) return;
+    const details = decoder.decode(stderrBytes).trim() + decoder.decode(stdoutBytes).trim();
+    throw new Error(
+      `${command.executable} failed (exit ${String(exitCode)})${details ? `: ${details}` : ''}`,
+    );
+  })();
 }
 
-function notifyPackageManagerOutput(options: McodePackageManagerRunOptions, chunk: Buffer): void {
+const outputDecoder = new TextDecoder();
+function notifyPackageManagerOutput(
+  options: McodePackageManagerRunOptions,
+  chunk: Uint8Array,
+): void {
   try {
-    options.onOutput?.(chunk.toString('utf8'));
+    options.onOutput?.(outputDecoder.decode(chunk));
   } catch {
     // Progress rendering must never change the package-manager result.
   }
@@ -539,7 +552,7 @@ export function resolveMcodeNpmPrefixInstall(
     platformPath.dirname(nodeExecutable),
     platform === 'win32' ? 'npm.cmd' : 'npm',
   );
-  if (!existsSync(adjacentNpm)) return undefined;
+  if (!pathExists(adjacentNpm)) return undefined;
   const distribution = resolveMcodeNpmDistribution(identity.packageName);
   return {
     executable: adjacentNpm,
@@ -575,7 +588,7 @@ function resolveMcodePackageIdentity(
 
   for (;;) {
     const manifestFile = path.join(current, 'package.json');
-    if (existsSync(manifestFile)) {
+    if (pathExists(manifestFile)) {
       try {
         const manifest = JSON.parse(readFileSync(manifestFile, 'utf8')) as {
           name?: unknown;
@@ -673,7 +686,7 @@ function readNpmPrefixReceipt(
     if (
       normalizeResolvedPath(value.prefix, platform) !== normalizeResolvedPath(prefix, platform) ||
       new URL(value.registry).href !== distribution.registry ||
-      !existsSync(value.npmExecutable)
+      !pathExists(value.npmExecutable)
     ) {
       return undefined;
     }
@@ -839,7 +852,5 @@ async function runText(
   ]);
   if (exitCode === 0) return stdout.trim();
   const details = `${stderr}${stdout}`.trim();
-  throw new Error(
-    `${command} failed (exit ${String(exitCode)})${details ? `: ${details}` : ''}`,
-  );
+  throw new Error(`${command} failed (exit ${String(exitCode)})${details ? `: ${details}` : ''}`);
 }

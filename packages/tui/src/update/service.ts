@@ -1,10 +1,13 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
-import spawn from 'cross-spawn';
 import { retryWindowsFileSystemOperation } from '@mavis/shared';
-import { resolveMcodeNpmDistribution, resolveNpmCliInvocation } from './install-source.js';
+import {
+  pathExists,
+  resolveMcodeNpmDistribution,
+  resolveNpmCliInvocation,
+} from './install-source.js';
 import { readMcodeBinEntry, resolveMcodePrefixPackageRoot } from './prefix-update.js';
 import {
   McodeUpdateCancelledError,
@@ -234,7 +237,7 @@ export class McodeUpdateService {
       await this.dependencies.validateInstalledVersion(stagingPrefix, check.latestVersion);
       throwIfMcodeUpdateCancelled(request.signal);
       reportMcodeUpdatePhase(request, 'activating', false);
-      if (existsSync(finalPrefix)) {
+      if (pathExists(finalPrefix)) {
         await this.dependencies.validateInstalledVersion(finalPrefix, check.latestVersion);
         removeUpdateTree(stagingPrefix);
       } else {
@@ -274,7 +277,7 @@ export function resolveMcodeInstallRoot(environment: NodeJS.ProcessEnv = process
 
 export function readMcodeUpdateChannel(installRoot: string): McodeUpdateChannel {
   const file = path.join(installRoot, 'update.json');
-  if (!existsSync(file)) return 'stable';
+  if (!pathExists(file)) return 'stable';
   let parsed: unknown;
   try {
     parsed = JSON.parse(readFileSync(file, 'utf8'));
@@ -296,7 +299,7 @@ function readInstalledPublicKey(installRoot: string, environment: NodeJS.Process
   const explicitFile = environment.MCODE_RELEASE_PUBLIC_KEY_FILE;
   if (explicitFile) return readFileSync(path.resolve(explicitFile), 'utf8');
   const metadataFile = path.join(installRoot, 'install.json');
-  if (!existsSync(metadataFile)) {
+  if (!pathExists(metadataFile)) {
     throw new Error(
       'MCode update trust root is missing. Install with the official Shell/PowerShell installer first.',
     );
@@ -377,7 +380,7 @@ async function defaultValidateInstalledVersion(prefix: string, version: string):
     );
     const manifest = JSON.parse(readFileSync(path.join(packageRoot, 'package.json'), 'utf8'));
     const binEntry = readMcodeBinEntry(manifest.bin, 'mcode');
-    if (!binEntry || !existsSync(path.join(prefix, 'mcode.cmd'))) {
+    if (!binEntry || !pathExists(path.join(prefix, 'mcode.cmd'))) {
       throw new Error(`Installed MCode launcher is missing or invalid at ${prefix}.`);
     }
     executable = process.execPath;
@@ -395,37 +398,37 @@ export function runMcodeUpdateCommand(
   environment: NodeJS.ProcessEnv,
   capture = false,
 ): Promise<string> {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    const child = spawn(command, args, {
+  return (async () => {
+    const child = Bun.spawn({
+      cmd: [command, ...args],
       env: environment,
-      shell: false,
-      stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'inherit',
+      stdin: 'ignore',
+      stdout: capture ? 'pipe' : 'inherit',
+      stderr: capture ? 'pipe' : 'inherit',
       windowsHide: true,
     });
-    const stdout: Buffer[] = [];
-    const stderr: Buffer[] = [];
-    child.stdout?.on('data', (chunk: Buffer) => stdout.push(chunk));
-    child.stderr?.on('data', (chunk: Buffer) => stderr.push(chunk));
-    child.once('error', (error) => {
-      if (settled) return;
-      settled = true;
-      reject(error);
-    });
-    child.once('close', (code, exitSignal) => {
-      if (settled) return;
-      settled = true;
-      if (code === 0) return resolve(Buffer.concat(stdout).toString('utf8'));
-      const details = Buffer.concat(stderr).toString('utf8').trim();
-      reject(
-        new Error(
-          `${command} failed (${
-            exitSignal ? `signal ${exitSignal}` : `exit ${String(code)}`
-          })${details ? `: ${details}` : ''}`,
-        ),
-      );
-    });
-  });
+    const collect = async (stream: ReadableStream<Uint8Array> | null): Promise<string> => {
+      if (!stream) return '';
+      const chunks: Uint8Array[] = [];
+      for await (const chunk of stream) chunks.push(chunk);
+      const total = chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0);
+      const merged = new Uint8Array(total);
+      let offset = 0;
+      for (const chunk of chunks) {
+        merged.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      return new TextDecoder().decode(merged);
+    };
+    const [stdout, stderr, exitCode] = await Promise.all([
+      capture ? collect(child.stdout) : Promise.resolve(''),
+      capture ? collect(child.stderr) : Promise.resolve(''),
+      child.exited,
+    ]);
+    if (exitCode === 0) return stdout;
+    const details = (stderr + stdout).trim();
+    throw new Error(`${command} failed (exit ${String(exitCode)})${details ? `: ${details}` : ''}`);
+  })();
 }
 
 function forwardAbort(signal: AbortSignal | undefined, controller: AbortController): () => void {
@@ -463,7 +466,7 @@ function removeUpdateTree(target: string): void {
 
 function readActiveVersion(installRoot: string): string | undefined {
   const current = path.join(installRoot, 'current');
-  if (!existsSync(current)) return undefined;
+  if (!pathExists(current)) return undefined;
   return readFileSync(current, 'utf8').trim() || undefined;
 }
 

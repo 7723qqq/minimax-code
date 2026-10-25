@@ -754,7 +754,7 @@ async function waitForExit(pid) {
 async function waitForMarkers() {
   const directory = path.join(pending.activePrefix, '.mcode-active');
   for (;;) {
-    const blockers = fs.existsSync(directory) ? fs.readdirSync(directory).filter((name) => name.endsWith('.json')).filter((name) => {
+    const blockers = pathExists(directory) ? fs.readdirSync(directory).filter((name) => name.endsWith('.json')).filter((name) => {
       const pid = Number(name.slice(0, -5));
       if (!Number.isSafeInteger(pid) || pid <= 0 || pid === process.pid) return false;
       if (alive(pid)) return true;
@@ -773,24 +773,24 @@ async function recoverInterrupted() {
   })();
   if (activeVersion === pending.expectedVersion) {
     const launchers = pending.launchers || [];
-    const canCompleteLaunchers = launchers.every((launcher) => fs.existsSync(launcher.activePath) || fs.existsSync(launcher.stagedPath));
+    const canCompleteLaunchers = launchers.every((launcher) => pathExists(launcher.activePath) || pathExists(launcher.stagedPath));
     if (canCompleteLaunchers) {
       for (const launcher of launchers) {
-        if (!fs.existsSync(launcher.activePath)) fs.renameSync(launcher.stagedPath, launcher.activePath);
+        if (!pathExists(launcher.activePath)) fs.renameSync(launcher.stagedPath, launcher.activePath);
       }
       return true;
     }
   }
-  if (!fs.existsSync(pending.backupModulesRoot)) return false;
-  if (fs.existsSync(pending.activeModulesRoot)) {
-    if (!fs.existsSync(pending.stagedModulesRoot)) fs.renameSync(pending.activeModulesRoot, pending.stagedModulesRoot);
+  if (!pathExists(pending.backupModulesRoot)) return false;
+  if (pathExists(pending.activeModulesRoot)) {
+    if (!pathExists(pending.stagedModulesRoot)) fs.renameSync(pending.activeModulesRoot, pending.stagedModulesRoot);
     else remove(pending.activeModulesRoot);
   }
   fs.renameSync(pending.backupModulesRoot, pending.activeModulesRoot);
   for (const launcher of pending.launchers || []) {
-    if (!fs.existsSync(launcher.backupPath)) continue;
-    if (fs.existsSync(launcher.activePath)) {
-      if (!fs.existsSync(launcher.stagedPath)) fs.renameSync(launcher.activePath, launcher.stagedPath);
+    if (!pathExists(launcher.backupPath)) continue;
+    if (pathExists(launcher.activePath)) {
+      if (!pathExists(launcher.stagedPath)) fs.renameSync(launcher.activePath, launcher.stagedPath);
       else remove(launcher.activePath);
     }
     fs.renameSync(launcher.backupPath, launcher.activePath);
@@ -828,12 +828,12 @@ async function activate() {
   try {
     const stagedManifest = JSON.parse(fs.readFileSync(path.join(pending.stagedModulesRoot, ...pending.packageName.split('/'), 'package.json'), 'utf8'));
     if (stagedManifest.name !== pending.packageName || stagedManifest.version !== pending.expectedVersion) throw new Error('Staged MCode package identity or version is invalid.');
-    if (launchers.some((launcher) => !fs.existsSync(launcher.stagedPath))) throw new Error('Staged MCode launcher is missing.');
+    if (launchers.some((launcher) => !pathExists(launcher.stagedPath))) throw new Error('Staged MCode launcher is missing.');
     fs.renameSync(pending.activeModulesRoot, pending.backupModulesRoot);
     modulesMoved = true;
-    for (const launcher of launchers) { if (fs.existsSync(launcher.activePath)) { fs.renameSync(launcher.activePath, launcher.backupPath); moved.push(launcher); } }
+    for (const launcher of launchers) { if (pathExists(launcher.activePath)) { fs.renameSync(launcher.activePath, launcher.backupPath); moved.push(launcher); } }
     fs.renameSync(pending.stagedModulesRoot, pending.activeModulesRoot);
-    for (const launcher of launchers) { if (fs.existsSync(launcher.stagedPath)) { fs.renameSync(launcher.stagedPath, launcher.activePath); installed.push(launcher); } }
+    for (const launcher of launchers) { if (pathExists(launcher.stagedPath)) { fs.renameSync(launcher.stagedPath, launcher.activePath); installed.push(launcher); } }
     const manifest = JSON.parse(fs.readFileSync(path.join(pending.activeModulesRoot, ...pending.packageName.split('/'), 'package.json'), 'utf8'));
     if (manifest.name !== pending.packageName || manifest.version !== pending.expectedVersion) throw new Error('Activated MCode package identity or version is invalid.');
     await restart(restartArgs);
@@ -842,14 +842,14 @@ async function activate() {
   } catch (error) {
     try {
       if (modulesMoved) {
-        if (fs.existsSync(pending.activeModulesRoot)) {
-          if (!fs.existsSync(pending.stagedModulesRoot)) fs.renameSync(pending.activeModulesRoot, pending.stagedModulesRoot);
+        if (pathExists(pending.activeModulesRoot)) {
+          if (!pathExists(pending.stagedModulesRoot)) fs.renameSync(pending.activeModulesRoot, pending.stagedModulesRoot);
           else remove(pending.activeModulesRoot);
         }
-        if (fs.existsSync(pending.backupModulesRoot)) fs.renameSync(pending.backupModulesRoot, pending.activeModulesRoot);
+        if (pathExists(pending.backupModulesRoot)) fs.renameSync(pending.backupModulesRoot, pending.activeModulesRoot);
       }
-      for (const launcher of installed) { if (fs.existsSync(launcher.activePath)) { if (!fs.existsSync(launcher.stagedPath)) fs.renameSync(launcher.activePath, launcher.stagedPath); else remove(launcher.activePath); } }
-      for (const launcher of moved) if (fs.existsSync(launcher.backupPath)) fs.renameSync(launcher.backupPath, launcher.activePath);
+      for (const launcher of installed) { if (pathExists(launcher.activePath)) { if (!pathExists(launcher.stagedPath)) fs.renameSync(launcher.activePath, launcher.stagedPath); else remove(launcher.activePath); } }
+      for (const launcher of moved) if (pathExists(launcher.backupPath)) fs.renameSync(launcher.backupPath, launcher.activePath);
     } catch (rollbackError) {
       process.stderr.write(String(rollbackError && rollbackError.stack || rollbackError) + '\\n');
     }

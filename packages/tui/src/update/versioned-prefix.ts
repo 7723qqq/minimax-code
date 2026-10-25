@@ -1,7 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import {
   chmodSync,
-  existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -10,7 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
-import type { McodeNpmPackageName } from './install-source.js';
+import { pathExists, type McodeNpmPackageName } from './install-source.js';
 import {
   readMcodePrefixPackageMetadata,
   type McodePrefixPackageMetadata,
@@ -104,7 +103,7 @@ export function activateMcodeVersionedPrefixInstall(
   mkdirSync(releasesRoot, { recursive: true, mode: 0o700 });
   let releaseKey = activation.expectedVersion;
   let releasePrefix = platformPath.join(releasesRoot, releaseKey);
-  if (existsSync(releasePrefix)) {
+  if (pathExists(releasePrefix)) {
     // Never select bytes that did not pass this update attempt's full staging validation.
     releaseKey = `${activation.expectedVersion}-repair-${randomUUID()}`;
     releasePrefix = platformPath.join(releasesRoot, releaseKey);
@@ -183,7 +182,7 @@ function versionedReleaseLauncherContents(
 ): ReadonlyMap<string, string> {
   const platformPath = platformPathFor(platform);
   const launchers = new Map<string, string>();
-  if (!existsSync(runtimeExecutable)) {
+  if (!pathExists(runtimeExecutable)) {
     throw new Error('MCode versioned launcher runtime is missing.');
   }
   for (const command of versionedCommands(metadata)) {
@@ -196,7 +195,7 @@ function versionedReleaseLauncherContents(
       !relativeEntry ||
       relativeEntry.startsWith('..') ||
       platformPath.isAbsolute(relativeEntry) ||
-      !existsSync(entryFile)
+      !pathExists(entryFile)
     ) {
       throw new Error(`MCode versioned ${command.name} launcher path is invalid.`);
     }
