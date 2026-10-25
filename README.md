@@ -257,7 +257,7 @@ Account features, updates, feedback, and diagnostics are also included. Managed 
 
 ## Build from source
 
-To develop MCode or run this source checkout, you need Git, **Bun 1.4.4+** (dependency installation, tests and the CLI runtime), and **Node.js 22.19+ (22.x), 24.2+ (24.x), 25, or 26** for the build scripts. On Windows, keep the checkout on a local NTFS volume and outside cloud-synced folders; the preflight command below checks the volume before dependencies are installed.
+To develop MCode or run this source checkout, you need Git and **Bun 1.4.4+**: dependency installation, type checking, linting, builds, tests and the CLI runtime all run on it. Node.js is only needed where npm performs an installation. On Windows, keep the checkout on a local NTFS volume and outside cloud-synced folders; the preflight command below checks the volume before dependencies are installed.
 ```bash
 git clone https://github.com/MiniMax-AI/minimax-code.git
 cd minimax-code

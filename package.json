@@ -62,7 +62,7 @@
     "check:comments": "bun scripts/check-source-comments.mjs",
     "check:tsconfig": "bun scripts/gen-tsconfig-paths.mjs",
     "gen:tsconfig": "bun scripts/gen-tsconfig-paths.mjs --write",
-    "typecheck": "tsc -p tsconfig.standalone.json",
+    "typecheck": "bun x tsc -p tsconfig.standalone.json",
     "test:sandbox": "bun scripts/run-vitest-suite.mjs sandbox",
     "test:status-contract": "bun scripts/run-vitest-suite.mjs status-contract",
     "check:source": "bun scripts/source-inventory.mjs",
@@ -72,7 +72,7 @@
     "test:artifact": "bun scripts/run-bun-tests.mjs test/public-artifact.test.mjs",
     "test:release-tools": "bun scripts/run-bun-tests.mjs test/source-sync.test.mjs",
     "lint": "bun run lint:tui",
-    "lint:tui": "eslint packages/tui/src packages/tui/test --ext .ts,.mjs --quiet"
+    "lint:tui": "bun x eslint packages/tui/src packages/tui/test --ext .ts,.mjs --quiet"
   },
   "devDependencies": {
     "@types/node": "^20.19.0",
