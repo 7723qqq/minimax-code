@@ -20,7 +20,6 @@
  */
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 
 import { TRASH_SCRIPT_CONTENT } from './trash-script.js';
@@ -84,7 +83,7 @@ export type TrashRuntimeDiagnostics = {
   readonly launcher_matches_bundled?: boolean;
   readonly command_interpreter_source?: 'ComSpec' | 'default';
   readonly command_interpreter_basename?: string;
-  readonly runtime_kind?: 'electron' | 'node';
+  readonly runtime_kind?: 'electron' | 'bun' | 'node';
   readonly runtime_executable_basename?: string;
   readonly duration_ms?: number;
   readonly exit_status?: number | null;
@@ -224,32 +223,47 @@ export function inspectTrashRuntime(
 function probeTrashScript(launcherPath: string): TrashProbeResult {
   const commandInterpreter = process.env.ComSpec || 'cmd.exe';
   const startedAt = Date.now();
-  const result = spawnSync(
-    commandInterpreter,
-    ['/d', '/s', '/c', `call "${launcherPath.replaceAll('"', '""')}" --`],
-    {
-      encoding: 'utf8',
+  let exitCode: number | null = null;
+  let stderr = '';
+  let spawnError: unknown;
+  let spawnFailed = false;
+  try {
+    const result = Bun.spawnSync({
+      cmd: [
+        commandInterpreter,
+        '/d',
+        '/s',
+        '/c',
+        `call "${launcherPath.replaceAll('"', '""')}" --`,
+      ],
       timeout: 5000,
       windowsHide: true,
       // The final argv entry is already a complete cmd.exe `/c` payload.
-      // Node's default Windows quoting escapes its embedded quotes as `\"`,
-      // which cmd.exe treats as literal characters instead of launcher quotes.
+      // Re-quoting would escape its embedded quotes, which cmd.exe treats as
+      // literal characters instead of launcher quotes.
       windowsVerbatimArguments: true,
-    },
-  );
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    exitCode = result.exitCode;
+    stderr = result.stderr.toString('utf-8');
+  } catch (error) {
+    spawnError = error;
+    spawnFailed = true;
+  }
   const durationMs = Date.now() - startedAt;
-  const stderr = result.stderr ?? '';
   const stderrMarkerFound = stderr.includes('no files specified');
-  if (!result.error && result.status === 1 && stderrMarkerFound) return { callable: true };
+  if (!spawnFailed && exitCode === 1 && stderrMarkerFound) return { callable: true };
 
-  const errorCode = readErrorString(result.error, 'code');
-  const failure: TrashRuntimeDiagnostics['failure'] = result.error
-    ? errorCode === 'ETIMEDOUT'
+  const errorCode = readErrorString(spawnError, 'code');
+  const failure: TrashRuntimeDiagnostics['failure'] = spawnFailed
+    ? 'spawn-failed'
+    : durationMs >= 5000 && exitCode !== 1
       ? 'timed-out'
-      : 'spawn-failed'
-    : result.status !== 1
-      ? 'unexpected-exit'
-      : 'unexpected-output';
+      : exitCode !== 1
+        ? 'unexpected-exit'
+        : 'unexpected-output';
   return {
     callable: false,
     diagnostics: {
@@ -257,14 +271,18 @@ function probeTrashScript(launcherPath: string): TrashProbeResult {
       failure,
       command_interpreter_source: process.env.ComSpec ? 'ComSpec' : 'default',
       command_interpreter_basename: path.win32.basename(commandInterpreter),
-      runtime_kind: process.versions.electron ? 'electron' : 'node',
+      runtime_kind: process.versions.electron
+        ? 'electron'
+        : process.versions.bun
+          ? 'bun'
+          : 'node',
       runtime_executable_basename: path.win32.basename(process.execPath),
       duration_ms: durationMs,
-      exit_status: result.status,
-      signal: result.signal,
+      exit_status: exitCode,
+      signal: null,
       expected_stderr_marker_found: stderrMarkerFound,
       ...(errorCode ? { error_code: errorCode } : {}),
-      ...readNodeErrorDiagnostics(result.error),
+      ...readNodeErrorDiagnostics(spawnError),
       ...probeOutputDiagnostics(stderr, launcherPath),
     },
   };

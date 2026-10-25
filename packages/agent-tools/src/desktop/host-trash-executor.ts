@@ -1,4 +1,3 @@
-import { execFile } from 'node:child_process';
 import path from 'node:path';
 
 import {
@@ -242,27 +241,49 @@ function execFileLiteral(
     readonly signal?: AbortSignal;
   },
 ): Promise<{ stdout: string; stderr: string }> {
-  return new Promise((resolve, reject) => {
-    execFile(
-      launcher,
-      [...argv],
-      {
-        cwd: options.cwd,
-        env: options.env,
-        encoding: 'utf8',
-        timeout: options.timeoutMs,
-        windowsHide: true,
-        ...(options.signal ? { signal: options.signal } : {}),
-      },
-      (error, stdout, stderr) => {
-        if (error) {
-          reject(Object.assign(error, { stdout, stderr }));
-          return;
-        }
-        resolve({ stdout, stderr });
-      },
-    );
-  });
+  return (async () => {
+    const child = Bun.spawn({
+      cmd: [launcher, ...argv],
+      cwd: options.cwd,
+      env: options.env,
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+      windowsHide: true,
+      timeout: options.timeoutMs,
+    });
+    const onAbort = () => child.kill();
+    options.signal?.addEventListener('abort', onAbort, { once: true });
+    const readText = async (stream: ReadableStream<Uint8Array> | null): Promise<string> => {
+      if (!stream) return '';
+      const decoder = new TextDecoder();
+      let text = '';
+      try {
+        for await (const chunk of stream) text += decoder.decode(chunk, { stream: true });
+      } catch {
+        // Killed by timeout or abort; a broken pipe is expected.
+      }
+      return text + decoder.decode();
+    };
+    try {
+      const [stdout, stderr, exitCode] = await Promise.all([
+        readText(child.stdout),
+        readText(child.stderr),
+        child.exited,
+      ]);
+      if (exitCode !== 0) {
+        // The previous callback shape attached the captured output to the
+        // error; joinProcessOutput reads stdout/stderr off it.
+        throw Object.assign(new Error(`${launcher} failed (exit ${String(exitCode)})`), {
+          stdout,
+          stderr,
+        });
+      }
+      return { stdout, stderr };
+    } finally {
+      options.signal?.removeEventListener('abort', onAbort);
+    }
+  })();
 }
 
 function joinProcessOutput(stdout?: string, stderr?: string): string {

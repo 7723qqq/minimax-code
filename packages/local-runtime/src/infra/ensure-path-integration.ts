@@ -7,7 +7,6 @@
  * local-runtime startup.
  */
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
@@ -64,12 +63,14 @@ function ensureWindowsUserPath(binDir: string): void {
   try {
     // Query the whole key: a successful listing can prove Path is absent.
     // A failed /v Path query cannot distinguish absence from read errors.
-    const queryResult = execFileSync('reg', ['query', 'HKCU\\Environment'], {
+    const queryResult = Bun.spawnSync({
+      cmd: ['reg', 'query', 'HKCU\\Environment'],
       timeout: 5000,
-      encoding: 'utf-8',
-      stdio: ['pipe', 'pipe', 'pipe'],
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
       windowsHide: true,
-    });
+    }).stdout.toString('utf-8');
 
     // Do not persist text that could not be decoded losslessly.
     if (queryResult.includes('\uFFFD')) return;
@@ -96,9 +97,12 @@ function ensureWindowsUserPath(binDir: string): void {
   }
 
   const newPath = currentPath ? `${binDir};${currentPath}` : binDir;
-  execFileSync(
-    'reg',
-    ['add', 'HKCU\\Environment', '/v', 'Path', '/t', registryType, '/d', newPath, '/f'],
-    { timeout: 5000, stdio: 'ignore', windowsHide: true },
-  );
+  Bun.spawnSync({
+    cmd: ['reg', 'add', 'HKCU\\Environment', '/v', 'Path', '/t', registryType, '/d', newPath, '/f'],
+    timeout: 5000,
+    stdin: 'ignore',
+    stdout: 'ignore',
+    stderr: 'ignore',
+    windowsHide: true,
+  });
 }

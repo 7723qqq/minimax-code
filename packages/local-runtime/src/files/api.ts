@@ -1,4 +1,4 @@
-import { execFile as execFileCallback, type ExecFileException } from 'node:child_process';
+import type { ExecFileException } from 'node:child_process';
 import { createReadStream } from 'node:fs';
 import type { Dirent, Stats } from 'node:fs';
 import { mkdir, readdir, readFile, realpath, rm, stat } from 'node:fs/promises';
@@ -14,7 +14,7 @@ import {
   resolve,
   win32,
 } from 'node:path';
-import { promisify, TextDecoder } from 'node:util';
+import { TextDecoder } from 'node:util';
 import { Readable } from 'node:stream';
 import { getWorkspaceImagePreviewMimeType } from '@mavis/shared/media-asset-meta';
 import { getDataDir } from '@mavis/config';
@@ -38,7 +38,6 @@ import {
   type GitChangesMode,
 } from './workspace-git-changes-coordinator.js';
 
-const execFile = promisify(execFileCallback);
 const JSON_HEADERS = { 'Content-Type': 'application/json' } as const;
 const FATAL_UTF8_DECODER = new TextDecoder('utf-8', { fatal: true });
 const VIDEO_PREVIEW_MIME_TYPES = new Map<string, string>([
@@ -240,7 +239,20 @@ const defaultOpenCommandRuntime: OpenCommandRuntime = {
   platform: process.platform,
   env: process.env,
   run: async (file, args, options) => {
-    await execFile(file, args, options);
+    // The default open command runs detached from the API result: only a
+    // failed start or a non-zero exit is an error the caller can act on.
+    const child = Bun.spawn({
+      cmd: [file, ...args],
+      stdin: 'ignore',
+      stdout: 'ignore',
+      stderr: 'ignore',
+      windowsHide: options.windowsHide,
+      windowsVerbatimArguments: options.windowsVerbatimArguments,
+    });
+    const code = await child.exited;
+    if (code !== 0) {
+      throw new Error(`${file} failed (exit ${String(code)})`);
+    }
   },
 };
 let openCommandRuntime: OpenCommandRuntime = defaultOpenCommandRuntime;

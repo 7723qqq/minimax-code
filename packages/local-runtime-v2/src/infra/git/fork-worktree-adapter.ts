@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import {
@@ -15,7 +14,6 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import type { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 
 type OwnedWorktree = {
@@ -381,7 +379,21 @@ async function copyTrackedPatch(input: {
     // Patches may be large; use a controlled temporary file to avoid another overflow during copying after fingerprint repair.
     const patchPath = join(temporary, 'changes.patch');
     await streamGit(input.args, input.sourceDir, async (stdout) => {
-      await pipeline(stdout, createWriteStream(patchPath, { flags: 'wx', mode: 0o600 }));
+      const sink = createWriteStream(patchPath, { flags: 'wx', mode: 0o600 });
+      const once = (await import('node:events')).default.once;
+      await new Promise<void>((resolveWrite, rejectWrite) => {
+        sink.on('error', rejectWrite);
+        void (async () => {
+          try {
+            for await (const chunk of stdout) {
+              if (!sink.write(chunk)) await once(sink, 'drain');
+            }
+            sink.end(() => resolveWrite());
+          } catch (error) {
+            rejectWrite(error);
+          }
+        })();
+      });
     });
     if ((await fileStat(patchPath)).size > 0) {
       await git(
@@ -716,8 +728,8 @@ async function fingerprint(
     cwd,
     async (stdout) => {
       // Match the original execFile UTF-8 decoding; the stream decoder joins characters split across chunks.
-      stdout.setEncoding('utf8');
-      for await (const chunk of stdout) hash.update(chunk);
+      const decoder = new TextDecoder();
+      for await (const chunk of stdout) hash.update(decoder.decode(chunk, { stream: true }));
     },
   );
   return hash.update('\0').update(untracked).digest('hex');
@@ -776,31 +788,49 @@ async function gitWithInput(
   input: string,
   failureMessage: string,
 ): Promise<string> {
-  return new Promise<string>((resolvePromise, reject) => {
-    const child = spawn('git', [...args], { cwd, stdio: ['pipe', 'pipe', 'pipe'] });
-    let stdout = '';
-    let stderr = '';
-    child.stdout.on('data', (chunk: Buffer) => {
-      stdout += chunk.toString();
+  let child: ReturnType<typeof Bun.spawn>;
+  try {
+    child = Bun.spawn({
+      cmd: ['git', ...args],
+      cwd,
+      stdin: 'pipe',
+      stdout: 'pipe',
+      stderr: 'pipe',
     });
-    child.stderr.on('data', (chunk: Buffer) => {
-      stderr += chunk.toString();
-    });
-    child.on('error', reject);
-    child.on('close', (code) =>
-      code === 0
-        ? resolvePromise(stdout)
-        : reject(new ForkWorktreeUnavailableError(`${failureMessage}: ${stderr}`)),
+  } catch (error) {
+    throw new ForkWorktreeUnavailableError(
+      `${failureMessage}: ${error instanceof Error ? error.message : String(error)}`,
     );
-    child.stdin.end(input);
-  });
+  }
+  const readText = async (stream: ReadableStream<Uint8Array> | null): Promise<string> => {
+    if (!stream) return '';
+    const decoder = new TextDecoder();
+    let text = '';
+    for await (const chunk of stream) text += decoder.decode(chunk, { stream: true });
+    return text + decoder.decode();
+  };
+  const writeInput = (async () => {
+    try {
+      const writer = (child.stdin as WritableStream<Uint8Array> | null)?.getWriter();
+      if (!writer) return;
+      await writer.write(new TextEncoder().encode(input));
+      await writer.close();
+    } catch {
+      // Git may exit without reading all of stdin (EPIPE).
+    }
+  })();
+  const [stdout, stderr] = await Promise.all([readText(child.stdout), readText(child.stderr)]);
+  await writeInput;
+  const code = await child.exited;
+  if (code === 0) return stdout;
+  throw new ForkWorktreeUnavailableError(`${failureMessage}: ${stderr}`);
 }
 
 async function git(args: readonly string[], cwd: string): Promise<string> {
   let result = '';
   await streamGit(args, cwd, async (stdout) => {
-    stdout.setEncoding('utf8');
-    for await (const chunk of stdout) result += chunk;
+    const decoder = new TextDecoder();
+    for await (const chunk of stdout) result += decoder.decode(chunk, { stream: true });
   });
   return result;
 }
@@ -808,31 +838,40 @@ async function git(args: readonly string[], cwd: string): Promise<string> {
 async function streamGit(
   args: readonly string[],
   cwd: string,
-  consume: (stdout: Readable) => Promise<void>,
+  consume: (stdout: ReadableStream<Uint8Array>) => Promise<void>,
 ): Promise<void> {
-  const child = spawn('git', [...args], { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
-  let stderr = '';
-  child.stderr.setEncoding('utf8');
-  child.stderr.on('data', (chunk: string) => {
-    stderr = (stderr + chunk).slice(-64 * 1024);
-  });
-  const completed = new Promise<void>((resolvePromise, reject) => {
-    child.on('error', reject);
-    child.stderr.on('error', (error) => {
-      child.kill();
-      reject(error);
+  let child: ReturnType<typeof Bun.spawn>;
+  try {
+    child = Bun.spawn({
+      cmd: ['git', ...args],
+      cwd,
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
     });
-    child.on('close', (code, signal) => {
-      if (code === 0) resolvePromise();
-      else
-        reject(
-          new ForkWorktreeUnavailableError(`git ${args[0]} failed (${code ?? signal}): ${stderr}`),
-        );
-    });
-  });
+  } catch (error) {
+    throw new ForkWorktreeUnavailableError(
+      `git ${args[0]} failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  const completed = (async () => {
+    let stderr = '';
+    const decoder = new TextDecoder();
+    try {
+      for await (const chunk of child.stderr ?? []) {
+        stderr = (stderr + decoder.decode(chunk, { stream: true })).slice(-64 * 1024);
+      }
+    } catch {
+      // Killed after a consumer failure; a broken pipe is expected.
+    }
+    const code = await child.exited;
+    if (code !== 0) {
+      throw new ForkWorktreeUnavailableError(`git ${args[0]} failed (${String(code)}): ${stderr}`);
+    }
+  })();
   const consumed = (async () => {
     try {
-      await consume(child.stdout);
+      await consume(child.stdout ?? new ReadableStream<Uint8Array>());
     } catch (error) {
       child.kill();
       throw error;

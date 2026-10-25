@@ -1,4 +1,3 @@
-import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { win32 } from 'node:path';
 
@@ -115,13 +114,23 @@ function findExecutable(
 ): string | undefined {
   if (dependencies.findExecutable) return dependencies.findExecutable(name);
   const finder = platform === 'win32' ? 'where.exe' : 'which';
-  const result = spawnSync(finder, [name], {
-    encoding: 'utf8',
-    windowsHide: true,
-    timeout: 1_000,
-  });
-  if (result.status !== 0) return undefined;
+  let result;
+  try {
+    result = Bun.spawnSync({
+      cmd: [finder, name],
+      windowsHide: true,
+      timeout: 1_000,
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+  } catch {
+    // `Bun.spawnSync` throws when the finder itself is missing.
+    return undefined;
+  }
+  if (result.exitCode !== 0) return undefined;
   return result.stdout
+    .toString('utf8')
     .split(/\r?\n/u)
     .map((line) => line.trim())
     .find(Boolean);

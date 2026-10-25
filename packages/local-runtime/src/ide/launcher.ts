@@ -1,8 +1,6 @@
-import { execFile as execFileCallback } from 'node:child_process';
 import fs from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
-import { promisify } from 'node:util';
 
 import {
   IDE_APPS_CACHE_TTL_MS,
@@ -16,7 +14,6 @@ import {
   type ResolvedIdeAppInfo,
 } from './catalog.js';
 
-const execFile = promisify(execFileCallback);
 
 interface IdeAppsCacheEntry {
   expiresAt: number;
@@ -160,6 +157,42 @@ async function assertRegularFileExists(absolutePath: string): Promise<void> {
   }
 }
 
+async function runBunSpawn(
+  cmd: readonly string[],
+  options: { windowsHide?: boolean; windowsVerbatimArguments?: boolean },
+): Promise<void> {
+  const child = Bun.spawn({
+    cmd: [...cmd],
+    stdin: 'ignore',
+    stdout: 'ignore',
+    stderr: 'ignore',
+    windowsHide: options.windowsHide,
+    windowsVerbatimArguments: options.windowsVerbatimArguments,
+  });
+  const exitCode = await child.exited;
+  if (exitCode !== 0) {
+    throw new Error(`command failed (exit ${String(exitCode)})`);
+  }
+}
+
+async function runBunSpawnCapture(
+  cmd: readonly string[],
+  options: { windowsHide?: boolean },
+): Promise<string> {
+  const child = Bun.spawn({
+    cmd: [...cmd],
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
+    windowsHide: options.windowsHide,
+  });
+  const decoder = new TextDecoder();
+  let text = '';
+  for await (const chunk of child.stdout) text += decoder.decode(chunk, { stream: true });
+  await child.exited;
+  return text + decoder.decode();
+}
+
 async function runCommand(
   file: string,
   args: string[],
@@ -169,12 +202,12 @@ async function runCommand(
   try {
     if (needsShell) {
       const quoted = [`"${file}"`, ...args.map((a) => `"${a}"`)].join(' ');
-      await execFile('cmd.exe', ['/d', '/s', '/c', `"${quoted}"`], {
+      await runBunSpawn(['cmd.exe', '/d', '/s', '/c', `"${quoted}"`], {
         windowsHide: options.windowsHide ?? true,
         windowsVerbatimArguments: true,
       });
     } else {
-      await execFile(file, args, {
+      await runBunSpawn([file, ...args], {
         windowsHide: options.windowsHide ?? true,
         windowsVerbatimArguments: options.windowsVerbatimArguments,
       });
@@ -190,11 +223,7 @@ async function whichBinary(binary: string): Promise<string | null> {
   if (!binary) return null;
   const command = process.platform === 'win32' ? 'where' : 'which';
   try {
-    const result = await execFile(command, [binary], {
-      encoding: 'utf8',
-      windowsHide: true,
-    });
-    const stdout = String(result.stdout ?? '');
+    const stdout = await runBunSpawnCapture([command, binary], { windowsHide: true });
     return (
       stdout
         .split(/\r?\n/u)
