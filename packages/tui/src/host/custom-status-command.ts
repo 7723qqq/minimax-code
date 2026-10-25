@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import { win32 } from 'node:path';
 
 import type { TuiCustomStatusLineConfig } from '@mavis/config';
@@ -254,21 +253,27 @@ function runCustomStatusProcess(
     let timedOut = false;
     let settled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let child: ReturnType<typeof spawn> | undefined;
+    let child: ReturnType<typeof Bun.spawn> | undefined;
     const settle = (result: TuiCustomStatusProcessResult) => {
       if (settled) return;
       settled = true;
       if (timer) clearTimeout(timer);
-      child?.stdin?.destroy();
-      child?.stdout?.destroy();
+      try {
+        child?.stdin?.getWriter().abort();
+      } catch {
+        // The command may already have exited or consumed its stdin.
+      }
       resolve(result);
     };
 
     try {
-      child = spawn(invocation.executable, [...invocation.args], {
+      child = Bun.spawn({
+        cmd: [invocation.executable, ...invocation.args],
         cwd: invocation.cwd,
         shell: invocation.shell,
-        stdio: ['pipe', 'pipe', 'ignore'],
+        stdin: 'pipe',
+        stdout: 'pipe',
+        stderr: 'ignore',
         windowsHide: true,
         detached: process.platform !== 'win32',
       });
@@ -281,25 +286,55 @@ function runCustomStatusProcess(
       timedOut = true;
       if (child) terminateCustomStatusProcess(child);
       // A descendant may hold stdout open even after the command exits. Never
-      // depend on close to release the runner's single in-flight slot.
+      // depend on stream end to release the runner's single in-flight slot.
       settle({ exitCode: null, stdout, timedOut: true });
     }, invocation.timeoutMs);
     timer.unref?.();
 
-    child.once('error', () => settle({ exitCode: null, stdout: '', timedOut }));
-    child.stdout?.setEncoding('utf8');
-    child.stdout?.on('data', (chunk: string) => {
-      if (stdout.length >= MAX_STDOUT_LENGTH) return;
-      stdout += chunk.slice(0, MAX_STDOUT_LENGTH - stdout.length);
-    });
     // The command may exit without reading stdin; ignore the EPIPE.
-    child.stdin?.on('error', () => {});
-    child.stdin?.end(invocation.stdin);
-    child.once('close', (exitCode) => settle({ exitCode, stdout, timedOut }));
+    void writeCustomStatusStdin(child, invocation.stdin);
+    void collectCustomStatusStdout(child).then((text) => {
+      stdout = text;
+    });
+    void child.exited.then((exitCode) => settle({ exitCode, stdout, timedOut }));
   });
 }
 
-function terminateCustomStatusProcess(child: ReturnType<typeof spawn>): void {
+async function writeCustomStatusStdin(
+  child: ReturnType<typeof Bun.spawn>,
+  input: string,
+): Promise<void> {
+  try {
+    const writer = (child.stdin as WritableStream<Uint8Array> | null)?.getWriter();
+    if (!writer) return;
+    await writer.write(new TextEncoder().encode(input));
+    await writer.close();
+  } catch {
+    // The command may exit without reading stdin (EPIPE).
+  }
+}
+
+async function collectCustomStatusStdout(child: ReturnType<typeof Bun.spawn>): Promise<string> {
+  const stream = child.stdout as ReadableStream<Uint8Array> | null;
+  if (!stream) return '';
+  const decoder = new TextDecoder();
+  let text = '';
+  try {
+    // Keep draining past the cap so a talkative command cannot block on a full
+    // pipe; append only until the display ceiling is reached.
+    for await (const chunk of stream) {
+      const decoded = decoder.decode(chunk, { stream: true });
+      if (text.length < MAX_STDOUT_LENGTH) {
+        text += decoded.slice(0, MAX_STDOUT_LENGTH - text.length);
+      }
+    }
+  } catch {
+    // Killed at the timeout; a broken stream is expected.
+  }
+  return text;
+}
+
+function terminateCustomStatusProcess(child: ReturnType<typeof Bun.spawn>): void {
   const killRoot = () => {
     try {
       child.kill('SIGKILL');
@@ -315,12 +350,16 @@ function terminateCustomStatusProcess(child: ReturnType<typeof spawn>): void {
     }
     const root = process.env.SystemRoot ?? process.env.WINDIR;
     const taskkill = root ? win32.join(root, 'System32', 'taskkill.exe') : 'taskkill.exe';
-    const killer = spawn(taskkill, ['/PID', String(child.pid), '/T', '/F'], {
+    // `Bun.spawn` throws synchronously on a start failure; the surrounding
+    // catch falls back to killing the child directly.
+    const killer = Bun.spawn({
+      cmd: [taskkill, '/PID', String(child.pid), '/T', '/F'],
+      stdin: 'ignore',
+      stdout: 'ignore',
+      stderr: 'ignore',
       windowsHide: true,
-      stdio: 'ignore',
     });
-    killer.once('error', killRoot);
-    killer.once('close', (code) => {
+    void killer.exited.then((code) => {
       if (code !== 0) killRoot();
     });
     killer.unref();

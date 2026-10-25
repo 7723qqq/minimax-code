@@ -1189,7 +1189,7 @@ describe('MCode update install-source commands', () => {
     await expect(
       resolveLatestMcodeRegistryVersion('test', { platform: 'linux', run }),
     ).resolves.toBe('1.2.4');
-    expect(run).toHaveBeenCalledWith('npm', [
+    expect(run).toHaveBeenCalledWith(expect.stringContaining('npm-cli.js'), [
       'view',
       '@minimax-ai/code@test',
       'version',
@@ -1252,7 +1252,7 @@ describe('MCode update install-source commands', () => {
         distribution,
       }),
     ).resolves.toBe('1.2.4');
-    expect(run).toHaveBeenCalledWith('npm', [
+    expect(run).toHaveBeenCalledWith(expect.stringContaining('npm-cli.js'), [
       'view',
       '@minimax-ai/code@latest',
       'version',

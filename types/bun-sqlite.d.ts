@@ -148,6 +148,20 @@ declare namespace Bun {
     stderr?: Stderr;
   }): Subprocess<Stdin, Stdout, Stderr>;
 
+  /** Result of a synchronous spawn: piped output is a Buffer. */
+  interface SpawnSyncResult {
+    readonly exitCode: number | null;
+    readonly success: boolean;
+    readonly stdout: Buffer;
+    readonly stderr: Buffer;
+  }
+
+  /**
+   * Starts a process and waits for it synchronously. Like `spawn`, throws when
+   * the executable cannot be started.
+   */
+  function spawnSync(options: SpawnOptions): SpawnSyncResult;
+
   interface BunFile {
     /**
      * Whether the path exists.

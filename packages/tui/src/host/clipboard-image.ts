@@ -1,8 +1,6 @@
-import { execFile, spawnSync } from 'node:child_process';
 import { chmod, copyFile, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, extname, isAbsolute, join } from 'node:path';
-import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import type { TuiAttachment } from '../application/invocation.js';
 import { MINIMAX_CODE_MAX_TOTAL_ATTACHMENT_BYTES } from '../application/attachment-policy.js';
@@ -265,7 +263,8 @@ function readLinuxClipboardImage(
   environment: Readonly<Record<string, string | undefined>>,
 ): ClipboardImageBytes | undefined {
   if (environment.TERMUX_VERSION) return undefined;
-  const wayland = Boolean(environment.WAYLAND_DISPLAY) || environment.XDG_SESSION_TYPE === 'wayland';
+  const wayland =
+    Boolean(environment.WAYLAND_DISPLAY) || environment.XDG_SESSION_TYPE === 'wayland';
   const wsl = Boolean(environment.WSL_DISTRO_NAME || environment.WSLENV);
   if (wayland || wsl) {
     const waylandImage = readClipboardImageViaWlPaste(environment);
@@ -279,9 +278,7 @@ function readClipboardImageViaWlPaste(
 ): ClipboardImageBytes | undefined {
   const listed = runClipboardCommand('wl-paste', ['--list-types'], environment, true);
   if (!listed) return undefined;
-  const mimeType = selectPreferredClipboardImageMimeType(
-    listed.toString('utf8').split(/\r?\n/u),
-  );
+  const mimeType = selectPreferredClipboardImageMimeType(listed.toString('utf8').split(/\r?\n/u));
   if (!mimeType) return undefined;
   const bytes = runClipboardCommand(
     'wl-paste',
@@ -325,13 +322,16 @@ function runClipboardCommand(
   environment: Readonly<Record<string, string | undefined>>,
   listing: boolean,
 ): Buffer | undefined {
-  const result = spawnSync(command, [...args], {
+  const result = Bun.spawnSync({
+    cmd: [command, ...args],
     timeout: listing ? CLIPBOARD_COMMAND_LIST_TIMEOUT_MS : CLIPBOARD_COMMAND_READ_TIMEOUT_MS,
-    maxBuffer: CLIPBOARD_COMMAND_MAX_BUFFER_BYTES,
-    env: environment as NodeJS.ProcessEnv,
+    env: environment as Record<string, string | undefined>,
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
   });
-  if (result.error || result.status !== 0) return undefined;
-  return Buffer.isBuffer(result.stdout) ? result.stdout : Buffer.from(result.stdout ?? '');
+  if (!result.success) return undefined;
+  return result.stdout.subarray(0, CLIPBOARD_COMMAND_MAX_BUFFER_BYTES);
 }
 
 function selectPreferredClipboardImageMimeType(values: readonly string[]): string | undefined {
@@ -464,15 +464,46 @@ async function loadNativeClipboard(): Promise<TuiNativeClipboard> {
   };
 }
 
-const execFileAsync = promisify(execFile);
-
 async function executeClipboardFile(
   file: string,
   args: readonly string[],
   options: TuiClipboardExecuteFileOptions,
 ): Promise<{ readonly stdout: string }> {
-  const result = await execFileAsync(file, [...args], options);
-  return { stdout: String(result.stdout) };
+  return { stdout: await runClipboardFileText(file, args, options) };
+}
+
+/**
+ * Run one clipboard helper through Bun's own subprocess surface with the
+ * bounded, timed semantics `execFile` provided: a non-zero exit or a timeout
+ * rejects, and the captured text is capped at `maxBuffer` characters.
+ */
+async function runClipboardFileText(
+  file: string,
+  args: readonly string[],
+  options: TuiClipboardExecuteFileOptions,
+): Promise<string> {
+  const child = Bun.spawn({
+    cmd: [file, ...args],
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
+    timeout: options.timeout,
+  });
+  const decoder = new TextDecoder();
+  const readAll = async (stream: ReadableStream<Uint8Array> | null): Promise<string> => {
+    if (!stream) return '';
+    let text = '';
+    for await (const chunk of stream) text += decoder.decode(chunk, { stream: true });
+    return text + decoder.decode();
+  };
+  const all = await Promise.all([readAll(child.stdout), readAll(child.stderr), child.exited]);
+  const [stdout, stderr, exitCode] = [all[0] as string, all[1] as string, all[2] as number];
+  if (exitCode !== 0) {
+    throw new Error(
+      `${file} failed (exit ${String(exitCode)})${stderr ? `: ${stderr.trim()}` : ''}`,
+    );
+  }
+  return stdout.slice(0, options.maxBuffer);
 }
 
 const MACOS_CLIPBOARD_FILE_PATHS_SCRIPT = String.raw`
@@ -501,12 +532,12 @@ async function readClipboardFilePaths(
   if (platform === 'darwin') {
     if (options.clipboard) return [];
     try {
-      const result = await execFileAsync(
+      const stdout = await runClipboardFileText(
         'osascript',
         ['-l', 'JavaScript', '-e', MACOS_CLIPBOARD_FILE_PATHS_SCRIPT],
         { encoding: 'utf8', maxBuffer: 1024 * 1024, timeout: 1_000 },
       );
-      return parseClipboardFilePaths(result.stdout);
+      return parseClipboardFilePaths(stdout);
     } catch {
       return [];
     }
@@ -647,11 +678,9 @@ function classifyClipboardImageError(
     code === 'EPERM' ||
     /access denied|not permitted|permission/iu.test(message)
   ) {
-    return new TuiClipboardImageError(
-      'permission-denied',
-      hostText('host.clipboard.readDenied'),
-      { cause: error },
-    );
+    return new TuiClipboardImageError('permission-denied', hostText('host.clipboard.readDenied'), {
+      cause: error,
+    });
   }
   return new TuiClipboardImageError(
     fallback,
@@ -662,10 +691,7 @@ function classifyClipboardImageError(
 
 function throwIfAborted(signal: AbortSignal | undefined): void {
   if (!signal?.aborted) return;
-  throw new TuiClipboardImageError(
-    'cancelled',
-    hostText('host.clipboard.pasteCancelled'),
-  );
+  throw new TuiClipboardImageError('cancelled', hostText('host.clipboard.pasteCancelled'));
 }
 
 function normalizeMaximumBytes(value: number | undefined): number {
