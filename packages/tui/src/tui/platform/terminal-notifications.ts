@@ -1,4 +1,3 @@
-import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import type { Terminal } from '../engine/public.js';
 import { detectTerminalCapabilities, type TerminalCapabilities } from './terminal-capabilities.js';
@@ -42,6 +41,53 @@ type ExecuteNotificationFile = (
   callback: (error: Error | null) => void,
 ) => unknown;
 
+
+/**
+ * Run one notification helper through Bun's own subprocess surface.
+ *
+ * `Bun.spawn` throws synchronously when the executable cannot start, which is
+ * the only error shape the callers observe. Output is drained (bounded) so a
+ * talkative helper can never block on a full pipe, and the 3s timeout kills
+ * a stuck helper instead of leaking it.
+ */
+function executeNotificationFile(
+  file: string,
+  args: readonly string[],
+  callback: (error: Error | null) => void,
+): void {
+  let child: ReturnType<typeof Bun.spawn>;
+  try {
+    child = Bun.spawn({
+      cmd: [file, ...args],
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+      windowsHide: true,
+    });
+  } catch (error) {
+    callback(error instanceof Error ? error : new Error(String(error)));
+    return;
+  }
+  const timer = setTimeout(() => child.kill('SIGKILL'), 3000);
+  const drain = async (stream: ReadableStream<Uint8Array> | null, budget: { left: number }) => {
+    if (!stream) return;
+    try {
+      for await (const chunk of stream) budget.left = Math.max(0, budget.left - chunk.byteLength);
+    } catch {
+      // The helper may be killed at the timeout; a broken pipe is expected.
+    }
+  };
+  const budget = { left: 4096 };
+  void Promise.all([
+    drain(child.stdout, budget),
+    drain(child.stderr, budget),
+    child.exited,
+  ]).finally(() => {
+    clearTimeout(timer);
+    callback(null);
+  });
+}
+
 export class TuiTerminalNotifications {
   private readonly dedupe = new Set<string>();
   private readonly dedupeOrder: string[] = [];
@@ -71,9 +117,7 @@ export class TuiTerminalNotifications {
         env: this.environment,
       });
     this.executeFile =
-      options.executeFile ??
-      ((file, args, callback) =>
-        execFile(file, [...args], { timeout: 3000, windowsHide: true, maxBuffer: 4096 }, callback));
+      options.executeFile ?? ((file, args, callback) => executeNotificationFile(file, args, callback));
   }
 
   private readonly settings: TuiNotificationSettings;

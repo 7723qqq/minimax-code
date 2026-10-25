@@ -1,5 +1,4 @@
 import { isAbsolute, resolve } from 'node:path';
-import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 export type TuiExternalTargetOpener = (target: string) => Promise<void>;
@@ -17,18 +16,23 @@ export function openTuiExternalTarget(target: string, workspaceDir: string): Pro
         ? ['rundll32', ['url.dll,FileProtocolHandler', normalized]]
         : ['xdg-open', [normalized]];
 
-  return new Promise((resolveOpen, reject) => {
-    const child = spawn(command, args, {
+  // `Bun.spawn` throws synchronously when the opener cannot start, which is
+  // the only failure this fire-and-forget spawn can report; once it returns,
+  // the child is running and is intentionally left detached and unreferenced.
+  try {
+    const child = Bun.spawn({
+      cmd: [command, ...args],
       detached: true,
-      stdio: 'ignore',
+      stdin: 'ignore',
+      stdout: 'ignore',
+      stderr: 'ignore',
       windowsHide: true,
     });
-    child.once('error', reject);
-    child.once('spawn', () => {
-      child.unref();
-      resolveOpen();
-    });
-  });
+    child.unref();
+  } catch (error) {
+    return Promise.reject(error instanceof Error ? error : new Error(String(error)));
+  }
+  return Promise.resolve();
 }
 
 export function resolveTuiExternalTarget(target: string, workspaceDir: string): string {

@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import { existsSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
@@ -867,20 +866,20 @@ export async function restartTuiProcess(
   ) {
     return;
   }
-  return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, args, {
+  return (async () => {
+    const child = Bun.spawn({
+      cmd: [process.execPath, ...args],
       cwd: process.cwd(),
       env: environment,
-      stdio: 'inherit',
+      stdin: 'inherit',
+      stdout: 'inherit',
+      stderr: 'inherit',
       windowsHide: false,
     });
-    child.once('error', reject);
-    child.once('exit', (code, signal) => {
-      if (code !== null && code !== 0) process.exitCode = code;
-      else if (signal) process.exitCode = 1;
-      resolve();
-    });
-  });
+    await child.exited;
+    if (child.exitCode !== null && child.exitCode !== 0) process.exitCode = child.exitCode;
+    else if (child.signalCode) process.exitCode = 1;
+  })();
 }
 
 export function resolveRestartEnvironment(

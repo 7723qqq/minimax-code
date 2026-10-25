@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -141,17 +140,20 @@ export async function editTuiDraftInExternalEditor(
 function runExternalEditorProcess(
   invocation: TuiExternalEditorProcessInvocation,
 ): Promise<TuiExternalEditorProcessResult> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(invocation.executable, invocation.args, {
+  return (async () => {
+    // The shell path stays: an async shell child lets the runtime release its
+    // console read before the TUI re-enables raw input after the editor exits.
+    const child = Bun.spawn({
+      cmd: [invocation.executable, ...invocation.args],
       cwd: invocation.cwd,
-      stdio: 'inherit',
-      // Match Pi's Windows path: an async shell child lets libuv release its
-      // console read before the TUI re-enables raw input after the editor exits.
+      stdin: 'inherit',
+      stdout: 'inherit',
+      stderr: 'inherit',
       shell: invocation.shell,
     });
-    child.once('error', reject);
-    child.once('close', (exitCode, signal) => resolve({ exitCode, signal }));
-  });
+    await child.exited;
+    return { exitCode: child.exitCode, signal: child.signalCode };
+  })();
 }
 
 function assertExternalEditorSucceeded(result: TuiExternalEditorProcessResult): void {
