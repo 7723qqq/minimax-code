@@ -13,8 +13,7 @@
   },
   "devDependencies": {
     "@types/node": "^20",
-    "typescript": "^5",
-    "vitest": "^2"
+    "typescript": "^5"
   },
   "license": "MIT"
 }

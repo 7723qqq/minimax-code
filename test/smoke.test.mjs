@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "../scripts/lib/exec.mjs";
 import { mkdirSync, mkdtempSync, rmSync, readFileSync, existsSync, writeFileSync, chmodSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -12,6 +12,12 @@ import { cliBuildVersion } from '../scripts/lib/cli-release.mjs';
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const cli = process.env.MCODE_TEST_CLI ?? path.join(root, "dist/cli.js");
+// Bun does not honour NODE_OPTIONS, so the offline network guard is injected
+// as an explicit preload on every CLI child instead. The guard writes an audit
+// file on any denied request; the fixture asserting that file is absent is only
+// meaningful because the preload is part of the child's argv.
+const networkGuard = fileURLToPath(new URL("./network-deny.mjs", import.meta.url));
+const guardArgs = (...args) => ["--preload", networkGuard, cli, ...args];
 // Full runtime startup can exceed 15s on Windows CI (ACP took 22s).
 // Match the ACP startup budget; lightweight help/validation stays at 15s.
 const runtimeTimeoutMs = process.platform === "win32" ? 30000 : 15000;
@@ -46,7 +52,6 @@ function fixture(t, environment = process.env) {
       MCODE_TEST_NETWORK_AUDIT: audit,
       MCODE_TEST_MANAGED_OFFLINE: "1",
       MCODE_TEST_PROCESS_PROBE: "1",
-      NODE_OPTIONS: `--import=${new URL("./network-deny.mjs", import.meta.url).href}`,
     },
   };
 }
@@ -57,7 +62,7 @@ test("CLI version and command help work outside the source directory", (t) => {
     [["--help"], "terminal coding agent"],
     [["exec", "--help"], "prompt"],
   ]) {
-    const result = spawnSync(process.execPath, [cli, ...args], {
+    const result = spawnSync(process.execPath, guardArgs(...args), {
       ...options,
       encoding: "utf8",
       timeout: 15000,
@@ -85,7 +90,7 @@ test("CLI defaults to the shared user config without migrating the old source di
     USERPROFILE: home,
     MCODE_DISABLE_TELEMETRY: "1",
   });
-  const result = spawnSync(process.execPath, [cli, "telemetry", "status"], {
+  const result = spawnSync(process.execPath, guardArgs("telemetry", "status"), {
     ...options,
     encoding: "utf8",
     timeout: runtimeTimeoutMs,
@@ -97,7 +102,7 @@ test("CLI defaults to the shared user config without migrating the old source di
   assert.equal(readFileSync(oldConfig, "utf8"), oldContents);
 });
 test("provider configuration loads from an isolated data directory", (t) => {
-  const result = spawnSync(process.execPath, [cli, "provider", "list"], {
+  const result = spawnSync(process.execPath, guardArgs("provider", "list"), {
     ...fixture(t),
     encoding: "utf8",
     timeout: runtimeTimeoutMs,
@@ -118,7 +123,7 @@ test("config permission failures preserve private reads and terminate unsafe sta
     assert.equal(result.status, 0, result.stderr);
   };
   const list = () => {
-    const result = spawnSync(process.execPath, [cli, "provider", "list"], {
+    const result = spawnSync(process.execPath, guardArgs("provider", "list"), {
       ...options,
       encoding: "utf8",
       timeout: 15000,
@@ -183,7 +188,7 @@ test("offline smoke children ignore ambient proxy variables", async (t) => {
       });
       const options = fixture(t, environment);
       for (const key of proxyNames) assert.equal(options.env[key], "");
-      const result = spawnSync(process.execPath, [cli, "provider", "list"], {
+      const result = spawnSync(process.execPath, guardArgs("provider", "list"), {
         ...options,
         encoding: "utf8",
         timeout: runtimeTimeoutMs,
@@ -207,33 +212,37 @@ test(
   "ACP starts the real runtime and answers initialize over stdio",
   { timeout: 45000 },
   async (t) => {
-    const child = spawn(process.execPath, [cli, "acp"], {
-      ...fixture(t),
-      stdio: ["pipe", "pipe", "pipe"],
+    const options = fixture(t);
+    // Bun.spawn replaces the child_process spawn: the pipes are web streams,
+    // so the data listeners become drains, and `exited` replaces the exit event.
+    const child = Bun.spawn({
+      cmd: [process.execPath, ...guardArgs("acp")],
+      cwd: options.cwd,
+      env: options.env,
+      stdin: "pipe",
+      stdout: "pipe",
+      stderr: "pipe",
     });
     t.after(() => {
       if (child.exitCode === null) child.kill("SIGTERM");
     });
     let stderr = "";
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk;
-    });
+    void (async () => {
+      for await (const chunk of child.stderr) stderr += Buffer.from(chunk).toString("utf8");
+    })().catch(() => undefined);
     const response = await new Promise((resolve, reject) => {
       let buffer = "";
       const timer = setTimeout(
         () => reject(new Error(`ACP initialize timed out: ${stderr}`)),
         30000,
       );
-      child.once("error", (error) => {
-        clearTimeout(timer);
-        reject(error);
-      });
-      child.once("exit", (code) => {
+      void child.exited.then((code) => {
         clearTimeout(timer);
         reject(new Error(`ACP exited ${code}: ${stderr}`));
       });
-      child.stdout.on("data", (chunk) => {
-        buffer += chunk;
+      void (async () => {
+        for await (const chunk of child.stdout) {
+          buffer += Buffer.from(chunk).toString("utf8");
         while (buffer.includes("\n")) {
           const index = buffer.indexOf("\n");
           const line = buffer.slice(0, index);
@@ -248,6 +257,10 @@ test(
             reject(new Error(`Non-JSON ACP stdout: ${line}`));
           }
         }
+        }
+      })().catch((error) => {
+        clearTimeout(timer);
+        reject(error);
       });
       child.stdin.write(
         JSON.stringify({
@@ -272,7 +285,7 @@ test(
         child.kill("SIGTERM");
         reject(new Error("ACP did not shut down after EOF"));
       }, 10000);
-      child.once("exit", (code) => {
+      void child.exited.then((code) => {
         clearTimeout(timer);
         code === 0
           ? resolve()
@@ -288,7 +301,7 @@ test("internal environment overrides are rejected", (t) => {
     ["--lane", "internal"],
     ["--env", "test"],
   ]) {
-    const result = spawnSync(process.execPath, [cli, ...args], {
+    const result = spawnSync(process.execPath, guardArgs(...args), {
       ...options,
       encoding: "utf8",
       timeout: 15000,
@@ -308,7 +321,7 @@ test("local plugin browsing remains available with managed services offline", (t
     ["plugin", "list", "--marketplace", "local", "--json"],
     ["plugin", "list", "--available", "--marketplace", "local", "--json"],
   ]) {
-    const result = spawnSync(process.execPath, [cli, ...args], {
+    const result = spawnSync(process.execPath, guardArgs(...args), {
       ...options,
       encoding: "utf8",
       timeout: runtimeTimeoutMs,
@@ -322,7 +335,7 @@ test("local plugin browsing remains available with managed services offline", (t
 
  test("managed commands remain discoverable without logging in", (t) => {
   for (const args of [["login", "--help"], ["logout", "--help"], ["update", "--help"], ["acp", "login", "--help"], ["provider", "use", "--help"]]) {
-    const result = spawnSync(process.execPath, [cli, ...args], { ...fixture(t), encoding: "utf8", timeout: 15000 });
+    const result = spawnSync(process.execPath, guardArgs(...args), { ...fixture(t), encoding: "utf8", timeout: 15000 });
     assert.equal(result.status, 0, result.stderr);
     assert.match(result.stdout, /Usage:/);
   }
@@ -345,7 +358,7 @@ test("provider add rejects invalid token limits without saving a provider", asyn
       if (seeded) writeFileSync(configPath, "logLevel: info\ndefaultModel: minimax/MiniMax-M3\n", { mode: 0o600 });
       for (const flag of ["--context-limit", "--output-limit"]) {
         for (const value of ["0", "-1", "1.5", "NaN", "Infinity", "9007199254740992"]) {
-          const result = spawnSync(process.execPath, [cli, ...args, `${flag}=${value}`], {
+          const result = spawnSync(process.execPath, guardArgs(...args, `${flag}=${value}`), {
             ...options, encoding: "utf8", timeout: 15000,
           });
           assert.equal(result.error, undefined, result.stderr);

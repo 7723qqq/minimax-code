@@ -6,7 +6,7 @@
  *   - Deterministic layer: `PermissionEngine` dispatches
  *     `BashToolPermissionChecker` / `FsToolPermissionChecker`; Permission Core
  *     is the default final reducer. Together they produce all rule contents
- *     (`bash(npm publish:*)`), rewrittenInput (`rm` → `mavis-trash`), and
+ *     (`bash(bun publish:*)`), rewrittenInput (`rm` → `mavis-trash`), and
  *     bypass-immune flags; these define every wire shape (UI, route JSON,
  *     persisted rules).
  *   - Decision layer: the `PermissionMode` (`default` / `auto` /
@@ -670,7 +670,7 @@ export class LocalPermissionFacade {
     // Run the deterministic engine. Output carries:
     //   - behavior (allow / ask / deny)
     //   - reason (structured DecisionReason — rendered with reason-format)
-    //   - ruleContents (BashChecker/FsChecker normalized — e.g. "npm publish:*")
+    //   - ruleContents (BashChecker/FsChecker normalized — e.g. "bun publish:*")
     //   - rewrittenInput (rm → mavis-trash)
     //   - skipAutoClassifier (defensive net — keep ask out of LLM)
     const decision = this.engine.checkPermission(params.toolName, params.input, ctx, {

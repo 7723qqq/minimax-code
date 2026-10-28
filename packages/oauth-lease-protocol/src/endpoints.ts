@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import path from 'node:path';
 
 import { AuthLeaseProtocolError } from './contracts.js';
@@ -22,7 +21,7 @@ export function resolveAuthLeaseEndpoint(
       throw new TypeError('OAuth lease dataDir must be absolute.');
     }
     const canonical = trimTrailingSeparators(path.win32.normalize(dataDir), path.win32);
-    const digest = createHash('sha256').update(canonical.toLowerCase()).digest('hex').slice(0, 16);
+    const digest = new Bun.CryptoHasher('sha256').update(canonical.toLowerCase()).digest('hex').slice(0, 16);
     return {
       transport: 'pipe',
       endpoint: `${WINDOWS_PIPE_PREFIX}${digest}`,

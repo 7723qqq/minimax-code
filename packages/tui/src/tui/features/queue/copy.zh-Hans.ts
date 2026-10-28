@@ -4,7 +4,7 @@ import type { QueueCopyKey } from './copy.en.js';
  * Simplified Chinese copy for the message queue panels.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  */
 export const ZH_HANS_QUEUE_COPY = {
   'queue.summary.paused': '已暂停 · 待处理 {n} 条。准备好后继续。',

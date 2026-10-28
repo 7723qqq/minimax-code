@@ -100,7 +100,7 @@ const HISTOGRAM_BUCKETS_BY_NAME: Record<string, number[]> = {
 /**
  * Build the local-runtime MetricsClient. Under managed runtime (Electron or
  * production / staging build) the client ships batches through the shared
- * desktop reporter (Matrix metrics ingress). Under pnpm dev / CLI in
+ * desktop reporter (Matrix metrics ingress). Under the source build / CLI in
  * non-managed mode the client falls back to the noop reporter and the
  * factory logs why — no `console.log`, no swallowed errors.
  */

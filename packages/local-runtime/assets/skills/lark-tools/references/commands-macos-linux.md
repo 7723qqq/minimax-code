@@ -10,7 +10,7 @@ Do not copy these snippets into Windows PowerShell. Windows has a separate refer
 ```bash
 if ! command -v lark-cli >/dev/null 2>&1; then
   echo "lark-cli not found, installing @larksuite/cli globally..."
-  npm install -g @larksuite/cli
+  bun install --global @larksuite/cli
 fi
 lark-cli --version    # confirm install succeeded
 ```

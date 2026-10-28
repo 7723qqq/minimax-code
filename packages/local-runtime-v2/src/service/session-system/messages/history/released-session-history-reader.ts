@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { open, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -320,7 +319,7 @@ function legacyEnvelope(
   return decodeCanonicalHistoryEnvelope({
     message_id:
       explicitId ??
-      `msg-legacy-${createHash('sha256')
+      `msg-legacy-${new Bun.CryptoHasher('sha256')
         .update(`${seed}\u0000${JSON.stringify(normalized)}`)
         .digest('base64url')}`,
     turn_id: turnId,

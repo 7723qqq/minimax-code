@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 
 import { Cron } from 'croner';
 
@@ -466,7 +465,7 @@ function stableLegacyId(kind: string, ...parts: string[]): string {
 }
 
 function stableLegacyDigest(...parts: string[]): string {
-  return createHash('sha256').update(parts.join('\u0000')).digest('hex').slice(0, 32);
+  return new Bun.CryptoHasher('sha256').update(parts.join('\u0000')).digest('hex').slice(0, 32);
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

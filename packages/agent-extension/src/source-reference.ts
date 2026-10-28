@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import nodePath from 'node:path';
 import { createSourceReferenceMarkerBlock } from './source-reference-marker.js';
 
@@ -492,8 +491,8 @@ function shortCitationIdFor(citationId: string, state: CitationAliasState): stri
 
   for (let attempt = 0; ; attempt += 1) {
     const seed = attempt === 0 ? citationId : `${citationId}\u0000${String(attempt)}`;
-    const candidate = createHash('sha256')
-      .update(seed, 'utf8')
+    const candidate = new Bun.CryptoHasher('sha256')
+      .update(seed)
       .digest('hex')
       .slice(0, SHORT_CITATION_ID_LENGTH);
     const owner = state.citationIdsByAlias.get(candidate);

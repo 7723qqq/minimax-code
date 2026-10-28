@@ -1,10 +1,9 @@
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from '../lib/exec.mjs';
 import { readFileSync, writeFileSync, mkdirSync, appendFileSync, existsSync } from 'node:fs';
 import { cpus, totalmem, platform, release, arch } from 'node:os';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { createHash } from 'node:crypto';
 import { compareRuns, exitCodeForStatus, renderReport, selectScenarios } from './report.mjs';
 
 const control = fileURLToPath(new URL('../../', import.meta.url));
@@ -34,7 +33,7 @@ const report = {
   host: { cpuModel: cpus()[0]?.model, cpus: cpus().length, totalMemBytes: totalmem(), platform: platform(), osRelease: release(), arch: arch() },
   config, suite: values.scenario ? 'focused' : values.suite, selectedScenarios: scenarios.map(s => s.id), results: [],
   builds: Object.fromEntries([['base', base], ['head', head]].map(([name, directory]) => [name, {
-    path: directory, entrySha256: createHash('sha256').update(readFileSync(join(directory, 'dist/cli.js'))).digest('hex'),
+    path: directory, entrySha256: new Bun.CryptoHasher('sha256').update(readFileSync(join(directory, 'dist/cli.js'))).digest('hex'),
   }])),
 };
 function save() {
@@ -69,7 +68,7 @@ try {
     const scriptData = JSON.parse(readFileSync(script, 'utf8'));
     const textUnits = scriptData.responses.slice(0, scenario.turns).reduce((sum, entry) => sum + entry.message.content.length, 0);
     if (scenario.minimumTextUnits && textUnits < scenario.minimumTextUnits) throw new Error('Long-history fixture no longer exceeds token cache capacity');
-    const result = { id: scenario.id, textUnits, scenarioSha256: createHash('sha256').update(readFileSync(script)).digest('hex'), warmups: [], pairs: [] };
+    const result = { id: scenario.id, textUnits, scenarioSha256: new Bun.CryptoHasher('sha256').update(readFileSync(script)).digest('hex'), warmups: [], pairs: [] };
     report.results.push(result);
     save();
     for (let i = 0; i < config.warmups; i++) for (const [side, directory] of [['base', base], ['head', head]]) {

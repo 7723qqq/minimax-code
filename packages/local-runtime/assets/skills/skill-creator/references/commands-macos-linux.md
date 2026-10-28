@@ -8,7 +8,7 @@ Do not copy these snippets into Windows PowerShell. Windows has a separate refer
 
 ```bash
 SKILL_DIR=<directory of the Location: path returned by skill({ name: "skill-creator" })>
-node "$SKILL_DIR/scripts/lint-skill.js" <path/to/new-skill/>
+bun "$SKILL_DIR/scripts/lint-skill.js" <path/to/new-skill/>
 ```
 
 Replace `<path/to/new-skill/>` with the absolute path of the skill you just authored.

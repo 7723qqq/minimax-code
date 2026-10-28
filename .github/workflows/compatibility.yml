@@ -1,4 +1,4 @@
-name: Node compatibility
+name: Toolchain compatibility
 on:
   schedule:
     - cron: "23 3 * * 1"
@@ -10,7 +10,7 @@ permissions:
   contents: read
 jobs:
   compatibility:
-    name: compatibility (${{ matrix.os }}, ${{ matrix.node }})
+    name: compatibility (${{ matrix.os }}, ${{ matrix.toolchain }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     strategy:
@@ -18,21 +18,22 @@ jobs:
       matrix:
         # Windows validation is temporarily paused until its checks are reliable.
         os: [ubuntu-latest, macos-latest]
-        node: ["22.19.0", "24.2.0", "25", "26"]
+        toolchain: ["22.19.0", "24.2.0", "25", "26"]
         include:
           - os: ubuntu-latest
-            node: "22.19.0"
+            toolchain: "22.19.0"
             profile: full
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      # The Node matrix exercises the build toolchain; the CLI runtime is Bun
+      # The matrix varies the runner toolchain that the update-flow fixtures
+      # resolve (`npm-cli.js` beside its runtime); the CLI runtime is Bun
       # (`bun:sqlite`), pinned separately for every matrix leg.
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: 1.4.4
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: ${{ matrix.node }}
+          node-version: ${{ matrix.toolchain }}
           package-manager-cache: false
       - run: bun install --frozen-lockfile
       - run: bun run verify --profile ${{ matrix.profile || 'platform' }}
@@ -42,6 +43,6 @@ jobs:
         if: ${{ always() }}
         timeout-minutes: 2
         with:
-          name: compatibility-${{ matrix.os }}-node-${{ matrix.node }}-${{ github.run_attempt }}
+          name: compatibility-${{ matrix.os }}-toolchain-${{ matrix.toolchain }}-${{ github.run_attempt }}
           path: ${{ runner.temp }}/verification/
           retention-days: 7

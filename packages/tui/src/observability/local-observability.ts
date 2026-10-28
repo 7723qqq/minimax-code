@@ -107,9 +107,14 @@ export interface TuiAsyncResourceTargetObservation {
 }
 
 export interface TuiAsyncResourceObservation {
-  readonly executionAsyncId: number;
-  readonly triggerAsyncId: number;
-  readonly resource: TuiAsyncResourceTargetObservation;
+  /**
+   * Where the ids came from. Bun's `node:async_hooks` reports `0` for both ids
+   * and a different resource, so its default path reports `unavailable`.
+   */
+  readonly source: 'provided' | 'async_hooks' | 'unavailable';
+  readonly executionAsyncId?: number;
+  readonly triggerAsyncId?: number;
+  readonly resource?: TuiAsyncResourceTargetObservation;
   readonly owner?: TuiAsyncResourceTargetObservation;
   readonly stream?: TuiAsyncResourceTargetObservation;
   readonly handle?: TuiAsyncResourceTargetObservation;
@@ -122,7 +127,10 @@ export interface TuiProcessStopObservation {
   readonly bytes?: number;
   readonly error?: TuiProcessErrorObservation;
   readonly runtime: {
-    readonly nodeVersion: string;
+    readonly kind: 'bun' | 'node';
+    readonly bunVersion?: string;
+    /** Node's release under Node, or the compatibility value under Bun. */
+    readonly nodeVersion?: string;
     readonly uvVersion?: string;
     readonly platform: NodeJS.Platform;
     readonly arch: string;

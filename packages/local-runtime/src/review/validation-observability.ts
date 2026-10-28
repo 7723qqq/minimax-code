@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 import type { LocalRuntimeLogger } from '../common/logger.js';
 import { logger as defaultLogger } from '../common/logger.js';
 import type { MetricsClient } from '../common/metrics.js';
@@ -87,7 +85,7 @@ export class ReviewValidationObserver {
       error: message,
       ...(location ?? {}),
       candidate_length: input.candidateText.length,
-      candidate_sha256: createHash('sha256').update(input.candidateText).digest('hex'),
+      candidate_sha256: new Bun.CryptoHasher('sha256').update(input.candidateText).digest('hex'),
       // Review candidates are capped at 1 MB by the XML parser. Keep the full
       // rejected document in the local engineering log so field reports retain
       // enough evidence to reproduce model-format failures.
@@ -125,7 +123,7 @@ export class ReviewValidationObserver {
       attempt,
       reason_code: `assistant_empty_${input.assistant.stopReason}`,
       candidate_length: input.candidateText.length,
-      candidate_sha256: createHash('sha256').update(input.candidateText).digest('hex'),
+      candidate_sha256: new Bun.CryptoHasher('sha256').update(input.candidateText).digest('hex'),
       candidate_xml: input.candidateText,
       ...assistantEventFields(input.assistant, attempt),
       ...(this.model ? { model: this.model } : {}),

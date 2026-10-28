@@ -7,7 +7,7 @@ import {
   type Server,
   type Socket,
 } from 'node:net';
-import { fetch, type Dispatcher } from 'undici';
+import { fetch, type Dispatcher } from 'undici/index.js';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'bun:test';
 import {
   configureTuiNetworkProxy,

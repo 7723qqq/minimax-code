@@ -1,6 +1,6 @@
 # @mavis/mcode-tools-host
 
-Host-neutral Node.js lifecycle for an embedded `mcode-tools` artifact. The package validates the
+Host-neutral process lifecycle for an embedded `mcode-tools` artifact. The package validates the
 versioned artifact, starts the local OAuth lease broker, installs profile-scoped launchers and owns
 their cleanup.
 

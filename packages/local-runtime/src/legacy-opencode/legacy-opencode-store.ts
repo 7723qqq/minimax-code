@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import crypto from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import type { AgentMessage } from '@mavis/agent-core/protocol/agent-message';
@@ -1522,7 +1521,7 @@ function resolveXdgPath(envName: string, defaultParts: string[], childParts: str
 }
 
 function fingerprintJson(value: unknown): string {
-  return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
+  return new Bun.CryptoHasher('sha256').update(JSON.stringify(value)).digest('hex');
 }
 
 function fileSizeField(key: string, filePath: string): Record<string, number> {
@@ -1611,8 +1610,8 @@ function emptyMessageScan(): LegacyOpencodeMessageScan {
 }
 
 function scanMessageRows(rows: Iterable<MessageRow>): LegacyOpencodeMessageScan {
-  const rawHash = crypto.createHash('sha256');
-  const parsedHash = crypto.createHash('sha256');
+  const rawHash = new Bun.CryptoHasher('sha256');
+  const parsedHash = new Bun.CryptoHasher('sha256');
   parsedHash.update('[');
   let sourceCount = 0;
   let parsedCount = 0;

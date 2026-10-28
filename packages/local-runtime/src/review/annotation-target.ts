@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 import { execGitStdout } from './git-exec.js';
 import type {
   AnnotationTargetResolution,
@@ -321,7 +319,7 @@ function buildAnchor(input: {
     encodeLines('after', after),
   ].join('');
   return {
-    revision: `sha256:${createHash('sha256').update(encoded, 'utf8').digest('hex')}`,
+    revision: `sha256:${new Bun.CryptoHasher('sha256').update(encoded).digest('hex')}`,
     contextBefore: input.contextBefore,
     contextAfter: input.contextAfter,
     targetText: target.join('\n'),

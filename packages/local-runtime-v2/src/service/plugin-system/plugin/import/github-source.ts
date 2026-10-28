@@ -86,17 +86,24 @@ function isGithubHost(hostname: string): boolean {
 }
 
 async function resolveRemoteHead(url: string, signal?: AbortSignal): Promise<string> {
-  const { execFile } = await import('node:child_process');
-  const { promisify } = await import('node:util');
-  const run = promisify(execFile);
+  // Bun.spawn replaces the promisified execFile wrapper. A non-zero exit is
+  // rejected like `execFile`, so the catch below keeps its failure mapping.
   try {
-    const result = await run('git', ['ls-remote', '--symref', url, 'HEAD'], {
+    const child = Bun.spawn({
+      cmd: ['git', 'ls-remote', '--symref', url, 'HEAD'],
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
       timeout: TIMEOUT_MS,
-      maxBuffer: 64 * 1024,
       signal,
       windowsHide: true,
     });
-    const sha = result.stdout
+    const [stdout, code] = await Promise.all([
+      new Response(child.stdout).text(),
+      child.exited,
+    ]);
+    if (code !== 0) throw new Error(`git ls-remote exited with code ${code}`);
+    const sha = stdout
       .split(/\r?\n/u)
       .map((line) => line.split(/\s+/u)[0])
       .find((value) => FULL_SHA.test(value ?? ''));

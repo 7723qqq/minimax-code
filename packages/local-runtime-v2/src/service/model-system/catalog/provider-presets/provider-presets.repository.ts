@@ -2,7 +2,6 @@ import { chmodSync, renameSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { gunzipSync } from 'node:zlib';
 import { retryWindowsFileSystemOperation } from '@mavis/shared';
 
 const MODULE_DIRECTORY = dirname(fileURLToPath(import.meta.url));
@@ -63,8 +62,10 @@ export async function writeProviderPresetSnapshot(
 async function readCatalogSnapshot(filePath: string | undefined): Promise<unknown> {
   if (!filePath) return undefined;
   try {
+    // Bun.gunzipSync returns Uint8Array where node:zlib returned Buffer: wrap it
+    // so the utf8 decode below runs on bytes rather than on indices.
     const contents = filePath.endsWith('.gz')
-      ? gunzipSync(await readFile(filePath)).toString('utf8')
+      ? Buffer.from(Bun.gunzipSync(await readFile(filePath))).toString('utf8')
       : await readFile(filePath, 'utf8');
     return JSON.parse(contents);
   } catch {

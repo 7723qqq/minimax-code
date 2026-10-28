@@ -36,7 +36,17 @@ export function resolveHookCommandInvocation(
     if (input.shell === 'powershell') {
       return powershellInvocation(input.command, platform, dependencies);
     }
-    return { command: input.command, args: [], shell: true };
+    // Bun's subprocess surface has no working `shell` option, so the platform
+    // shell is spelled out as argv: the command string rides as one argument
+    // after `-c` / `/c`, which is the same split a shell-mode spawn makes. The
+    // flag stays false because the shell is already part of the argv.
+    return process.platform === 'win32'
+      ? {
+          command: process.env.ComSpec || 'cmd.exe',
+          args: ['/d', '/s', '/c', input.command],
+          shell: false,
+        }
+      : { command: '/bin/sh', args: ['-c', input.command], shell: false };
   }
 
   if (platform !== 'win32') {

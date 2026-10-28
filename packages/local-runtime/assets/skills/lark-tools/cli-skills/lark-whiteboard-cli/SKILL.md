@@ -2,18 +2,18 @@
 name: lark-whiteboard-cli
 description: >
   当用户要求或使用飞书画板绘制架构图、流程图、思维导图、时序图或其他可视化图表时使用此 skill，作为使用 whiteboard-cli 设计图表布局的指南
-compatibility: Requires Node.js 18+
+compatibility: Requires Bun (bundled with MCode)
 metadata:
   requires:
     bins: ["lark-cli"]
 ---
 
 > [!NOTE]
-> **环境依赖**：绘制画板需要 `@larksuite/whiteboard-cli`（画板 Node.js CLI 工具），以及 `lark-cli`（LarkSuite CLI 工具）。
-> 如果执行失败，手动安装后重试：`npm install -g @larksuite/whiteboard-cli@^0.2.0`
+> **环境依赖**：绘制画板需要 `@larksuite/whiteboard-cli`（画板 CLI 工具），以及 `lark-cli`（LarkSuite CLI 工具）。
+> 如果执行失败，手动安装后重试：`bun install --global @larksuite/whiteboard-cli@^0.2.0`
 
 > [!IMPORTANT]
-> 执行 `npm install` 安装新的依赖前，务必征得用户同意！
+> 执行 `bun install` 安装新的依赖前，务必征得用户同意！
 
 
 ## Workflow
@@ -30,14 +30,14 @@ Step 1: 路由 & 读取知识
 Step 2: 生成完整 DSL（含颜色）
   - 按 content.md 规划信息量和分组
   - 按 layout.md 选择布局模式和间距
-  - 推荐使用图标让图表更直观，运行 `npx -y @larksuite/whiteboard-cli@^0.2.0 --icons` 查看可用图标，选取合适的图标, 但不要过度使用或者所有图表都用图标, 根据图表类型和内容选择是否使用图标
+  - 推荐使用图标让图表更直观，运行 `bunx @larksuite/whiteboard-cli@^0.2.0 --icons` 查看可用图标，选取合适的图标, 但不要过度使用或者所有图表都用图标, 根据图表类型和内容选择是否使用图标
   - 按 style.md 上色（用户没指定时用默认经典色板）
   - 按 schema.md 语法输出完整 JSON
   - 连线参考 connectors.md，排版参考 typography.md
 
   注意：部分图形（鱼骨/飞轮/柱状/折线等）要按 scene 指南的脚本模板写 .js 脚本生成 JSON：
     1. 创建产物目录 ./diagrams/YYYY-MM-DDTHHMMSS/
-    2. 将脚本保存为 diagram.gen.js，执行 node diagram.gen.js 产出 diagram.json
+    2. 将脚本保存为 diagram.gen.js，执行 bun diagram.gen.js 产出 diagram.json
     3. 用产出的 diagram.json 进入 Step 3
 
 Step 3: 渲染 & 审查 → 交付
@@ -133,13 +133,13 @@ Step 3: 渲染 & 审查 → 交付
 
 **查看可用图标**：
 ```bash
-npx -y @larksuite/whiteboard-cli@^0.2.0 --icons
+bunx @larksuite/whiteboard-cli@^0.2.0 --icons
 ```
 
 **渲染**：
 ```bash
-npx -y @larksuite/whiteboard-cli@^0.2.0 -i ./diagrams/2026-03-27T143000/diagram.json -o ./diagrams/2026-03-27T143000/diagram.png    # DSL
-npx -y @larksuite/whiteboard-cli@^0.2.0 -i ./diagrams/2026-03-27T143000/diagram.mmd -o ./diagrams/2026-03-27T143000/diagram.png     # Mermaid
+bunx @larksuite/whiteboard-cli@^0.2.0 -i ./diagrams/2026-03-27T143000/diagram.json -o ./diagrams/2026-03-27T143000/diagram.png    # DSL
+bunx @larksuite/whiteboard-cli@^0.2.0 -i ./diagrams/2026-03-27T143000/diagram.mmd -o ./diagrams/2026-03-27T143000/diagram.png     # Mermaid
 ```
 
 **上传飞书画板**：
@@ -164,7 +164,7 @@ npx -y @larksuite/whiteboard-cli@^0.2.0 -i ./diagrams/2026-03-27T143000/diagram.
 > **强制执行 Dry Run（状态探测）**
 > 必须先在命令中添加 `--overwrite --dry-run` 参数来探测画板当前状态。示例命令：
 > ```bash
-> npx -y @larksuite/whiteboard-cli@^0.2.0 --to openapi -i <输入文件> --format json | lark-cli whiteboard +update --whiteboard-token <Token> --source - --overwrite --dry-run --as user
+> bunx @larksuite/whiteboard-cli@^0.2.0 --to openapi -i <输入文件> --format json | lark-cli whiteboard +update --whiteboard-token <Token> --source - --overwrite --dry-run --as user
 > ```
 >
 > **解析结果并拦截**
@@ -175,7 +175,7 @@ npx -y @larksuite/whiteboard-cli@^0.2.0 -i ./diagrams/2026-03-27T143000/diagram.
 > - 用户可能会要求你不覆盖更新画板内容，在这种情况下，移除 `--overwrite` 和 `--dry-run` 参数再上传。
 
 ```bash
-npx -y @larksuite/whiteboard-cli@^0.2.0 --to openapi -i <输入文件> --format json | lark-cli whiteboard +update --whiteboard-token <画板Token> --source - --yes --as user
+bunx @larksuite/whiteboard-cli@^0.2.0 --to openapi -i <输入文件> --format json | lark-cli whiteboard +update --whiteboard-token <画板Token> --source - --yes --as user
 ```
 > 画板一经上传不可修改。如需应用身份上传，将 `--as user` 替换为 `--as bot`。
 > 如果画板非空，先加 `--overwrite --dry-run` 检查待删除节点数，向用户确认后去掉 `--dry-run` 执行。

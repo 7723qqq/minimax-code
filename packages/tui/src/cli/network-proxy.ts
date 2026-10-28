@@ -1,5 +1,8 @@
-import * as undici from 'undici';
-import { Agent, buildConnector, Dispatcher, ProxyAgent, Socks5ProxyAgent } from 'undici';
+// Bun resolves the bare `undici` specifier to its built-in compatibility module,
+// which omits Socks5ProxyAgent. The package entry carries the full dispatcher
+// surface and is the copy the CLI bundle ships.
+import * as undici from 'undici/index.js';
+import { Agent, buildConnector, Dispatcher, ProxyAgent, Socks5ProxyAgent } from 'undici/index.js';
 
 const LOOPBACK_NO_PROXY_ENTRIES = ['localhost', '127.0.0.1', '::1'] as const;
 const HTTP_PROXY_PROTOCOLS: ReadonlySet<string> = new Set(['http:', 'https:']);

@@ -15,5 +15,5 @@ Shared colors live in `src/tui/theme/palettes.ts`; borders and terminal-width ad
 Validate copy, colors, and artwork visually. For responsive layout, visibility, or state changes in this standalone repository, run the relevant test from the repository root:
 
 ```bash
-pnpm exec vitest run --config vitest.oss.config.mjs packages/tui/test/unit/tui-shell-chrome.test.ts
+bun scripts/run-bun-tests.mjs packages/tui/test/unit/tui-shell-chrome.test.ts
 ```

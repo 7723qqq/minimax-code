@@ -4,7 +4,7 @@
  * This catalog belongs to the settings surfaces that own their own wording
  * (the hotkey editor and the theme chooser). The English object is the only
  * source of truth for key shape: the Chinese catalog is typed against it, so a
- * missing translation fails `pnpm typecheck` instead of rendering an empty line.
+ * missing translation fails `bun run typecheck` instead of rendering an empty line.
  */
 /**
  * English copy for the hotkey and theme pickers.

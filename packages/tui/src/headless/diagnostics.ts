@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import {
   access,
   constants,
@@ -59,7 +59,7 @@ export async function prepareDiagnosticsDirectory(
 export function outputSchemaHash(
   schema: Readonly<Record<string, unknown>> | undefined,
 ): string | undefined {
-  return schema ? createHash('sha256').update(JSON.stringify(schema)).digest('hex') : undefined;
+  return schema ? new Bun.CryptoHasher('sha256').update(JSON.stringify(schema)).digest('hex') : undefined;
 }
 
 function sanitize(value: unknown): unknown {

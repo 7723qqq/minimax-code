@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, posix, relative, resolve, sep, win32 } from 'node:path';
 
@@ -388,7 +388,7 @@ async function replaceSourceDirectory(target: string, staging: string): Promise<
 }
 
 function sourceDirectoryName(nodeId: string): string {
-  return createHash('sha256').update(nodeId).digest('hex');
+  return new Bun.CryptoHasher('sha256').update(nodeId).digest('hex');
 }
 
 function readRecord(value: unknown): Record<string, unknown> | undefined {

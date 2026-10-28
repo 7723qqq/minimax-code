@@ -2,7 +2,7 @@
  * English copy for the interaction surfaces.
  *
  * The English object is the only source of truth for key shape: the Chinese
- * catalog is typed against it, so a missing translation fails `pnpm typecheck`
+ * catalog is typed against it, so a missing translation fails `bun run typecheck`
  * instead of rendering an empty line in the terminal.
  *
  * Keys are grouped by the panel that renders them. A sentence that appears in

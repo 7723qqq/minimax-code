@@ -75,7 +75,7 @@ whiteboard-cli 工具的具体用法请参考 [../lark-whiteboard-cli/SKILL.md](
 
 ```bash
 # 使用 whiteboard-cli 生成 OpenAPI 格式并通过管道传递
-npx -y @larksuite/whiteboard-cli@^0.1.0 --to openapi -i <画板 DSL> --format json | lark-cli whiteboard +update \
+bunx @larksuite/whiteboard-cli@^0.1.0 --to openapi -i <画板 DSL> --format json | lark-cli whiteboard +update \
   --whiteboard-token <画板Token> \
   --input_format raw --source -\
   --overwrite --yes --as user
@@ -87,7 +87,7 @@ whiteboard-cli 工具的具体用法请参考 [../lark-whiteboard-cli/SKILL.md](
 
 ```bash
 # 使用 whiteboard-cli 生成 OpenAPI 格式并通过管道传递
-npx -y @larksuite/whiteboard-cli@^0.1.0 --to openapi -i <画板 DSL> -o ./temp.json
+bunx @larksuite/whiteboard-cli@^0.1.0 --to openapi -i <画板 DSL> -o ./temp.json
 
 lark-cli whiteboard +update \
   --whiteboard-token <画板Token> \

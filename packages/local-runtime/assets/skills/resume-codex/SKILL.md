@@ -25,7 +25,7 @@ Run the bundled, read-only reader. Pass the invocation arguments after `show`; a
 selects the latest matching session in the current canonical working directory.
 
 ```bash
-node <skill_dir>/scripts/session-reader.mjs show <session-id-if-provided> --cwd "$PWD" --json
+bun <skill_dir>/scripts/session-reader.mjs show <session-id-if-provided> --cwd "$PWD" --json
 ```
 
 The reader only accepts Codex `cli` and `vscode` sessions, requires an exact canonical cwd match,

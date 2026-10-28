@@ -37,7 +37,6 @@
   "devDependencies": {
     "@types/node": "^20",
     "typescript": "^5",
-    "vitest": "^2",
     "@types/proper-lockfile": "^4"
   },
   "private": true,

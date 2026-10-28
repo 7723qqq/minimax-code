@@ -1,5 +1,4 @@
 import { validPluginMentions } from '../../widgets/editor/plugin-mentions.js';
-import { createHash } from 'node:crypto';
 import {
   chmod,
   copyFile,
@@ -386,7 +385,7 @@ export class TuiDraftRecovery {
         continue;
       }
       const suffix = extname(attachment.fileName).slice(0, 16);
-      const id = createHash('sha256').update(attachment.filePath).digest('hex').slice(0, 16);
+      const id = new Bun.CryptoHasher('sha256').update(attachment.filePath).digest('hex').slice(0, 16);
       const target = join(this.assetsDirectory, `${id}${suffix}`);
       try {
         await mkdir(this.assetsDirectory, { recursive: true, mode: 0o700 });
@@ -500,11 +499,14 @@ export function resolveTuiDraftRecoveryPath(
   workspaceDir: string,
   sessionKey?: string,
 ): string {
-  const workspaceId = createHash('sha256').update(resolve(workspaceDir)).digest('hex').slice(0, 24);
+  const workspaceId = new Bun.CryptoHasher('sha256')
+    .update(resolve(workspaceDir))
+    .digest('hex')
+    .slice(0, 24);
   if (!sessionKey) {
     return join(resolve(dataDir), 'v2', 'mcode', 'drafts', `${workspaceId}.json`);
   }
-  const sessionId = createHash('sha256')
+  const sessionId = new Bun.CryptoHasher('sha256')
     .update(normalizeSessionKey(sessionKey))
     .digest('hex')
     .slice(0, 24);

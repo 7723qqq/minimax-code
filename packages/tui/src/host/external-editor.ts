@@ -137,19 +137,53 @@ export async function editTuiDraftInExternalEditor(
   }
 }
 
+/**
+ * Quote one argv segment for a cmd.exe `/c` payload.
+ *
+ * cmd.exe's shell path cannot use backslash-escaped quotes: the `/c` payload
+ * must double embedded quotes (`""`) and double trailing backslashes so the
+ * consumer's argv parser keeps them literal. The whole line then rides as one
+ * verbatim argument (`windowsVerbatimArguments: true`), wrapped in a quote
+ * pair that `/s` strips.
+ */
+export function quoteCmdShellArg(part: string): string {
+  if (!/["\s]/u.test(part)) return part;
+  return `"${part.replaceAll('"', '""').replace(/(\\+)$/u, '$1$1')}"`;
+}
+
+/**
+ * Build the argv for a shell-form command on Windows: `cmd.exe /d /s /c` plus
+ * the quoted command line. Spawn the result with `windowsVerbatimArguments:
+ * true`, never without it.
+ */
+export function buildCmdShellArgv(
+  executable: string,
+  args: readonly string[],
+  comspec = process.env.ComSpec || 'cmd.exe',
+): string[] {
+  const line = [executable, ...args].map(quoteCmdShellArg).join(' ');
+  return [comspec, '/d', '/s', '/c', `"${line}"`];
+}
+
 function runExternalEditorProcess(
   invocation: TuiExternalEditorProcessInvocation,
 ): Promise<TuiExternalEditorProcessResult> {
   return (async () => {
     // The shell path stays: an async shell child lets the runtime release its
     // console read before the TUI re-enables raw input after the editor exits.
+    // Bun's subprocess surface has no working `shell` option, so the Windows
+    // shell is spelled out as argv and the payload rides verbatim.
+    const argv = invocation.shell
+      ? buildCmdShellArgv(invocation.executable, invocation.args)
+      : [invocation.executable, ...invocation.args];
     const child = Bun.spawn({
-      cmd: [invocation.executable, ...invocation.args],
+      cmd: argv,
       cwd: invocation.cwd,
       stdin: 'inherit',
       stdout: 'inherit',
       stderr: 'inherit',
-      shell: invocation.shell,
+      // Only the shell branch: its payload is already quoted by hand.
+      ...(invocation.shell ? { windowsVerbatimArguments: true } : {}),
     });
     await child.exited;
     return { exitCode: child.exitCode, signal: child.signalCode };

@@ -84,7 +84,7 @@ export function formatPidFile(pid: number, owner: PidOwner): string {
  * Determine the runtime owner based on runtime environment.
  *
  * - --owner electron indicates a supervisor manages runtime lifecycle.
- * - Otherwise the runtime was started by CLI / npm directly.
+ * - Otherwise the runtime was started by the CLI directly.
  */
 export function detectPidOwner(): PidOwner {
   const args = process.argv.slice(2);

@@ -4,7 +4,7 @@ import type { V2ConversationCopyKey } from './copy.en.js';
  * Simplified Chinese copy for the v2 conversation application.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  *
  * `Cloud` and `turn` stay in their English form: they name the remote service
  * and the runtime unit, and the surrounding sentence is translated.

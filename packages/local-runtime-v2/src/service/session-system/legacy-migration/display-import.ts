@@ -1,5 +1,4 @@
 import { Buffer } from 'node:buffer';
-import { createHash } from 'node:crypto';
 
 import type { DisplayMessageRecord, MessageRepository } from '../messages/repo/contract.js';
 import type { LegacyImportedAssetPort } from './assets.js';
@@ -67,7 +66,7 @@ export async function importLegacyDisplayStream(
     missingAssigned: 0,
   };
   const attachments = { copied: 0, dataUrl: 0, missing: 0 };
-  const displayHash = createHash('sha256');
+  const displayHash = new Bun.CryptoHasher('sha256');
   displayHash.update('[');
   let checksumCount = 0;
   let importedCount = 0;
@@ -329,7 +328,7 @@ function isInlineBinaryBlock(value: unknown): boolean {
 }
 
 export function checksumJson(value: unknown): string {
-  return createHash('sha256')
+  return new Bun.CryptoHasher('sha256')
     .update(JSON.stringify(value) ?? 'undefined')
     .digest('hex');
 }

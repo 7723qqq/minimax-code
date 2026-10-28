@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawnSync } from './lib/exec.mjs';
 import {
   closeSync,
   mkdirSync,
@@ -9,7 +9,6 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
@@ -87,7 +86,7 @@ try {
   if (check.status !== 0)
     throw new Error("Committed source inventory check failed");
   const sha256 = await measure("hash", () =>
-    createHash("sha256").update(readFileSync(destination)).digest("hex"),
+    new Bun.CryptoHasher("sha256").update(readFileSync(destination)).digest("hex"),
   );
   writeFileSync(
     receiptFd,

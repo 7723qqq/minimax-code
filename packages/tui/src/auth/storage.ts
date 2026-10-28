@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { retryWindowsFileSystemOperation } from '@mavis/shared';
@@ -223,7 +222,7 @@ function authContextsEqual(
 }
 
 function authContextFingerprint(auth: LocalRuntimeAuthContextSnapshot): string {
-  return `sha256:${createHash('sha256')
+  return `sha256:${new Bun.CryptoHasher('sha256')
     .update(JSON.stringify(normalizeLocalRuntimeAuthContext(auth)))
     .digest('hex')}`;
 }

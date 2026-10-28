@@ -1,11 +1,11 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 /**
  * render_html.cjs — Render any HTML (file or URL) → PDF via Playwright.
  *
  * Usage:
- *   node render_html.cjs --in page.html --out report.pdf
- *   node render_html.cjs --in page.html --out report.pdf --wait 15000
- *   node render_html.cjs --in https://example.com --out site.pdf --landscape
+ *   bun render_html.cjs --in page.html --out report.pdf
+ *   bun render_html.cjs --in page.html --out report.pdf --wait 15000
+ *   bun render_html.cjs --in https://example.com --out site.pdf --landscape
  *
  * Options:
  *   --in <file|url>          HTML file path or http(s):// URL (required)
@@ -29,7 +29,7 @@ const fs = require('fs');
 function usage(msg) {
   if (msg) console.error(msg);
   console.error(
-    'Usage: node render_html.cjs --in <file.html|url> --out <file.pdf>\n' +
+    'Usage: bun render_html.cjs --in <file.html|url> --out <file.pdf>\n' +
       '       [--wait <ms>] [--format A4|Letter] [--margin "14mm 12mm"]\n' +
       '       [--landscape] [--scale 1] [--no-print-background]\n' +
       '       [--header <html>] [--footer <html>]',
@@ -91,23 +91,21 @@ function parseMargin(css) {
   return { top: t, right: r, bottom: b, left: l };
 }
 
-// ── Playwright loader (tolerates global npm installs) ─────────────────────────
+// ── Playwright loader (tolerates global installs) ─────────────────────────
 function loadPlaywright() {
-  const { execSync } = require('child_process');
+  const { homedir } = require('os');
   try {
     return require('playwright');
   } catch (_) {}
   try {
-    const root = execSync('npm root -g', { stdio: ['ignore', 'pipe', 'ignore'] })
-      .toString()
-      .trim();
-    return require(path.join(root, 'playwright'));
+    const globalRoot = path.join(homedir(), '.bun', 'install', 'global', 'node_modules');
+    return require(path.join(globalRoot, 'playwright'));
   } catch (_) {}
   console.error(
     JSON.stringify({
       status: 'error',
       error: 'playwright not found',
-      hint: 'Run: bash scripts/make.sh fix  (or: npm install -g playwright && npx playwright install chromium)',
+      hint: 'Run: bash scripts/make.sh fix  (or: bun install --global playwright && bunx playwright install chromium)',
     }),
   );
   process.exit(2);
@@ -123,7 +121,7 @@ function loadPlaywright() {
   } catch (_) {
     // Chromium binary missing — try installing once
     const { spawnSync } = require('child_process');
-    const r = spawnSync('npx', ['playwright', 'install', 'chromium'], {
+    const r = spawnSync('bunx', ['playwright', 'install', 'chromium'], {
       stdio: 'inherit',
       shell: true,
     });
@@ -132,7 +130,7 @@ function loadPlaywright() {
         JSON.stringify({
           status: 'error',
           error: 'Chromium not installed and auto-install failed',
-          hint: 'Run: npx playwright install chromium',
+          hint: 'Run: bunx playwright install chromium',
         }),
       );
       process.exit(2);

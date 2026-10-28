@@ -39,7 +39,7 @@ jobs:
         run: |
           mkdir "$RUNNER_TEMP/candidate"
           bun scripts/export-source-preview.mjs --out "$RUNNER_TEMP/candidate/minimax-code-source.tar.gz"
-          node scripts/source-candidate.mjs unpack --archive "$RUNNER_TEMP/candidate/minimax-code-source.tar.gz" --revision "$REVISION" --destination "$RUNNER_TEMP/source-audit"
+          bun scripts/source-candidate.mjs unpack --archive "$RUNNER_TEMP/candidate/minimax-code-source.tar.gz" --revision "$REVISION" --destination "$RUNNER_TEMP/source-audit"
         env:
           REVISION: ${{ env.MCODE_CANDIDATE_REVISION }}
       - uses: ./.github/actions/setup-gitleaks

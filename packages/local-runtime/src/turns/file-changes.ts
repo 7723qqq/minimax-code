@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { TextDecoder } from 'node:util';
@@ -695,7 +695,7 @@ async function snapshotCapturedFile(
     const entry: LocalTurnDiffSnapshotEntry = {
       file: normalized,
       exists: true,
-      hash: createHash('sha256').update(buffer).digest('hex'),
+      hash: new Bun.CryptoHasher('sha256').update(buffer).digest('hex'),
       sizeBytes: buffer.length,
     };
     if (buffer.includes(0)) return { ...entry, binary: true };

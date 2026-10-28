@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 import { execGitStdout } from './git-exec.js';
 import type { AnnotationTargetResolution, ReviewDiffSide } from './types.js';
 import { ReviewTargetError, validateWorkspaceRelativePath } from './target-files.js';
@@ -157,7 +155,7 @@ function buildChangeAnchor(
     encodeLines('hunk', hunk.body),
   ].join('');
   return {
-    revision: `sha256:${createHash('sha256').update(encoded, 'utf8').digest('hex')}`,
+    revision: `sha256:${new Bun.CryptoHasher('sha256').update(encoded).digest('hex')}`,
     side,
     startLine: side === 'old' ? hunk.oldStart : hunk.newStart,
     endLine: side === 'old' ? hunk.oldEnd : hunk.newEnd,

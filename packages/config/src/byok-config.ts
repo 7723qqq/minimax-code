@@ -6,7 +6,7 @@
 
 import { MINIMAX_MODELS } from './minimax-model-catalog.js';
 
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import yaml from 'js-yaml';
@@ -466,7 +466,7 @@ function slugify(value: string | undefined): string | undefined {
 }
 
 function stableHash(value: string): string {
-  return createHash('sha256').update(value).digest('hex').slice(0, 8);
+  return new Bun.CryptoHasher('sha256').update(value).digest('hex').slice(0, 8);
 }
 
 function rewriteModelRefField(

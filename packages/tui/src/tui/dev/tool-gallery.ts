@@ -12,7 +12,7 @@ export interface TuiToolGalleryOptions {
 const STATES: readonly TuiToolGalleryState[] = ['running', 'succeeded', 'failed'];
 
 const CASES = [
-  { name: 'bash', content: '{"command":"pnpm test"}', detail: 'PASS 42 tests\nDone in 1.2s' },
+  { name: 'bash', content: '{"command":"bun run test"}', detail: 'PASS 42 tests\nDone in 1.2s' },
   { name: 'read', content: '{"path":"src/app.ts"}', detail: 'export function start() {}' },
   { name: 'search', content: '{"query":"createSession"}', detail: 'src/session.ts:42' },
   { name: 'write', content: '{"path":"docs/report.md"}', detail: '# Capability report' },

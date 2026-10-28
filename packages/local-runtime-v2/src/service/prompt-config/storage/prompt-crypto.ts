@@ -1,4 +1,4 @@
-import { createDecipheriv, createHash } from 'node:crypto';
+import { createDecipheriv } from 'node:crypto';
 
 import type { EncryptedPromptEnvelope, PromptKeyProvider } from '../contracts.js';
 import { PromptConfigError } from '../errors.js';
@@ -67,7 +67,7 @@ export function decryptPromptEnvelope(
 }
 
 export function computePromptBundleVersion(files: ReadonlyMap<string, string>): string {
-  const hash = createHash('sha256');
+  const hash = new Bun.CryptoHasher('sha256');
   for (const path of [...files.keys()].sort(compareUtf8)) {
     hash.update(Buffer.from(path, 'utf8'));
     hash.update('\0');
@@ -78,15 +78,15 @@ export function computePromptBundleVersion(files: ReadonlyMap<string, string>): 
 }
 
 export function computePromptCacheId(bundle: EncryptedPromptBundleLike): string {
-  const hash = createHash('sha256');
-  hash.update(bundle.version, 'utf8');
+  const hash = new Bun.CryptoHasher('sha256');
+  hash.update(bundle.version);
   hash.update('\0');
   for (const file of [...bundle.files].sort((left, right) => compareUtf8(left.path, right.path))) {
-    hash.update(file.path, 'utf8');
+    hash.update(file.path);
     hash.update('\0');
-    hash.update(file.nonce, 'utf8');
+    hash.update(file.nonce);
     hash.update('\0');
-    hash.update(file.ciphertext, 'utf8');
+    hash.update(file.ciphertext);
     hash.update('\0');
   }
   return `sha256:${hash.digest('hex')}`;
@@ -98,7 +98,7 @@ export interface EncryptedPromptBundleLike {
 }
 
 export function promptCiphertextDigest(ciphertext: string): string {
-  return `sha256:${createHash('sha256').update(ciphertext, 'utf8').digest('hex')}`;
+  return `sha256:${new Bun.CryptoHasher('sha256').update(ciphertext).digest('hex')}`;
 }
 
 function promptAad(version: string, subject: string, path: string): Buffer {

@@ -128,7 +128,7 @@ lark-cli 命令执行后，如果检测到新版本，JSON 输出中会包含 `_
 1. 告知用户当前版本和最新版本号
 2. 提议执行更新（CLI 和 Skills 需要同时更新）：
    ```bash
-   npm update -g @larksuite/cli && npx skills add larksuite/cli -g -y
+   bun update --global @larksuite/cli && bunx skills add larksuite/cli -g -y
    ```
 3. 更新完成后提醒用户：**退出并重新打开 AI Agent**以加载最新 Skills
 

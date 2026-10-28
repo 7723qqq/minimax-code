@@ -22,7 +22,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          node <<'EOF'
+          bun -e "$(cat <<'EOF'
           const fs = require('node:fs');
 
           async function main() {
@@ -69,3 +69,4 @@ jobs:
 
           main();
           EOF
+          )"

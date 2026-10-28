@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import type { Api, Context, Model, SimpleStreamOptions } from '@earendil-works/pi-ai';
 
@@ -168,7 +167,7 @@ function buildToolFingerprint(model: Model<Api>, tools: Context['tools']): strin
     baseUrl: model.baseUrl,
     tools,
   });
-  return createHash('sha256').update(serialized).digest('hex');
+  return new Bun.CryptoHasher('sha256').update(serialized).digest('hex');
 }
 
 function safeJsonStringify(value: unknown): string {

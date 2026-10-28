@@ -1,4 +1,3 @@
-import { execSync } from "node:child_process";
 import { homedir } from "node:os";
 import { isAbsolute } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -52,11 +51,19 @@ export function setCellDimensions(dims: CellDimensions): void {
  */
 function probeTmuxHyperlinks(): boolean {
 	try {
-		const termfeatures = execSync("tmux display-message -p '#{client_termfeatures}'", {
-			encoding: "utf8",
+		// Bun.spawnSync replaces the execSync shell string with an argv form: the
+		// single quotes were shell quoting around one literal tmux argument.
+		// A non-zero exit falls through to the catch, as the old throw did.
+		const result = Bun.spawnSync({
+			cmd: ["tmux", "display-message", "-p", "#{client_termfeatures}"],
+			stdin: "ignore",
+			stdout: "pipe",
+			stderr: "ignore",
 			timeout: 250,
-			stdio: ["ignore", "pipe", "ignore"],
 		});
+		if (result.exitCode !== 0) throw new Error(`tmux exited with code ${result.exitCode}`);
+		const termfeatures = result.stdout
+			.toString("utf8");
 		return termfeatures
 			.split(",")
 			.map((feature) => feature.trim())

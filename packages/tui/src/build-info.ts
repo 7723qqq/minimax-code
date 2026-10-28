@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs';
 
-export const MINIMAX_CODE_MIN_NODE_VERSION = '22.19.0';
-export const MINIMAX_CODE_SUPPORTED_NODE_VERSIONS = '22.19+, 24, 25, or 26';
+export const MINIMAX_CODE_MIN_BUN_VERSION = '1.4.4';
 export const TUI_BUILD_PROFILE = 'tui';
 export const MINIMAX_CODE_PACKAGE_NAME = '@minimax-ai/code';
 
@@ -44,41 +43,29 @@ export function resolveTuiPackageVersion(moduleUrl: string | URL = import.meta.u
   throw new Error(`Cannot resolve ${MINIMAX_CODE_PACKAGE_NAME} package version`);
 }
 
-function parseVersion(version: string): number[] | undefined {
-  const parts = version.split('.');
-  if (parts.length === 0 || parts.some((part) => !/^\d+$/.test(part))) return undefined;
-  return parts.map((part) => Number.parseInt(part, 10));
+function parseVersion(version: string): [number, number, number] | undefined {
+  const match = /^(\d+)(?:\.(\d+))?(?:\.(\d+))?/.exec(version.trim());
+  if (!match) return undefined;
+  return [Number(match[1]), Number(match[2] ?? 0), Number(match[3] ?? 0)];
 }
 
 /**
- * Whether the running runtime is one this CLI supports.
+ * Whether a Bun release meets the CLI's minimum.
  *
- * The check reads `process.versions.node` because that is what a Node install
- * reports, but under Bun the same field is the *compatibility* value
- * (`process.versions.bun` is set alongside it), not a Node release. Comparing
- * that compatibility number against a Node range would reject the CLI the moment
- * Bun raises it past the supported window, even though nothing is wrong with the
- * runtime.
- *
- * An explicit `version` argument means the caller is asking about a specific Node
- * release, so the range always applies to it regardless of the current runtime.
- * Only the default call — "is *this* process supported?" — accepts a Bun runtime
- * on its own identity.
+ * Callers pass `process.versions.bun`; that field is absent under Node, whose
+ * `process.versions.node` is a compatibility value rather than this runtime's
+ * release. Only the leading numeric components matter, so pre-release suffixes
+ * do not decide support.
  */
-export function supportsTuiNodeVersion(version?: string): boolean {
-  const explicit = version !== undefined;
-  if (!explicit && isBunRuntime()) return true;
-
-  const currentParts = parseVersion(version ?? process.versions.node);
-  if (!currentParts) return false;
-
-  const [major = -1, minor = 0] = currentParts;
-  return (major === 22 && minor >= 19) || (major >= 24 && major <= 26);
-}
-
-/** Whether this process is Bun rather than a Node build. */
-export function isBunRuntime(): boolean {
-  return typeof process.versions.bun === 'string' && process.versions.bun.length > 0;
+export function supportsBunVersion(version: string): boolean {
+  const parts = parseVersion(version);
+  const minimum = parseVersion(MINIMAX_CODE_MIN_BUN_VERSION);
+  if (!parts || !minimum) return false;
+  for (let index = 0; index < 3; index += 1) {
+    const difference = (parts[index] ?? 0) - (minimum[index] ?? 0);
+    if (difference !== 0) return difference > 0;
+  }
+  return true;
 }
 
 export const MINIMAX_CODE_VERSION = resolveTuiPackageVersion();

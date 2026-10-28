@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 import { parse as parseToml } from 'smol-toml';
 import yaml from 'yaml';
 
@@ -474,8 +472,8 @@ function issue(
   code: string,
 ): AgentImportIssue {
   return {
-    issueId: `import_${createHash('sha256')
-      .update(`${category}\u0000${fieldPath}\u0000${code}`, 'utf8')
+    issueId: `import_${new Bun.CryptoHasher('sha256')
+      .update(`${category}\u0000${fieldPath}\u0000${code}`)
       .digest('hex')
       .slice(0, 20)}`,
     category,
@@ -497,7 +495,7 @@ function stableIssues(report: readonly AgentImportIssue[]): readonly AgentImport
 }
 
 function sourceDigest(content: string): string {
-  return createHash('sha256').update(content, 'utf8').digest('hex');
+  return new Bun.CryptoHasher('sha256').update(content).digest('hex');
 }
 
 function stringArray(value: unknown): readonly string[] | undefined {

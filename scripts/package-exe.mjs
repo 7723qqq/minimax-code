@@ -25,8 +25,7 @@
 //     use, verified by sha256, and loaded from there.
 //
 // Usage: bun scripts/package-exe.mjs [--out <dir>] [--skip-build]
-import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './lib/exec.mjs';
 import {
   chmodSync,
   copyFileSync,
@@ -284,7 +283,7 @@ function resolveInstalledPackage(name) {
 }
 
 function sha256Of(file) {
-  return createHash('sha256').update(readFileSync(file)).digest('hex');
+  return new Bun.CryptoHasher('sha256').update(readFileSync(file)).digest('hex');
 }
 
 function stripShebang(text) {

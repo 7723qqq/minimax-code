@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync } from './lib/exec.mjs';
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 

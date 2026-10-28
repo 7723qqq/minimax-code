@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type { Dirent } from 'node:fs';
 import { lstat, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep } from 'node:path';
@@ -624,7 +624,11 @@ export class AgentFiles {
       return { reference: value };
     }
     const decoded = decodeAgentAvatarDataUrl(value);
-    const fileName = `avatar-${createHash('sha256').update(decoded.bytes).digest('hex').slice(0, 16)}${decoded.extension}`;
+    const avatarDigest = new Bun.CryptoHasher('sha256')
+      .update(decoded.bytes)
+      .digest('hex')
+      .slice(0, 16);
+    const fileName = `avatar-${avatarDigest}${decoded.extension}`;
     const reference = `./${fileName}`;
     await this.ensureLayout(name);
     await assertSafeAgentAvatarDirectory(this.agentDir(name), this.dataDir);
@@ -1114,11 +1118,11 @@ function hasSemanticMarkdownBody(raw: Buffer): boolean {
 }
 
 function rawDigest(raw: Buffer): string {
-  return createHash('sha256').update(raw).digest('hex');
+  return new Bun.CryptoHasher('sha256').update(raw).digest('hex');
 }
 
 function documentRevision(content: string): string {
-  return createHash('sha256').update(content, 'utf8').digest('hex');
+  return new Bun.CryptoHasher('sha256').update(content).digest('hex');
 }
 
 function assertBuiltinConfigModelOnlyUpdate(currentContent: string, incomingContent: string): void {

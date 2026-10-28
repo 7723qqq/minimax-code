@@ -4,7 +4,7 @@ import type { HelpCopyKey } from './copy.en.js';
  * Simplified Chinese copy for the help panel.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  */
 export const ZH_HANS_HELP_COPY = {
   title: '帮助',

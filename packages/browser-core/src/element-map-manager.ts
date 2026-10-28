@@ -10,7 +10,6 @@
  */
 import * as fs from 'fs';
 import * as path from 'path';
-import * as crypto from 'crypto';
 import type { InteractiveElement } from './browser-core-contracts.js';
 import type { ElementRecord } from './browser-state.js';
 import type { SemanticPageTree } from './browser-semantic-tree.js';
@@ -176,7 +175,7 @@ export class ElementMapManager {
    * Generate a filename from the URL path's hash.
    */
   private getFileName(urlPath: string): string {
-    const hash = crypto.createHash('md5').update(urlPath).digest('hex').slice(0, 12);
+    const hash = new Bun.CryptoHasher('md5').update(urlPath).digest('hex').slice(0, 12);
     // Use the domain as a prefix to aid debugging.
     const domain = urlPath
       .split('/')[0]!

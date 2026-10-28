@@ -67,7 +67,7 @@ function freshFacade(
     shellFamily?: 'cmd' | 'powershell';
     workspaceDir?: string;
     sandbox?: LocalRuntimeConfig['sandbox'];
-    seedPosixTrash?: boolean;
+    seedTrash?: boolean;
     dataDirParent?: string;
   } = {},
 ): {
@@ -84,9 +84,13 @@ function freshFacade(
     ...(opts.sandbox ? { sandbox: opts.sandbox } : {}),
   } as LocalRuntimeConfig;
   const effectivePlatform = opts.platform ?? process.platform;
+  // Seed the trash runtime for every simulated platform, not just POSIX:
+  // the Windows-simulated cases rewrite `rm` to `mavis-trash` and need the
+  // seeded launcher to exist. Cases that must exercise the missing-runtime
+  // path opt out with `seedTrash: false`.
   if (
-    opts.seedPosixTrash !== false &&
-    (effectivePlatform === 'darwin' || effectivePlatform === 'linux')
+    opts.seedTrash !== false &&
+    (effectivePlatform === 'darwin' || effectivePlatform === 'linux' || effectivePlatform === 'win32')
   ) {
     ensureTrashScript(dataDir, effectivePlatform);
   }
@@ -483,7 +487,7 @@ describe('LocalPermissionFacade', () => {
     it('hard-denies rm when the canonical POSIX trash script is unavailable', async () => {
       const { facade, dataDir } = freshFacade({
         platform: 'darwin',
-        seedPosixTrash: false,
+        seedTrash: false,
       });
       try {
         const result = await facade.checkPermission({
@@ -627,6 +631,7 @@ describe('LocalPermissionFacade', () => {
         permissionMode: 'off',
         platform: 'win32',
         workspaceDir,
+        seedTrash: false,
       });
       try {
         seedWindowsTrashRuntime(dataDir);
@@ -717,6 +722,7 @@ describe('LocalPermissionFacade', () => {
         platform: 'win32',
         shellFamily: 'cmd',
         workspaceDir,
+        seedTrash: false,
       });
       try {
         const r = await facade.checkPermission({
@@ -773,6 +779,7 @@ describe('LocalPermissionFacade', () => {
       const { facade, dataDir } = freshFacade({
         permissionMode: 'bypassPermissions',
         platform: 'win32',
+        seedTrash: false,
       });
       try {
         const r = await facade.checkPermission({
@@ -792,6 +799,7 @@ describe('LocalPermissionFacade', () => {
         permissionMode: 'off',
         platform: 'win32',
         workspaceDir,
+        seedTrash: false,
       });
       try {
         seedWindowsTrashRuntime(dataDir);
@@ -833,6 +841,7 @@ describe('LocalPermissionFacade', () => {
         permissionMode: 'off',
         platform: 'win32',
         workspaceDir,
+        seedTrash: false,
       });
       try {
         seedWindowsTrashRuntime(dataDir);
@@ -857,6 +866,7 @@ describe('LocalPermissionFacade', () => {
         permissionMode: 'off',
         platform: 'win32',
         workspaceDir,
+        seedTrash: false,
       });
       try {
         const launcherPath = path.join(dataDir, 'bin', 'mavis-trash.cmd');
@@ -880,6 +890,7 @@ describe('LocalPermissionFacade', () => {
         permissionMode: 'off',
         platform: 'win32',
         workspaceDir,
+        seedTrash: false,
       });
       try {
         seedWindowsTrashRuntime(dataDir);
@@ -904,6 +915,7 @@ describe('LocalPermissionFacade', () => {
         permissionMode: 'off',
         platform: 'win32',
         workspaceDir,
+        seedTrash: false,
       });
       try {
         seedWindowsTrashRuntime(dataDir);
@@ -930,6 +942,7 @@ describe('LocalPermissionFacade', () => {
         permissionMode: 'off',
         platform: 'win32',
         workspaceDir,
+        seedTrash: false,
       });
       try {
         seedWindowsTrashRuntime(dataDir);
@@ -952,6 +965,7 @@ describe('LocalPermissionFacade', () => {
         permissionMode: 'off',
         platform: 'win32',
         workspaceDir,
+        seedTrash: false,
       });
       try {
         seedWindowsTrashRuntime(dataDir);
@@ -986,6 +1000,7 @@ describe('LocalPermissionFacade', () => {
         permissionMode: 'off',
         platform: 'win32',
         workspaceDir,
+        seedTrash: false,
       });
       try {
         seedWindowsTrashRuntime(dataDir);
@@ -1009,6 +1024,7 @@ describe('LocalPermissionFacade', () => {
         permissionMode: 'off',
         platform: 'win32',
         workspaceDir,
+        seedTrash: false,
       });
       try {
         seedWindowsTrashRuntime(dataDir);
@@ -1072,6 +1088,7 @@ describe('LocalPermissionFacade', () => {
         permissionMode: 'off',
         platform: 'win32',
         workspaceDir,
+        seedTrash: false,
       });
       try {
         seedWindowsTrashRuntime(dataDir);
@@ -1147,6 +1164,7 @@ describe('LocalPermissionFacade', () => {
         permissionMode: 'off',
         platform: 'win32',
         workspaceDir,
+        seedTrash: false,
       });
       try {
         seedWindowsTrashRuntime(dataDir);
@@ -1169,6 +1187,7 @@ describe('LocalPermissionFacade', () => {
         permissionMode: 'off',
         platform: 'win32',
         workspaceDir,
+        seedTrash: false,
       });
       try {
         const r = await facade.checkPermission({
@@ -1189,6 +1208,7 @@ describe('LocalPermissionFacade', () => {
         permissionMode: 'off',
         platform: 'win32',
         workspaceDir,
+        seedTrash: false,
       });
       try {
         const r = await facade.checkPermission({
@@ -1209,6 +1229,7 @@ describe('LocalPermissionFacade', () => {
         permissionMode: 'off',
         platform: 'win32',
         workspaceDir,
+        seedTrash: false,
       });
       try {
         const r = await facade.checkPermission({

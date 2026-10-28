@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -250,7 +249,7 @@ function positiveLimit(value: number | undefined, fallback: number): number {
 }
 
 function sessionKey(sessionId: string): string {
-  return createHash('sha256').update(sessionId).digest('hex').slice(0, 32);
+  return new Bun.CryptoHasher('sha256').update(sessionId).digest('hex').slice(0, 32);
 }
 
 function serializeCompatibleMessages(
@@ -335,7 +334,7 @@ function compatibleTranscriptRow(
 }
 
 function stableMessageId(sessionId: string, message: AgentMessage, index: number): string {
-  return `projection-${index}-${createHash('sha256')
+  return `projection-${index}-${new Bun.CryptoHasher('sha256')
     .update(sessionId)
     .update(message.role)
     .update(String(message.timestamp))
@@ -364,7 +363,7 @@ function codexSessionMeta(sessionId: string, cwd: string, messages: readonly Age
 }
 
 function stableCodexThreadId(sessionId: string): string {
-  const hex = createHash('sha256').update(sessionId).digest('hex').slice(0, 32).split('');
+  const hex = new Bun.CryptoHasher('sha256').update(sessionId).digest('hex').slice(0, 32).split('');
   hex[12] = '5';
   hex[16] = ((Number.parseInt(hex[16] ?? '0', 16) & 0x3) | 0x8).toString(16);
   return `${hex.slice(0, 8).join('')}-${hex.slice(8, 12).join('')}-${hex

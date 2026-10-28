@@ -28,7 +28,7 @@ jobs:
       - name: Build Feishu payload
         shell: bash
         run: |
-          node <<'EOF'
+          bun -e "$(cat <<'EOF'
           const crypto = require('crypto');
           const fs = require('fs');
 
@@ -184,6 +184,7 @@ jobs:
 
           fs.writeFileSync('feishu-payload.json', JSON.stringify(payload));
           EOF
+          )"
 
       - name: Send Feishu notification
         shell: bash
@@ -196,7 +197,7 @@ jobs:
               "$FEISHU_BOT_WEBHOOK"
           )"
 
-          RESPONSE="$response" node <<'EOF'
+          RESPONSE="$response" bun -e "$(cat <<'EOF'
           const response = JSON.parse(process.env.RESPONSE);
           const success =
             response.code === 0 ||
@@ -210,3 +211,4 @@ jobs:
 
           console.log('Feishu notification sent.');
           EOF
+          )"

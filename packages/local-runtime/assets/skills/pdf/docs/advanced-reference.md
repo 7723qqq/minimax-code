@@ -142,7 +142,7 @@ async function combine() {
 
 ### 2.2 pdfjs-dist (Apache)
 
-Mozilla's PDF.js, packaged for npm. Used primarily inside browsers.
+Mozilla's PDF.js, packaged for the registry. Used primarily inside browsers.
 
 ```javascript
 import * as pdfjsLib from 'pdfjs-dist';

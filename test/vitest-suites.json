@@ -8,6 +8,7 @@
       "packages/local-runtime-v2/test/integration/compaction-openai-transport.integration.test.ts",
       "packages/tui/test/unit/tui-core-catalogs.test.ts",
       "packages/config/test/config-copy-catalogs.test.ts",
+      "packages/local-runtime/test/unit/seed-builtin-shared-dir.test.ts",
       "packages/local-runtime/test/unit/skill-directory-symlinks.test.ts",
       "packages/agent-core/test/unit/bash-subprocess-env.test.ts",
       "packages/agent-modules/permission/test/unit/permission/bash-policy-regressions.test.ts",
@@ -59,6 +60,7 @@
       "packages/agent-core/test/unit/event-bridge/converters.test.ts",
       "packages/agent-core/test/unit/image-dimensions.test.ts",
       "packages/agent-modules/mcp/test/connection-pool-abort.test.ts",
+      "packages/agent-modules/plugin-hooks/test/runner-stdin.test.ts",
       "packages/agent-modules/mcp/test/connection-pool-metrics.test.ts",
       "packages/agent-modules/mcp/test/connection-pool-server-override.test.ts",
       "packages/agent-modules/mcp/test/name-registry.test.ts",
@@ -210,6 +212,7 @@
       "packages/tui/test/unit/observability.test.ts",
       "packages/local-runtime-v2/src/service/session-system/fork/side-history-boundary.test.ts",
       "packages/tui/test/unit/host-tui-settings.test.ts",
+      "packages/tui/test/unit/host-shell-quoting.test.ts",
       "packages/tui/test/unit/tui/features/settings/theme-picker.test.ts",
       "packages/tui/test/unit/tui/theme/custom-themes.test.ts",
       "packages/tui/test/unit/tui/theme/palettes.test.ts",
@@ -243,7 +246,10 @@
       "packages/shared/test/unit/product-time.test.ts",
       "packages/local-runtime-v2/test/unit/session-system/archived-root-title.test.ts",
       "packages/local-runtime-v2/test/unit/i18n-catalogs.test.ts",
-      "packages/local-runtime/test/unit/local-runtime-copy-catalogs.test.ts"
+      "packages/local-runtime/test/unit/local-runtime-copy-catalogs.test.ts",
+      "packages/tui/test/unit/build-info.test.ts",
+      "packages/tui/test/unit/process-stop-observation.test.ts",
+      "packages/local-runtime/test/unit/remote-asset-lookup.test.ts"
     ],
     "status-contract": [
       "packages/tui/test/unit/tui-build-mode-contract.test.ts"

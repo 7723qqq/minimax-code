@@ -43,7 +43,6 @@
     "packages/mcode-tools-host"
   ],
   "engines": {
-    "node": ">=22.19 <23 || >=24.2 <27",
     "bun": ">=1.4.4"
   },
   "scripts": {
@@ -80,7 +79,6 @@
     "esbuild": "0.28.2",
     "prettier": "3.9.9",
     "shx": "^0.4.0",
-    "tsx": "4.23.15",
     "typescript": "5.9.3",
     "yaml": "2.9.0",
     "tar": "7.5.22",

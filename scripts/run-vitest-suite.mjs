@@ -7,7 +7,7 @@
 // tsconfig overrides. This entry point keeps the historical
 // `run-vitest-suite.mjs <group>` contract used by package.json and
 // scripts/verify.mjs.
-import { spawnSync } from "node:child_process";
+import { spawnSync } from "./lib/exec.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { suiteFiles, repositoryRoot } from "./lib/vitest-suites.mjs";

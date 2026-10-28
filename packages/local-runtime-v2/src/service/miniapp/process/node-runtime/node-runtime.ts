@@ -1,5 +1,5 @@
 import { spawn as nodeSpawn, type ChildProcess, type SpawnOptions } from 'node:child_process';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { lstat, mkdir, mkdtemp, realpath, rm } from 'node:fs/promises';
 import { createConnection } from 'node:net';
 import os from 'node:os';
@@ -831,7 +831,7 @@ async function resolveDataDir(options: ResolvedOptions, pluginId: string): Promi
 
 function candidatePort(input: Parameters<typeof prepareRuntime>[0], index: number): number {
   const preferred = input.preferredPort;
-  const digest = createHash('sha256').update(input.candidate.pluginId).digest();
+  const digest = new Bun.CryptoHasher('sha256').update(input.candidate.pluginId).digest();
   const base =
     preferred !== undefined && preferred >= PORT_MIN && preferred <= PORT_MAX
       ? preferred

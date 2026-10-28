@@ -247,7 +247,7 @@ describe('builtin Matrix MCP server config', () => {
     const tmp = await mkdtemp(join(tmpdir(), 'matrix-mcp-entrypoint-'));
     try {
       const entrypoint = join(tmp, 'matrix-mcp-stdio.js');
-      await writeFile(entrypoint, '#!/usr/bin/env node\n', 'utf8');
+      await writeFile(entrypoint, '#!/usr/bin/env bun\n', 'utf8');
       process.env.MAVIS_MATRIX_MCP_STDIO_ENTRYPOINT = entrypoint;
       const { resolveMatrixMcpStdioEntrypoint } = await importBuiltinMatrix();
 
@@ -264,8 +264,8 @@ describe('builtin Matrix MCP server config', () => {
     try {
       const cliEntry = join(tmp, 'cli.js');
       const entrypoint = join(tmp, 'matrix-mcp-stdio.js');
-      await writeFile(cliEntry, '#!/usr/bin/env node\n', 'utf8');
-      await writeFile(entrypoint, '#!/usr/bin/env node\n', 'utf8');
+      await writeFile(cliEntry, '#!/usr/bin/env bun\n', 'utf8');
+      await writeFile(entrypoint, '#!/usr/bin/env bun\n', 'utf8');
       const { resolveMatrixMcpStdioEntrypoint } = await importBuiltinMatrix();
 
       expect(resolveMatrixMcpStdioEntrypoint(pathToFileURL(cliEntry).href)).toBe(entrypoint);
@@ -287,7 +287,7 @@ describe('builtin Matrix MCP server config', () => {
         'node_modules/@mavis/agent-tools/dist/desktop/matrix-mcp-stdio.js',
       );
       await mkdir(dirname(entrypoint), { recursive: true });
-      await writeFile(entrypoint, '#!/usr/bin/env node\n', 'utf8');
+      await writeFile(entrypoint, '#!/usr/bin/env bun\n', 'utf8');
       const { resolveMatrixMcpStdioEntrypoint } = await importBuiltinMatrix();
 
       expect(resolveMatrixMcpStdioEntrypoint(pathToFileURL(runtimeEntry).href)).toBe(entrypoint);

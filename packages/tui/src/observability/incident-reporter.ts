@@ -1,4 +1,4 @@
-import { createCipheriv, createHash, hkdfSync, randomBytes, randomUUID } from 'node:crypto';
+import { createCipheriv, hkdfSync, randomBytes, randomUUID } from 'node:crypto';
 import {
   chmodSync,
   mkdirSync,
@@ -298,6 +298,8 @@ class LocalTuiIncidentReporter implements TuiIncidentReporter {
             appVersion: this.options.appVersion,
             platform: this.options.platform ?? platform(),
             arch: this.options.architecture ?? arch(),
+            // Under Bun this is its Node-compatibility value, not a Node release.
+            // The gateway's numeric schema has no Bun field yet.
             nodeVersion: this.options.nodeVersion ?? process.versions.node,
           },
           breadcrumbs: this.breadcrumbs,
@@ -633,7 +635,7 @@ function numericVersion(value: unknown): string | undefined {
 }
 
 function incidentFingerprint(eventType: string, error: TuiIncidentErrorSnapshot): string {
-  return createHash('sha256')
+  return new Bun.CryptoHasher('sha256')
     .update(JSON.stringify([eventType, error]))
     .digest('hex')
     .slice(0, 24);

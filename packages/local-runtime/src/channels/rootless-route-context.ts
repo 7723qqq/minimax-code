@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 import type { ChannelRoutingMode } from '@mavis/shared';
 
 import type {
@@ -76,5 +74,5 @@ function semanticScope(
 }
 
 function stableDigest(parts: readonly string[]): string {
-  return createHash('sha256').update(JSON.stringify(parts)).digest('hex');
+  return new Bun.CryptoHasher('sha256').update(JSON.stringify(parts)).digest('hex');
 }

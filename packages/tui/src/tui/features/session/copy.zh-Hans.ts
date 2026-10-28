@@ -4,7 +4,7 @@ import type { SessionCopyKey } from './copy.en.js';
  * Simplified Chinese copy for the session browser.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  */
 export const ZH_HANS_SESSION_COPY = {
   'session.error.currentUnavailable': '当前会话在此不可用。可直接使用 /rename <title> 重命名。',

@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import {
   lstatSync,
   mkdirSync,
@@ -259,7 +259,7 @@ export async function registerSessionLocalAsset(
   const maxBytes = input.maxBytes ?? DEFAULT_MAX_LOCAL_ASSET_BYTES;
   if (sourceInfo.size > maxBytes) throw new Error('asset_too_large');
   const sourceBytes = await readFile(canonicalSource);
-  const sha256 = createHash('sha256').update(sourceBytes).digest('hex');
+  const sha256 = new Bun.CryptoHasher('sha256').update(sourceBytes).digest('hex');
   const reusable = listRegisteredV2Assets(input.dataDir).find(
     (record) =>
       record.sessionId === sessionId &&
@@ -301,7 +301,7 @@ async function materializeLocalAsset(
   source: { readonly buffer: Buffer; readonly mimeType: string },
 ): Promise<LocalRuntimeAssetRecord> {
   const now = input.nowMs?.() ?? Date.now();
-  const sha256 = createHash('sha256').update(source.buffer).digest('hex');
+  const sha256 = new Bun.CryptoHasher('sha256').update(source.buffer).digest('hex');
   const stamp = formatV2TimestampParts(now);
   const fileName = sanitizeV2PathSegment(input.fileName, 'attachment');
   const assetId = `asset_${stamp.compact}_${sha256.slice(0, 12)}_${randomUUID().slice(0, 8)}`;
@@ -352,7 +352,7 @@ async function materializeLocalAsset(
 export function registerLocalAssetSync(input: RegisterLocalAssetInput): LocalRuntimeAssetRecord {
   const now = input.nowMs?.() ?? Date.now();
   const source = readAssetSourceSync(input);
-  const sha256 = createHash('sha256').update(source.buffer).digest('hex');
+  const sha256 = new Bun.CryptoHasher('sha256').update(source.buffer).digest('hex');
   const stamp = formatV2TimestampParts(now);
   const fileName = sanitizeV2PathSegment(input.fileName, 'attachment');
   const assetId = `asset_${stamp.compact}_${sha256.slice(0, 12)}_${randomUUID().slice(0, 8)}`;

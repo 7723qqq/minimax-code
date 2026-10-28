@@ -1,9 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { spawn } from "node:child_process";
-import { once } from "node:events";
-import { createRequire } from "node:module";
 import {
   mkdtempSync,
   mkdirSync,
@@ -22,6 +19,13 @@ import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { withoutProxyEnvironment } from "./offline-environment.mjs";
 
 const cli = process.env.MCODE_TEST_CLI ?? fileURLToPath(new URL("../dist/cli.js", import.meta.url));
+
+// Bun does not honour NODE_OPTIONS, so the offline network guard is injected
+// as an explicit preload on every CLI child instead. The guard writes an audit
+// file on any denied or managed-fixture request, which is exactly what the
+// assertions below read.
+const networkGuard = fileURLToPath(new URL("./network-deny.mjs", import.meta.url));
+const guardArgs = (...args) => ["--preload", networkGuard, cli, ...args];
 // This case is 30+ serial CLI spawns, each booting the whole runtime, so its
 // wall-clock cost tracks machine speed rather than the transport it asserts.
 // A flat budget sized for an idle laptop turns any busy runner (parallel build,
@@ -191,7 +195,6 @@ test(
       // locale so the fixture reads the same on a zh-CN developer machine as it
       // does in CI; `Intl` alone would follow the host.
       MCODE_LOCALE: "en",
-      NODE_OPTIONS: `--import=${new URL("./network-deny.mjs", import.meta.url).href}`,
     };
     let commandSequence = 0;
     async function run(args, environment = process.env) {
@@ -203,10 +206,16 @@ test(
         ? [...args, "--diagnostics-dir", diagnosticsDir]
         : args;
       return new Promise((resolve, reject) => {
-        const child = spawn(process.execPath, [cli, ...commandArgs], {
+        // Bun.spawn replaces the child_process spawn; the pipes are web
+        // streams, so the data listeners become drains awaited before the
+        // promise settles, and `exited` replaces the close event.
+        const child = Bun.spawn({
+          cmd: [process.execPath, ...guardArgs(...commandArgs)],
           cwd: workspaceDir,
           env: { ...withoutProxyEnvironment(environment), ...env },
-          stdio: ["ignore", "pipe", "pipe"],
+          stdin: "ignore",
+          stdout: "pipe",
+          stderr: "pipe",
         });
         let stdout = "",
           stderr = "";
@@ -227,20 +236,19 @@ test(
             `execution progress (tail): ${progress}`,
           );
           child.kill("SIGKILL");
-          child.stdout.destroy();
-          child.stderr.destroy();
+          void child.stdout?.cancel();
+          void child.stderr?.cancel();
         }, 35000);
-        child.stdout.on("data", (chunk) => {
-          stdout += chunk;
-        });
-        child.stderr.on("data", (chunk) => {
-          stderr += chunk;
-        });
-        child.once("error", (error) => {
-          clearTimeout(timer);
-          reject(error);
-        });
-        child.once("close", (code) => {
+        const drains = [
+          (async () => {
+            for await (const chunk of child.stdout) stdout += Buffer.from(chunk).toString("utf8");
+          })(),
+          (async () => {
+            for await (const chunk of child.stderr) stderr += Buffer.from(chunk).toString("utf8");
+          })(),
+        ];
+        void child.exited.then(async (code) => {
+          await Promise.all(drains.map((pending) => pending.catch(() => undefined)));
           clearTimeout(timer);
           t.diagnostic(`${label}: exit ${code} after ${Date.now() - startedAt}ms`);
           if (timeoutError) {
@@ -473,7 +481,7 @@ test(
       writeFileSync(path.join(root, "icon.png"), Buffer.from(
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5N8AAAAASUVORK5CYII=", "base64"));
       writeFileSync(path.join(root, "hooks", "hooks.json"), JSON.stringify({ hooks: { Stop: [{ hooks: [{
-        type: "command", command: 'node "${PLUGIN_ROOT}/notice.cjs"', timeout: 5,
+        type: "command", command: 'bun "${PLUGIN_ROOT}/notice.cjs"', timeout: 5,
       }] }] } }));
       writeFileSync(path.join(root, "notice.cjs"),
         `process.stdout.write(JSON.stringify({systemMessage: ${JSON.stringify(marker)}}));`);
@@ -711,9 +719,8 @@ test(
         },
       }),
     );
-    const child = spawn(
-      process.execPath,
-      [
+    const child = Bun.spawn({
+      cmd: [process.execPath, "--preload", networkGuard,
         cli,
         "exec",
         "Edit a local file.",
@@ -728,7 +735,6 @@ test(
         "--max-steps",
         "4",
       ],
-      {
         cwd: workspaceDir,
         env: {
           ...withoutProxyEnvironment(process.env),
@@ -740,20 +746,21 @@ test(
           MCODE_TEST_ALLOWED_ORIGIN: origin,
           MCODE_TEST_NETWORK_AUDIT: networkAudit,
           MCODE_TEST_MANAGED_OFFLINE: "1",
-          NODE_OPTIONS: `--import=${new URL("./network-deny.mjs", import.meta.url).href}`,
         },
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    );
+        stdin: "ignore",
+        stdout: "pipe",
+        stderr: "pipe",
+    });
     let stdout = "";
     let stderr = "";
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk;
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk;
-    });
-    const [code] = await once(child, "close");
+    const outDrain = (async () => {
+      for await (const chunk of child.stdout) stdout += Buffer.from(chunk).toString("utf8");
+    })();
+    const errDrain = (async () => {
+      for await (const chunk of child.stderr) stderr += Buffer.from(chunk).toString("utf8");
+    })();
+    const code = await child.exited;
+    await Promise.all([outDrain.catch(() => undefined), errDrain.catch(() => undefined)]);
     assert.equal(code, 0, `${stdout}\n${stderr}`);
     assert.match(stdout, /tools, which are unavailable in lightweight mode/u);
     assert.match(stdout, /mcode --mode standard/u);
@@ -811,31 +818,38 @@ function cancellationTest(cancellation) {
         }
         if (cancellation === "lock") {
           // A separate process releases the lock even when the CLI blocks its event loop.
-          holder = spawn(
-            process.execPath,
-            [
+          // The holder is a Bun child with an IPC channel. It locks the
+          // product's own `bun:sqlite` database and reports through
+          // `process.send`, which Bun provides to IPC children.
+          let notifyHolder;
+          const holderMessaged = new Promise((resolve) => {
+            notifyHolder = resolve;
+          });
+          holder = Bun.spawn({
+            cmd: [
+              process.execPath,
               "-e",
               `
-        const Database = require(process.argv[1]);
-        const db = new Database(process.argv[2]);
+        const { Database } = require('bun:sqlite');
+        const db = new Database(process.argv[1]);
         db.exec('BEGIN IMMEDIATE');
         process.send('locked');
         setTimeout(() => {
           db.exec('COMMIT'); db.close(); process.disconnect();
         }, 1500);
       `,
-              createRequire(import.meta.url).resolve("better-sqlite3"),
               dbPath,
             ],
-            {
-              stdio: ["ignore", "ignore", "inherit", "ipc"],
-            },
-          );
-          holderClosed = once(holder, "close").then(() => {
+            ipc: (message) => notifyHolder(message),
+            stdin: "ignore",
+            stdout: "ignore",
+            stderr: "inherit",
+          });
+          holderClosed = holder.exited.then(() => {
             holderReleased = true;
           });
           await Promise.race([
-            once(holder, "message"),
+            holderMessaged,
             holderClosed.then(() => {
               throw new Error("Writer exited before acquiring the lock");
             }),
@@ -913,7 +927,7 @@ function cancellationTest(cancellation) {
           childProcess.exitCode === null &&
           childProcess.signalCode === null
         ) {
-          const closed = once(childProcess, "close");
+          const closed = childProcess.exited;
           childProcess.kill("SIGKILL");
           await closed;
         }
@@ -943,9 +957,8 @@ function cancellationTest(cancellation) {
         },
       }),
     );
-    child = spawn(
-      process.execPath,
-      [
+    child = Bun.spawn({
+      cmd: [process.execPath, "--preload", networkGuard,
         cli,
         "exec",
         "Reply with the synthetic fixture response.",
@@ -960,7 +973,6 @@ function cancellationTest(cancellation) {
         "--max-steps",
         "1",
       ],
-      {
         cwd: workspaceDir,
         env: {
           ...withoutProxyEnvironment(process.env),
@@ -972,21 +984,22 @@ function cancellationTest(cancellation) {
           MCODE_TEST_ALLOWED_ORIGIN: origin,
           MCODE_TEST_NETWORK_AUDIT: networkAudit,
           MCODE_TEST_MANAGED_OFFLINE: "1",
-          NODE_OPTIONS: `--import=${new URL("./network-deny.mjs", import.meta.url).href}`,
         },
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    );
+        stdin: "ignore",
+        stdout: "pipe",
+        stderr: "pipe",
+    });
     let stdout = "",
       stderr = "";
-    child.stdout.on("data", (chunk) => {
-      stdout += chunk;
-    });
-    child.stderr.on("data", (chunk) => {
-      stderr += chunk;
-    });
+    const outDrain = (async () => {
+      for await (const chunk of child.stdout) stdout += Buffer.from(chunk).toString("utf8");
+    })();
+    const errDrain = (async () => {
+      for await (const chunk of child.stderr) stderr += Buffer.from(chunk).toString("utf8");
+    })();
     deadline = setTimeout(() => child.kill("SIGKILL"), 35000);
-    const [code] = await once(child, "close");
+    const code = await child.exited;
+    await Promise.all([outDrain.catch(() => undefined), errDrain.catch(() => undefined)]);
     clearTimeout(deadline);
     if (holderClosed) await holderClosed;
     assert.equal(serverError, undefined);

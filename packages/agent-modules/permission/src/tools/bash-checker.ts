@@ -241,7 +241,7 @@ const BARE_SHELL_PREFIXES = new Set([
  *
  * Examples:
  *   'git commit -m "fix"' → 'git commit'
- *   'npm run build'       → 'npm run'
+ *   'bun run build'       → 'bun run'
  *   'ls -la'              → null (flag, not subcommand)
  *   'cat file.txt'        → null (filename)
  *   'chmod 755 f'         → null (number)
@@ -421,10 +421,10 @@ function generalizeCommand(command: string): string {
  *     single word-only argv and its head is a clean identifier
  *     (rejected: shells, `sudo`, `env`, paths, flags). This is the
  *     "trust this tool" scope users typically want for `curl` / `git`
- *     / `npm` when they know they'll run many variations.
+ *     / `bun` when they know they'll run many variations.
  *   - `byArgvPrefix2` — allow every command matching the first two
  *     argv tokens. Only emitted when the second token is a plain
- *     subcommand identifier (`git commit`, `npm run`, `docker
+ *     subcommand identifier (`git commit`, `bun run`, `docker
  *     compose`), NOT a flag / path / number. This is finer-grained
  *     than `byFirstWord` and useful when the tool has many verbs.
  *
@@ -769,8 +769,8 @@ export class BashToolPermissionChecker implements ToolPermissionChecker {
         // below). An ordinary path-capability ASK must NOT downgrade it: returning
         // pendingAsk here skips that final immunity assignment, so under
         // bypassPermissions the engine's Step-2a would silently ALLOW a command the
-        // user explicitly asked to confirm (`ask bash(npm:*)` + an external write
-        // `npm test > ~/Desktop/out`). Carry the decision's immunity forward.
+        // user explicitly asked to confirm (`ask bash(bun:*)` + an external write
+        // `bun test > ~/Desktop/out`). Carry the decision's immunity forward.
         const decisionAskImmune =
           decision.behavior === 'ask' &&
           (context.mode === 'bypassPermissions' || decisionContainsHardBlocked(decision));
@@ -980,7 +980,7 @@ export class BashToolPermissionChecker implements ToolPermissionChecker {
     for (const [subcmd, result] of decision.reason.reasons) {
       if (result.reason.type === 'rmRewrite') {
         hasRmRewrite = true;
-        // On Windows the trash script is a Node.js file invoked via the .cmd launcher;
+        // On Windows the trash script is an entry script invoked via the .cmd launcher;
         // on POSIX it's the bash script directly. Both are named `mavis-trash` at the
         // command level (.cmd extension auto-resolved by Windows shell).
         const trashBin =

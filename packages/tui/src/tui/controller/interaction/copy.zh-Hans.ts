@@ -4,7 +4,7 @@ import type { ControllerInteractionCopyKey } from './copy.en.js';
  * Simplified Chinese copy for the TUI interaction surfaces.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  */
 export const ZH_HANS_CONTROLLER_INTERACTION_COPY = {
   'question.agentNeedsInput': 'Agent 需要输入',

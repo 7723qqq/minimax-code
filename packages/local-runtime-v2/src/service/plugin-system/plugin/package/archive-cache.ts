@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { constants as fsConstants } from 'node:fs';
 import { lstat, mkdir, mkdtemp, open, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
@@ -33,7 +32,7 @@ export async function materializeOfficialPluginArchive(
   assertNotAborted(input.signal);
   const archive = await readRegularArchive(input.archivePath, input.signal);
   assertNotAborted(input.signal);
-  const archiveSha256 = createHash('sha256').update(archive).digest('hex');
+  const archiveSha256 = new Bun.CryptoHasher('sha256').update(archive).digest('hex');
   if (archiveSha256 !== input.expectedArchiveSha256) {
     throw new PluginArchiveError(
       'ARCHIVE_DIGEST_MISMATCH',

@@ -11,7 +11,7 @@
  * fell back to `/bin/rm` — hard-deleting the user's files.
  *
  * - macOS / Linux: seeds a POSIX bash script at `mavis-trash` (0o755).
- * - Windows: seeds a Node.js script at `mavis-trash.js` plus a `.cmd`
+ * - Windows: seeds a Bun script at `mavis-trash.js` plus a `.cmd`
  *   launcher `mavis-trash.cmd`, so the permission pipeline can invoke
  *   `mavis-trash <paths>` uniformly across platforms.
  *
@@ -19,7 +19,6 @@
  * bundled string (so restarts don't churn the file mtime).
  */
 import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
-import { createHash } from 'node:crypto';
 import path from 'node:path';
 
 import { TRASH_SCRIPT_CONTENT } from './trash-script.js';
@@ -109,7 +108,7 @@ export function clearTrashRuntimeCache(): void {
 }
 
 function sha256(value: string): string {
-  return createHash('sha256').update(value).digest('hex');
+  return new Bun.CryptoHasher('sha256').update(value).digest('hex');
 }
 
 export function inspectTrashRuntime(

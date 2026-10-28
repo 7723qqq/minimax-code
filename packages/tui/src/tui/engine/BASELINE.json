@@ -18,7 +18,7 @@
   },
   "sourceFileCount": 39,
   "upstreamTreeDigest": "3e0601b9e99f2a2f09fc746d40be14b1ffd9bb3a118a20c0c1bc0ad17185e48a",
-  "adaptedTreeDigest": "53d36cf6f27850da54cd0345869b19797c00d21855ba1c930fbb059ad04d4bfd",
+  "adaptedTreeDigest": "32bb872cba046a5452fdac2c85bee8ea740ed3c0b291473c547b2d5398b3e7f3",
   "localSourceFiles": ["native-module-path.ts", "public.ts"],
   "files": [
     {
@@ -29,7 +29,7 @@
     {
       "path": "autocomplete.ts",
       "upstreamSha256": "10f1e74efb9aa7dce770f450c6ea436a5daadaf22ec98cdb015bd283ae212db4",
-      "adaptedSha256": "cf6637602e3b27786824ec7efdd639bdc64fa13434dd87ac59d8aee18570e2a5"
+      "adaptedSha256": "89f24d9f456122c1e7ff42dcdc2812e858ad7cd9b50755c3e16e4287331da392"
     },
     {
       "path": "components/alt-screen-flash.ts",

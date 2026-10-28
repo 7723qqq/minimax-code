@@ -4,7 +4,7 @@ import type { ConfigTranslations } from './copy.en.js';
  * Simplified Chinese copy for the configuration package.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  */
 export const ZH_HANS_CONFIG_COPY = {
   'skillEvolve.lifecycle.invalid':

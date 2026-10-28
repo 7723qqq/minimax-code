@@ -4,7 +4,7 @@ import type { RuntimeTranslations } from './runtime-catalog.en.js';
  * Simplified Chinese runtime catalog.
  *
  * `satisfies RuntimeTranslations` is the completeness check: a key present in
- * the English catalog but absent here fails `pnpm typecheck`. Only some of the
+ * the English catalog but absent here fails `bun run typecheck`. Only some of the
  * catalogs this module replaced carried that assertion, which is how gaps
  * reached production.
  */

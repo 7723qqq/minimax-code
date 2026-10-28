@@ -8,14 +8,14 @@
  *
  * Setup:
  *   cd packages/coding-agent/examples/extensions/gondolin
- *   npm install --ignore-scripts
+ *   bun install --ignore-scripts
  *
  * Usage:
  *   cd /path/to/project
  *   pi -e /path/to/pi/packages/coding-agent/examples/extensions/gondolin
  *
  * Requirements:
- *   - Node.js >= 23.6.0 for @earendil-works/gondolin
+ *   - @earendil-works/gondolin
  *   - QEMU installed (for example, `brew install qemu` on macOS)
  */
 

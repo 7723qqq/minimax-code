@@ -3,52 +3,51 @@
 ## Install a GitHub release archive
 
 When a CLI release is available on [GitHub Releases](https://github.com/MiniMax-AI/minimax-code/releases),
-download `minimax-code-X.Y.Z.tar.gz` and the matching `.sha256` file. This is an npm
+download `minimax-code-X.Y.Z.tar.gz` and the matching `.sha256` file. This is a registry
 installation package containing the built CLI; no source build is needed. The CLI runs
 on the Bun runtime (`bun:sqlite` is a Bun builtin), so install Bun 1.4.4+ first; the
-`npm install` step itself additionally needs Node.js 22.19+ (22.x), 24.2+ (24.x), 25 or
-26 and network access to public npm for runtime dependencies.
+`bun install` step itself additionally needs network access to the public registry for
+runtime dependencies.
 
 For example, for an available `v0.4.13` release:
 
 ```bash
 # Linux; on macOS use: shasum -a 256 -c minimax-code-0.4.13.tar.gz.sha256
 sha256sum -c minimax-code-0.4.13.tar.gz.sha256
-npm install --global ./minimax-code-0.4.13.tar.gz --registry=https://registry.npmjs.org/ --include=optional --ignore-scripts=false --allow-scripts=@minimax-ai/code
+bun install --global ./minimax-code-0.4.13.tar.gz --registry=https://registry.npmjs.org/ --trust @minimax-ai/code
 mcode --version
 ```
 
-Keep optional dependencies enabled and allow the `@minimax-ai/code` lifecycle script.
+Optional dependencies install by default; `--trust @minimax-ai/code` lets that
+package's lifecycle script run without trusting every dependency script.
 The tag determines the installed version. GitHub archive installation is
 validated on Linux and macOS; Windows package acceptance is currently not run.
 
 This archive uses the same `@minimax-ai/code` package name, `mcode` command and
-default user data directory as the official npm CLI. Installing it globally into
-the same npm prefix replaces that npm installation. Update to another GitHub
+default user data directory as the published CLI. Installing it globally into
+the same global prefix replaces that installation. Update to another GitHub
 version by explicitly installing its archive; the built-in updater follows the
-official npm registry channel and does not select GitHub release assets. To remove
-the package, use `npm uninstall --global @minimax-ai/code`. User data remains in place.
+published registry channel and does not select GitHub release assets. To remove
+the package, use `bun remove --global @minimax-ai/code`. User data remains in place.
 
 ## Install from source
 
-The official CLI is available as [`@minimax-ai/code`](https://www.npmjs.com/package/@minimax-ai/code). Public npm `latest` was 0.6.9 on 2026-10-13. Follow the [official quick start](https://agent.minimax.io/docs/cli/quick-start) or the [README installation steps](../README.md#quick-start) for the macOS / Linux / WSL installer, Windows PowerShell installer, or npm installation.
+The official CLI is available as [`@minimax-ai/code`](https://www.npmjs.com/package/@minimax-ai/code). Public registry `latest` was 0.6.9 on 2026-10-13. Follow the [official quick start](https://agent.minimax.io/docs/cli/quick-start) or the [README installation steps](../README.md#quick-start) for the macOS / Linux / WSL installer, Windows PowerShell installer, or registry installation.
 
-For npm, use the command in the README: it explicitly selects the public registry, includes optional dependencies, and allows the `@minimax-ai/code` lifecycle script. SQLite runs through Bun's builtin `bun:sqlite`; a native SQLite binding is no longer installed. Do not omit optional dependencies or disable installation scripts. On npm versions that enforce script approvals, `--allow-scripts` grants the package permission without allowing every dependency script.
+For a registry install, use the command in the README: it explicitly selects the public registry and lets the `@minimax-ai/code` lifecycle script run. SQLite runs through Bun's builtin `bun:sqlite`; a native SQLite binding is no longer installed. Do not omit optional dependencies or disable installation scripts. `--trust @minimax-ai/code` grants that package's script permission without trusting every dependency script.
 
-`@latest` follows the stable npm dist-tag. For a reproducible CLI version, replace `@latest` with an exact published version such as `@0.6.9`, keeping the other options. The CLI runtime is Bun 1.4.4+; Node.js 22.19+ (22.x), 24.2+ (24.x), 25, or 26 is additionally needed where npm performs the installation.
+`@latest` follows the stable dist-tag. For a reproducible CLI version, replace `@latest` with an exact published version such as `@0.6.9`, keeping the other options. The CLI runtime is Bun 1.4.4+.
 
-This guide builds the 0.6.3 source preview. Workspace/local build manifests remain `private: true` to prevent accidental publishing. A source checkout may contain additional reviewed distribution changes; matching version strings alone do not establish byte-for-byte or build-provenance equivalence with the official npm tarball. Use the committed source revision and release receipt to identify a source build.
+This guide builds the 0.6.5 source preview. Workspace/local build manifests remain `private: true` to prevent accidental publishing. A source checkout may contain additional reviewed distribution changes; matching version strings alone do not establish byte-for-byte or build-provenance equivalence with the published registry tarball. Use the committed source revision and release receipt to identify a source build.
 
-For a source build, you need Git and Bun 1.4.4+: dependency installation, type checking, linting, builds, tests and the CLI runtime all run on it. Node.js 22.19+ (22.x), 24.2+ (24.x), 25, or 26 is only needed where npm performs an installation. Regular CI uses Node.js 24 across Linux and macOS. The weekly and manual compatibility matrix covers Node.js 22.19.0, 24.2.0, 25, and 26 on both platforms with the Bun runtime pinned to the packaged version. Windows CI and source-candidate validation are temporarily paused while their checks are made reliable. Initial installation and build require access to public npm.
+For a source build, you need Git and Bun 1.4.4+: dependency installation, type checking, linting, builds, tests and the CLI runtime all run on it. Regular CI runs Linux and macOS. The weekly and manual compatibility matrix covers both platforms with the Bun runtime pinned to the packaged version while it varies the runner toolchain lines that update-flow fixtures resolve; it deliberately skips the 24.0 and 24.1 lines, whose bundled libuv can return inconsistent Windows file identity metadata — [24.2.0](https://nodejs.org/en/blog/release/v24.2.0) carries libuv 1.51.0 with the [upstream fix](https://github.com/libuv/libuv/commit/82cdfb75f). Windows CI and source-candidate validation are temporarily paused while their checks are made reliable. Initial installation and build require access to the public registry.
 
 On Windows, check out this repository on a local NTFS volume before running `bun install`. The workspace install layout and native builds assume a local NTFS volume: FAT32/exFAT volumes, network shares, and other non-local Windows volumes are unsupported. The preflight command below verifies the volume and stops with a clear message before dependencies are installed; run it immediately before `bun install`. It queries structured volume properties through Windows PowerShell and CIM, without requiring an elevated shell or parsing localized `fsutil` output. If PowerShell or CIM is unavailable or blocked, verification fails with the query error. A local NTFS volume can still contain a cloud-synced folder, which the preflight cannot identify reliably; keep the checkout outside OneDrive, Google Drive, Dropbox, and similar synced folders.
-
-Node 24.0 and 24.1 are unsupported: their bundled libuv can return inconsistent Windows file identity metadata, causing safe configuration reads to fail. [Node 24.2.0](https://nodejs.org/en/blog/release/v24.2.0) includes libuv 1.51.0 with the [upstream fix](https://github.com/libuv/libuv/commit/82cdfb75f). Use a current patch release of a supported Node line.
 
 ```bash
 git clone https://github.com/MiniMax-AI/minimax-code.git
 cd minimax-code
-node scripts/check-windows-source-location.mjs
+bun scripts/check-windows-source-location.mjs
 bun install --frozen-lockfile
 bun run build
 bun run mcode --help
@@ -86,23 +85,23 @@ anything other than previous `mcode-<version>.exe` outputs.
 
 Run `/login` in the TUI or `bun run mcode login`, choosing the region for your account. Token Plan requires an account and available credits. See the root README for BYOK configuration and testing.
 
-Source builds and the published npm CLI use the same default user data directory:
+Source builds and the published CLI use the same default user data directory:
 
 | CLI artifact | Default user data directory |
 | --- | --- |
-| Published npm `@minimax-ai/code@0.6.9` | `~/.minimax` |
+| Published `@minimax-ai/code@0.6.9` | `~/.minimax` |
 | Build from this repository | `~/.minimax` |
 
-The npm 0.6.9 default was checked against the [public registry artifact](https://registry.npmjs.org/@minimax-ai/code/0.6.9) on 2026-10-13, with its SHA-512 integrity verified. This applies to that published version, including local npm dependencies; do not infer the default of another release from its version label alone. A selected profile uses `~/.minimax-<profile>`. The source default is defined in [`data-dir.ts`](../packages/tui/src/runtime/data-dir.ts). Login state, provider configuration such as `config.yaml`, caches, and sessions belong to the selected data directory.
+The published 0.6.9 default was checked against the [public registry artifact](https://registry.npmjs.org/@minimax-ai/code/0.6.9) on 2026-10-13, with its SHA-512 integrity verified. This applies to that published version, including its local dependencies; do not infer the default of another release from its version label alone. A selected profile uses `~/.minimax-<profile>`. The source default is defined in [`data-dir.ts`](../packages/tui/src/runtime/data-dir.ts). Login state, provider configuration such as `config.yaml`, caches, and sessions belong to the selected data directory.
 
-Both accept a non-empty `MINIMAX_DATA_DIR`, falling back to a non-empty `MAVIS_DATA_DIR`, before the default. The [macOS / Linux / WSL installer](https://filecdn.minimax.chat/public/install.sh) installs the npm package under `~/.minimax-code` by default (`MCODE_INSTALL_DIR` changes the installation location). It does not set either data-directory override. Installation files and user data are separate concerns, even when their directories have the same name.
+Both accept a non-empty `MINIMAX_DATA_DIR`, falling back to a non-empty `MAVIS_DATA_DIR`, before the default. The [macOS / Linux / WSL installer](https://filecdn.minimax.chat/public/install.sh) installs the package under `~/.minimax-code` by default (`MCODE_INSTALL_DIR` changes the installation location). It does not set either data-directory override. Installation files and user data are separate concerns, even when their directories have the same name.
 
 Earlier source builds used `~/.minimax-code` for user data. The new default does not move or merge that data. To keep using an existing source-build data directory, explicitly set `MINIMAX_DATA_DIR` to its path.
 
 To locate data safely:
 
-1. Identify the launcher you actually use with `command -v mcode` (POSIX) or `Get-Command mcode -All` (PowerShell), and run that launcher's `--version`. For a local npm dependency, use `node_modules/.bin/mcode --version`; a global npm listing does not identify it. A source build may report the same version as the npm release.
-2. Check whether either data-directory override is set in that launcher's environment. Otherwise use the artifact-specific default above. Inspect directory and file names/permissions locally, without printing `config.yaml`, authentication files, or session contents. For builds from this repository, `mcode telemetry status` also reports the selected `configFile` path without printing credentials; npm 0.6.9 does not provide that command.
+1. Identify the launcher you actually use with `command -v mcode` (POSIX) or `Get-Command mcode -All` (PowerShell), and run that launcher's `--version`. For a local dependency install, use `node_modules/.bin/mcode --version`; a global package listing does not identify it. A source build may report the same version as the published release.
+2. Check whether either data-directory override is set in that launcher's environment. Otherwise use the artifact-specific default above. Inspect directory and file names/permissions locally, without printing `config.yaml`, authentication files, or session contents. For builds from this repository, `mcode telemetry status` also reports the selected `configFile` path without printing credentials; the published 0.6.9 build does not provide that command.
 3. If both directories exist, their presence alone does not identify the active one. Keep both protected, and include the launcher, version, installation method, and whether overrides are set when requesting help. Redact personal path components; do not attach configuration or authentication files. Changing an override does not migrate existing data, so do not move or delete either directory merely to match these docs.
 
 For tests, explicitly set `MINIMAX_DATA_DIR` to a temporary directory to keep normal sessions separate. Use `$env:MINIMAX_DATA_DIR = 'C:\path\to\test-profile'` in PowerShell or `export MINIMAX_DATA_DIR=/path/to/test-profile` in a POSIX shell.
@@ -155,6 +154,6 @@ If it still fails, record `mcode --version`, Ghostty's version, active keyboard 
 
 ## Update or remove
 
-Save your changes, fetch a reviewed revision with Git, then repeat the frozen install and build. A source installation does not automatically become an official npm installation.
+Save your changes, fetch a reviewed revision with Git, then repeat the frozen install and build. A source installation does not automatically become an official registry installation.
 
-To uninstall a source build, save any work and remove the source directory you created. Separately stored user data remains in place. See [Uninstall](../README.md#uninstall) for official installer and npm removal, shell PATH cleanup, and optional user-data deletion.
+To uninstall a source build, save any work and remove the source directory you created. Separately stored user data remains in place. See [Uninstall](../README.md#uninstall) for official installer and registry removal, shell PATH cleanup, and optional user-data deletion.

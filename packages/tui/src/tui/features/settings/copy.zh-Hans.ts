@@ -5,14 +5,14 @@ import type { SettingsItemCopyKey } from './copy.en.js';
  *
  * `satisfies Readonly<Record<SettingsItemCopyKey, string>>` is the completeness
  * check: a key added to the English catalog and missing here fails
- * `pnpm typecheck`. Keyboard names (Enter, Esc, Backspace) stay in English,
+ * `bun run typecheck`. Keyboard names (Enter, Esc, Backspace) stay in English,
  * because they name keys rather than prose.
  */
 /**
  * Simplified Chinese copy for the hotkey and theme pickers.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  */
 export const ZH_HANS_SETTINGS_ITEM_COPY = {
   'hotkeys.title': '快捷键',

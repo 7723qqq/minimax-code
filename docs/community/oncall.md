@@ -112,7 +112,7 @@ within 48 hours. The same applies to any other change you have prepared.
 
 If you would like to pick up a scoped task, the `good first issue` label is the canonical list:
 <label url> — items there are expected to be independently completable, with
-`pnpm verify --profile docs` as the verification command for documentation tasks.
+`bun run verify --profile docs` as the verification command for documentation tasks.
 ```
 
 The two sentences that matter here are the second and third paragraphs. Reporting that the work was
@@ -126,7 +126,7 @@ Approved. You now have the requested access.
 
 The change is expected to be scoped in an issue first, then submitted as a PR from your fork.
 Please run the verification command for the profile that covers your change
-(`pnpm verify --profile docs` for documentation) and paste the real command output into the PR
+(`bun run verify --profile docs` for documentation) and paste the real command output into the PR
 description. Review target is 48 hours; if you have not heard back by then, ping the on-call owner.
 ```
 

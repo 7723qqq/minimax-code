@@ -38,7 +38,7 @@ distribution's verification.
 | Permission facade on macOS/Linux | `bun run test:policy` |
 | Sandbox on macOS | `bun run test:sandbox` |
 | Source-sync, workflow and release tools | `bun run test:release-tools` |
-| npm release archive installation | `MCODE_RELEASE_TAG=vX.Y.Z MCODE_RELEASE_ARCHIVE=/path/to/package.tar.gz bun run verify --profile package` |
+| release archive installation | `MCODE_RELEASE_TAG=vX.Y.Z MCODE_RELEASE_ARCHIVE=/path/to/package.tar.gz bun run verify --profile package` |
 | TUI source and test lint | `bun run lint:tui` |
 | Types and standalone build boundary | `bun run typecheck`, `bun run build`, `bun run check:standalone` |
 | Published files and generated paths | `bun run check:source`, `bun run check:tsconfig` |
@@ -77,7 +77,7 @@ retain 15 seconds.
 
 Run `git diff --check` and the relevant individual gates while editing. Review
 new or removed files before regenerating `release/public-source.json` with
-`node scripts/source-inventory.mjs --write`.
+`bun scripts/source-inventory.mjs --write`.
 
 Before opening a PR, run `bun run verify` on the reviewed commit with a clean tracked
 working tree. Source export reads committed HEAD and rejects uncommitted tracked
@@ -89,8 +89,8 @@ Skills under `.agents/skills`, unknown paths and inventory changes require the
 full profile. The `archive` profile is for source-archive validation, not a way to
 bypass the clean-commit export requirement.
 
-The `package` profile authenticates an npm release archive, installs it into a
-temporary npm prefix, and exercises its launcher, native dependencies and offline
+The `package` profile authenticates the publish channel's release archive,
+installs it into a temporary package prefix, and exercises its launcher, native dependencies and offline
 smoke/BYOK suites. It requires `MCODE_RELEASE_TAG` and `MCODE_RELEASE_ARCHIVE` and
 does not replace source validation. The release command commits matching root/TUI source versions before tagging.
 The release workflow rejects version mismatches and runs the full profile before

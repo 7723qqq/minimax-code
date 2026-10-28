@@ -7,13 +7,14 @@
 //
 // Every sample runs in a fresh child process so JIT state and module caches do
 // not leak between Node and Bun.
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from '../lib/exec.mjs';
 import { mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 
+// `performance` below is the Bun global; importing it from node:perf_hooks
+// would add a compatibility shim to the very benchmark this script measures.
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const args = process.argv.slice(2);
 const valueOf = (name, fallback) => {
@@ -160,7 +161,7 @@ record(
   [
     '-e',
     `
-const { spawnSync } = require('node:child_process');
+const { spawnSync } = require('node:child_process'); // measured Node idiom; this snippet is the benchmark subject, not a repository dependency
 const started = performance.now();
 for (let index = 0; index < 20; index += 1) {
   const result = spawnSync(process.execPath, ['-e', '0'], { stdio: 'ignore' });

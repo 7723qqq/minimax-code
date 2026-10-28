@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import type { AgentPromptSnapshot } from '../contracts.js';
 
 export function describeAgentPromptSnapshot(
@@ -14,5 +13,5 @@ export function describeAgentPromptSnapshot(
 }
 
 function hash(text: string): string {
-  return createHash('sha256').update(text).digest('hex');
+  return new Bun.CryptoHasher('sha256').update(text).digest('hex');
 }

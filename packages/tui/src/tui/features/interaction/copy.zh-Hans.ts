@@ -5,14 +5,14 @@ import type { InteractionCopyKey } from './copy.en.js';
  *
  * `satisfies Readonly<Record<InteractionCopyKey, string>>` is the completeness
  * check: a key added to the English catalog and missing here fails
- * `pnpm typecheck`. Keyboard names (Enter, Esc, Tab, Space, Backspace, PgUp,
+ * `bun run typecheck`. Keyboard names (Enter, Esc, Tab, Space, Backspace, PgUp,
  * PgDn, Ctrl+C) stay in English, because they name keys rather than prose.
  */
 /**
  * Simplified Chinese copy for the permission, plan and questionnaire panels.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  */
 export const ZH_HANS_INTERACTION_COPY = {
   'permissionMode.description.default': '敏感操作需要确认',

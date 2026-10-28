@@ -13,7 +13,7 @@ If `check` is already green, work through the table below.
 | Symptom | Most likely cause | Fix |
 |---|---|---|
 | `[ ] [ ] [ ]` boxes for CJK text | The host has no system CJK font, or the HTML font cascade is missing PingFang / Hiragino / Apple SD Gothic Neo | Check the cascade in [`html-pdf-spec.md §4`](html-pdf-spec.md#4-typography); install a CJK font (`brew install font-noto-sans-cjk-sc`) |
-| Cover PDF blank / partial / browser not found | Playwright Chromium not installed | `npx playwright install chromium`, or `bash scripts/make.sh fix` |
+| Cover PDF blank / partial / browser not found | Playwright Chromium not installed | `bunx playwright install chromium`, or `bash scripts/make.sh fix` |
 | Output PDF is < 5 KB / `render_html.cjs` exits 3 | The source HTML had a JS error (CDN 404, syntax error, etc) | Open the source HTML in a browser, check the Console; vendor the script if a CDN is unreachable |
 | **Blank chart canvases in the PDF** | Chromium snapshotted the page before Chart.js painted | Pass `--wait 15000` to `make.sh render`; set `Chart.defaults.animation = false` once at the top of the page's `<script>` |
 | **Body text in default sans / serif** | Web fonts didn't load before snapshot | Use the system stack from [`html-pdf-spec.md §4`](html-pdf-spec.md#4-typography), or `@font-face` from a local file under `assets/fonts/` (the renderer waits for `document.fonts.ready` automatically) |

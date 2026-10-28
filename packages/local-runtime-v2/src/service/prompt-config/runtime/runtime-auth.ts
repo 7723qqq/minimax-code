@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 
 import type { PromptConfigAuthProvider, PromptConfigAuthSnapshot } from '../contracts.js';
 
@@ -39,7 +38,7 @@ export class RuntimePromptConfigAuthProvider implements PromptConfigAuthProvider
       };
     }
     return {
-      scopeId: createHash('sha256').update(`${deployment}\0${realUserID}`, 'utf8').digest('hex'),
+      scopeId: new Bun.CryptoHasher('sha256').update(`${deployment}\0${realUserID}`).digest('hex'),
       subject: realUserID as string,
       keyVersion: 'desktop-v1',
       accessToken: accessToken as string,

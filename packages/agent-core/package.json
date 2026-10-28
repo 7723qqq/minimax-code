@@ -79,9 +79,7 @@
   "devDependencies": {
     "@mavis/config": "workspace:^",
     "@types/node": "^20",
-    "tsx": "^4",
-    "typescript": "^5",
-    "vitest": "^2"
+    "typescript": "^5"
   },
   "private": true,
   "license": "MIT"

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, mock } from 'bun:test';
-import { execFileSync } from 'node:child_process';
+/* eslint-disable-next-line import/no-relative-packages -- repository-level test helper outside every package */
+import { execFileSync } from '../../../../scripts/lib/exec.mjs';
 import { chmod, copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';

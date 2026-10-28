@@ -3,7 +3,6 @@ import type {
   LocalBrowserToolAction,
   LocalRuntimeToolContext,
 } from '@mavis/agent-tools/desktop';
-import { createHash } from 'node:crypto';
 import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -663,7 +662,7 @@ class CoreTransport implements BrowserTransport {
  */
 export function safeSessionId(value: string): string {
   const readable = value.replace(/[^a-zA-Z0-9._-]+/gu, '-').slice(0, 64) || 'session';
-  const digest = createHash('sha256').update(value).digest('hex').slice(0, 16);
+  const digest = new Bun.CryptoHasher('sha256').update(value).digest('hex').slice(0, 16);
   return `${readable}-${digest}`;
 }
 

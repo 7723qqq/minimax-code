@@ -141,7 +141,7 @@ export function getManifestPath(hostDir: string, profile: string): string {
  *
  * Chrome's native messaging manifest accepts a single executable path only;
  * the wrapper injects MAVIS_PROFILE and MAVIS_BROWSER_BROKER_SOCKET before
- * handing control to Node/native-host.cjs.
+ * handing control to the `native-host.cjs` entry.
  */
 export function generateHostWrapper(opts: {
   nodePath: string;

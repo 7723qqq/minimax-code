@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { createWriteStream } from 'node:fs';
 import {
   cp,
@@ -258,7 +258,10 @@ async function resolveWorktreeLocation(
     throw new ForkWorktreeUnavailableError('Worktree parent must not be the source workspace');
   }
   const suffix = safeSegment((options.makeSuffix ?? defaultSuffix)());
-  const operationSegment = createHash('sha256').update(operationId).digest('hex').slice(0, 12);
+  const operationSegment = new Bun.CryptoHasher('sha256')
+    .update(operationId)
+    .digest('hex')
+    .slice(0, 12);
   const target = resolve(parent, `fork-${operationSegment}-${suffix}`);
   assertWithin(parent, target, 'Unsafe worktree path');
   return {
@@ -436,7 +439,7 @@ function createOwnership(input: {
   readonly preparedFingerprint: string;
   readonly allowTargetMutation?: boolean;
 }): OwnedWorktree {
-  const ownershipToken = createHash('sha256')
+  const ownershipToken = new Bun.CryptoHasher('sha256')
     .update(input.operationId)
     .update('\0')
     .update(input.targetRealpath)
@@ -722,7 +725,7 @@ async function fingerprint(
     filteredStatus(cwd, excludedRoots),
     untrackedFingerprint(cwd, excludedRoots),
   ]);
-  const hash = createHash('sha256').update(head).update('\0').update(status).update('\0');
+  const hash = new Bun.CryptoHasher('sha256').update(head).update('\0').update(status).update('\0');
   await streamGit(
     ['diff', '--binary', sourceBase?.diffBase ?? 'HEAD', ...workspacePathspec(cwd, excludedRoots)],
     cwd,
@@ -753,7 +756,7 @@ async function untrackedFingerprint(
   cwd: string,
   excludedRoots: readonly string[] = [],
 ): Promise<Buffer> {
-  const hash = createHash('sha256');
+  const hash = new Bun.CryptoHasher('sha256');
   for (const entry of await untrackedEntries(cwd, excludedRoots)) {
     const path = resolve(cwd, entry);
     if (!isWithin(cwd, path)) throw new ForkWorktreeUnavailableError('Unsafe untracked path');

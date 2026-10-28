@@ -49,7 +49,7 @@ function backgroundTasks(): readonly TuiBackgroundTask[] {
       kind: "bash",
       status: "running",
       ownerSessionId: "root",
-      description: "pnpm typecheck",
+      description: "bun run typecheck",
       createdAtMs: 2_000,
       updatedAtMs: 9_000,
       startedAtMs: 3_000,
@@ -99,7 +99,7 @@ describe("TuiBackgroundWorkPanel", () => {
     expect(rendered).toContain("4 total · 2 active · 1 failed");
     expect(rendered).toContain("[Agent] reviewer");
     expect(rendered).toContain("Reading task-panel.ts");
-    expect(rendered).toContain("[Bash] pnpm typecheck");
+    expect(rendered).toContain("[Bash] bun run typecheck");
     expect(rendered).toContain("[Bash] build docs");
     expect(rendered).toContain("[Bash] completed validation");
     expect(rendered).toContain("Enter open transcript");
@@ -125,13 +125,13 @@ describe("TuiBackgroundWorkPanel", () => {
     panel.handleInput("\r");
     let rendered = stripVTControlCharacters(panel.render(80).join("\n"));
     expect(rendered).toContain("Background task · Running");
-    expect(rendered).toContain("pnpm typecheck");
+    expect(rendered).toContain("bun run typecheck");
     expect(rendered).toContain("bg-running");
 
     panel.handleInput("\u001B");
     rendered = stripVTControlCharacters(panel.render(80).join("\n"));
     expect(rendered).toContain("[Agent] reviewer");
-    expect(rendered).toContain("[Bash] pnpm typecheck");
+    expect(rendered).toContain("[Bash] bun run typecheck");
     expect(requestRender).toHaveBeenCalled();
 
     panel.handleInput("\u001B[B");
@@ -255,7 +255,7 @@ describe("TuiBackgroundWorkPanel", () => {
     panel.handleInput("\r");
     const text = stripVTControlCharacters(panel.render(80).join("\n"));
     expect(text).toContain("Description");
-    expect(text).toContain("pnpm typecheck");
+    expect(text).toContain("bun run typecheck");
     expect(text).not.toContain("Command");
   });
 

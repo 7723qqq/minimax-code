@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { realpath, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
@@ -1038,7 +1037,7 @@ function fileId(path: string, scope?: ScopedGitChangeScope, originalPath?: strin
 }
 
 function hash(parts: string[]): string {
-  const digest = createHash('sha256');
+  const digest = new Bun.CryptoHasher('sha256');
   for (const part of parts) digest.update(part).update('\0');
   return digest.digest('hex');
 }

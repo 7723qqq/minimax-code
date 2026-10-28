@@ -354,9 +354,7 @@
   },
   "devDependencies": {
     "@types/node": "^20",
-    "@vitest/coverage-v8": "^2",
-    "typescript": "^5",
-    "vitest": "^2"
+    "typescript": "^5"
   },
   "private": true,
   "license": "MIT"

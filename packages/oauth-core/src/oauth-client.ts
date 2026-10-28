@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 
 import { MCODE_OAUTH_AUDIENCE, MCODE_OAUTH_CLIENT_ID, MCODE_OAUTH_SCOPES } from './contracts.js';
 
@@ -78,7 +78,11 @@ export class HttpOAuthClient implements OAuthClient {
 
   async startDeviceAuthorization(options: OAuthRequestOptions = {}): Promise<DeviceAuthorization> {
     const codeVerifier = randomBytes(32).toString('base64url');
-    const codeChallenge = createHash('sha256').update(codeVerifier, 'ascii').digest('base64url');
+    // The verifier is base64url, so ASCII and UTF-8 encode it identically; the
+    // explicit conversion keeps the challenge tied to the verifier's raw bytes.
+    const codeChallenge = new Bun.CryptoHasher('sha256')
+      .update(Buffer.from(codeVerifier, 'ascii'))
+      .digest('base64url');
     const body = await this.postForm(
       this.options.deviceAuthorizationEndpoint,
       {
