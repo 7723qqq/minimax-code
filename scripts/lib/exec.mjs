@@ -37,7 +37,9 @@ function stdioKinds(stdio) {
 }
 
 function decode(value, encoding) {
-  if (value == null) return encoding ? '' : Buffer.alloc(0);
+  // A numeric stdio entry means the caller redirected the stream to a file
+  // descriptor; Bun echoes that descriptor as the result value.
+  if (value == null || typeof value === 'number') return encoding ? '' : Buffer.alloc(0);
   const buffer = Buffer.isBuffer(value) ? value : Buffer.from(value);
   return encoding ? buffer.toString(encoding) : buffer;
 }

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { copyFileSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, realpathSync, symlinkSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, realpathSync, symlinkSync, openSync, closeSync } from 'node:fs';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { execFileSync, spawnSync } from "../scripts/lib/exec.mjs";
@@ -1359,6 +1359,23 @@ test('exec helper shell form round-trips argv with spaces and quotes', () => {
     assert.equal(result.status, 0, result.stderr);
     assert.equal(result.stdout.trim(), JSON.stringify(extra));
   }
+});
+
+test('exec helper accepts a numeric stdio descriptor without decoding it', t => {
+  const root = mkdtempSync(path.join(tmpdir(), 'mcode-exec-fd-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const file = path.join(root, 'out.bin');
+  const fd = openSync(file, 'w');
+  try {
+    const result = spawnSync(process.execPath, ['-e', 'process.stdout.write("payload")'], {
+      stdio: ['ignore', fd, 'pipe'],
+    });
+    assert.equal(result.status, 0);
+    assert.equal(Buffer.from(result.stdout).toString(), '');
+  } finally {
+    closeSync(fd);
+  }
+  assert.equal(readFileSync(file, 'utf8'), 'payload');
 });
 
 const migrationToolPath = fileURLToPath(
