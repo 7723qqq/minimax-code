@@ -259,6 +259,7 @@ const CHECKPOINT_CANDIDATES = new Set<CheckpointAttemptMetadata['candidate']>([
   'htrim',
   'hall',
   'hvideo',
+  'hmedia',
   'hmid',
   'hmin',
 ]);

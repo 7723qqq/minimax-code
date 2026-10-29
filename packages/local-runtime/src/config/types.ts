@@ -76,6 +76,8 @@ export interface LocalRuntimeConfig {
   permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions' | 'auto' | 'off';
   /** Permission policy rollout; omitted local views inherit the config default. */
   permission?: Partial<Config['permission']>;
+  /** Conversation stop policy (`conversation.stopSubAgent` / `stopAsyncBash`). */
+  conversation?: Config['conversation'];
   dataDir: string;
   /**
    * Directory that startup seeds bundled builtin skills into. Defaults to

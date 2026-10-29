@@ -34,6 +34,11 @@ export interface ValidCheckpointGeneration {
 export interface CheckpointMessageOptions {
   readonly timestamp: number;
   readonly subagents?: CompactionSubagentState;
+  /** Directories the model can read for details the summary omits. */
+  readonly earlierFiles?: {
+    readonly snapshots?: string;
+    readonly toolOutputs?: string;
+  };
 }
 
 export function validateCheckpointGeneration(
@@ -101,11 +106,31 @@ export function buildCheckpointMessage(
   );
   const checkpoint: AgentMessage = {
     role: 'compactionSummary',
-    summary: appendCompactionState(summary, state),
+    summary: appendCompactionState(appendEarlierFiles(summary, options.earlierFiles), state),
     tokensBefore,
     timestamp: options.timestamp,
   };
   return checkpoint;
+}
+
+function appendEarlierFiles(
+  summary: string,
+  files: CheckpointMessageOptions['earlierFiles'],
+): string {
+  if (!files) return summary;
+  const lines: string[] = [];
+  if (files.snapshots) {
+    lines.push(
+      `- Full conversation history before each compaction, one JSONL file per compaction (the highest g<generation> is the latest): ${files.snapshots}`,
+    );
+  }
+  if (files.toolOutputs) {
+    lines.push(`- Tool images and oversized tool outputs: ${files.toolOutputs}`);
+  }
+  if (lines.length === 0) return summary;
+  return `${summary}\n\nFiles from before this compaction:\n${lines.join(
+    '\n',
+  )}\nRead them when you need exact details that the summary above leaves out.`;
 }
 
 function buildVerifiedCheckpointState(

@@ -19,7 +19,7 @@ export interface CheckpointGenerationMetadata {
   readonly outputTokens: number;
 }
 
-export type CheckpointCandidate = 'h0' | 'htrim' | 'hall' | 'hvideo' | 'hmid' | 'hmin';
+export type CheckpointCandidate = 'h0' | 'htrim' | 'hall' | 'hvideo' | 'hmedia' | 'hmid' | 'hmin';
 type CheckpointAttemptOutcome =
   | 'generated'
   | 'input_too_large'

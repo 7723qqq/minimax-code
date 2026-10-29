@@ -160,6 +160,36 @@ describe('user stop cascade: target collection', () => {
     });
   });
 
+  it('skips background bash when the conversation stop policy disables it', async () => {
+    const fixture = harness([
+      runningTask('bash'),
+      { ...runningTask('sub'), kind: 'subagent', metadata: { executionMode: 'background' } },
+    ]);
+    fixture.admit('bash');
+    fixture.admit('sub');
+
+    const { targets } = await cascade(fixture.host, { stopAsyncBash: false });
+
+    expect(ids(targets)).toEqual(['sub']);
+    expect(fixture.tasks.get('bash')!.status).toBe('running');
+    expect(fixture.tasks.get('sub')!.status).toBe('canceled');
+  });
+
+  it('skips background subagents when the conversation stop policy disables them', async () => {
+    const fixture = harness([
+      runningTask('bash'),
+      { ...runningTask('sub'), kind: 'subagent', metadata: { executionMode: 'background' } },
+    ]);
+    fixture.admit('bash');
+    fixture.admit('sub');
+
+    const { targets } = await cascade(fixture.host, { stopSubAgent: false });
+
+    expect(ids(targets)).toEqual(['bash']);
+    expect(fixture.tasks.get('bash')!.status).toBe('canceled');
+    expect(fixture.tasks.get('sub')!.status).toBe('running');
+  });
+
   it('skips a non-terminal task this process does not own, leaving its row untouched', async () => {
     // Another client process sharing the data directory still runs it; writing
     // `canceled` here would lie about a task that keeps going over there.
@@ -1169,13 +1199,20 @@ describe('user stop cascade: window lifecycle', () => {
 
 function cascade(
   host: LocalTaskRunnerHostWithSessionLookup,
-  options: { boundaryMs?: number; depth?: number } = {},
+  options: {
+    boundaryMs?: number;
+    depth?: number;
+    stopSubAgent?: boolean;
+    stopAsyncBash?: boolean;
+  } = {},
 ): ReturnType<typeof stopSessionBackgroundWork> {
   return stopSessionBackgroundWork({
     host,
     sessionId: OWNER,
     reason: 'owner_abort',
     boundaryMs: options.boundaryMs ?? 10_000,
+    ...(options.stopSubAgent === undefined ? {} : { stopSubAgent: options.stopSubAgent }),
+    ...(options.stopAsyncBash === undefined ? {} : { stopAsyncBash: options.stopAsyncBash }),
     ctx: { depth: options.depth ?? 0, visited: new Set<string>() },
   });
 }

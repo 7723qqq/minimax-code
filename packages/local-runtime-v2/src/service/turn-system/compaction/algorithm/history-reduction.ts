@@ -4,6 +4,7 @@ import { readGenuineUserQueryText } from './checkpoint-format.js';
 
 const TOOL_RESULT_REMOVED_TEXT = '[Tool result removed by context compaction.]';
 const MEDIA_REMOVED_TEXT = '[Media removed by context compaction.]';
+const MEDIA_REDUCED_TEXT = '[Earlier media omitted to fit the request size limit.]';
 
 const PROTECTED_TOOL_ROUND_RATIO = 0.3;
 const ELIGIBLE_TOOL_NAMES = new Set([
@@ -45,6 +46,69 @@ export interface ToolTrimCandidate {
 export interface AttachmentFreeCandidate {
   readonly messages: readonly AgentMessage[];
   readonly replacedBlockCount: number;
+}
+
+export interface ReducedMediaCandidate {
+  readonly messages: readonly AgentMessage[];
+  readonly replacedBlockCount: number;
+}
+
+export function countStructuredMediaBlocks(messages: readonly AgentMessage[]): number {
+  let count = 0;
+  for (const message of messages) {
+    const content = Reflect.get(message, 'content');
+    if (!Array.isArray(content)) continue;
+    count += content.filter(isStructuredMediaBlock).length;
+  }
+  return count;
+}
+
+/**
+ * Keeps only the newest `maxMediaBlocks` image/video blocks and replaces older
+ * ones with a text placeholder. Used before dropping every attachment when a
+ * provider rejects a request for carrying too many images.
+ */
+export function buildReducedMediaCandidate(
+  messages: readonly AgentMessage[],
+  maxMediaBlocks: number,
+): ReducedMediaCandidate {
+  const keep = Math.max(0, Math.floor(maxMediaBlocks));
+  let totalMedia = 0;
+  for (const message of messages) {
+    const content = Reflect.get(message, 'content');
+    if (Array.isArray(content)) totalMedia += content.filter(isStructuredMediaBlock).length;
+  }
+  if (totalMedia <= keep) return { messages, replacedBlockCount: 0 };
+
+  let remaining = totalMedia - keep;
+  const replacements = new Map<number, AgentMessage>();
+  let replacedBlockCount = 0;
+  messages.forEach((message, index) => {
+    const content = Reflect.get(message, 'content');
+    if (!Array.isArray(content)) return;
+    let changed = false;
+    const nextContent = content.map((block) => {
+      if (!isStructuredMediaBlock(block) || remaining === 0) return block;
+      // Oldest media blocks are omitted first, so the newest `keep` survive.
+      remaining -= 1;
+      replacedBlockCount += 1;
+      changed = true;
+      return { type: 'text' as const, text: MEDIA_REDUCED_TEXT };
+    });
+    if (changed) {
+      const replacement = { ...message };
+      Reflect.set(replacement, 'content', nextContent);
+      replacements.set(index, replacement);
+    }
+  });
+
+  return {
+    messages:
+      replacements.size === 0
+        ? messages
+        : messages.map((message, index) => replacements.get(index) ?? message),
+    replacedBlockCount,
+  };
 }
 
 export function buildToolTrimCandidate(messages: readonly AgentMessage[]): ToolTrimCandidate {

@@ -66,6 +66,16 @@ import {
   type ToolResultCompactionSettings,
 } from "./tool-result-compaction-config.js";
 import {
+  REQUEST_MEDIA_DEFAULTS,
+  parseRequestMediaConfig,
+  type RequestMediaConfig,
+} from "./request-media-config.js";
+import {
+  CONVERSATION_STOP_CONFIG_DEFAULTS,
+  parseConversationStopConfig,
+  type ConversationStopConfig,
+} from "./conversation-stop-config.js";
+import {
   BROWSER_CONFIG_DEFAULTS,
   parseBrowserConfig,
   type BrowserConfig,
@@ -1012,6 +1022,10 @@ export interface Config {
   runawayGuard: RunawayGuardSettings;
   /** ToolResult archive/trim thresholds shared by TUI, CLI and managed Desktop. */
   toolResultCompaction: ToolResultCompactionSettings;
+  /** Image size and base64 limits applied to provider request media. */
+  requestMedia: RequestMediaConfig;
+  /** Whether an explicit user stop also cancels background subagents/bash. */
+  conversation: ConversationStopConfig;
   /** Runtime selection knobs (e.g. `defaultFramework` for new sessions). */
   agentRuntime: AgentRuntimeConfig;
   /**
@@ -1786,6 +1800,11 @@ const DEFAULTS: Omit<
   },
   runawayGuard: { enabled: true },
   toolResultCompaction: { ...TOOL_RESULT_COMPACTION_DEFAULTS },
+  requestMedia: {
+    ...REQUEST_MEDIA_DEFAULTS,
+    image: { ...REQUEST_MEDIA_DEFAULTS.image },
+  },
+  conversation: { ...CONVERSATION_STOP_CONFIG_DEFAULTS },
   agentRuntime: {
     // Single source of truth lives in `./agent-runtime-config.ts` so the
     // default and the union type cannot drift.
@@ -2081,6 +2100,8 @@ export function resolveConfigFromRaw(
     toolResultCompaction: parseToolResultCompactionConfig(
       raw.toolResultCompaction,
     ),
+    requestMedia: parseRequestMediaConfig(raw.requestMedia),
+    conversation: parseConversationStopConfig(raw.conversation),
     agentRuntime: parseAgentRuntimeConfig(raw.agentRuntime),
     logRetentionDays: parseLogRetentionDays(raw),
     contentReview: parseContentReviewConfig(raw),

@@ -35,12 +35,22 @@ interface AutomaticContextCompactorDependencies {
   readonly promptSnapshots?: PromptSnapshotSource;
   /** User `contextManagement.compactionTriggerAt`; read per call. */
   readonly getCompactionTriggerAt?: () => number | undefined;
+  /** User `requestMedia.recoveryDivisor`; read per call. */
+  readonly getRecoveryDivisor?: () => number | undefined;
+  /** Directories the checkpoint summary can reference for omitted details. */
+  readonly resolveEarlierFiles?: (
+    sessionId: string,
+  ) => Promise<{ readonly snapshots?: string; readonly toolOutputs?: string } | undefined>;
 }
 
 export class AutomaticContextCompactor implements AutomaticContextCompactorPort {
   private readonly toolResultArchiver?: ToolResultArchiver;
   private readonly promptSnapshots?: PromptSnapshotSource;
   private readonly getCompactionTriggerAt?: () => number | undefined;
+  private readonly getRecoveryDivisor?: () => number | undefined;
+  private readonly resolveEarlierFiles?: (
+    sessionId: string,
+  ) => Promise<{ readonly snapshots?: string; readonly toolOutputs?: string } | undefined>;
 
   constructor(
     private readonly usageAnchor: ContextUsageAnchorState | undefined,
@@ -51,6 +61,8 @@ export class AutomaticContextCompactor implements AutomaticContextCompactorPort 
     this.toolResultArchiver = dependencies.toolResultArchiver;
     this.promptSnapshots = dependencies.promptSnapshots;
     this.getCompactionTriggerAt = dependencies.getCompactionTriggerAt;
+    this.getRecoveryDivisor = dependencies.getRecoveryDivisor;
+    this.resolveEarlierFiles = dependencies.resolveEarlierFiles;
   }
 
   probeBeforeLlm(input: AutomaticContextCompactionInput): AutomaticContextCompactionProbe {
@@ -104,6 +116,8 @@ export class AutomaticContextCompactor implements AutomaticContextCompactorPort 
       logger: this.logger,
       legacyToolTrim: this.toolResultArchiver === undefined,
       promptSnapshots: this.promptSnapshots,
+      recoveryDivisor: this.readRecoveryDivisor(),
+      ...(this.resolveEarlierFiles ? { resolveEarlierFiles: this.resolveEarlierFiles } : {}),
     });
     this.usageAnchor?.invalidate(input.sessionId);
     return completedAutomaticCompaction(input.messages, decision);
@@ -113,6 +127,15 @@ export class AutomaticContextCompactor implements AutomaticContextCompactorPort 
   private readCompactionTriggerAt(): number | undefined {
     try {
       return this.getCompactionTriggerAt?.();
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** A failing config read keeps the attachment-free fallback. */
+  private readRecoveryDivisor(): number | undefined {
+    try {
+      return this.getRecoveryDivisor?.();
     } catch {
       return undefined;
     }
@@ -160,6 +183,10 @@ async function runAutomaticPolicy(options: {
   readonly logger?: Pick<PiTurnRunnerLogger, 'error'>;
   readonly legacyToolTrim: boolean;
   readonly promptSnapshots?: PromptSnapshotSource;
+  readonly recoveryDivisor?: number;
+  readonly resolveEarlierFiles?: (
+    sessionId: string,
+  ) => Promise<{ readonly snapshots?: string; readonly toolOutputs?: string } | undefined>;
 }) {
   const { input, hooks, preparation } = options;
   return compactContext({
@@ -170,6 +197,10 @@ async function runAutomaticPolicy(options: {
       ? { toolResultCompactionCandidate: options.toolResultCompactionCandidate }
       : {}),
     allowLegacyToolTrim: options.legacyToolTrim,
+    ...(options.recoveryDivisor === undefined ? {} : { recoveryDivisor: options.recoveryDivisor }),
+    ...(options.resolveEarlierFiles
+      ? { earlierFiles: () => options.resolveEarlierFiles!(input.sessionId) }
+      : {}),
     checkpoint: automaticCheckpoint({
       input,
       hooks,
