@@ -915,7 +915,7 @@ export interface ContextManagementConfig {
  * All fields optional; unset fields fall back to the disclosure defaults
  * applied by the local-runtime resolver. When the whole block is absent the
  * value is `undefined` and the feature stays off (empty whitelist matches no
- * model). See `packages/local-runtime/src/mcp/disclosure-options.ts`.
+ * model). See `packages/agent-tools/src/mcp-disclosure/mcp-disclosure.ts`.
  */
 export interface McpToolSearchConfig {
   enabled?: boolean;
