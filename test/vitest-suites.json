@@ -261,6 +261,7 @@
       "packages/tui/test/unit/build-info.test.ts",
       "packages/tui/test/unit/process-stop-observation.test.ts",
       "packages/local-runtime/test/unit/remote-asset-lookup.test.ts",
+      "packages/local-runtime/test/unit/local-asset-store.test.ts",
       "packages/config/test/request-media-config.test.ts",
       "packages/agent-extension/test/unit/request-media-encoding.test.ts",
       "packages/config/test/conversation-stop-config.test.ts",

@@ -5,14 +5,14 @@ import {
   readdirSync,
   readFileSync,
   realpathSync,
-  renameSync,
   rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { mkdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
+import { atomicWriteFile, atomicWriteFileSync } from '@mavis/shared';
 import type {
   DiagnosticArtifact,
   DiagnosticArtifactCollectInput,
@@ -309,7 +309,6 @@ async function materializeLocalAsset(
   await mkdir(dir, { recursive: true });
   const targetName = `${stamp.time}-${assetId}-${fileName}`;
   const targetPath = path.join(dir, targetName);
-  const tempPath = path.join(dir, `.${targetName}.${randomUUID().slice(0, 8)}.tmp`);
   const root = resolveV2DirectoryContract(input.dataDir).root;
   const record: LocalRuntimeAssetRecord = {
     schemaVersion: 1,
@@ -331,16 +330,15 @@ async function materializeLocalAsset(
     ...(input.generatedBy ? { generatedBy: input.generatedBy } : {}),
   };
   try {
-    await writeFile(tempPath, source.buffer);
     await writeFile(`${targetPath}.asset.json`, `${JSON.stringify(record, null, 2)}\n`, 'utf-8');
-    await rename(tempPath, targetPath);
+    // Raw user asset bytes keep the platform creation default (mode: null).
+    await atomicWriteFile(targetPath, source.buffer, { ensureDirectory: false, mode: null });
     await writeFile(path.join(dir, 'assets.jsonl'), `${JSON.stringify(record)}\n`, {
       encoding: 'utf-8',
       flag: 'a',
     });
   } catch (err) {
     await Promise.all([
-      rm(tempPath, { force: true }).catch(() => undefined),
       rm(targetPath, { force: true }).catch(() => undefined),
       rm(`${targetPath}.asset.json`, { force: true }).catch(() => undefined),
     ]);
@@ -360,7 +358,6 @@ export function registerLocalAssetSync(input: RegisterLocalAssetInput): LocalRun
   mkdirSync(dir, { recursive: true });
   const targetName = `${stamp.time}-${assetId}-${fileName}`;
   const targetPath = path.join(dir, targetName);
-  const tempPath = path.join(dir, `.${targetName}.${randomUUID().slice(0, 8)}.tmp`);
   const root = resolveV2DirectoryContract(input.dataDir).root;
   const record: LocalRuntimeAssetRecord = {
     schemaVersion: 1,
@@ -382,15 +379,14 @@ export function registerLocalAssetSync(input: RegisterLocalAssetInput): LocalRun
     ...(input.generatedBy ? { generatedBy: input.generatedBy } : {}),
   };
   try {
-    writeFileSync(tempPath, source.buffer);
     writeFileSync(`${targetPath}.asset.json`, `${JSON.stringify(record, null, 2)}\n`, 'utf-8');
-    renameSync(tempPath, targetPath);
+    // Raw user asset bytes keep the platform creation default (mode: null).
+    atomicWriteFileSync(targetPath, source.buffer, { ensureDirectory: false, mode: null });
     writeFileSync(path.join(dir, 'assets.jsonl'), `${JSON.stringify(record)}\n`, {
       encoding: 'utf-8',
       flag: 'a',
     });
   } catch (err) {
-    safeRmSync(tempPath);
     safeRmSync(targetPath);
     safeRmSync(`${targetPath}.asset.json`);
     throw err;

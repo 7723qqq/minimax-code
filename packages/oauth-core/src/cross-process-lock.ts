@@ -2,7 +2,7 @@ import { open } from 'node:fs/promises';
 
 import lockfile from 'proper-lockfile';
 
-import { ensurePrivateDirectory } from './fs/atomic-write.js';
+import { ensurePrivateDirectory } from '@mavis/shared';
 import { dirname } from 'node:path';
 
 export interface CrossProcessAuthLockOptions {

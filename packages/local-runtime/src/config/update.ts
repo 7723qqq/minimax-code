@@ -1,7 +1,7 @@
-import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
 import { getConfig, getConfigPath, minimaxApiModels, resetConfig } from '@mavis/config';
+import { atomicWriteFile as sharedAtomicWriteFile } from '@mavis/shared';
 import yaml from 'js-yaml';
 import lockfile from 'proper-lockfile';
 
@@ -283,23 +283,8 @@ export async function updateLocalByokConfig(
 }
 
 export async function atomicWriteFile(filePath: string, content: string): Promise<void> {
-  const tmpPath = join(dirname(filePath), `.config-tmp-${randomBytes(6).toString('hex')}`);
-  let created = false;
-  try {
-    const mode = LOCAL_CONFIG_FILE_MODE;
-    const temporary = await fs.promises.open(tmpPath, 'wx', mode);
-    created = true;
-    try {
-      await temporary.writeFile(content, 'utf-8');
-      await temporary.chmod(mode);
-    } finally {
-      await temporary.close();
-    }
-    await fs.promises.rename(tmpPath, filePath);
-  } catch {
-    if (created) await fs.promises.unlink(tmpPath).catch(() => undefined);
-    throw new LocalConfigWriteError();
-  }
+  // The locked caller created the parent directory; keep the temporary file beside it.
+  await sharedAtomicWriteFile(filePath, content, { ensureDirectory: false });
 }
 
 function readLocalRawConfig(configPath: string): Record<string, unknown> {

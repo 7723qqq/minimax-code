@@ -1,17 +1,7 @@
-import {
-  closeSync,
-  existsSync,
-  fsyncSync,
-  mkdirSync,
-  mkdtempSync,
-  openSync,
-  readFileSync,
-  renameSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
-import { dirname, join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { lockSync } from 'proper-lockfile';
+import { atomicWriteFileSync } from '@mavis/shared';
 import {
   MCP_RUNTIME_SERVER_SEGMENT_MAX_LENGTH,
   MCP_RUNTIME_TOOL_NAME_MAX_LENGTH,
@@ -109,7 +99,6 @@ export class McpNameRegistry {
     if (!path) return run();
     mkdirSync(dirname(path), { recursive: true });
     const release = lockSync(path, { realpath: false, retries: 0 });
-    let temporaryDirectory: string | undefined;
     try {
       this.state = existsSync(path)
         ? parseState(readFileSync(path, 'utf8'))
@@ -118,24 +107,12 @@ export class McpNameRegistry {
       const result = run();
       const after = JSON.stringify(this.state);
       if (before !== after) {
-        temporaryDirectory = mkdtempSync(`${path}.tmp-`);
-        const temp = join(temporaryDirectory, 'state.json');
-        const output = openSync(temp, 'wx', 0o600);
-        try {
-          writeFileSync(output, `${after}\n`);
-          fsyncSync(output);
-        } finally {
-          closeSync(output);
-        }
-        renameSync(temp, path);
+        // Naming assignments are cross-process state: fsync before the rename.
+        atomicWriteFileSync(path, `${after}\n`, { ensureDirectory: false, fsync: true });
       }
       return result;
     } finally {
-      try {
-        if (temporaryDirectory) rmSync(temporaryDirectory, { recursive: true, force: true });
-      } finally {
-        release();
-      }
+      release();
     }
   }
 }

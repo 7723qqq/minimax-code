@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import {
   access,
   constants,
@@ -6,13 +5,11 @@ import {
   mkdir,
   open,
   readdir,
-  rename,
-  unlink,
-  writeFile,
   type FileHandle,
 } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
+import { atomicWriteFile } from '@mavis/shared';
 import { redactTuiSensitiveText } from '../user-facing-failure.js';
 
 const ANSWER_LIMIT = 256 * 1024;
@@ -184,14 +181,9 @@ export class ExecDiagnostics {
   }
 
   private async replaceFile(name: string, body: string | Buffer): Promise<void> {
-    const temporary = join(this.directory, `.${name}.${randomUUID()}.tmp`);
-    try {
-      await writeFile(temporary, body, { mode: 0o600, flag: 'wx' });
-      // Replaces the directory entry, never follows a substituted file symlink.
-      if (!this.closed) await rename(temporary, join(this.directory, name));
-    } finally {
-      await unlink(temporary).catch(() => undefined);
-    }
+    // Replaces the directory entry, never follows a substituted file symlink.
+    if (this.closed) return;
+    await atomicWriteFile(join(this.directory, name), body, { ensureDirectory: false });
   }
 
   private enqueue(write: () => Promise<unknown>): void {

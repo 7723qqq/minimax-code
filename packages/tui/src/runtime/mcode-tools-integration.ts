@@ -1,7 +1,9 @@
-import { chmod, mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { chmod, mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
+import { ensurePrivateDirectory } from '@mavis/shared';
 
 import type { MavisBuildEnv, MavisRegion } from '@mavis/config';
 import {
@@ -206,11 +208,6 @@ function inactiveReadiness(
     ensureCommandPath: NOOP,
     dispose: NOOP_DISPOSE,
   };
-}
-
-async function ensurePrivateDirectory(directory: string): Promise<void> {
-  await mkdir(directory, { recursive: true, mode: 0o700 });
-  if (process.platform !== 'win32') await chmod(directory, 0o700);
 }
 
 function classifyReadinessFailure(

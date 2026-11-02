@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { retryWindowsFileSystemOperation } from '@mavis/shared';
+import { atomicWriteFileSync } from '@mavis/shared';
 
 export const LOCAL_RUNTIME_AUTH_CONTEXT_FILE = 'local-runtime.auth.json';
 
@@ -73,24 +73,14 @@ export function writeLocalRuntimeAuthContext(
     return { path: filePath, written: false };
   }
 
-  fs.mkdirSync(dataDir, { recursive: true, mode: 0o700 });
   const payload: PersistedLocalRuntimeAuthContext = {
     version: 1,
     updatedAtMs: Date.now(),
     auth,
   };
-  const tmpPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(tmpPath, `${JSON.stringify(payload, null, 2)}\n`, {
-    encoding: 'utf-8',
-    mode: 0o600,
+  atomicWriteFileSync(filePath, `${JSON.stringify(payload, null, 2)}\n`, {
+    retryWindows: options.retryWindowsFileSystem,
   });
-  if (options.retryWindowsFileSystem) {
-    retryWindowsFileSystemOperation(() => fs.renameSync(tmpPath, filePath));
-    retryWindowsFileSystemOperation(() => fs.chmodSync(filePath, 0o600));
-  } else {
-    fs.renameSync(tmpPath, filePath);
-    fs.chmodSync(filePath, 0o600);
-  }
   return { path: filePath, written: true };
 }
 

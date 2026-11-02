@@ -1,6 +1,7 @@
-import { randomBytes } from 'node:crypto';
-import { mkdir, open, readFile, rename, stat, unlink } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { mkdir, readFile, stat, unlink } from 'node:fs/promises';
+import { resolve } from 'node:path';
+
+import { atomicWriteFile } from '@mavis/shared';
 
 export const GLOBAL_INSTRUCTIONS_MAX_BYTES = 32 * 1024;
 
@@ -70,35 +71,14 @@ export class GlobalInstructions {
       return emptyState();
     }
 
-    let tempPath: string | undefined;
     try {
       await mkdir(this.dataDir, { recursive: true });
-      tempPath = join(
-        this.dataDir,
-        `.global-instructions-tmp-${process.pid}-${randomBytes(6).toString('hex')}`,
-      );
-      const handle = await open(tempPath, 'wx', 0o600);
-      try {
-        await handle.writeFile(content, 'utf8');
-        await handle.sync();
-      } finally {
-        await handle.close();
-      }
-      await rename(tempPath, this.filePath);
-      tempPath = undefined;
+      // Global instructions survive a crash mid-write: fsync before the rename.
+      await atomicWriteFile(this.filePath, content, { ensureDirectory: false, fsync: true });
       return { content, exists: true, maxBytes: GLOBAL_INSTRUCTIONS_MAX_BYTES };
     } catch {
-      if (tempPath) await removeTempFileBestEffort(tempPath);
       throw new GlobalInstructionsError('GLOBAL_INSTRUCTIONS_WRITE_FAILED');
     }
-  }
-}
-
-async function removeTempFileBestEffort(path: string): Promise<void> {
-  try {
-    await unlink(path);
-  } catch {
-    // The stable write error remains authoritative after best-effort cleanup.
   }
 }
 

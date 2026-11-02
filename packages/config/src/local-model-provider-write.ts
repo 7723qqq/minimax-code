@@ -1,9 +1,10 @@
-import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
-import { dirname, join } from 'node:path';
+import { dirname } from 'node:path';
 
 import yaml from 'js-yaml';
 import lockfile from 'proper-lockfile';
+
+import { atomicWriteFile } from '@mavis/shared';
 
 import { getConfig, getConfigPath, resetConfig, type Config } from './config.js';
 import { minimaxApiModels } from './byok-config.js';
@@ -226,7 +227,10 @@ async function withLockedConfig<T>(
     const outcome = await operation(raw, getConfig());
     if (outcome.write) {
       assertSafeConfigRecord(raw);
-      await atomicWriteFile(configPath, yaml.dump(raw, { indent: 2, lineWidth: -1, noRefs: true }));
+      // The lock file's parent already exists; keep the temporary file beside it.
+      await atomicWriteFile(configPath, yaml.dump(raw, { indent: 2, lineWidth: -1, noRefs: true }), {
+        ensureDirectory: false,
+      });
       resetConfig();
     }
     return { config: getConfig(), value: outcome.value };
@@ -240,26 +244,6 @@ async function withLockedConfig<T>(
     throw new LocalModelProviderConfigWriteError();
   } finally {
     await release?.().catch(() => undefined);
-  }
-}
-
-async function atomicWriteFile(filePath: string, content: string): Promise<void> {
-  const tmpPath = join(dirname(filePath), `.config-tmp-${randomBytes(6).toString('hex')}`);
-  let created = false;
-  try {
-    const mode = LOCAL_CONFIG_FILE_MODE;
-    const temporary = await fs.promises.open(tmpPath, 'wx', mode);
-    created = true;
-    try {
-      await temporary.writeFile(content, 'utf-8');
-      await temporary.chmod(mode);
-    } finally {
-      await temporary.close();
-    }
-    await fs.promises.rename(tmpPath, filePath);
-  } catch {
-    if (created) await fs.promises.unlink(tmpPath).catch(() => undefined);
-    throw new LocalModelProviderConfigWriteError();
   }
 }
 

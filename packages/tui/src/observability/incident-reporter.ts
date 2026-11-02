@@ -1,7 +1,6 @@
 import { createCipheriv, hkdfSync, randomBytes, randomUUID } from 'node:crypto';
 import {
   chmodSync,
-  mkdirSync,
   readFileSync,
   readdirSync,
   renameSync,
@@ -12,6 +11,7 @@ import {
 import { arch, platform } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 
+import { atomicWriteFileSync, ensurePrivateDirectorySync } from '@mavis/shared';
 import { isTelemetryChannelEnabled, type MavisBuildEnv, type MavisRegion } from '@mavis/config';
 
 export type TuiIncidentPhase = 'startup' | 'runtime' | 'shutdown';
@@ -224,7 +224,7 @@ class LocalTuiIncidentReporter implements TuiIncidentReporter {
     this.startedAtMs = this.nowMs();
     this.isProcessAlive = options.isProcessAlive ?? defaultIsProcessAlive;
     this.markerPath = join(this.directory, `active-${this.runId}.json`);
-    ensurePrivateDirectory(this.directory);
+    ensurePrivateDirectorySync(this.directory);
     this.prune();
     this.recoverUncleanRuns();
     this.writeRunMarker();
@@ -325,7 +325,6 @@ class LocalTuiIncidentReporter implements TuiIncidentReporter {
         eventLog,
       };
       writeJsonAtomically(
-        this.directory,
         join(
           this.directory,
           `${this.uploadEnabled() ? 'pending' : 'local'}-${occurredAtMs}-${incidentId}.json`,
@@ -784,7 +783,7 @@ function readStoredIncidents(
           codeLocation: `tui.${eventType}`,
           eventLog: minimizeEventLog(JSON.parse(parsed.eventLog), eventType),
         };
-        writeJsonAtomically(directory, path, incident);
+        writeJsonAtomically(path, incident);
         return [{ path, incident }];
       } catch {
         return [];
@@ -812,20 +811,8 @@ function readRunMarker(path: string): TuiRunMarker | undefined {
   }
 }
 
-function writeJsonAtomically(directory: string, target: string, value: unknown): void {
-  const temporaryPath = join(directory, `.incident-${process.pid}-${randomUUID()}.tmp`);
-  try {
-    writeFileSync(temporaryPath, `${JSON.stringify(value)}\n`, {
-      encoding: 'utf8',
-      mode: 0o600,
-      flag: 'wx',
-    });
-    renameSync(temporaryPath, target);
-    ensurePrivateFile(target);
-  } catch (error) {
-    safeRemove(temporaryPath);
-    throw error;
-  }
+function writeJsonAtomically(target: string, value: unknown): void {
+  atomicWriteFileSync(target, `${JSON.stringify(value)}\n`, { ensureDirectory: false });
 }
 
 function markIncidentSent(path: string): void {
@@ -835,15 +822,6 @@ function markIncidentSent(path: string): void {
     ensurePrivateFile(target);
   } catch {
     // Keeping the pending file is safe; the next launch may retry it.
-  }
-}
-
-function ensurePrivateDirectory(path: string): void {
-  mkdirSync(path, { recursive: true, mode: 0o700 });
-  try {
-    chmodSync(path, 0o700);
-  } catch {
-    // Windows may not apply POSIX permission bits.
   }
 }
 

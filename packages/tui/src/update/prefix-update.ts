@@ -6,12 +6,12 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
-  renameSync,
   rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
+import { atomicWriteFileSync } from '@mavis/shared';
 import { resolveMcodeNpmPrefixInstall, type McodeNpmPackageName } from './install-source.js';
 
 const PENDING_UPDATE_FILE = '.mcode-update-pending.json';
@@ -245,19 +245,12 @@ function validateMcodePrefixEntry(
 
 export function writeMcodePrefixUpdatePending(activation: McodePrefixUpdateActivation): string {
   const pendingFile = path.join(activation.activePrefix, PENDING_UPDATE_FILE);
-  const temporaryFile = `${pendingFile}.tmp-${process.pid}-${randomUUID()}`;
   const contents = `${JSON.stringify(
     { schemaVersion: PENDING_UPDATE_SCHEMA_VERSION, ...activation, createdAtMs: Date.now() },
     null,
     2,
   )}\n`;
-  try {
-    writeFileSync(temporaryFile, contents, { mode: 0o600 });
-    renameSync(temporaryFile, pendingFile);
-  } catch (error) {
-    rmSync(temporaryFile, { force: true });
-    throw error;
-  }
+  atomicWriteFileSync(pendingFile, contents, { ensureDirectory: false });
   return pendingFile;
 }
 
@@ -513,7 +506,6 @@ function writeMcodePrefixActivationStatus(
   error?: unknown,
 ): void {
   const statusFile = path.join(activePrefix, ACTIVATION_STATUS_FILE);
-  const temporaryFile = `${statusFile}.tmp-${process.pid}-${randomUUID()}`;
   const errorMessage =
     error instanceof Error ? error.message : error === undefined ? undefined : String(error);
   const status = {
@@ -523,14 +515,10 @@ function writeMcodePrefixActivationStatus(
     updatedAtMs: Date.now(),
     ...(errorMessage ? { error: errorMessage.slice(0, 2_000) } : {}),
   };
-  try {
-    writeFileSync(temporaryFile, `${JSON.stringify(status)}\n`, { mode: 0o600 });
-    rmSync(statusFile, { force: true });
-    renameSync(temporaryFile, statusFile);
-  } catch (statusError) {
-    rmSync(temporaryFile, { force: true });
-    throw statusError;
-  }
+  // The pre-rename removal stays: some Windows virus scanners briefly lock the
+  // existing status file and would otherwise fail the rename.
+  rmSync(statusFile, { force: true });
+  atomicWriteFileSync(statusFile, `${JSON.stringify(status)}\n`, { ensureDirectory: false });
 }
 
 export function registerMcodePrefixProcess(entryFile = process.argv[1]): (() => void) | undefined {

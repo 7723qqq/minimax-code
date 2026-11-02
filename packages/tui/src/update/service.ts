@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
-import { retryWindowsFileSystemOperation } from '@mavis/shared';
+import { retryWindowsFileSystemOperation, atomicWriteFileSync } from '@mavis/shared';
 import {
   pathExists,
   resolveMcodeNpmDistribution,
@@ -453,10 +453,10 @@ function verifyArtifact(bytes: Buffer, manifest: McodeReleaseManifestV1): void {
 
 function activateVersion(installRoot: string, version: string): void {
   mkdirSync(installRoot, { recursive: true });
-  const current = path.join(installRoot, 'current');
-  const temporary = `${current}.tmp-${process.pid}-${Date.now()}`;
-  writeFileSync(temporary, `${version}\n`, { mode: 0o600 });
-  retryWindowsFileSystemOperation(() => renameSync(temporary, current));
+  atomicWriteFileSync(path.join(installRoot, 'current'), `${version}\n`, {
+    ensureDirectory: false,
+    retryWindows: true,
+  });
 }
 
 function removeUpdateTree(target: string): void {

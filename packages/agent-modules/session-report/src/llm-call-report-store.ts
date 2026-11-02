@@ -1,6 +1,8 @@
 import type { Dirent } from 'node:fs';
-import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
-import { basename, dirname, join } from 'node:path';
+import { mkdir, readFile, readdir, rm } from 'node:fs/promises';
+import { join } from 'node:path';
+
+import { atomicWriteFile } from '@mavis/shared';
 
 import type {
   ReportLocations,
@@ -9,7 +11,6 @@ import type {
 } from './contracts.js';
 
 const CURRENT_FILE_NAME = 'llm-call.json';
-const REPORT_TEMP_PREFIX = '.llm-call-report-';
 const MAX_ENVELOPE_BYTES = 4 * 1_024 * 1_024;
 const MAX_FINGERPRINTS = 256;
 const SNAPSHOT_FILE = /^g(\d{12})--([A-Za-z0-9][A-Za-z0-9._-]*)\.jsonl$/u;
@@ -48,7 +49,7 @@ export class SessionLlmCallReportStore implements SessionLlmCallReportCapability
       const fingerprint = sha256(content);
       if (this.fingerprints.get(input.sessionId) === fingerprint) return;
       const paths = await this.paths(input.sessionId);
-      await replaceFileAtomic(paths.currentFile, content);
+      await atomicWriteFile(paths.currentFile, content);
       this.rememberFingerprint(input.sessionId, fingerprint);
     });
   }
@@ -67,7 +68,7 @@ export class SessionLlmCallReportStore implements SessionLlmCallReportCapability
       this.assertEnvelopeSize(content);
       const existing = await readOptionalFile(frozenPath);
       if (existing !== undefined && existing !== content) return;
-      if (existing === undefined) await replaceFileAtomic(frozenPath, content);
+      if (existing === undefined) await atomicWriteFile(frozenPath, content);
       await rm(paths.currentFile, { force: true });
       this.fingerprints.delete(input.sessionId);
     });
@@ -114,7 +115,7 @@ export class SessionLlmCallReportStore implements SessionLlmCallReportCapability
         const content = await readOptionalFile(join(source.snapshotsDir, envelopeFile));
         if (content === undefined) continue;
         this.assertEnvelopeSize(content);
-        await replaceFileAtomic(join(target.snapshotsDir, envelopeFile), content);
+        await atomicWriteFile(join(target.snapshotsDir, envelopeFile), content);
       }
     });
   }
@@ -160,21 +161,6 @@ export class SessionLlmCallReportStore implements SessionLlmCallReportCapability
       release();
       if (this.lanes.get(sessionId) === gate) this.lanes.delete(sessionId);
     }
-  }
-}
-
-async function replaceFileAtomic(path: string, content: string): Promise<void> {
-  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
-  const temporary = join(
-    dirname(path),
-    `${REPORT_TEMP_PREFIX}${basename(path)}-${process.pid}-${Math.random().toString(16).slice(2)}.tmp`,
-  );
-  await writeFile(temporary, content, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
-  try {
-    await rename(temporary, path);
-  } catch (error) {
-    await rm(temporary, { force: true });
-    throw error;
   }
 }
 

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { atomicWriteFileSync } from '@mavis/shared';
 import type { MavisBuildEnv, MavisRegion } from '@mavis/config';
 
 const REGION_PREFERENCE_DIRECTORY = 'preferences';
@@ -36,8 +37,6 @@ export function readTuiRegionPreference(
 }
 
 export function writeTuiRegionPreference(dataDir: string, preference: TuiRegionPreference): string {
-  const directory = path.join(dataDir, REGION_PREFERENCE_DIRECTORY);
-  fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
   const filePath = resolveTuiRegionPreferencePath(dataDir);
   const currentRegions = readRegionPreferences(filePath);
   const record: TuiRegionPreferenceRecord = {
@@ -45,12 +44,7 @@ export function writeTuiRegionPreference(dataDir: string, preference: TuiRegionP
     regions: { ...currentRegions, [preference.buildEnv]: preference.region },
     updatedAtMs: Date.now(),
   };
-  const temporaryPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(temporaryPath, `${JSON.stringify(record, null, 2)}\n`, {
-    encoding: 'utf8',
-    mode: 0o600,
-  });
-  fs.renameSync(temporaryPath, filePath);
+  atomicWriteFileSync(filePath, `${JSON.stringify(record, null, 2)}\n`);
   return filePath;
 }
 

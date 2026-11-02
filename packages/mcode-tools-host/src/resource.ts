@@ -2,12 +2,12 @@ import {
   chmodSync,
   mkdirSync,
   readFileSync,
-  renameSync,
   rmSync,
   statSync,
-  writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
+
+import { atomicWriteFileSync } from '@mavis/shared';
 
 import {
   validateEmbeddedResourceFiles,
@@ -401,13 +401,5 @@ function writeFileIfChanged(file: string, contents: string, mode: number): void 
     chmodSync(file, mode);
     return;
   }
-  const temporary = `${file}.${process.pid}.${Date.now()}.tmp`;
-  writeFileSync(temporary, contents, { mode });
-  try {
-    renameSync(temporary, file);
-  } catch (error) {
-    rmSync(temporary, { force: true });
-    throw error;
-  }
-  chmodSync(file, mode);
+  atomicWriteFileSync(file, contents, { ensureDirectory: false, mode });
 }

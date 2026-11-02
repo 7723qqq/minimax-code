@@ -1,6 +1,7 @@
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+
+import { atomicWriteFile } from '@mavis/shared';
 
 export class ReviewPreferencesService {
   readonly rulesPath: string;
@@ -25,13 +26,7 @@ export class ReviewPreferencesService {
     }
     const parent = dirname(this.rulesPath);
     await mkdir(parent, { recursive: true });
-    const temporaryPath = join(parent, `.global.md.${randomUUID()}.tmp`);
-    try {
-      await writeFile(temporaryPath, rules, { encoding: 'utf8', mode: 0o600 });
-      await rename(temporaryPath, this.rulesPath);
-    } finally {
-      await rm(temporaryPath, { force: true });
-    }
+    await atomicWriteFile(this.rulesPath, rules, { ensureDirectory: false });
     return rules;
   }
 }

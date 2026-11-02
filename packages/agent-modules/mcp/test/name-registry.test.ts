@@ -2,6 +2,7 @@ import { spawn } from "../../../../scripts/lib/exec.mjs";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { lockSync } from 'proper-lockfile';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { McpNameRegistry, configuredMcpNameKey, pluginMcpNameKey } from '../src/index.js';
@@ -116,6 +117,11 @@ describe('McpNameRegistry', () => {
     // Populate this instance before the other process adds an assignment.
     registry.assignServers([]);
     const moduleUrl = new URL('../src/runtime/name-registry.ts', import.meta.url).href;
+    // The child is a plain `bun -e` process: it needs the standalone tsconfig
+    // override to resolve workspace packages (name-registry imports @mavis/shared).
+    const tsconfigOverride = fileURLToPath(
+      new URL('../../../../tsconfig.standalone.json', import.meta.url),
+    );
     // Bun.spawn replaces the child_process spawn and owns the IPC channel
     // through the `ipc` callback; the child is a `bun -e` script that loads the
     // TypeScript registry source directly, so the tsx loader is gone with the
@@ -124,7 +130,7 @@ describe('McpNameRegistry', () => {
     const messageReceived = new Promise((resolve) => {
       notifyMessage = resolve;
     });
-    const child = Bun.spawn({ cmd: [process.execPath, '--input-type=module', '-e', `
+    const child = Bun.spawn({ cmd: [process.execPath, '--input-type=module', '--tsconfig-override', tsconfigOverride, '-e', `
       import { lockSync } from 'proper-lockfile';
       import { McpNameRegistry } from ${JSON.stringify(moduleUrl)};
       new McpNameRegistry(${JSON.stringify(path)}).assignServers(${JSON.stringify([a])});
