@@ -1,8 +1,7 @@
-import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
-import { retryWindowsFileSystemOperation } from '@mavis/shared';
+import { retryWindowsFileSystemOperation, atomicWriteFileSync } from '@mavis/shared';
 import {
   pathExists,
   resolveMcodeNpmDistribution,
@@ -323,8 +322,8 @@ async function defaultFetchBytes(
   url: string,
   options: { signal?: AbortSignal; proxyEnvironment?: NodeJS.ProcessEnv } = {},
 ): Promise<Buffer> {
-  const [{ default: undici }, { createTuiNetworkDispatcher }] = await Promise.all([
-    import('undici'),
+  const [undici, { createTuiNetworkDispatcher }] = await Promise.all([
+    import('undici/index.js'),
     import('../cli/network-proxy.js'),
   ]);
   const dispatcher = createTuiNetworkDispatcher(options.proxyEnvironment);
@@ -446,7 +445,7 @@ function verifyArtifact(bytes: Buffer, manifest: McodeReleaseManifestV1): void {
         `${manifest.installArtifact.size} bytes, got ${bytes.length}.`,
     );
   }
-  const digest = createHash('sha256').update(bytes).digest('hex');
+  const digest = new Bun.CryptoHasher('sha256').update(bytes).digest('hex');
   if (digest !== manifest.installArtifact.sha256) {
     throw new Error('MCode artifact checksum verification failed.');
   }
@@ -454,10 +453,10 @@ function verifyArtifact(bytes: Buffer, manifest: McodeReleaseManifestV1): void {
 
 function activateVersion(installRoot: string, version: string): void {
   mkdirSync(installRoot, { recursive: true });
-  const current = path.join(installRoot, 'current');
-  const temporary = `${current}.tmp-${process.pid}-${Date.now()}`;
-  writeFileSync(temporary, `${version}\n`, { mode: 0o600 });
-  retryWindowsFileSystemOperation(() => renameSync(temporary, current));
+  atomicWriteFileSync(path.join(installRoot, 'current'), `${version}\n`, {
+    ensureDirectory: false,
+    retryWindows: true,
+  });
 }
 
 function removeUpdateTree(target: string): void {

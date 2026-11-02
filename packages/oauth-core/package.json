@@ -20,7 +20,7 @@
     "oauth-core-build.json"
   ],
   "engines": {
-    "node": ">=20"
+    "bun": ">=1.4.4"
   },
   "scripts": {
     "build": "tsc --build",
@@ -29,6 +29,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@mavis/shared": "workspace:^",
     "proper-lockfile": "^4.1.2"
   },
   "devDependencies": {},

@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 
 import type { SandboxConfig } from '@mavis/config';
 import { normalizeSandboxSettings } from '@mavis/config/sandbox-settings';
@@ -1046,5 +1046,5 @@ function createSrtCommandId(identity: LocalSandboxInvocationIdentity): string {
     identity.invocationId,
     randomUUID(),
   ].join('\0');
-  return `sbx_${createHash('sha256').update(payload).digest('hex')}`;
+  return `sbx_${new Bun.CryptoHasher('sha256').update(payload).digest('hex')}`;
 }

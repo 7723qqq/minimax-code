@@ -12,7 +12,7 @@ The root MIT license is not a statement that every file or bundled component is 
 
 ## Publication scope
 
-The reviewed repository boundary is recorded in [Publication scope](docs/publication-authorization.md) and `release/public-source.json`. It covers the committed source tree under its existing licenses. npm packages, installers, paid services, third-party accounts, and internal Git history remain separate from this source distribution.
+The reviewed repository boundary is recorded in [Publication scope](docs/publication-authorization.md) and `release/public-source.json`. It covers the committed source tree under its existing licenses. Published packages, installers, paid services, third-party accounts, and internal Git history remain separate from this source distribution.
 
 ## Attribution history
 

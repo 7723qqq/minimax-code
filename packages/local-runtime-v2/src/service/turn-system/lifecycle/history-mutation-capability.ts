@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 
 import type {
   HistoryForkInput,
@@ -589,7 +588,7 @@ function createContinuationEnvelope(
   operationId: string,
   continuation: NonNullable<HistoryForkInput['continuation']>,
 ): CanonicalHistoryEnvelope {
-  const identity = createHash('sha256').update(operationId).digest('hex').slice(0, 24);
+  const identity = new Bun.CryptoHasher('sha256').update(operationId).digest('hex').slice(0, 24);
   return {
     message_id: `msg-fork-reminder-${identity}`,
     turn_id: `control:${operationId}`,
@@ -605,7 +604,7 @@ function createHiddenContextBoundaryEnvelope(
   operationId: string,
   boundary: NonNullable<HistoryForkInput['hiddenContextBoundary']>,
 ): CanonicalHistoryEnvelope {
-  const identity = createHash('sha256')
+  const identity = new Bun.CryptoHasher('sha256')
     .update(`${operationId}:${boundary.kind}:${boundary.content}`)
     .digest('hex')
     .slice(0, 24);

@@ -846,6 +846,130 @@ describe('compactContext output exhaustion', () => {
   });
 });
 
+describe('compactContext media reduction recovery', () => {
+  function userWithImages(text: string, count: number, timestamp: number): AgentMessage {
+    return {
+      role: 'user',
+      content: [
+        { type: 'text', text },
+        ...Array.from({ length: count }, (_, index) => ({
+          type: 'image' as const,
+          data: `image-${timestamp}-${index}`,
+          mimeType: 'image/png',
+        })),
+      ],
+      timestamp,
+    } as AgentMessage;
+  }
+
+  function mediaRequest(timestamp: number) {
+    return [
+      userWithImages('old screenshots', 4, timestamp),
+      assistantText('seen', timestamp + 1),
+      Object.assign(user('latest query', timestamp + 2), { genuineUserQueryText: 'latest query' }),
+    ];
+  }
+
+  it('retries with the newest images before dropping every attachment', async () => {
+    const generate = mock<CheckpointSession['generate']>()
+      .mockRejectedValueOnce(
+        new CheckpointCandidateMediaRejectedError(new Error('Too many images in request: 31 > 30')),
+      )
+      .mockResolvedValueOnce(generation());
+    const attempts: CheckpointAttemptMetadata[] = [];
+    const input = policyInput(mediaRequest(0), {
+      generate,
+      recoveryDivisor: 2,
+      fits: () => true,
+    });
+    const decision = await compactContext({
+      ...input,
+      checkpoint: { ...input.checkpoint, onAttemptSettled: (metadata) => attempts.push(metadata) },
+    });
+
+    expect(decision).toMatchObject({ method: 'llm_checkpoint', generationAttempts: 2 });
+    expect(attempts.map(({ candidate, attemptNumber, outcome }) => `${candidate}:${attemptNumber}:${outcome}`)).toEqual([
+      'h0:1:failed',
+      'hmedia:2:generated',
+    ]);
+    const reduced = JSON.stringify(generate.mock.calls[1]?.[0]?.messages);
+    expect(reduced.match(/"type":"image"/g)).toHaveLength(2);
+    expect(reduced).toContain('[Earlier media omitted to fit the request size limit.]');
+  });
+
+  it('falls back to the attachment-free candidate when the reduced request is still rejected', async () => {
+    const generate = mock<CheckpointSession['generate']>()
+      .mockRejectedValueOnce(
+        new CheckpointCandidateMediaRejectedError(new Error('Too many images in request: 31 > 30')),
+      )
+      .mockRejectedValueOnce(new CheckpointCandidateMediaRejectedError(new Error('Too many images')))
+      .mockResolvedValueOnce(generation());
+    const attempts: CheckpointAttemptMetadata[] = [];
+    const input = policyInput(mediaRequest(10), {
+      generate,
+      recoveryDivisor: 2,
+      fits: () => true,
+    });
+    const decision = await compactContext({
+      ...input,
+      checkpoint: { ...input.checkpoint, onAttemptSettled: (metadata) => attempts.push(metadata) },
+    });
+
+    expect(decision).toMatchObject({ method: 'llm_checkpoint', generationAttempts: 3 });
+    expect(attempts.map(({ candidate, attemptNumber, outcome }) => `${candidate}:${attemptNumber}:${outcome}`)).toEqual([
+      'h0:1:failed',
+      'hmedia:2:failed',
+      'hvideo:3:generated',
+    ]);
+    expect(JSON.stringify(generate.mock.calls[2]?.[0]?.messages)).not.toMatch(/"type":"image"/);
+  });
+});
+
+describe('compactContext earlier-file references', () => {
+  it('appends snapshot and tool-output paths to the checkpoint summary', async () => {
+    let summary = '';
+    const input = policyInput(threeRounds(), {
+      instructions: 'Preserve exact paths.',
+      earlierFiles: async () => ({
+        snapshots: '/data/sessions/s/history/snapshots',
+        toolOutputs: '/data/sessions/s/reports',
+      }),
+      measurePair: async (pair) => {
+        const message = pair.afterMessages[0];
+        if (message?.role === 'compactionSummary') summary = message.summary;
+        return footprint(1_000, 300);
+      },
+    });
+
+    await expect(compactContext(input)).resolves.toMatchObject({ method: 'llm_checkpoint' });
+    expect(summary).toContain('Files from before this compaction:');
+    expect(summary).toContain(
+      'Full conversation history before each compaction, one JSONL file per compaction',
+    );
+    expect(summary).toContain('/data/sessions/s/history/snapshots');
+    expect(summary).toContain('Tool images and oversized tool outputs');
+    expect(summary).toContain('/data/sessions/s/reports');
+    expect(summary).toContain(
+      'Read them when you need exact details that the summary above leaves out.',
+    );
+  });
+
+  it('omits the section when no earlier-file paths are available', async () => {
+    let summary = '';
+    const input = policyInput(threeRounds(), {
+      instructions: 'Preserve exact paths.',
+      measurePair: async (pair) => {
+        const message = pair.afterMessages[0];
+        if (message?.role === 'compactionSummary') summary = message.summary;
+        return footprint(1_000, 300);
+      },
+    });
+
+    await compactContext(input);
+    expect(summary).not.toContain('Files from before this compaction:');
+  });
+});
+
 describe('compactContext final Hmin recovery', () => {
   it('uses one minimal genuine-query request after the only Hmid request overflows', async () => {
     const h0 = [

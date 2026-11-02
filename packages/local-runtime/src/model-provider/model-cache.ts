@@ -1,6 +1,7 @@
-import { createHash, randomBytes } from 'node:crypto';
 import fs, { existsSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+
+import { atomicWriteFile } from '@mavis/shared';
 
 // Derived test-status cache for BYOK model providers. Everything in this file
 // is rebuildable from re-running connection tests; it must never contain API
@@ -68,7 +69,7 @@ export function modelCacheStatusFor(
 
 export function modelConfigFingerprint(value: unknown): string {
   const canonical = JSON.stringify(sortForFingerprint(value));
-  return `sha256:${createHash('sha256').update(canonical).digest('hex')}`;
+  return `sha256:${new Bun.CryptoHasher('sha256').update(canonical).digest('hex')}`;
 }
 
 export class LocalModelCache {
@@ -152,17 +153,7 @@ export class LocalModelCache {
 
   private async write(filePath: string, data: ModelCacheData): Promise<void> {
     await fs.promises.mkdir(dirname(filePath), { recursive: true });
-    const tmpPath = join(dirname(filePath), `.model-cache-tmp-${randomBytes(6).toString('hex')}`);
-    try {
-      await fs.promises.writeFile(tmpPath, JSON.stringify(data, null, 2), {
-        encoding: 'utf-8',
-        mode: 0o600,
-      });
-      await fs.promises.rename(tmpPath, filePath);
-    } catch (err) {
-      await fs.promises.unlink(tmpPath).catch(() => undefined);
-      throw err;
-    }
+    await atomicWriteFile(filePath, JSON.stringify(data, null, 2), { ensureDirectory: false });
   }
 }
 

@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
 
@@ -35,7 +34,7 @@ function createContextUsageAnchorKey(input: ContextUsageAnchorKeyInput): Context
     provider: input.provider,
     api: input.api,
     model: input.model,
-    contextFingerprint: createHash('sha256').update(context).digest('hex'),
+    contextFingerprint: new Bun.CryptoHasher('sha256').update(context).digest('hex'),
   };
   if (!isValidKey(key)) throw new TypeError('Context usage anchor key is invalid.');
   return key;
@@ -209,7 +208,7 @@ function identifyAssistant(message: AgentMessage): string | undefined {
     });
     return serialized === undefined
       ? undefined
-      : `message:${createHash('sha256').update(serialized).digest('hex')}`;
+      : `message:${new Bun.CryptoHasher('sha256').update(serialized).digest('hex')}`;
   } catch {
     return undefined;
   }

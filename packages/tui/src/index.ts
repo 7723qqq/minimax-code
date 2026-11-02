@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 
 import { existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -14,7 +14,7 @@ import { isInternalMcodePackageName, resolveMcodePackageName } from './update/in
 /**
  * Point the runtime at the built-in Agent assets beside a compiled executable.
  *
- * In a source or npm checkout those assets are found relative to this module. In
+ * In a source or registry install those assets are found relative to this module. In
  * an executable `import.meta.url` points inside the image, and the asset files
  * are shipped next to the binary instead, so the directory has to be named
  * explicitly. An explicit `MAVIS_BUILTIN_AGENTS_V2_DIR` always wins.

@@ -16,7 +16,7 @@ export interface EvalMetaInfoSystemInput {
 }
 
 export interface EvalMetaInfoRuntimeVersion {
-  readonly name: 'node' | 'python' | 'java';
+  readonly name: 'node' | 'bun' | 'python' | 'java';
   readonly version: string;
 }
 
@@ -62,6 +62,8 @@ export interface EvalMetaInfo {
     readonly kind: EvalRuntimeKind;
     readonly version: string;
     readonly node_version: string;
+    /** Present when the runtime is Bun; `node_version` is then its compatibility value. */
+    readonly bun_version?: string;
   };
   readonly system: {
     readonly os_name: string;
@@ -229,6 +231,7 @@ export async function collectEvalMetaInfo(
       kind: options.runtime,
       version: options.runtimeVersion || 'unknown',
       node_version: process.versions.node ?? 'unknown',
+      ...(process.versions.bun ? { bun_version: process.versions.bun } : {}),
     },
     system: {
       os_name: system.osName,
@@ -264,6 +267,9 @@ async function collectEnvironmentInfo(): Promise<EvalMetaInfoEnvironmentInput> {
   const pathInventory = await scanPathCommands();
   const runtimes: EvalMetaInfoRuntimeVersion[] = [
     { name: 'node', version: process.versions.node ?? 'unknown' },
+    ...(process.versions.bun
+      ? [{ name: 'bun' as const, version: process.versions.bun }]
+      : []),
   ];
 
   const shellPath = process.env.SHELL || process.env.ComSpec || process.env.COMSPEC;

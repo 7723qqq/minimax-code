@@ -10,6 +10,7 @@ import {
   type CronRegistryStartOptions,
   type CronStorePort,
 } from '@mavis/cron';
+import { errorMessage } from '@mavis/shared/error-message';
 
 import { logger } from '../common/logger.js';
 import type { LocalSessionRecord } from '../sessions/controller.js';
@@ -144,7 +145,7 @@ export async function migrateLegacyMdCrons(
         } catch (err) {
           result.failed += 1;
           logger.error(
-            { agentName, cronName, err: (err as Error).message },
+            { agentName, cronName, err: errorMessage(err) },
             '[cron-md-migration] Failed to migrate legacy cron file',
           );
         }
@@ -153,7 +154,7 @@ export async function migrateLegacyMdCrons(
   } catch (err) {
     // Defensive: any unexpected top-level failure must not block cron startup.
     logger.error(
-      { agentsDir: deps.agentsDir, err: (err as Error).message },
+      { agentsDir: deps.agentsDir, err: errorMessage(err) },
       '[cron-md-migration] Legacy cron migration aborted',
     );
     return result;
@@ -191,7 +192,7 @@ async function migrateOne(args: MigrateOneArgs): Promise<void> {
     try {
       deps.assertSchedulable(config);
     } catch (err) {
-      leaveUnmigrated(result, agentName, cronName, `unschedulable: ${(err as Error).message}`);
+      leaveUnmigrated(result, agentName, cronName, `unschedulable: ${errorMessage(err)}`);
       return;
     }
   }

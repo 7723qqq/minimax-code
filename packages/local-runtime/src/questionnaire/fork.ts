@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import type { AskQuestionnaireRequest } from '@mavis/shared/questionnaire';
 
 import type { QuestionnaireRequestRecord, QuestionnaireRequestStore } from './store.js';
@@ -63,7 +62,7 @@ function childOwnedRequester(request: AskQuestionnaireRequest, sessionId: string
 }
 
 function forkQuestionnaireRequestId(operationId: string, sourceRequestId: string): string {
-  const identity = createHash('sha256')
+  const identity = new Bun.CryptoHasher('sha256')
     .update(operationId)
     .update('\0')
     .update(sourceRequestId)

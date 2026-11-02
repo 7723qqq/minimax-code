@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import path from 'node:path';
 
 import type { PermissionRule } from '@mavis/permission';
@@ -354,7 +353,7 @@ function normalizeDirectory(value: string, workspace: string): string {
 }
 
 export function workspaceKey(value: string): string {
-  return createHash('sha256').update(value).digest('hex');
+  return new Bun.CryptoHasher('sha256').update(value).digest('hex');
 }
 
 function invalidStore(): never {

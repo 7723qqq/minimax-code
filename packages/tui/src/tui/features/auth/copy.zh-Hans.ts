@@ -4,7 +4,7 @@ import type { AuthCopyKey } from './copy.en.js';
  * Simplified Chinese copy for the sign-in and account-region surfaces.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  */
 export const ZH_HANS_AUTH_COPY = {
   browserLoginLabel: '浏览器登录（默认）',

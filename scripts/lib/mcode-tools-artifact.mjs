@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Readable } from 'node:stream';
@@ -14,7 +13,7 @@ export const MCODE_TOOLS_ARTIFACT = Object.freeze({
 
 // Extract unchanged artifacts from the public release package without running package scripts or extracting other files to disk.
 export async function extractMcodeToolsArtifact(bytes) {
-  if (createHash('sha512').update(bytes).digest('base64') !== MCODE_TOOLS_ARTIFACT.integrity)
+  if (new Bun.CryptoHasher('sha512').update(bytes).digest('base64') !== MCODE_TOOLS_ARTIFACT.integrity)
     throw new Error('Public MCode archive integrity mismatch.');
   const files = new Map();
   const prefix = 'package/embedded/mcode-tools/';
@@ -47,7 +46,7 @@ export async function extractMcodeToolsArtifact(bytes) {
   const manifest = JSON.parse(manifestBytes.toString('utf8'));
   if (manifest.version !== MCODE_TOOLS_ARTIFACT.version || manifest.buildEnv !== 'prod' ||
       manifest.entry !== 'cli.mjs' || manifest.packageName !== '@minimax/mcode-tools' ||
-      createHash('sha256').update(cli).digest('hex') !== MCODE_TOOLS_ARTIFACT.sha256)
+      new Bun.CryptoHasher('sha256').update(cli).digest('hex') !== MCODE_TOOLS_ARTIFACT.sha256)
     throw new Error('Embedded mcode-tools manifest or entry integrity mismatch.');
   return { cli, manifest: manifestBytes, notices };
 }

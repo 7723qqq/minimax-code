@@ -217,6 +217,10 @@ function buildCronStartupDiagnostics(
   reason: string,
   alreadyRequested: boolean,
 ): Record<string, unknown> {
+  const bunVersion =
+    typeof process.versions.bun === 'string' && process.versions.bun.length > 0
+      ? process.versions.bun
+      : undefined;
   return {
     reason,
     alreadyRequested,
@@ -232,7 +236,8 @@ function buildCronStartupDiagnostics(
     argv: sanitizeProcessArgv(process.argv),
     cwd: process.cwd(),
     platform: process.platform,
-    nodeVersion: process.version,
+    runtime: bunVersion ? 'bun' : 'node',
+    ...(bunVersion ? { bunVersion } : { nodeVersion: process.version }),
   };
 }
 

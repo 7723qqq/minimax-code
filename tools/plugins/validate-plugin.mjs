@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 // Public Plugin manifest validator for the MiniMax Code Plugin format V1.
 //
 // This is the entry point an external author runs to check a Plugin package

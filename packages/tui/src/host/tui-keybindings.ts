@@ -1,5 +1,6 @@
-import { mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { atomicWriteFileSync } from '@mavis/shared';
 import type { KeybindingsConfig, KeyId } from '../tui/engine/public.js';
 
 const TUI_DIRECTORY = 'tui';
@@ -52,23 +53,10 @@ export function readTuiKeybindingOverrides(dataDir: string): TuiKeybindingsReadR
 /** Write the complete user override map atomically under the TUI directory. */
 export function writeTuiKeybindingOverrides(dataDir: string, overrides: KeybindingsConfig): string {
   const filePath = getTuiKeybindingsPath(dataDir);
-  const directory = path.dirname(filePath);
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
-  const temporaryPath = path.join(
-    directory,
-    `.${TUI_KEYBINDINGS_FILE}.${process.pid}.${Date.now()}.tmp`,
-  );
   const content = `${JSON.stringify(orderKeybindingOverrides(overrides), null, 2)}\n`;
   try {
-    writeFileSync(temporaryPath, content, { encoding: 'utf8', mode: 0o600 });
-    renameSync(temporaryPath, filePath);
+    atomicWriteFileSync(filePath, content);
   } catch (error) {
-    try {
-      // Best effort cleanup; a failed rename must not leave a stale temp file.
-      unlinkSync(temporaryPath);
-    } catch {
-      // Ignore cleanup failures after reporting the original write failure.
-    }
     if (error instanceof Error) throw error;
     throw new Error(String(error));
   }

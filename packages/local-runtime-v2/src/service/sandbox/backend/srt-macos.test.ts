@@ -1,6 +1,6 @@
 import { mocked } from '../../../../../../test/bun-test-setup.js';
 import { afterAll, describe, expect, it, mock } from 'bun:test';
-import { spawnSync } from "node:child_process";
+import { spawnSync } from "../../../../../../scripts/lib/exec.mjs";
 import {
   existsSync,
   mkdirSync,
@@ -862,7 +862,7 @@ describe.runIf(canRunRealSandbox)("srt-macos real sandbox-exec probes", () => {
       writeFileSync(nodeTarget, "node");
       writeFileSync(pythonTarget, "python");
       await expectProbeResult(
-        `node -e "require('node:fs').unlinkSync('${nodeTarget}')"`,
+        `bun -e "require('node:fs').unlinkSync('${nodeTarget}')"`,
         deletePolicy,
         fixture,
         false,

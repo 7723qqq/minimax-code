@@ -4,7 +4,7 @@ import type { V2TurnSystemCopyKey } from './copy.en.js';
  * Simplified Chinese copy for the v2 turn system.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  *
  * `Hook`, `Plugin` and the event name stay in their English form: they name
  * runtime APIs and hooks rather than prose, and the surrounding sentence is

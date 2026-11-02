@@ -4,21 +4,21 @@ This page gets you from install to a useful first pi session.
 
 ## Install
 
-Pi is distributed as an npm package:
+Pi is distributed as a registry package:
 
 ```bash
-npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+bun install --global --ignore-scripts @earendil-works/pi-coding-agent
 ```
 
-`--ignore-scripts` disables dependency lifecycle scripts during install. Pi does not require install scripts for normal npm installs.
+`--ignore-scripts` disables dependency lifecycle scripts during install. Pi does not require install scripts for normal installs.
 
 ### Uninstall
 
 Use the package manager that installed pi. The curl installer uses npm globally, so curl and npm installs are removed with npm:
 
 ```bash
-# curl installer or npm install -g
-npm uninstall -g @earendil-works/pi-coding-agent
+# curl installer or registry install
+bun remove --global @earendil-works/pi-coding-agent
 
 # pnpm
 pnpm remove -g @earendil-works/pi-coding-agent
@@ -90,7 +90,7 @@ Pi loads context files at startup. Add an `AGENTS.md` file to tell it how to wor
 ```markdown
 # Project Instructions
 
-- Run `npm run check` after code changes.
+- Run `bun run check` after code changes.
 - Do not run production migrations locally.
 - Keep responses concise.
 ```
@@ -120,7 +120,7 @@ Images can be pasted with Ctrl+V (Alt+V on Windows) or dragged into supported te
 In interactive mode:
 
 ```text
-!npm run lint
+!bun run lint
 ```
 
 The command output is sent to the model. Use `!!command` to run a command without adding its output to the model context.

@@ -1,5 +1,4 @@
 import { Buffer } from 'node:buffer';
-import { createHash } from 'node:crypto';
 
 import type { MigrationEntry } from '../../migrate.js';
 
@@ -285,7 +284,7 @@ function describeInput(input: Readonly<Record<string, JsonValue>>): InputDescrip
   const attachments = input.attachments as readonly JsonValue[] | undefined;
   const queuedMessages = input.queuedMessages as readonly JsonValue[] | undefined;
   return {
-    digest: `sha256:${createHash('sha256').update(canonical).digest('hex')}`,
+    digest: `sha256:${new Bun.CryptoHasher('sha256').update(canonical).digest('hex')}`,
     metadata: {
       contentBytes: Buffer.byteLength((input.content as string | undefined) ?? '', 'utf8'),
       attachmentCount: attachments?.length ?? 0,

@@ -14,7 +14,7 @@
  * Layer B — provider and integration secret scrub. GATED, mirroring the
  *   reference CLI's `subprocessEnv()` design (src/utils/subprocessEnv.ts):
  *     - `off`    (interactive default): do not strip user secrets. CC parity —
- *                interactive users rely on env credentials (gh, npm, ...).
+ *                interactive users rely on env credentials (gh, package CLIs, ...).
  *     - `scrub`  (auto in CI / non-interactive): precise blocklist of
  *                credentials the *parent* process needs but subprocesses never
  *                do. GH_TOKEN / GITHUB_TOKEN / NPM_TOKEN are intentionally NOT

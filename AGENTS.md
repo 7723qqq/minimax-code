@@ -42,6 +42,8 @@ Never merge internal Git history or cherry-pick internal commits into this repos
 | Documentation-only classification | `scripts/ci-changes.mjs` | source verification, release audit |
 | Source archive validation/extraction | `scripts/lib/source-archive.mjs` | source export, candidate validation |
 
+Package layering, the choice between a `node:` import and a Bun API, and shebang text are **not** gate-checked. `docs/development-rules.md` records the expected direction for each and marks it convention rather than enforcement.
+
 ## Common changes
 
 Adding a workspace package: add it to the `workspaces` list in `package.json` and to `packageRoots` in `release/extraction.json`, then run `bun run gen:tsconfig` and `bun scripts/source-inventory.mjs --write`.
@@ -50,11 +52,19 @@ Changing package exports: run `bun run gen:tsconfig` after adding or changing an
 
 Adding a test file: add its path to the appropriate group in `test/vitest-suites.json`. Do not hard-code test file paths in `package.json` scripts. The suite files run under `bun test`; `test/bun-test-setup.ts` is the preload that registers the few matchers and helpers `bun:test` does not ship. Repository-level `node:test` suites remain in their existing gates; add workflow safety and release-tool regressions to `test/source-sync.test.mjs`.
 
+`check:source` only reports undeclared `*.test.*` files under `packages/`. A test added directly under `test/` is not discovered by that check, so declaring it in `test/vitest-suites.json` or naming it from a gate is the only thing that makes it run.
+
 Adding a verification gate: add a step to `scripts/verify.mjs`, with `platforms` when it cannot run everywhere. Do not add steps to the workflow file.
+
+See [development rules](docs/development-rules.md) for package layering, the standalone boundary, and the Bun runtime decision rules.
 
 ## Verification
 
 `bun run verify` runs the same gates as CI in the same order; `bun run verify --list` shows which apply on the current platform. Run it before opening a pull request. Individual gates such as `bun run typecheck`, `bun run build`, and `bun run test:byok` remain available for iteration.
+
+`bun run test:bun` without arguments runs every declared group, including the platform-scoped ones. `scripts/verify.mjs` deliberately excludes some of those per platform, so a bare `test:bun` failure on Windows or macOS is expected and is not a regression. Use the owning gate instead.
+
+`bun run check:plugin` validates a Plugin directory, not this repository. Run it with a path, `bun tools/plugins/validate-plugin.mjs path/to/plugin`; from the repository root it scans `node_modules` and reports thousands of findings.
 
 The full profile is the local default. `platform` omits only duplicate type checking. Use `bun run verify --profile docs` only when every changed path qualifies under `scripts/ci-changes.mjs`; it runs source inventory, generated-path, source-export, and release-tool checks. `AGENTS.md`, bundled runtime prompts, and `release/` changes do not qualify for that profile. `archive` skips Git export for source archives; the candidate workflow authenticates the archive before invoking it. Keep profile selection in the shared verifier.
 

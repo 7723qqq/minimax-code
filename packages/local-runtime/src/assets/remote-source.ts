@@ -156,16 +156,30 @@ function requestPinnedHttps(input: {
   });
 }
 
-function pinnedLookup(address: RemoteAssetAddress): LookupFunction {
-  return ((
+/**
+ * Adapter for the two `lookup` callback shapes the HTTP client uses.
+ *
+ * Bun's `node:net` enables `autoSelectFamily` by default; unless a fixed
+ * `family` is requested it calls `lookup` with `all: true` and expects an
+ * address array, not a single address.
+ */
+export function pinnedLookup(address: RemoteAssetAddress): LookupFunction {
+  const lookup = (
     _hostname: string,
-    _options: unknown,
+    options: { readonly all?: boolean } | undefined,
     callback: (
       error: NodeJS.ErrnoException | null,
-      resolvedAddress: string,
-      family: number,
+      resolved: string | ReadonlyArray<{ readonly address: string; readonly family: number }>,
+      family?: number,
     ) => void,
-  ) => callback(null, address.address, address.family)) as LookupFunction;
+  ): void => {
+    if (options?.all) {
+      callback(null, [{ address: address.address, family: address.family }]);
+      return;
+    }
+    callback(null, address.address, address.family);
+  };
+  return lookup as LookupFunction;
 }
 
 async function readBoundedResponseBody(

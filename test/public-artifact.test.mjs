@@ -1,8 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from "../scripts/lib/exec.mjs";
 import { fileURLToPath } from 'node:url';
 import { extractMcodeToolsArtifact, MCODE_TOOLS_ARTIFACT } from '../scripts/lib/mcode-tools-artifact.mjs';
 
@@ -11,7 +10,7 @@ test('public archive yields the exact embedded production tool artifact', async 
   const extracted = await extractMcodeToolsArtifact(archive);
   const built = readFileSync(new URL('../dist/embedded/mcode-tools/cli.mjs', import.meta.url));
   assert.deepEqual(extracted.cli, built);
-  assert.equal(createHash('sha256').update(built).digest('hex'), MCODE_TOOLS_ARTIFACT.sha256);
+  assert.equal(new Bun.CryptoHasher('sha256').update(built).digest('hex'), MCODE_TOOLS_ARTIFACT.sha256);
   assert.equal(JSON.parse(extracted.manifest).auth.mode, 'shared-broker');
 });
 

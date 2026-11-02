@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawnSync } from './exec.mjs';
 import path from "node:path";
 import { t as list, x as extract } from "tar";
 

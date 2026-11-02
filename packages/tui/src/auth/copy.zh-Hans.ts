@@ -4,7 +4,7 @@ import type { TuiAuthCopyKey } from './copy.en.js';
  * Simplified Chinese copy for the TUI authentication surface.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  */
 export const ZH_HANS_TUI_AUTH_COPY = {
   'auth.alreadySignedIn': '已登录 MiniMax。',

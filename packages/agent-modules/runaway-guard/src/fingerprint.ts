@@ -1,5 +1,3 @@
-import { createHmac } from 'node:crypto';
-
 interface BoundedWriter {
   append(value: string): boolean;
   finish(): string | undefined;
@@ -19,7 +17,7 @@ export function fingerprintWithinBudget(
 }
 
 export function fingerprint(secret: Buffer, value: string): string {
-  return createHmac('sha256', secret).update(value).digest('base64url');
+  return new Bun.CryptoHasher('sha256', secret).update(value).digest('base64url');
 }
 
 function stableSerializeWithinBudget(value: unknown, maxBytes: number): string | undefined {

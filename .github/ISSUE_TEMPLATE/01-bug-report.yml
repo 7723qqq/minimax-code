@@ -23,7 +23,7 @@ body:
     id: version
     attributes:
       label: Version
-      description: Desktop Settings version, mcode --version, or source commit. For source builds, also include Node.js and pnpm versions.
+      description: Desktop Settings version, mcode --version, or source commit. For source builds, also include the Bun version.
     validations:
       required: true
   - type: dropdown

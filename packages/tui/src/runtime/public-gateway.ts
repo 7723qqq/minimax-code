@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 import {
   getRuntimeBuildEnv,
   getRuntimeRegion,
@@ -91,5 +89,5 @@ export function createPublicGatewayRequest(input: {
 }
 
 function md5(value: string): string {
-  return createHash('md5').update(value).digest('hex');
+  return new Bun.CryptoHasher('md5').update(value).digest('hex');
 }

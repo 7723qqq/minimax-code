@@ -1,6 +1,8 @@
 import { randomBytes } from 'node:crypto';
-import { chmod, mkdir, open, rename, rm } from 'node:fs/promises';
+import { rm } from 'node:fs/promises';
 import path from 'node:path';
+
+import { atomicWriteFile, ensurePrivateDirectory } from '@mavis/shared';
 
 import {
   AUTH_LEASE_AUDIENCE,
@@ -244,23 +246,7 @@ function assertFixedLease(lease: McodeToolsAccessTokenLease): void {
 }
 
 async function atomicWriteCapability(capabilityFile: string, capability: string): Promise<void> {
-  const directory = path.dirname(capabilityFile);
-  await mkdir(directory, { recursive: true, mode: 0o700 });
-  if (process.platform !== 'win32') await chmod(directory, 0o700);
-  const temporaryFile = `${capabilityFile}.${process.pid}.${randomBytes(8).toString('hex')}.tmp`;
-  let handle;
-  try {
-    handle = await open(temporaryFile, 'wx', 0o600);
-    await handle.writeFile(`${capability}\n`, 'utf8');
-    await handle.sync();
-    if (process.platform !== 'win32') await handle.chmod(0o600);
-    await handle.close();
-    handle = undefined;
-    await rename(temporaryFile, capabilityFile);
-    if (process.platform !== 'win32') await chmod(capabilityFile, 0o600);
-  } catch (error) {
-    await handle?.close().catch(() => undefined);
-    await rm(temporaryFile, { force: true });
-    throw error;
-  }
+  await ensurePrivateDirectory(path.dirname(capabilityFile));
+  // Capability state survives a crash mid-write: fsync before the rename.
+  await atomicWriteFile(capabilityFile, `${capability}\n`, { ensureDirectory: false, fsync: true });
 }

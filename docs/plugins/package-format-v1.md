@@ -90,10 +90,10 @@ Hook command 的 cwd 是当前 turn workspace，不是 Plugin package。Runtime 
 可静态识别的宿主脚本路径（POSIX 绝对路径、Windows drive/UNC、`~` 开头的用户目录路径）均拒绝。
 Windows override 使用规范字段 `commandWindows`，由 Windows 默认 shell 执行。Runtime 在启动
 shell 前展开 `${PLUGIN_ROOT}`，两端均可使用；Windows 也接受 `%PLUGIN_ROOT%`，但不接受
-裸 `$PLUGIN_ROOT`。Node 脚本可使用
-`node "%PLUGIN_ROOT%\scripts\hook.mjs"`；包内 PowerShell 脚本应使用
+裸 `$PLUGIN_ROOT`。Bun 脚本可使用
+`bun "%PLUGIN_ROOT%\scripts\hook.mjs"`；包内 PowerShell 脚本应使用
 `powershell -File %PLUGIN_ROOT%\scripts\cleanup.ps1`（或 `pwsh`），并接受同样的文件闭包校验。
-validator 只做静态解释器和路径校验，不保证运行环境一定安装 `node` 等外部解释器。
+validator 只做静态解释器和路径校验，不保证运行环境一定安装命令中引用的外部解释器。
 
 `plugin.json` 的 `category` 必须是以下展示字符串之一：
 

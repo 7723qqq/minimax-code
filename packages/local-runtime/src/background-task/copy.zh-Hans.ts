@@ -4,7 +4,7 @@ import type { BackgroundTaskCopyKey } from './copy.en.js';
  * Simplified Chinese copy for the background-task lifecycle surfaces.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  *
  * `Runtime` and `Turn` stay in English because they are product names; the
  * `{status}` placeholder carries a machine status token and is never

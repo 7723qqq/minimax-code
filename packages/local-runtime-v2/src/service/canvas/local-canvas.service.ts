@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { constants } from 'node:fs';
 import { copyFile, lstat, mkdir, realpath, rename, rm, stat } from 'node:fs/promises';
 import { basename, dirname, isAbsolute, relative, resolve, sep } from 'node:path';
@@ -164,10 +164,11 @@ export class LocalCanvasService implements CanvasService {
         cause: errorMessage(error),
       });
     }
+    const sessionDigest = new Bun.CryptoHasher('sha256').update(sessionId).digest('hex').slice(0, 24);
     return {
       sessionId,
       workspaceDir,
-      canvasId: `canvas_${createHash('sha256').update(sessionId).digest('hex').slice(0, 24)}`,
+      canvasId: `canvas_${sessionDigest}`,
     };
   }
 
@@ -883,7 +884,7 @@ function parseDocument(raw: string, context: ResolvedCanvasContext): CanvasDocum
 }
 
 function operationFingerprint(operation: CanvasOperationV1): string {
-  return createHash('sha256').update(JSON.stringify(operation)).digest('hex');
+  return new Bun.CryptoHasher('sha256').update(JSON.stringify(operation)).digest('hex');
 }
 
 function cloneNode(node: CanvasFileNodeV1): CanvasFileNodeV1 {

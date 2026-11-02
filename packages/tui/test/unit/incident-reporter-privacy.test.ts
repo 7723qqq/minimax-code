@@ -52,6 +52,7 @@ function fixture(
     architecture: 'arm64',
     platform: 'darwin',
     nodeVersion: '26.4.0',
+    bunVersion: '1.4.4',
     terminal: privateText,
     osVersion: privateText,
     tuiMode: privateText,
@@ -201,6 +202,8 @@ describe('TUI automatic incident HTTP privacy boundary', () => {
       platform: 'darwin',
       arch: 'arm64',
       nodeVersion: '26.4.0',
+      bunVersion: '1.4.4',
+      runtime: 'bun',
     });
     expect(log.breadcrumbs.at(-1)).toMatchObject({
       name: 'cli.runtime.events.disconnected',

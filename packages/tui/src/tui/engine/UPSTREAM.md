@@ -24,8 +24,8 @@ implementation files are forbidden. MCode product composition lives outside this
 not change the upstream baseline digest. Validate the exact imported baseline independently with:
 
 ```bash
-node packages/tui/scripts/verify-tui-engine-baseline.mjs --upstream-root /path/to/pi/packages/tui/src
-pnpm --filter @minimax/code exec tsc --noEmit --pretty false
+bun packages/tui/scripts/verify-tui-engine-baseline.mjs --upstream-root /path/to/pi/packages/tui/src
+bun x tsc --noEmit --pretty false
 ```
 
 For future syncs, compare:

@@ -1,4 +1,9 @@
 import { createProductionRunawayGuardExtension } from './runaway-guard/extension.js';
+import {
+  ImageProcessorUnavailableError,
+  formatDimensionNote,
+  resizeImage,
+} from '@earendil-works/pi-coding-agent/image-resize';
 import { streamSimple, type Api, type Context, type Model, type Tool } from '@earendil-works/pi-ai';
 import type {
   AgentExtension,
@@ -7,6 +12,7 @@ import type {
 } from '@mavis/agent-runtime';
 import {
   sessionReportExtension,
+  requestMediaEncodingExtension,
   toolOutputBudgetExtension,
   type ToolOutputArtifactInput,
 } from '@mavis/agent-extension';
@@ -15,6 +21,7 @@ import { describeLocalBrowserToolInput } from '@mavis/agent-tools/desktop';
 import type { IAgentConfig } from '@mavis/protocol';
 import type { GlobalEventInput } from '@mavis/shared/global-events';
 import {
+  REQUEST_MEDIA_DEFAULTS,
   TOOL_RESULT_COMPACTION_DEFAULTS,
   parseToolResultCompactionConfig,
   type ResolvedAgentCapabilities,
@@ -470,6 +477,8 @@ export async function createLocalAgentHost<
         toolResultArchiver,
         promptSnapshots: options.product.promptSnapshots,
         getCompactionTriggerAt: createCompactionTriggerAtGetter(options),
+        getRecoveryDivisor: createRecoveryDivisorGetter(options),
+        resolveEarlierFiles: createEarlierFilesResolver(options),
       }),
       control: options.turnControl,
       lifecycle: options.sessions.agentProjection.compactionLifecycle,
@@ -551,6 +560,38 @@ function createHostNormalExtensions<TAgent extends AgentExecutionSnapshot>(
             reason: safeErrorReason(error),
           }),
       }),
+      requestMediaEncodingExtension({
+        getImageEncoding: () => {
+          const image =
+            options.product.preparation.configBuilder.config().requestMedia?.image ??
+            REQUEST_MEDIA_DEFAULTS.image;
+          return {
+            maxWidth: image.max_width,
+            maxHeight: image.max_height,
+            maxBase64Bytes: image.max_base64_bytes,
+          };
+        },
+        encodeImage: async (bytes, mimeType, encoding) => {
+          try {
+            const resized = await resizeImage(bytes, mimeType, {
+              maxWidth: encoding.maxWidth,
+              maxHeight: encoding.maxHeight,
+              maxBytes: encoding.maxBase64Bytes,
+            });
+            if (!resized?.wasResized) return { kind: 'unchanged' };
+            const dimensionNote = formatDimensionNote(resized);
+            return {
+              kind: 'resized',
+              data: resized.data,
+              mimeType: resized.mimeType,
+              ...(dimensionNote ? { dimensionNote } : {}),
+            };
+          } catch (error) {
+            if (error instanceof ImageProcessorUnavailableError) return { kind: 'unavailable' };
+            throw error;
+          }
+        },
+      }),
     ],
     options.product.normalExtensions,
     options.normalExtensions,
@@ -600,6 +641,10 @@ function createContextCompactors(input: {
   readonly toolResultArchiver: ToolResultArchiver;
   readonly promptSnapshots: ConstructorParameters<typeof LocalContextCompactor>[2];
   readonly getCompactionTriggerAt: () => number | undefined;
+  readonly getRecoveryDivisor: () => number | undefined;
+  readonly resolveEarlierFiles: (
+    sessionId: string,
+  ) => Promise<{ readonly snapshots?: string; readonly toolOutputs?: string } | undefined>;
 }) {
   return {
     automatic: new AutomaticContextCompactor(
@@ -610,6 +655,8 @@ function createContextCompactors(input: {
         toolResultArchiver: input.toolResultArchiver,
         promptSnapshots: input.promptSnapshots,
         getCompactionTriggerAt: input.getCompactionTriggerAt,
+        getRecoveryDivisor: input.getRecoveryDivisor,
+        resolveEarlierFiles: input.resolveEarlierFiles,
       },
     ),
     manual: new LocalContextCompactor(input.checkpointState, input.logger, input.promptSnapshots),
@@ -639,8 +686,41 @@ function createCompactionTriggerAtGetter<TAgent extends AgentExecutionSnapshot>(
   return read;
 }
 
-function createToolResultCompactionConfigGetter<TAgent extends AgentExecutionSnapshot>(
+function createEarlierFilesResolver<TAgent extends AgentExecutionSnapshot>(
   options: CreateLocalAgentHostOptions<TAgent>,
+): (
+  sessionId: string,
+) => Promise<{ readonly snapshots?: string; readonly toolOutputs?: string } | undefined> {
+  return async (sessionId) => {
+    try {
+      const session = await options.sessions.repositories.sessions.get(sessionId);
+      if (!session) return undefined;
+      const dataDir = options.product.preparation.configBuilder.config().dataDir;
+      return {
+        snapshots: resolveSessionHistoryPaths(dataDir, session).snapshots,
+        toolOutputs: await options.sessions.artifacts.ensureReportsDirectory(sessionId),
+      };
+    } catch {
+      // The summary stays valid without the optional file references.
+      return undefined;
+    }
+  };
+}
+
+function createRecoveryDivisorGetter<TAgent extends AgentExecutionSnapshot>(
+  options: CreateLocalAgentHostOptions<TAgent>,
+): () => number | undefined {
+  return () => {
+    try {
+      return options.product.preparation.configBuilder.config().requestMedia?.recoveryDivisor;
+    } catch {
+      // The compactor keeps the attachment-free fallback when config is unreadable.
+      return undefined;
+    }
+  };
+}
+
+function createToolResultCompactionConfigGetter<TAgent extends AgentExecutionSnapshot>(  options: CreateLocalAgentHostOptions<TAgent>,
 ): () => ToolResultCompactionConfig {
   const fileConfig = parseToolResultCompactionConfig(readToolResultCompactionFileConfig(options));
   const base: Required<ToolResultCompactionConfig> = {

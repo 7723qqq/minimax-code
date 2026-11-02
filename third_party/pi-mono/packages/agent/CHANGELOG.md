@@ -34,7 +34,7 @@
 
 ### Changed
 
-- Changed source syntax to avoid TypeScript constructs that require JavaScript emit, keeping the package compatible with Node.js strip-only TypeScript checks.
+- Changed source syntax to avoid TypeScript constructs that require JavaScript emit, keeping the package compatible with strip-only TypeScript checks.
 - Removed the package-level development watch script now that the root TypeScript check validates strip-only-compatible sources.
 
 ### Fixed
@@ -53,7 +53,7 @@
 
 ### Breaking Changes
 
-- Raised the minimum supported Node.js version to 22.19.0.
+- Raised the minimum supported runtime version to 22.19.0.
 
 ## [0.74.1] - 2026-05-16
 

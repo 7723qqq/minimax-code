@@ -1,18 +1,18 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import {
   lstatSync,
   mkdirSync,
   readdirSync,
   readFileSync,
   realpathSync,
-  renameSync,
   rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { mkdir, readFile, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, realpath, rm, stat, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import path from 'node:path';
+import { atomicWriteFile, atomicWriteFileSync } from '@mavis/shared';
 import type {
   DiagnosticArtifact,
   DiagnosticArtifactCollectInput,
@@ -259,7 +259,7 @@ export async function registerSessionLocalAsset(
   const maxBytes = input.maxBytes ?? DEFAULT_MAX_LOCAL_ASSET_BYTES;
   if (sourceInfo.size > maxBytes) throw new Error('asset_too_large');
   const sourceBytes = await readFile(canonicalSource);
-  const sha256 = createHash('sha256').update(sourceBytes).digest('hex');
+  const sha256 = new Bun.CryptoHasher('sha256').update(sourceBytes).digest('hex');
   const reusable = listRegisteredV2Assets(input.dataDir).find(
     (record) =>
       record.sessionId === sessionId &&
@@ -301,7 +301,7 @@ async function materializeLocalAsset(
   source: { readonly buffer: Buffer; readonly mimeType: string },
 ): Promise<LocalRuntimeAssetRecord> {
   const now = input.nowMs?.() ?? Date.now();
-  const sha256 = createHash('sha256').update(source.buffer).digest('hex');
+  const sha256 = new Bun.CryptoHasher('sha256').update(source.buffer).digest('hex');
   const stamp = formatV2TimestampParts(now);
   const fileName = sanitizeV2PathSegment(input.fileName, 'attachment');
   const assetId = `asset_${stamp.compact}_${sha256.slice(0, 12)}_${randomUUID().slice(0, 8)}`;
@@ -309,7 +309,6 @@ async function materializeLocalAsset(
   await mkdir(dir, { recursive: true });
   const targetName = `${stamp.time}-${assetId}-${fileName}`;
   const targetPath = path.join(dir, targetName);
-  const tempPath = path.join(dir, `.${targetName}.${randomUUID().slice(0, 8)}.tmp`);
   const root = resolveV2DirectoryContract(input.dataDir).root;
   const record: LocalRuntimeAssetRecord = {
     schemaVersion: 1,
@@ -331,16 +330,15 @@ async function materializeLocalAsset(
     ...(input.generatedBy ? { generatedBy: input.generatedBy } : {}),
   };
   try {
-    await writeFile(tempPath, source.buffer);
     await writeFile(`${targetPath}.asset.json`, `${JSON.stringify(record, null, 2)}\n`, 'utf-8');
-    await rename(tempPath, targetPath);
+    // Raw user asset bytes keep the platform creation default (mode: null).
+    await atomicWriteFile(targetPath, source.buffer, { ensureDirectory: false, mode: null });
     await writeFile(path.join(dir, 'assets.jsonl'), `${JSON.stringify(record)}\n`, {
       encoding: 'utf-8',
       flag: 'a',
     });
   } catch (err) {
     await Promise.all([
-      rm(tempPath, { force: true }).catch(() => undefined),
       rm(targetPath, { force: true }).catch(() => undefined),
       rm(`${targetPath}.asset.json`, { force: true }).catch(() => undefined),
     ]);
@@ -352,7 +350,7 @@ async function materializeLocalAsset(
 export function registerLocalAssetSync(input: RegisterLocalAssetInput): LocalRuntimeAssetRecord {
   const now = input.nowMs?.() ?? Date.now();
   const source = readAssetSourceSync(input);
-  const sha256 = createHash('sha256').update(source.buffer).digest('hex');
+  const sha256 = new Bun.CryptoHasher('sha256').update(source.buffer).digest('hex');
   const stamp = formatV2TimestampParts(now);
   const fileName = sanitizeV2PathSegment(input.fileName, 'attachment');
   const assetId = `asset_${stamp.compact}_${sha256.slice(0, 12)}_${randomUUID().slice(0, 8)}`;
@@ -360,7 +358,6 @@ export function registerLocalAssetSync(input: RegisterLocalAssetInput): LocalRun
   mkdirSync(dir, { recursive: true });
   const targetName = `${stamp.time}-${assetId}-${fileName}`;
   const targetPath = path.join(dir, targetName);
-  const tempPath = path.join(dir, `.${targetName}.${randomUUID().slice(0, 8)}.tmp`);
   const root = resolveV2DirectoryContract(input.dataDir).root;
   const record: LocalRuntimeAssetRecord = {
     schemaVersion: 1,
@@ -382,15 +379,14 @@ export function registerLocalAssetSync(input: RegisterLocalAssetInput): LocalRun
     ...(input.generatedBy ? { generatedBy: input.generatedBy } : {}),
   };
   try {
-    writeFileSync(tempPath, source.buffer);
     writeFileSync(`${targetPath}.asset.json`, `${JSON.stringify(record, null, 2)}\n`, 'utf-8');
-    renameSync(tempPath, targetPath);
+    // Raw user asset bytes keep the platform creation default (mode: null).
+    atomicWriteFileSync(targetPath, source.buffer, { ensureDirectory: false, mode: null });
     writeFileSync(path.join(dir, 'assets.jsonl'), `${JSON.stringify(record)}\n`, {
       encoding: 'utf-8',
       flag: 'a',
     });
   } catch (err) {
-    safeRmSync(tempPath);
     safeRmSync(targetPath);
     safeRmSync(`${targetPath}.asset.json`);
     throw err;

@@ -1,8 +1,5 @@
 import { afterEach, expect, it, mock, spyOn } from 'bun:test';
-import { fork } from 'node:child_process';
-import { once } from 'node:events';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { sql } from 'drizzle-orm';
@@ -56,21 +53,32 @@ async function holdWriter(dataDir: string, durationMs: number) {
     }, Number(process.argv[3]));
   `,
   );
-  const child = fork(
-    file,
-    [
+  // Bun.spawn replaces `fork`: the same child runs the script with the
+  // runtime's own executable, and the IPC channel carries the lock message
+  // through the `ipc` callback instead of a message event.
+  let notifyLock: (value: unknown) => void;
+  const locked = new Promise((resolve) => {
+    notifyLock = resolve;
+  });
+  const child = Bun.spawn({
+    cmd: [
+      process.execPath,
+      file,
       join(dataDir, 'v2', 'sqlite', 'runtime-state.sqlite'),
       String(durationMs),
     ],
-    { execArgv: [], stdio: ['ignore', 'ignore', 'pipe', 'ipc'] },
-  );
-  const exited = once(child, 'exit');
+    ipc: (message) => notifyLock(message),
+    stdin: 'ignore',
+    stdout: 'ignore',
+    stderr: 'pipe',
+  });
+  const exited = child.exited;
   cleanup.push(async () => {
     if (child.exitCode === null && child.signalCode === null) child.kill();
     await exited;
   });
   await Promise.race([
-    once(child, 'message'),
+    locked,
     exited.then(() => {
       throw new Error('Lock holder exited before acquiring the lock');
     }),

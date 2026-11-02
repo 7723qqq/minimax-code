@@ -4,7 +4,7 @@ import type { PermissionCopyKey } from './copy.en.js';
  * Simplified Chinese copy for the local-runtime permission reasons.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  *
  * The `{reason}` and `{instruction}` placeholders carry text that is not
  * product copy — a diagnostic code from the trash probe and the agent-facing

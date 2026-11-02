@@ -1,4 +1,3 @@
-import { spawn } from "child_process";
 import { readdirSync, statSync } from "fs";
 import { homedir } from "os";
 import { basename, dirname, join } from "path";
@@ -166,10 +165,26 @@ export async function walkDirectoryWithFd(
 			return;
 		}
 
-		const child = spawn(fdPath, args, {
-			stdio: ["ignore", "pipe", "pipe"],
-		});
-		let stdout = "";
+		// Bun.spawn throws synchronously when fd cannot be started where child_process
+		// emitted an `error` event; stdout is a web stream read through Response.
+		const startFd = (): Bun.Subprocess<"ignore", "pipe", "ignore"> | undefined => {
+			try {
+				return Bun.spawn({
+					cmd: [fdPath, ...args],
+					stdin: "ignore",
+					stdout: "pipe",
+					stderr: "ignore",
+				});
+			} catch {
+				return undefined;
+			}
+		};
+		const child = startFd();
+		if (!child) {
+			resolve([]);
+			return;
+		}
+
 		let resolved = false;
 
 		const finish = (results: Array<{ path: string; isDirectory: boolean }>) => {
@@ -183,47 +198,43 @@ export async function walkDirectoryWithFd(
 			if (child.exitCode === null) {
 				child.kill("SIGKILL");
 			}
-		};
-		const onStreamError = () => {
-			onAbort();
 			finish([]);
 		};
 
 		signal.addEventListener("abort", onAbort, { once: true });
-		child.stdout.on("error", onStreamError);
-		child.stderr.on("error", onStreamError);
-		child.stdout.setEncoding("utf-8");
-		child.stdout.on("data", (chunk: string) => {
-			stdout += chunk;
-		});
-		child.on("error", () => {
-			finish([]);
-		});
-		child.on("close", (code) => {
-			if (signal.aborted || code !== 0 || !stdout) {
-				finish([]);
-				return;
-			}
-
-			const lines = stdout.trim().split("\n").filter(Boolean);
-			const results: Array<{ path: string; isDirectory: boolean }> = [];
-
-			for (const line of lines) {
-				const displayLine = toDisplayPath(line);
-				const hasTrailingSeparator = displayLine.endsWith("/");
-				const normalizedPath = hasTrailingSeparator ? displayLine.slice(0, -1) : displayLine;
-				if (normalizedPath === ".git" || normalizedPath.startsWith(".git/") || normalizedPath.includes("/.git/")) {
-					continue;
+		void (async () => {
+			try {
+				const [stdout, code] = await Promise.all([
+					new Response(child.stdout).text(),
+					child.exited,
+				]);
+				if (signal.aborted || code !== 0 || !stdout) {
+					finish([]);
+					return;
 				}
 
-				results.push({
-					path: displayLine,
-					isDirectory: hasTrailingSeparator,
-				});
-			}
+				const lines = stdout.trim().split("\n").filter(Boolean);
+				const results: Array<{ path: string; isDirectory: boolean }> = [];
 
-			finish(results);
-		});
+				for (const line of lines) {
+					const displayLine = toDisplayPath(line);
+					const hasTrailingSeparator = displayLine.endsWith("/");
+					const normalizedPath = hasTrailingSeparator ? displayLine.slice(0, -1) : displayLine;
+					if (normalizedPath === ".git" || normalizedPath.startsWith(".git/") || normalizedPath.includes("/.git/")) {
+						continue;
+					}
+
+					results.push({
+						path: displayLine,
+						isDirectory: hasTrailingSeparator,
+					});
+				}
+
+				finish(results);
+			} catch {
+				finish([]);
+			}
+		})();
 	});
 }
 

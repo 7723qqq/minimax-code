@@ -10,7 +10,6 @@
  * cross-implementation parity test in
  * packages/local-runtime/test/unit/seed-builtin-marker.test.ts).
  */
-import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -51,7 +50,7 @@ export function combinedSeedFingerprint(aggregates: ReadonlyMap<string, string>)
   const lines = [...aggregates.entries()]
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([skillName, aggregate]) => `${skillName}\u0000${aggregate}`);
-  return createHash('sha256')
+  return new Bun.CryptoHasher('sha256')
     .update(`v1\u0000${lines.join('\n')}`)
     .digest('hex');
 }
@@ -64,7 +63,7 @@ function aggregateSeedFingerprint(files: Readonly<Record<string, SeedFileState>>
   const lines = Object.entries(files)
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([relPath, file]) => `${relPath}\u0000${file.sha256}\u0000${file.x ? 1 : 0}`);
-  return createHash('sha256').update(lines.join('\n')).digest('hex');
+  return new Bun.CryptoHasher('sha256').update(lines.join('\n')).digest('hex');
 }
 
 function collectInto(dir: string, relPrefix: string, files: Record<string, SeedFileState>): void {
@@ -79,7 +78,7 @@ function collectInto(dir: string, relPrefix: string, files: Record<string, SeedF
       // walk never descends through a link.
       const content = readFileSync(absPath);
       const x = process.platform === 'win32' ? false : (statSync(absPath).mode & 0o111) !== 0;
-      files[relPath] = { sha256: createHash('sha256').update(content).digest('hex'), x };
+      files[relPath] = { sha256: new Bun.CryptoHasher('sha256').update(content).digest('hex'), x };
     }
     // Skip other entry types (sockets, block devices, etc.)
   }

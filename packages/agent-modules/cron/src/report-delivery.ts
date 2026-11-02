@@ -16,6 +16,9 @@
  * gate; the executor re-exports nothing from here — it calls in directly.
  */
 
+import { errorMessage } from '@mavis/shared/error-message';
+import { stripMavisTagsForIm } from '@mavis/shared/mavis-tags';
+
 import {
   logger,
   backgroundCtx,
@@ -118,8 +121,14 @@ export async function deliverToChannel(
   cronHost: CronHostUtils = {},
 ): Promise<void> {
   const ctx = backgroundCtx();
+  // IM-outbound contract (see @mavis/shared/mavis-tags): every paired
+  // <mavis-*> system tag family is stripped before proactive sends — daemon
+  // channel-forwarder.ts::stripOwnerStatusTagsForIm parity. A thinking/
+  // progress-only tick strips to '' and sends nothing, matching the
+  // quiet-on-skip policy (a heartbeat must never fire an IM notification).
+  const outboundText = stripMavisTagsForIm(text);
   const channelDelivery = cronHost.channelDelivery ?? getChannelDelivery();
-  if (!text || !channelDelivery) return;
+  if (!outboundText || !channelDelivery) return;
 
   const runner = channelDelivery.getRunner(delivery.channel);
   if (!runner?.isRunning) {
@@ -131,7 +140,7 @@ export async function deliverToChannel(
   }
 
   try {
-    await runner.sendProactiveMessage(delivery.chatId, text, { sessionId });
+    await runner.sendProactiveMessage(delivery.chatId, outboundText, { sessionId });
     logger.info(
       ctx,
       `[cron] Delivered response to channel: agentName=${state.agentName} cronName=${state.cronName} channel=${delivery.channel} chatId=${delivery.chatId}`,
@@ -139,7 +148,7 @@ export async function deliverToChannel(
   } catch (err) {
     logger.error(
       ctx,
-      `[cron] Failed to deliver response to channel: agentName=${state.agentName} cronName=${state.cronName} channel=${delivery.channel} err=${(err as Error).message}`,
+      `[cron] Failed to deliver response to channel: agentName=${state.agentName} cronName=${state.cronName} channel=${delivery.channel} err=${errorMessage(err)}`,
     );
   }
 }
@@ -159,7 +168,9 @@ export async function deliverToAllBoundChannels(
 ): Promise<void> {
   const ctx = backgroundCtx();
   const channelDelivery = cronHost.channelDelivery ?? getChannelDelivery();
-  if (!text || !channelDelivery?.listBindingsByAgent) return;
+  // Same IM-outbound strip as deliverToChannel (see the contract note there).
+  const outboundText = stripMavisTagsForIm(text);
+  if (!outboundText || !channelDelivery?.listBindingsByAgent) return;
 
   let bindings: CronChannelBinding[];
   try {
@@ -167,7 +178,7 @@ export async function deliverToAllBoundChannels(
   } catch (err) {
     logger.warn(
       ctx,
-      `[cron] Failed to list IM bindings for auto-delivery: agentName=${agentName} err=${(err as Error).message}`,
+      `[cron] Failed to list IM bindings for auto-delivery: agentName=${agentName} err=${errorMessage(err)}`,
     );
     return;
   }
@@ -186,7 +197,7 @@ export async function deliverToAllBoundChannels(
 
     try {
       const sendTask = async () => {
-        await runner.sendProactiveMessage(chatId, text, { sessionId: cronSessionId });
+        await runner.sendProactiveMessage(chatId, outboundText, { sessionId: cronSessionId });
       };
       if (messageQueue) {
         const bucketKey = `cron-report:${clientName}:${chatId}`;
@@ -199,7 +210,7 @@ export async function deliverToAllBoundChannels(
     } catch (err) {
       logger.error(
         ctx,
-        `[cron] Failed to deliver to IM channel ${clientName}:${chatId}: ${(err as Error).message}`,
+        `[cron] Failed to deliver to IM channel ${clientName}:${chatId}: ${errorMessage(err)}`,
       );
     }
   }

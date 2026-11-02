@@ -33,7 +33,7 @@ const SHELL_RESERVED_WORDS = new Set([
  * Resolve the executable script from Runtime tool input.
  *
  * Bash permissions and transcript cells may carry either the command itself
- * or a serialized tool payload such as `{ "command": "pnpm test" }`. Keep
+ * or a serialized tool payload such as `{ "command": "bun run test" }`. Keep
  * that transport detail out of every command presentation surface.
  */
 export function resolveTuiShellCommand(input: string | undefined): string | undefined {

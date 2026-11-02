@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { copyFileSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, realpathSync, symlinkSync } from 'node:fs';
+import { copyFileSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync, realpathSync, symlinkSync, openSync, closeSync } from 'node:fs';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from "../scripts/lib/exec.mjs";
 import { prepareSourceSync } from '../scripts/prepare-source-sync.mjs';
 import { extractionPath, inventoryPath } from '../scripts/lib/release-metadata.mjs';
 import { extractSourceArchive } from '../scripts/lib/source-archive.mjs';
@@ -11,7 +11,6 @@ import { classifyChanges } from '../scripts/ci-changes.mjs';
 import { suiteInventoryViolations } from '../scripts/lib/vitest-suites.mjs';
 import { Header } from 'tar';
 import { gzipSync } from 'node:zlib';
-import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import { cliBuildVersion, cliExternalModules, cliReleaseTargets, versionFromTag } from '../scripts/lib/cli-release.mjs';
@@ -534,7 +533,7 @@ test('rejected tag pushes cannot leave a partial remote release branch or open a
   assert.equal(f.git('rev-parse', 'v1.2.4^{commit}'), f.git('rev-parse', 'HEAD'));
 });
 
-test('npm release manifests require native SQLite and pin installed external dependencies', t => {
+test('release manifests require native SQLite and pin installed external dependencies', t => {
   const f = fixture(t);
   for (const name of cliExternalModules) {
     const directory = path.join(f.root, 'node_modules', name);
@@ -561,7 +560,7 @@ test('CLI publication requires every supported installation receipt for the exac
   const f = fixture(t);
   const archive = path.join(f.root, 'minimax-code-0.4.13.tar.gz');
   writeFileSync(archive, 'synthetic archive');
-  const sha256 = createHash('sha256').update(readFileSync(archive)).digest('hex');
+  const sha256 = new Bun.CryptoHasher('sha256').update(readFileSync(archive)).digest('hex');
   writeFileSync(`${archive}.sha256`, `${sha256}  ${path.basename(archive)}\n`);
   const revision = 'a'.repeat(40);
   const reports = path.join(f.root, 'reports');
@@ -681,9 +680,15 @@ function verificationFixture(t) {
   const directory = mkdtempSync(path.join(tmpdir(), 'verify-fixture-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const root = path.join(directory, 'source');
-  mkdirSync(path.join(root, 'scripts'), { recursive: true });
+  mkdirSync(path.join(root, 'scripts', 'lib'), { recursive: true });
   const verifier = path.join(root, 'scripts/verify.mjs');
   copyFileSync(new URL('../scripts/verify.mjs', import.meta.url), verifier);
+  // verify.mjs runs gate commands through the shared exec helper, so the
+  // fixture copies that dependency along with the verifier itself.
+  copyFileSync(
+    new URL('../scripts/lib/exec.mjs', import.meta.url),
+    path.join(root, 'scripts', 'lib', 'exec.mjs'),
+  );
   const manager = path.join(directory, 'manager.cjs');
   writeFileSync(manager, `
     const fs = require('node:fs');
@@ -845,10 +850,10 @@ test('ordinary CI runs a focused Windows contract while compatibility remains ma
   assert.deepEqual(ci.on.push.branches, ['main']);
   assert.deepEqual(Object.keys(ci.jobs).sort(), ['changes', 'docs', 'verification', 'verify']);
   assert.deepEqual(ci.jobs.verify.strategy.matrix.os, ['ubuntu-latest', 'macos-latest', 'windows-latest']);
-  assert.deepEqual(ci.jobs.verify.strategy.matrix.node, ['24']);
+  assert.deepEqual(ci.jobs.verify.strategy.matrix.toolchain, ['24']);
   assert.deepEqual(ci.jobs.verify.strategy.matrix.include, [
-    { os: 'ubuntu-latest', node: '24', profile: 'full' },
-    { os: 'windows-latest', node: '24', profile: 'windows' },
+    { os: 'ubuntu-latest', toolchain: '24', profile: 'full' },
+    { os: 'windows-latest', toolchain: '24', profile: 'windows' },
   ]);
   assert.equal(ci.jobs.verify.needs, 'changes');
   assert.equal(ci.jobs.verify.if, "needs.changes.outputs.docs_only == 'false'");
@@ -858,7 +863,7 @@ test('ordinary CI runs a focused Windows contract while compatibility remains ma
   assert.ok(ci.jobs.verify.steps.some(step => step.run === "bun run verify --profile ${{ matrix.profile || 'platform' }}"));
   const compatibility = readWorkflow('compatibility');
   assert.deepEqual(Object.keys(compatibility.on).sort(), ['schedule', 'workflow_dispatch']);
-  assert.deepEqual(compatibility.jobs.compatibility.strategy.matrix.node, ['22.19.0', '24.2.0', '25', '26']);
+  assert.deepEqual(compatibility.jobs.compatibility.strategy.matrix.toolchain, ['22.19.0', '24.2.0', '25', '26']);
   assert.deepEqual(compatibility.jobs.compatibility.strategy.matrix.os, ['ubuntu-latest', 'macos-latest']);
   const audit = readWorkflow('security');
   assert.ok(Object.hasOwn(audit.on, 'pull_request'));
@@ -958,7 +963,7 @@ test('source archive rejects traversal, links, Git history and duplicate entries
 test('candidate rejects mismatched receipts and requires successful same-revision Linux and macOS reports', t => {
   const f = archiveFixture(t, [{ path: 'minimax-code/README.md', content: 'source' }]);
   const revision = 'a'.repeat(40);
-  const receipt = { schemaVersion: 1, revision, sha256: createHash('sha256').update(readFileSync(f.archive)).digest('hex'), format: 'source-only-no-git-history', publicationPerformed: false };
+  const receipt = { schemaVersion: 1, revision, sha256: new Bun.CryptoHasher('sha256').update(readFileSync(f.archive)).digest('hex'), format: 'source-only-no-git-history', publicationPerformed: false };
   writeFileSync(`${f.archive}.json`, JSON.stringify(receipt));
   const script = fileURLToPath(new URL('../scripts/source-candidate.mjs', import.meta.url));
   const run = (...args) => spawnSync(process.execPath, [script, ...args, '--archive', f.archive, '--revision', revision], { encoding: 'utf8', timeout: 15000 });
@@ -1008,7 +1013,9 @@ test('Windows contract profile selects focused gates', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'windows-profile-'));
   try {
     const fixture = path.join(root, 'verify.mjs');
+    mkdirSync(path.join(root, 'lib'), { recursive: true });
     copyFileSync(new URL('../scripts/verify.mjs', import.meta.url), fixture);
+    copyFileSync(new URL('../scripts/lib/exec.mjs', import.meta.url), path.join(root, 'lib', 'exec.mjs'));
     const preload = path.join(root, 'platform.cjs');
     writeFileSync(preload, "Object.defineProperty(process, 'platform', { value: 'win32' });\n");
     const result = spawnSync(process.execPath, ['--require', preload, fixture, '--profile', 'windows', '--list'], {
@@ -1056,6 +1063,7 @@ test('suite runner pins its locale, preserves gate arguments and canonicalizes W
     'scripts/run-vitest-suite.mjs',
     'scripts/run-bun-tests.mjs',
     'scripts/lib/vitest-suites.mjs',
+    'scripts/lib/exec.mjs',
   ])
     copyFileSync(new URL(`../${file}`, import.meta.url), path.join(root, file));
   writeFileSync(path.join(root, 'test/vitest-suites.json'), JSON.stringify({ suites: { fixture: ['test/example.test.ts'] } }));
@@ -1157,7 +1165,7 @@ test('issue product labels follow current form answers without replacing unrelat
   assert.equal(job.steps.length, 1); // No checkout or execution of issue-supplied code.
   const run = job.steps[0].run;
   assert.doesNotMatch(run, /\$\{\{/);
-  const script = run.match(/^node <<'EOF'\r?\n([\s\S]*?)\r?\nEOF\s*$/)?.[1];
+  const script = run.match(/^bun -e "\$\(cat <<'EOF'\r?\n([\s\S]*?)\r?\nEOF\r?\n\)"\s*$/)?.[1];
   assert.ok(script);
   async function replay(body, labels, failureStatus) {
     const writes = [];
@@ -1222,7 +1230,7 @@ test('issue notification is restricted to public destination events and builds p
   const generate = job.steps.find(step => step.name === 'Build Feishu payload').run;
   // Execute only the payload builder, never the delivery step or its secrets.
   assert.doesNotMatch(generate, /\$\{\{\s*github\.event/);
-  const script = generate.match(/^node <<'EOF'\r?\n([\s\S]*?)\r?\nEOF\s*$/)?.[1];
+  const script = generate.match(/^bun -e "\$\(cat <<'EOF'\r?\n([\s\S]*?)\r?\nEOF\r?\n\)"\s*$/)?.[1];
   assert.ok(script);
   const directory = mkdtempSync(path.join(tmpdir(), 'support-payload-'));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
@@ -1233,11 +1241,10 @@ test('issue notification is restricted to public destination events and builds p
   };
   const eventPath = path.join(directory, 'event.json');
   writeFileSync(eventPath, JSON.stringify(event));
-  // The workflow step runs this inline script with `node <<'EOF'`. Feed the
-  // extracted script through a `.cjs` file so the test runner's own interpreter
-  // (Bun or Node) executes it: Bun does not support Node's
-  // `--input-type=commonjs` stdin form — it prints its help text and exits 0
-  // without running the script — while both runtimes execute a `.cjs` file.
+  // The workflow step runs this inline script with `bun -e`. Feed the
+  // extracted script through a `.cjs` file so the current runtime executes it
+  // as a file entry — stdin script execution is not a supported form, while a
+  // `.cjs` entry runs the same code.
   const scriptPath = path.join(directory, 'payload-builder.cjs');
   writeFileSync(scriptPath, script);
   const result = spawnSync(process.execPath, [scriptPath], {
@@ -1306,4 +1313,234 @@ test('TUI lint failure stops full and platform verification before compilation o
     assert.equal(report.gates.find(gate => gate.name === 'lint:tui').exitCode, 17);
     assert.equal(report.gates.find(gate => gate.name === 'build').status, 'NOT_RUN');
   }
+});
+
+test('exec helper reports a timeout in `node:child_process` spawnSync shape', () => {
+  const result = spawnSync(process.execPath, ['-e', 'setTimeout(() => {}, 10000)'], {
+    timeout: 200,
+  });
+  assert.equal(result.status, null);
+  assert.notEqual(result.signal, null);
+  assert.equal(result.error?.code, 'ETIMEDOUT');
+});
+
+test('exec helper reports maxBuffer overflow in `node:child_process` spawnSync shape', () => {
+  const result = spawnSync(process.execPath, ['-e', 'console.log("x".repeat(5000))'], {
+    maxBuffer: 100,
+  });
+  assert.equal(result.status, null);
+  assert.notEqual(result.signal, null);
+  assert.equal(result.error?.code, 'ENOBUFS');
+  assert.ok(result.stdout.length <= 100);
+});
+
+test('execFileSync failure carries the node-style status and output context', () => {
+  assert.throws(
+    () =>
+      execFileSync(process.execPath, ['-e', 'console.log("y".repeat(5000))'], {
+        maxBuffer: 100,
+        encoding: 'utf8',
+      }),
+    (error) =>
+      error.code === 'ENOBUFS' &&
+      error.status === null &&
+      typeof error.stdout === 'string' &&
+      typeof error.stderr === 'string',
+  );
+});
+
+test('exec helper shell form round-trips argv with spaces and quotes', () => {
+  const script = 'console.log(JSON.stringify(process.argv.slice(1)))';
+  for (const extra of [['hello world'], ['say "hi" there'], ['plain']]) {
+    const result = spawnSync(process.execPath, ['-e', script, ...extra], {
+      shell: true,
+      encoding: 'utf8',
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout.trim(), JSON.stringify(extra));
+  }
+});
+
+test('exec helper accepts a numeric stdio descriptor without decoding it', t => {
+  const root = mkdtempSync(path.join(tmpdir(), 'mcode-exec-fd-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const file = path.join(root, 'out.bin');
+  const fd = openSync(file, 'w');
+  try {
+    const result = spawnSync(process.execPath, ['-e', 'process.stdout.write("payload")'], {
+      stdio: ['ignore', fd, 'pipe'],
+    });
+    assert.equal(result.status, 0);
+    assert.equal(Buffer.from(result.stdout).toString(), '');
+  } finally {
+    closeSync(fd);
+  }
+  assert.equal(readFileSync(file, 'utf8'), 'payload');
+});
+
+const migrationToolPath = fileURLToPath(
+  new URL('../tools/migrations/node-to-bun.mjs', import.meta.url),
+);
+
+function migrationFixture(t) {
+  const root = mkdtempSync(path.join(tmpdir(), 'mcode-migration-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const run = (args) =>
+    execFileSync(process.execPath, [migrationToolPath, '--root', root, ...args], {
+      encoding: 'utf8',
+    });
+  return { root, run };
+}
+
+test('node-to-bun migration rewrites only Bun 1.4.4 digest semantics and shebangs', t => {
+  const fixture = migrationFixture(t);
+  mkdirSync(path.join(fixture.root, 'src'), { recursive: true });
+  writeFileSync(
+    path.join(fixture.root, 'src', 'digest.ts'),
+    [
+      '#!/usr/bin/env node',
+      "import { createHash, createHmac, randomBytes } from 'node:crypto';",
+      "export const a = createHash('sha256').update('x').digest('hex');",
+      "export const b = createHmac('SHA-256', randomBytes(8)).update('x').digest('base64url');",
+      "export const c = createHash('sm3').update('x').digest('hex');",
+      'const fixture = `createHash(\'sha256\')`;',
+      'const example = "createHash(\'sha256\')";',
+      "const d = crypto.createHash('sha256');",
+      '',
+    ].join('\n'),
+  );
+
+  const report = JSON.parse(fixture.run(['--json']));
+  assert.equal(report.pending, true);
+  assert.deepEqual(
+    report.automatic.map(entry => entry.rule).sort(),
+    ['digest', 'shebang'],
+  );
+  assert.ok(report.manual.some(entry => entry.detail.includes('string or Buffer key')));
+  assert.ok(report.manual.some(entry => entry.detail.includes('createHash call left for review')));
+  assert.throws(() => fixture.run(['--check']), error => error.status === 1);
+
+  fixture.run(['--write']);
+  const text = readFileSync(path.join(fixture.root, 'src', 'digest.ts'), 'utf8');
+  assert.match(text, /^#!\/usr\/bin\/env bun\n/u);
+  assert.match(text, /new Bun\.CryptoHasher\('sha256'\)/u);
+  assert.match(text, /new Bun\.CryptoHasher\('SHA-256', randomBytes\(8\)\)/u);
+  assert.match(text, /createHash\('sm3'\)/u);
+  assert.match(text, /const fixture = `createHash\('sha256'\)`;/u);
+  assert.match(text, /const example = "createHash\('sha256'\)";/u);
+  assert.match(text, /crypto\.createHash\('sha256'\)/u);
+  assert.match(text, /import \{ createHash, randomBytes \} from 'node:crypto';/u);
+
+  fixture.run(['--check']);
+});
+
+test('node-to-bun migration reports subprocesses and docs but skips sanctioned paths', t => {
+  const fixture = migrationFixture(t);
+  mkdirSync(path.join(fixture.root, 'src'), { recursive: true });
+  mkdirSync(path.join(fixture.root, 'docs'), { recursive: true });
+  const sanctioned = path.join(
+    fixture.root,
+    'packages',
+    'local-runtime-v2',
+    'src',
+    'service',
+    'miniapp',
+    'process',
+    'node-runtime',
+  );
+  mkdirSync(sanctioned, { recursive: true });
+  writeFileSync(
+    path.join(fixture.root, 'package.json'),
+    `${JSON.stringify({ name: 'fixture', engines: { node: '>=20' } }, null, 2)}\n`,
+  );
+  writeFileSync(path.join(fixture.root, 'note.md'), 'Run `npm install -g @minimax-ai/code`.\n');
+  writeFileSync(path.join(fixture.root, 'CHANGELOG.md'), '- npm install -g legacy\n');
+  writeFileSync(path.join(fixture.root, 'docs', 'releasing.md'), 'Run npm install -g during publish.\n');
+  writeFileSync(
+    path.join(fixture.root, 'src', 'child.ts'),
+    "import { spawn, spawnSync } from 'node:child_process';\n",
+  );
+  writeFileSync(
+    path.join(fixture.root, 'src', 'types.ts'),
+    "import type { ChildProcess } from 'node:child_process';\n",
+  );
+  writeFileSync(
+    path.join(sanctioned, 'runtime.ts'),
+    "import { spawn as nodeSpawn } from 'node:child_process';\n",
+  );
+
+  const report = JSON.parse(fixture.run(['--json']));
+  assert.ok(
+    report.automatic.some(entry => entry.file === 'package.json' && entry.rule === 'engines'),
+  );
+  const docs = report.manual.filter(entry => entry.rule === 'docs-commands');
+  assert.deepEqual(docs.map(entry => entry.file), ['note.md']);
+  const child = report.manual.filter(entry => entry.rule === 'child-process');
+  assert.equal(child.length, 2);
+  assert.ok(child.every(entry => entry.file === 'src/child.ts'));
+  assert.ok(
+    child.some(entry => entry.detail.startsWith('spawnSync:') && entry.detail.includes('scripts/lib/exec.mjs')),
+  );
+  assert.ok(child.some(entry => entry.detail.startsWith('spawn:') && entry.detail.includes('Bun.spawn')));
+});
+
+test('migration tool flags undici, cmd shims and runtime-version labels', t => {
+  const fixture = migrationFixture(t);
+  mkdirSync(path.join(fixture.root, 'src'), { recursive: true });
+  writeFileSync(
+    path.join(fixture.root, 'src', 'undici.ts'),
+    "import { Socks5ProxyAgent, fetch } from 'undici';\n",
+  );
+  writeFileSync(
+    path.join(fixture.root, 'src', 'undici-ok.ts'),
+    "import { Agent, fetch } from 'undici';\n",
+  );
+  writeFileSync(
+    path.join(fixture.root, 'src', 'cmd.ts'),
+    "import { spawn } from 'node:child_process';\nspawn('npm.cmd', ['install']);\n",
+  );
+  writeFileSync(
+    path.join(fixture.root, 'src', 'version.ts'),
+    'const payload = { nodeVersion: process.version };\n',
+  );
+
+  const report = JSON.parse(fixture.run(['--json']));
+  assert.ok(report.automatic.some(entry => entry.file === 'src/undici.ts' && entry.rule === 'undici-entry'));
+  assert.ok(!report.automatic.some(entry => entry.file === 'src/undici-ok.ts'));
+  assert.ok(
+    report.manual.some(
+      entry => entry.file === 'src/cmd.ts' && entry.rule === 'cmd-shims' && entry.detail.includes('cmd.exe'),
+    ),
+  );
+  assert.ok(report.manual.some(entry => entry.file === 'src/version.ts' && entry.rule === 'runtime-version'));
+
+  fixture.run(['--write']);
+  assert.match(readFileSync(path.join(fixture.root, 'src', 'undici.ts'), 'utf8'), /from 'undici\/index\.js';/u);
+  assert.match(readFileSync(path.join(fixture.root, 'src', 'undici-ok.ts'), 'utf8'), /from 'undici';/u);
+  assert.match(readFileSync(path.join(fixture.root, 'src', 'cmd.ts'), 'utf8'), /spawn\('npm\.cmd'/u);
+});
+
+test('bun-to-node direction is report-only and check mode exits on pending fixes', t => {
+  const fixture = migrationFixture(t);
+  mkdirSync(path.join(fixture.root, 'src'), { recursive: true });
+  writeFileSync(
+    path.join(fixture.root, 'src', 'bun.ts'),
+    "import { Database } from 'bun:sqlite';\nconst child = Bun.spawn(['x']);\n",
+  );
+  const reverse = JSON.parse(fixture.run(['--direction', 'bun-to-node', '--json']));
+  assert.ok(reverse.inventory.some(entry => entry.file === 'src/bun.ts' && entry.kind === 'bun:sqlite'));
+  assert.ok(reverse.inventory.some(entry => entry.file === 'src/bun.ts' && entry.kind === 'Bun.spawn'));
+  assert.throws(
+    () => fixture.run(['--direction', 'bun-to-node', '--write']),
+    error => error.status === 2,
+  );
+
+  writeFileSync(
+    path.join(fixture.root, 'src', 'digest.ts'),
+    "import { createHash } from 'node:crypto';\nexport const a = createHash('sha256').update('x').digest('hex');\n",
+  );
+  assert.throws(() => fixture.run(['--check']), error => error.status === 1);
+  fixture.run(['--write']);
+  assert.equal(JSON.parse(fixture.run(['--json'])).pending, false);
+  fixture.run(['--check']);
 });

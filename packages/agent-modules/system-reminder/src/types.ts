@@ -182,7 +182,7 @@ export interface AgentEnv {
    * and is also exported as `MAVIS_SCRATCHPAD` in the agent's shells.
    */
   scratchpadPath?: string | undefined;
-  /** True when running from monorepo source (pnpm dev), false for npm bundle. */
+  /** True when running from monorepo source, false for npm bundle. */
   isMonorepoDev?: boolean | undefined;
   /**
    * Browser bridge availability snapshot for the agent's profile.

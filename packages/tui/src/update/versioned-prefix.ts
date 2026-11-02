@@ -9,6 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
+import { atomicWriteFileSync } from '@mavis/shared';
 import { pathExists, type McodeNpmPackageName } from './install-source.js';
 import {
   readMcodePrefixPackageMetadata,
@@ -214,7 +215,7 @@ function versionedReleaseLauncherContents(
 
     launchers.set(
       platformPath.join(releasePrefix, command.releaseLauncher),
-      `#!/bin/sh\nset -eu\nroot=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)\nnode=${quoteShell(runtimeExecutable)}\nif [ ! -x "$node" ]; then\n  printf "%s\\n" "MCode: Node runtime is missing: $node" "MCode: a system upgrade such as brew upgrade may have removed it." "MCode: re-run the MCode installer to repair this installation." >&2\n  exit 127\nfi\nexec "$node" "$root/${escapeDoubleQuoted(relativeEntry)}" "$@"\n`,
+      `#!/bin/sh\nset -eu\nroot=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)\nruntime=${quoteShell(runtimeExecutable)}\nif [ ! -x "$runtime" ]; then\n  printf "%s\\n" "MCode: runtime is missing: $runtime" "MCode: a system upgrade may have removed it." "MCode: re-run the MCode installer to repair this installation." >&2\n  exit 127\nfi\nexec "$runtime" "$root/${escapeDoubleQuoted(relativeEntry)}" "$@"\n`,
     );
   }
   return launchers;
@@ -316,16 +317,7 @@ function writeVersionedInstallReceipt(
 }
 
 function writeAtomicText(file: string, contents: string, mode: number): void {
-  const temporaryFile = `${file}.tmp-${process.pid}-${randomUUID()}`;
-  mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-  try {
-    writeFileSync(temporaryFile, contents, { mode });
-    chmodSync(temporaryFile, mode);
-    renameSync(temporaryFile, file);
-  } catch (error) {
-    rmSync(temporaryFile, { force: true });
-    throw error;
-  }
+  atomicWriteFileSync(file, contents, { mode });
 }
 
 function readLiveUpdateClaims(

@@ -1,7 +1,7 @@
-import { createHash, randomBytes } from 'node:crypto';
 import fs, { existsSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 
+import { atomicWriteFile } from '@mavis/shared';
 import { KeyedOperationLane } from '@mavis/shared/keyed-operation-lane';
 
 import type {
@@ -61,7 +61,7 @@ export function modelCacheStatusFor(
 
 export function modelConfigFingerprint(value: unknown): string {
   const canonical = JSON.stringify(sortForFingerprint(value));
-  return `sha256:${createHash('sha256').update(canonical).digest('hex')}`;
+  return `sha256:${new Bun.CryptoHasher('sha256').update(canonical).digest('hex')}`;
 }
 
 export class LocalModelCache implements LocalModelCacheLike {
@@ -134,21 +134,7 @@ export class LocalModelCache implements LocalModelCacheLike {
 
   private async write(filePath: string, data: ModelCacheData): Promise<void> {
     await fs.promises.mkdir(dirname(filePath), { recursive: true });
-    const tmpPath = join(dirname(filePath), `.model-cache-tmp-${randomBytes(6).toString('hex')}`);
-    try {
-      await fs.promises.writeFile(tmpPath, JSON.stringify(data, null, 2), {
-        encoding: 'utf-8',
-        mode: 0o600,
-      });
-      await fs.promises.rename(tmpPath, filePath);
-    } catch (error) {
-      try {
-        await fs.promises.unlink(tmpPath);
-      } catch {
-        // The original write failure remains authoritative when cleanup also fails.
-      }
-      throw error;
-    }
+    await atomicWriteFile(filePath, JSON.stringify(data, null, 2), { ensureDirectory: false });
   }
 }
 

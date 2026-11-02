@@ -16,6 +16,7 @@
 
 - [Contributing](../CONTRIBUTING.md) · [Maintainers and review](maintainers.md) · [Security reporting](../SECURITY.md)
 - [Architecture](architecture.md) · [Verification records](verification.md)
+- [Development rules](development-rules.md): package layering, generated files, Bun and Node boundaries, pre-submit checks
 
 ## Maintain and release
 

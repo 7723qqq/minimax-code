@@ -7,10 +7,10 @@ Pi is a minimal terminal coding harness. It is designed to stay small at the cor
 Install Pi with npm:
 
 ```bash
-npm install -g --ignore-scripts @earendil-works/pi-coding-agent
+bun install --global --ignore-scripts @earendil-works/pi-coding-agent
 ```
 
-`--ignore-scripts` disables dependency lifecycle scripts during install. Pi does not require install scripts for normal npm installs.
+`--ignore-scripts` disables dependency lifecycle scripts during install. Pi does not require install scripts for normal installs.
 
 On Linux or macOS, you can also use the installer:
 
@@ -18,13 +18,13 @@ On Linux or macOS, you can also use the installer:
 curl -fsSL https://pi.dev/install.sh | sh
 ```
 
-To uninstall pi itself, use npm for curl and npm installs:
+To uninstall pi itself, use the same tool that installed it:
 
 ```bash
-npm uninstall -g @earendil-works/pi-coding-agent
+bun remove --global @earendil-works/pi-coding-agent
 ```
 
-For pnpm, Yarn, or Bun installs, use the matching global remove command: `pnpm remove -g @earendil-works/pi-coding-agent`, `yarn global remove @earendil-works/pi-coding-agent`, or `bun uninstall -g @earendil-works/pi-coding-agent`.
+For pnpm or Yarn installs, use the matching global remove command: `pnpm remove -g @earendil-works/pi-coding-agent` or `yarn global remove @earendil-works/pi-coding-agent`.
 
 Then run it in a project directory:
 
@@ -60,7 +60,7 @@ For the full first-run flow, see [Quickstart](quickstart.md).
 
 ## Programmatic usage
 
-- [SDK](sdk.md) - embed pi in Node.js applications.
+- [SDK](sdk.md) - embed pi in Bun applications.
 - [RPC mode](rpc.md) - integrate over stdin/stdout JSONL.
 - [JSON event stream mode](json.md) - print mode with structured events.
 - [TUI components](tui.md) - build custom terminal UI for extensions.

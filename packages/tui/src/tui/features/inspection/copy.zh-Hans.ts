@@ -4,7 +4,7 @@ import type { InspectionCopyKey } from './copy.en.js';
  * Simplified Chinese copy for the inspection panels.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  */
 export const ZH_HANS_INSPECTION_COPY = {
   // Capabilities panel

@@ -18,13 +18,20 @@ import { stubEnv, unstubAllEnvs } from "../../../../test/bun-test-setup.js";
 // import would already be replaced by the mock and would resolve to itself.
 const require = createRequire(import.meta.url);
 const realOs = require("node:os");
-const realChildProcess = require("node:child_process");
 
 const host = {
   platform: mock(() => "linux"),
   release: mock(() => "6.18.33.2-microsoft-standard-WSL2"),
-  executeFile: mock(),
+  spawn: mock(),
 };
+
+/** Build a Bun subprocess stub: piped stdout plus a settled exit code. */
+function subprocess(stdout: string, code = 0) {
+  return {
+    stdout: new Blob([stdout]).stream(),
+    exited: Promise.resolve(code),
+  };
+}
 
 mock.module("node:os", () => ({
   ...realOs,
@@ -33,24 +40,17 @@ mock.module("node:os", () => ({
   default: { ...realOs, platform: host.platform, release: host.release },
 }));
 
-mock.module("node:child_process", () => {
-  // `wsl-path.ts` promisifies `execFile`, so the mock carries the custom
-  // promisify symbol and the converter call lands on `host.executeFile`.
-  const execFile = Object.assign(mock(), {
-    [Symbol.for("nodejs.util.promisify.custom")]: host.executeFile,
-  });
-  return {
-    ...realChildProcess,
-    execFile,
-    default: { ...realChildProcess, execFile },
-  };
-});
+// `wsl-path.ts` reads Bun.spawn at call time, so the seam is the global:
+// snapshot it, install the mock, and restore it in afterAll. The node:os mock
+// above still needs the module re-evaluation dance below, because those imports
+// are bound at module load.
+const realSpawn = Bun.spawn;
+Bun.spawn = host.spawn;
 
-// `wsl-path.ts` derives its converter call at module scope
-// (`promisify(execFile)`), so the module has to be evaluated *after* the
-// `node:child_process` mock is registered. The query suffix gives Bun a
-// distinct module id, which re-evaluates the module, and the plain path is
-// then re-registered with that instance.
+// `wsl-path.ts` binds `platform` and `release` at module scope, so the module
+// has to be evaluated *after* the node:os mock is registered. The query suffix
+// gives Bun a distinct module id, which re-evaluates the module, and the plain
+// path is then re-registered with that instance.
 //
 // The attachment resolver imports `wsl-path.ts` itself, so it captured the
 // pre-mock module the first time it was loaded. It is re-evaluated the same
@@ -71,10 +71,7 @@ afterAll(() => {
   mock.module("../../src/host/wsl-path.js", () => actualWslPath);
   mock.module("../../src/tui/features/composer/attachments.js", () => actualAttachments);
   mock.module("node:os", () => ({ ...realOs, default: realOs }));
-  mock.module("node:child_process", () => ({
-    ...realChildProcess,
-    default: realChildProcess,
-  }));
+  Bun.spawn = realSpawn;
 });
 
 let workspaceDir: string;
@@ -85,14 +82,14 @@ const skipWslConversion = process.platform === "win32";
 beforeEach(async () => {
   host.platform.mockReturnValue("linux");
   host.release.mockReturnValue("6.18.33.2-microsoft-standard-WSL2");
-  host.executeFile.mockReset();
+  host.spawn.mockReset();
   stubEnv("WSL_DISTRO_NAME", "");
   stubEnv("WSL_INTEROP", "");
   stubEnv("WSLENV", "");
   workspaceDir = await mkdtemp(join(tmpdir(), "mcode-wsl-path-"));
   imagePath = join(workspaceDir, "截图.png");
   await writeFile(imagePath, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
-  host.executeFile.mockResolvedValue({ stdout: `${imagePath}\n`, stderr: "" });
+    host.spawn.mockReturnValue(subprocess(`${imagePath}\n`));
 });
 
 afterEach(async () => {
@@ -134,13 +131,10 @@ describe("WSL attachment paths", () => {
       expect(placeholders).toHaveBeenLastCalledWith([
         { id: imagePath, label: "[Image #1]" },
       ]);
-      expect(host.executeFile).toHaveBeenCalledWith(
-        "wslpath",
-        ["-a", "-u", reference.replace(/^['"]|['"]$/gu, "")],
+      expect(host.spawn).toHaveBeenCalledWith(
         expect.objectContaining({
-          encoding: "utf8",
+          cmd: ["wslpath", "-a", "-u", reference.replace(/^['"]|['"]$/gu, "")],
           timeout: 1_000,
-          maxBuffer: 64 * 1024,
         }),
       );
     },
@@ -161,7 +155,7 @@ describe("WSL attachment paths", () => {
         sizeBytes: 4,
       },
     ]);
-    expect(host.executeFile).toHaveBeenCalledOnce();
+    expect(host.spawn).toHaveBeenCalledOnce();
   });
 
   it.skipIf(skipWslConversion).each(["WSL_DISTRO_NAME", "WSL_INTEROP", "WSLENV"])(
@@ -179,7 +173,7 @@ describe("WSL attachment paths", () => {
       host.platform.mockReturnValue(platform);
       host.release.mockReturnValue("generic-kernel");
       await expect(resolveWslPath(windowsPath)).resolves.toBe(windowsPath);
-      expect(host.executeFile).not.toHaveBeenCalled();
+      expect(host.spawn).not.toHaveBeenCalled();
     },
   );
 
@@ -194,7 +188,7 @@ describe("WSL attachment paths", () => {
     "leaves native and relative paths unchanged in WSL: %s",
     async (reference) => {
       await expect(resolveWslPath(reference)).resolves.toBe(reference);
-      expect(host.executeFile).not.toHaveBeenCalled();
+      expect(host.spawn).not.toHaveBeenCalled();
     },
   );
 
@@ -208,7 +202,7 @@ describe("WSL attachment paths", () => {
         homeDir: workspaceDir,
       }),
     ).resolves.toMatchObject({ filePath: imagePath });
-    expect(host.executeFile).not.toHaveBeenCalled();
+    expect(host.spawn).not.toHaveBeenCalled();
   });
 
   it.skipIf(skipWslConversion).each([
@@ -216,17 +210,17 @@ describe("WSL attachment paths", () => {
     String.raw`\\server\share\截图.png`,
   ])("passes Windows paths as a literal argument: %s", async (reference) => {
     await expect(resolveWslPath(reference)).resolves.toBe(imagePath);
-    expect(host.executeFile.mock.calls[0]?.slice(0, 2)).toEqual([
+    expect(host.spawn.mock.calls[0]?.[0]?.cmd).toEqual([
       "wslpath",
-      ["-a", "-u", reference],
+      "-a",
+      "-u",
+      reference,
     ]);
-    expect(host.executeFile.mock.calls[0]?.[2]).not.toHaveProperty("shell");
+    expect(host.spawn.mock.calls[0]?.[0]).not.toHaveProperty("shell");
   });
 
   it("honors the converter output for custom mount roots and preserves trailing spaces", async () => {
-    host.executeFile.mockResolvedValue({
-      stdout: "/custom/windows/d/Screen shots/image.png \n",
-    });
+    host.spawn.mockReturnValue(subprocess("/custom/windows/d/Screen shots/image.png \n"));
     await expect(resolveWslPath(windowsPath)).resolves.toBe(
       "/custom/windows/d/Screen shots/image.png ",
     );
@@ -242,7 +236,7 @@ describe("WSL attachment paths", () => {
   ])(
     "rejects invalid converter output instead of treating it as a local path: %j",
     async (stdout) => {
-      host.executeFile.mockResolvedValue({ stdout });
+      host.spawn.mockReturnValue(subprocess(stdout));
       await expect(
         resolveTuiAttachment(windowsPath, { workspaceDir }),
       ).rejects.toThrow("Could not convert the Windows path with wslpath");
@@ -254,9 +248,9 @@ describe("WSL attachment paths", () => {
     async (code) => {
       if (process.platform !== "win32")
         await writeFile(join(workspaceDir, windowsPath), "wrong image");
-      host.executeFile.mockRejectedValue(
-        Object.assign(new Error("converter failed"), { code }),
-      );
+      host.spawn.mockImplementation(() => {
+        throw Object.assign(new Error("converter failed"), { code });
+      });
       await expect(
         resolveTuiAttachment(windowsPath, {
           workspaceDir,
@@ -277,13 +271,11 @@ describe("WSL attachment paths", () => {
   );
 
   it.skipIf(skipWslConversion)("still rejects missing files and directories after conversion", async () => {
-    host.executeFile.mockResolvedValue({
-      stdout: `${join(workspaceDir, "missing.png")}\n`,
-    });
+    host.spawn.mockReturnValue(subprocess(`${join(workspaceDir, "missing.png")}\n`));
     await expect(
       resolveTuiAttachment(windowsPath, { workspaceDir }),
     ).rejects.toThrow("ENOENT");
-    host.executeFile.mockResolvedValue({ stdout: `${workspaceDir}\n` });
+    host.spawn.mockReturnValue(subprocess(`${workspaceDir}\n`));
     await expect(
       resolveTuiAttachment(windowsPath, { workspaceDir }),
     ).rejects.toThrow("not a file");
@@ -291,7 +283,7 @@ describe("WSL attachment paths", () => {
 
   it("preserves headless cancellation while converting a path", async () => {
     const controller = new AbortController();
-    host.executeFile.mockImplementation(async (_file, _args, options) => {
+    host.spawn.mockImplementation((options: { signal?: AbortSignal }) => {
       expect(options.signal).toBe(controller.signal);
       controller.abort();
       throw new Error("aborted");

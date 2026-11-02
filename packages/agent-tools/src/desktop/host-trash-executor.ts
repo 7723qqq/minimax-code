@@ -89,7 +89,7 @@ export async function executeLocalHostTrashIfRequested(input: {
   const launch: TrashLaunch = {
     launcher: process.execPath,
     argv: [runtime.scriptPath, '--', ...execution.targets],
-    env: { ...sanitized.env, ELECTRON_RUN_AS_NODE: '1' },
+    env: sanitized.env,
     execution: 'windows-trash',
     failureStatus: 'windows_trash_failed',
   };

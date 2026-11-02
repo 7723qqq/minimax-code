@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { access, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -656,5 +655,5 @@ function normalizedName(value: string): string {
 }
 
 function sha256(value: string): string {
-  return createHash('sha256').update(value).digest('hex');
+  return new Bun.CryptoHasher('sha256').update(value).digest('hex');
 }

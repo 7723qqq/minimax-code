@@ -163,9 +163,12 @@ export class McodeUpdateApplication {
     this.entryFile = options.entryFile ?? process.argv[1];
     this.prefixInstall =
       options.prefixInstall ?? resolveMcodeNpmPrefixInstall(this.entryFile, platform);
-    // Keep updates on the Node executable recorded in the install receipt. On
-    // macOS process.execPath resolves Homebrew's stable bin/node symlink into a
-    // versioned Cellar path that `brew upgrade` removes.
+    // Keep updates on the runtime executable recorded in the install receipt.
+    // `nodeExecutable` is historical naming: the value must be the runtime that
+    // runs the CLI (Bun, since the bun:sqlite migration), and a receipt that
+    // pins anything else fails closed in `validateMcodePrefixPackage` before
+    // activation. On macOS the recorded path also survives Homebrew upgrades
+    // that remove the Cellar path behind `process.execPath`'s stable symlink.
     this.runtimeExecutable =
       options.runtimeExecutable ?? this.prefixInstall?.nodeExecutable ?? process.execPath;
     const packageManagerEnvironment = this.prefixInstall

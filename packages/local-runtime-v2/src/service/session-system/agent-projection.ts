@@ -10,6 +10,7 @@ import {
 } from '@mavis/agent-core/protocol';
 import { RespDataType, Role, type AgentMessage } from '@mavis/agent-core/protocol/agent-message';
 import type { CompactionTokenUsage } from '@mavis/shared/global-events';
+import { safeJsonStringify } from '@mavis/shared/json-stringify';
 import type { CompactionLifecycleKind } from '@mavis/shared/turn-message-class';
 
 import type { MessageRepository } from './messages/repo/contract.js';
@@ -144,7 +145,7 @@ export function createSessionSystemAgentProjection(options: SessionSystemAgentPr
           status: 'error',
           errorMessage: `Canonical history commit failed for ${input.turnId}`,
           errorSource: 'canonical-history',
-          ...(input.metadata === undefined ? {} : { errorDetail: safeJson(input.metadata) }),
+          ...(input.metadata === undefined ? {} : { errorDetail: safeJsonStringify(input.metadata) }),
         });
         if (!updated) throw new Error(`Session not found: ${input.sessionId}`);
       },
@@ -1103,14 +1104,6 @@ function createCompactionProjectionLane() {
       }
     },
   };
-}
-
-function safeJson(value: unknown): string {
-  try {
-    return JSON.stringify(value) ?? 'undefined';
-  } catch {
-    return '[unserializable]';
-  }
 }
 
 function describeError(error: unknown): string {

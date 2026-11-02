@@ -2,7 +2,7 @@ import { win32 } from 'node:path';
 
 import type { TuiCustomStatusLineConfig } from '@mavis/config';
 
-import { parseTuiExternalEditorCommand } from './external-editor.js';
+import { buildCmdShellArgv, parseTuiExternalEditorCommand } from './external-editor.js';
 
 export type { TuiCustomStatusLineConfig } from '@mavis/config';
 
@@ -267,15 +267,21 @@ function runCustomStatusProcess(
     };
 
     try {
+    // Bun's subprocess surface has no working `shell` option, so the Windows
+    // shell is spelled out as argv and the payload rides verbatim.
+    const argv = invocation.shell
+      ? buildCmdShellArgv(invocation.executable, invocation.args)
+      : [invocation.executable, ...invocation.args];
       child = Bun.spawn({
-        cmd: [invocation.executable, ...invocation.args],
+        cmd: argv,
         cwd: invocation.cwd,
-        shell: invocation.shell,
         stdin: 'pipe',
         stdout: 'pipe',
         stderr: 'ignore',
         windowsHide: true,
         detached: process.platform !== 'win32',
+        // Only the shell branch: its payload is already quoted by hand.
+        ...(invocation.shell ? { windowsVerbatimArguments: true } : {}),
       });
     } catch {
       settle({ exitCode: null, stdout: '', timedOut: false });

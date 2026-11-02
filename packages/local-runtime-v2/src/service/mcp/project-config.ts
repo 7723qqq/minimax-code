@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { open, realpath } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
@@ -14,7 +13,7 @@ export interface ProjectMcpDocument {
 }
 
 export function projectMcpDigest(value: string): string {
-  return createHash('sha256').update(value).digest('hex');
+  return new Bun.CryptoHasher('sha256').update(value).digest('hex');
 }
 
 /** Read-only: never run profile migration or rewrite a repository-owned file. */

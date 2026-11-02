@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 
 import {
   type ContentSafetyReviewPort,
@@ -46,7 +45,7 @@ export function reviewBlocksInput(result: SafetyCheckResult): boolean {
 
 export function digestSafetyInput(input: unknown): string {
   const serialized = JSON.stringify(canonicalValue(input)) ?? 'undefined';
-  return `sha256:${createHash('sha256').update(serialized).digest('hex')}`;
+  return `sha256:${new Bun.CryptoHasher('sha256').update(serialized).digest('hex')}`;
 }
 
 export function isInputSafetyDecision(value: unknown): value is InputSafetyDecision {

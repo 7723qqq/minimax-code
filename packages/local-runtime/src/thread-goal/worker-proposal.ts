@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 import type {
   GoalTurnSignal,
   ThreadGoalDecisionResult,
@@ -31,7 +29,9 @@ export function threadGoalWorkerProposalObservation(signal: GoalTurnSignal): {
   return {
     proposal: signal.type === 'completion_proposed' ? 'complete' : 'blocked',
     summaryPresent: Boolean(summary),
-    ...(summary ? { summaryDigest: createHash('sha256').update(summary).digest('hex') } : {}),
+    ...(summary
+      ? { summaryDigest: new Bun.CryptoHasher('sha256').update(summary).digest('hex') }
+      : {}),
   };
 }
 

@@ -1,6 +1,5 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
-
-const UNSERIALIZABLE_PLACEHOLDER = '[unserializable]';
+import { safeJsonStringify } from '@mavis/shared/json-stringify';
 
 const TOOL_CONTEXT_TOKEN_BUCKETS = [
   16, 64, 256, 1_000, 4_000, 8_000, 16_000, 32_000, 64_000, 128_000, 256_000,
@@ -51,14 +50,6 @@ export interface ToolContextBreakdown extends ToolContextContribution {
 type MutableToolContextBreakdown = Omit<ToolContextBreakdown, 'byTool'> & {
   byTool: Map<string, ToolContextContribution>;
 };
-
-function safeJsonStringify(value: unknown): string {
-  try {
-    return JSON.stringify(value) ?? 'undefined';
-  } catch {
-    return UNSERIALIZABLE_PLACEHOLDER;
-  }
-}
 
 function measureText(text: string, estimator?: ToolContextSizeEstimator): MeasuredToolValue {
   const measured: MeasuredToolValue = { bytes: Buffer.byteLength(text, 'utf8') };

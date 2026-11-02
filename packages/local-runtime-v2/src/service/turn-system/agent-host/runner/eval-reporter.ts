@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import type { PiTurnHooks, PiTurnRunnerLogger } from '@mavis/agent-core/pi-turn-runner';
 import {
   MsgType,
@@ -207,7 +206,7 @@ function withReporterHooks(
               ? {
                   promptMetadata: {
                     ...observation.promptMetadata,
-                    system_sha256: createHash('sha256')
+                    system_sha256: new Bun.CryptoHasher('sha256')
                       .update(input.systemPrompt ?? '')
                       .digest('hex'),
                   },

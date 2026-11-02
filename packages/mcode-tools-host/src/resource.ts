@@ -2,12 +2,12 @@ import {
   chmodSync,
   mkdirSync,
   readFileSync,
-  renameSync,
   rmSync,
   statSync,
-  writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
+
+import { atomicWriteFileSync } from '@mavis/shared';
 
 import {
   validateEmbeddedResourceFiles,
@@ -382,7 +382,7 @@ function escapeWindowsBatchValue(value: string): string {
  *
  * `statSync` inside a `try` has the same answer as `existsSync` for a file, a
  * directory, a missing entry and an unreadable path, and costs far less per call
- * in this runtime: `existsSync` is the Node compatibility surface, which is
+ * in this runtime: `existsSync` is the `node:` compatibility surface, which is
  * roughly an order of magnitude slower. This module is synchronous by design —
  * it runs during launcher installation — so the async `Bun.file()` surface is
  * not an option here.
@@ -401,13 +401,5 @@ function writeFileIfChanged(file: string, contents: string, mode: number): void 
     chmodSync(file, mode);
     return;
   }
-  const temporary = `${file}.${process.pid}.${Date.now()}.tmp`;
-  writeFileSync(temporary, contents, { mode });
-  try {
-    renameSync(temporary, file);
-  } catch (error) {
-    rmSync(temporary, { force: true });
-    throw error;
-  }
-  chmodSync(file, mode);
+  atomicWriteFileSync(file, contents, { ensureDirectory: false, mode });
 }

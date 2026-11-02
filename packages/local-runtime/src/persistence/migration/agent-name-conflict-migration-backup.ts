@@ -372,7 +372,7 @@ function rewritePrimaryPinnedItemsPreference(
  * A `statSync` inside a `try` answers the same question as `existsSync` for a
  * file, a directory, a missing entry and an unreadable path, and avoids the
  * separate `existsSync` lookup this module used to pay before every copy:
- * `existsSync` is the Node compatibility surface and measures roughly an order
+ * `existsSync` is the `node:` compatibility surface and measures roughly an order
  * of magnitude slower per call in this runtime. This module is synchronous
  * throughout, so `Bun.file()` does not apply.
  */

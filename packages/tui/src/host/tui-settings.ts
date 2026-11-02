@@ -1,5 +1,6 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { atomicWriteFileSync } from '@mavis/shared';
 import { isValidLocaleTag } from '@mavis/shared/i18n';
 import type { TuiMode } from '../tui/engine/public.js';
 
@@ -34,19 +35,12 @@ function readDocument(dataDir: string): TuiSettingsDocument {
 
 function writeDocument(dataDir: string, patch: TuiSettingsDocument): void {
   const filePath = settingsPath(dataDir);
-  const directory = path.dirname(filePath);
-  mkdirSync(directory, { recursive: true, mode: 0o700 });
   // Merge instead of replacing so writing one preference never drops the other.
   const next: Record<string, unknown> = { ...readDocument(dataDir), ...patch };
   if (next.tuiMode === undefined) delete next.tuiMode;
   if (next.theme === undefined) delete next.theme;
   if (next.locale === undefined) delete next.locale;
-  const temporaryPath = path.join(directory, `.tui-settings.json.${process.pid}.${Date.now()}.tmp`);
-  writeFileSync(temporaryPath, `${JSON.stringify(next, null, 2)}\n`, {
-    encoding: 'utf8',
-    mode: 0o600,
-  });
-  renameSync(temporaryPath, filePath);
+  atomicWriteFileSync(filePath, `${JSON.stringify(next, null, 2)}\n`);
 }
 
 export function readTuiModeSetting(dataDir: string): TuiMode {

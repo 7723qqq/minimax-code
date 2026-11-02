@@ -1,7 +1,6 @@
-import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { retryWindowsFileSystemOperation } from '@mavis/shared';
+import { atomicWriteFileSync } from '@mavis/shared';
 
 import {
   clearLocalRuntimeAuthContextFile,
@@ -223,7 +222,7 @@ function authContextsEqual(
 }
 
 function authContextFingerprint(auth: LocalRuntimeAuthContextSnapshot): string {
-  return `sha256:${createHash('sha256')
+  return `sha256:${new Bun.CryptoHasher('sha256')
     .update(JSON.stringify(normalizeLocalRuntimeAuthContext(auth)))
     .digest('hex')}`;
 }
@@ -271,19 +270,13 @@ function writeCliSharedProjection(
   const directory = path.join(dataDir, CLI_AUTH_CONTEXT_DIRECTORY);
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
   const filePath = resolveCliSharedProjectionPath(dataDir);
-  const temporaryPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
   const record: CliSharedProjectionRecord = {
     version: 1,
     ...scope,
     authFingerprint: authContextFingerprint(auth),
     updatedAtMs: Date.now(),
   };
-  fs.writeFileSync(temporaryPath, `${JSON.stringify(record, null, 2)}\n`, {
-    encoding: 'utf8',
-    mode: 0o600,
-  });
-  retryWindowsFileSystemOperation(() => fs.renameSync(temporaryPath, filePath));
-  retryWindowsFileSystemOperation(() => fs.chmodSync(filePath, 0o600));
+  atomicWriteFileSync(filePath, `${JSON.stringify(record, null, 2)}\n`, { retryWindows: true });
 }
 
 function clearCliSharedProjection(dataDir: string): void {
@@ -358,14 +351,8 @@ function writeCliAuthScope(dataDir: string, scope: CliAuthScope): void {
   const directory = resolveCliAuthContextDataDir(dataDir, scope);
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
   const scopePath = resolveCliAuthScopePath(dataDir, scope);
-  const temporaryPath = `${scopePath}.${process.pid}.${Date.now()}.tmp`;
   const record: CliAuthScopeRecord = { version: 1, updatedAtMs: Date.now(), ...scope };
-  fs.writeFileSync(temporaryPath, `${JSON.stringify(record, null, 2)}\n`, {
-    encoding: 'utf8',
-    mode: 0o600,
-  });
-  retryWindowsFileSystemOperation(() => fs.renameSync(temporaryPath, scopePath));
-  retryWindowsFileSystemOperation(() => fs.chmodSync(scopePath, 0o600));
+  atomicWriteFileSync(scopePath, `${JSON.stringify(record, null, 2)}\n`, { retryWindows: true });
 }
 
 function clearCliAuthScope(dataDir: string, scope: CliAuthScope): void {

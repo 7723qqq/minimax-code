@@ -1,7 +1,7 @@
 import { Database, type Statement } from 'bun:sqlite';
 
 /**
- * Bun's native SQLite constructor. The runtime no longer loads a Node addon,
+ * Bun's native SQLite constructor. The runtime no longer loads a `.node` addon,
  * so there is no module-path override to resolve here.
  */
 export type SqliteDatabaseConstructor = typeof Database;

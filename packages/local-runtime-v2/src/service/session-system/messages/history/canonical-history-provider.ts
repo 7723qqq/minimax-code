@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
@@ -637,7 +636,7 @@ function envelope(input: {
     message_id:
       input.identityHint?.messageId ??
       (input.change.operation.kind === 'worktree-reminder'
-        ? `msg-control-${createHash('sha256')
+        ? `msg-control-${new Bun.CryptoHasher('sha256')
             .update(`${input.change.operation.id}:${String(input.index)}`)
             .digest('base64url')}`
         : messageIdFromSeed(
@@ -649,7 +648,7 @@ function envelope(input: {
 }
 
 function messageIdFromSeed(seed: string): string {
-  return `msg-${createHash('sha256').update(seed).digest('base64url')}`;
+  return `msg-${new Bun.CryptoHasher('sha256').update(seed).digest('base64url')}`;
 }
 
 function historyMessage(value: unknown): CanonicalHistoryMessage {

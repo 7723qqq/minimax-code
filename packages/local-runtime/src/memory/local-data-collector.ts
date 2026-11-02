@@ -482,7 +482,7 @@ function isInsideWorktree(workspaceDir: string): boolean {
  *
  * A `statSync` inside a `try` answers the same question as `existsSync` for a
  * file, a directory, a missing entry and an unreadable path, at a fraction of the
- * per-call cost: `existsSync` is the Node compatibility surface and measures
+ * per-call cost: `existsSync` is the `node:` compatibility surface and measures
  * roughly an order of magnitude slower in this runtime. This module is
  * synchronous, so `Bun.file()` does not apply.
  */

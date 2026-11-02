@@ -99,11 +99,11 @@ description: PDF, text, extract, OCR, parse, document, file, read
 **反例**：从外部抄来的 skill 自带 `requirements.txt`、Python 脚本、需要 `pip install` 的依赖。
 
 **为什么是反模式**：
-- Mavis daemon / CLI 是 Node.js / TypeScript ESM
+- Mavis daemon / CLI 是 Bun / TypeScript ESM
 - 引入 Python 依赖增加用户环境复杂度
-- 大多数 skill 需要的脚本（校验、聚合）用 Node.js + 内置 fs 就够
+- 大多数 skill 需要的脚本（校验、聚合）用 Bun + 内置 `node:fs` 就够
 
-**怎么改**：脚本用 Node.js 写，不依赖第三方 npm 包（除非是 Mavis 本来就装了的）。
+**怎么改**：脚本用 Bun 写，不依赖第三方包（除非是 Mavis 本来就装了的）。
 
 ## 8. 抄外部 skill 的脚本/模板/schema 直接放进 Mavis
 

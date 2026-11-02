@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { link, lstat, mkdir, open, realpath, unlink } from 'node:fs/promises';
 import { isAbsolute, join, relative } from 'node:path';
@@ -102,7 +102,7 @@ function artifactIdentity(input: ToolOutputArtifactWriteInput): {
 } {
   // The reports directory already scopes artifacts to a Session. Exclude the
   // projecting turn so the same historical tool result keeps one stable path.
-  const callDigest = createHash('sha256')
+  const callDigest = new Bun.CryptoHasher('sha256')
     .update(input.toolCallId)
     .update('\0')
     .update(input.toolName)
@@ -201,7 +201,7 @@ async function writeRawArtifact(
   handle: Awaited<ReturnType<typeof open>>,
   text: string,
 ): Promise<ArtifactDescription> {
-  const hash = createHash('sha256');
+  const hash = new Bun.CryptoHasher('sha256');
   let bytes = 0;
   for (const chunk of boundedTextChunks(text)) {
     await handle.writeFile(chunk, 'utf8');
@@ -216,7 +216,7 @@ async function writeReadableArtifact(
   text: string,
   identity: { readonly originalBytes: number; readonly contentSha256: string },
 ): Promise<ArtifactDescription> {
-  const hash = createHash('sha256');
+  const hash = new Bun.CryptoHasher('sha256');
   let bytes = 0;
   let pending = '';
   let pendingBytes = 0;
@@ -248,7 +248,7 @@ function describeReadableArtifact(
   text: string,
   identity: { readonly originalBytes: number; readonly contentSha256: string },
 ): ArtifactDescription {
-  const hash = createHash('sha256');
+  const hash = new Bun.CryptoHasher('sha256');
   let bytes = 0;
   for (const line of readableArtifactLines(text, identity)) {
     hash.update(line);
@@ -291,7 +291,7 @@ function encodeReadableChunk(index: number, byteOffset: number, text: string): s
 }
 
 function sha256Text(text: string): string {
-  const hash = createHash('sha256');
+  const hash = new Bun.CryptoHasher('sha256');
   for (const chunk of boundedTextChunks(text)) hash.update(chunk);
   return hash.digest('hex');
 }
@@ -362,7 +362,7 @@ async function verifyArtifactInfo(
 
 function sha256File(path: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const hash = createHash('sha256');
+    const hash = new Bun.CryptoHasher('sha256');
     const stream = createReadStream(path);
     stream.on('data', (chunk) => hash.update(chunk));
     stream.on('error', reject);

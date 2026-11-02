@@ -19,6 +19,7 @@ import type { RuntimeConversation } from "@mavis/conversation-contract";
 import type { CronStorePort } from "@mavis/cron";
 import type { PermissionRuleMatcher } from "@mavis/permission";
 import type { GlobalEventPayloadMap } from "@mavis/shared/global-events";
+import { tryJsonStringify } from "@mavis/shared/json-stringify";
 import type { AgentReferenceResolver } from "../agent/port.js";
 import type { LocalAgentRuntimePort } from "../agent/runtime-port.js";
 import type { LocalBrowserBroker } from "../browser/api.js";
@@ -750,13 +751,9 @@ export function isVisibleTreeSession(session: LocalSessionRecord): boolean {
   return !purpose.startsWith("peek_") && !purpose.startsWith("peek:");
 }
 
-export function safeJsonStringify(value: unknown): string | undefined {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return undefined;
-  }
-}
+// Historic export name kept for existing importers; the implementation is
+// the shared `string | undefined` flavour in @mavis/shared/json-stringify.
+export const safeJsonStringify = tryJsonStringify;
 
 // ─── Config sanitization (mask secrets in API responses) ───────────────
 // Generic over the runtime config shape so the helpers compile here

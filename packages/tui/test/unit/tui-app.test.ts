@@ -15390,7 +15390,7 @@ describe("interactive CLI model startup", () => {
         title: "test",
         argv: ["node", "cli.js", ...args],
         env: {},
-        versions: { node: "24.2.0" },
+        versions: { node: "24.2.0", bun: "1.4.4" },
         stdout: {
           destroyed: false,
           writableEnded: false,

@@ -21,7 +21,7 @@ The video pairs actual browser recordings with clearly labeled prompt excerpts, 
 - Only synthetic project content appears. Private run logs, account state, provider aliases, local paths and session identifiers are excluded. Captions and layout are editorial; the cursor highlight follows actual pointer events. Browser footage is cropped for readability and its interaction segment plays continuously at 1×. No tool results were invented.
 - Video assembly uses HyperFrames with locally staged browser footage. The video is silent so it works in muted README and social contexts. The revised cut uses a warm page and a cobalt device, with larger interaction shots and visible action labels.
 
-To edit the starter, install and configure MCode with a MiniMax account with available credits or your own compatible model API. Calls may incur charges. Running the finished example requires only Node.js and a browser.
+To edit the starter, install and configure MCode with a MiniMax account with available credits or your own compatible model API. Calls may incur charges. Running the finished example requires only Bun and a browser.
 
 ---
 
@@ -33,11 +33,11 @@ To edit the starter, install and configure MCode with a MiniMax account with ava
 
 ## What was recorded
 
-The interactive TUI built from this repository ran in a temporary directory containing only `clamp.mjs` and `clamp.test.mjs`, using an existing MiniMax Token Plan login and `MiniMax-M3`. The model actually read the files, ran `node --test`, edited the function, and reran the tests. Initially two failed and one passed; after the fix, all three passed. The test file was unchanged.
+The interactive TUI built from this repository ran in a temporary directory containing only `clamp.mjs` and `clamp.test.mjs`, using an existing MiniMax Token Plan login and `MiniMax-M3`. The model actually read the files, ran `bun test`, edited the function, and reran the tests. Initially two failed and one passed; after the fix, all three passed. The test file was unchanged.
 
 The recorded task:
 
-> Read clamp.mjs and clamp.test.mjs. Run node --test to reproduce the failure, fix clamp without changing the tests, then run the tests again. Reply briefly in English.
+> Read clamp.mjs and clamp.test.mjs. Run bun test to reproduce the failure, fix clamp without changing the tests, then run the tests again. Reply briefly in English.
 
 Full access was used only for this isolated synthetic project. Use `/permission` to choose an appropriate mode for your own work.
 

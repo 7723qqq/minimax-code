@@ -4,7 +4,7 @@ import type { UpdateCopyKey } from './copy.en.js';
  * Simplified Chinese copy for the update panel.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  */
 export const ZH_HANS_UPDATE_COPY = {
   'update.error.installFailed': '无法安装本次更新。',

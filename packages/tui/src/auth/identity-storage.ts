@@ -1,7 +1,6 @@
-import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { retryWindowsFileSystemOperation } from '@mavis/shared';
+import { atomicWriteFileSync } from '@mavis/shared';
 
 import {
   normalizeLocalRuntimeAuthContext,
@@ -141,15 +140,9 @@ function writeCliAccountIdentity(
   const filePath = resolveCliAccountIdentityPath(dataDir, scope);
   const directory = path.dirname(filePath);
   fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
-  const temporaryPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
-  fs.writeFileSync(temporaryPath, `${JSON.stringify(record, null, 2)}\n`, {
-    encoding: 'utf8',
-    mode: 0o600,
-  });
-  retryWindowsFileSystemOperation(() => fs.renameSync(temporaryPath, filePath));
-  retryWindowsFileSystemOperation(() => fs.chmodSync(filePath, 0o600));
+  atomicWriteFileSync(filePath, `${JSON.stringify(record, null, 2)}\n`, { retryWindows: true });
 }
 
 function fingerprintAccessToken(accessToken: string): string {
-  return `sha256:${createHash('sha256').update(accessToken.trim()).digest('hex')}`;
+  return `sha256:${new Bun.CryptoHasher('sha256').update(accessToken.trim()).digest('hex')}`;
 }

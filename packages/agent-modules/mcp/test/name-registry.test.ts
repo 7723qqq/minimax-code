@@ -1,8 +1,8 @@
-import { spawn } from 'node:child_process';
-import { once } from 'node:events';
+import { spawn } from "../../../../scripts/lib/exec.mjs";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { lockSync } from 'proper-lockfile';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { McpNameRegistry, configuredMcpNameKey, pluginMcpNameKey } from '../src/index.js';
@@ -117,29 +117,50 @@ describe('McpNameRegistry', () => {
     // Populate this instance before the other process adds an assignment.
     registry.assignServers([]);
     const moduleUrl = new URL('../src/runtime/name-registry.ts', import.meta.url).href;
-    const child = spawn(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', `
+    // The child is a plain `bun -e` process: it needs the standalone tsconfig
+    // override to resolve workspace packages (name-registry imports @mavis/shared).
+    const tsconfigOverride = fileURLToPath(
+      new URL('../../../../tsconfig.standalone.json', import.meta.url),
+    );
+    // Bun.spawn replaces the child_process spawn and owns the IPC channel
+    // through the `ipc` callback; the child is a `bun -e` script that loads the
+    // TypeScript registry source directly, so the tsx loader is gone with the
+    // tsx dependency.
+    let notifyMessage;
+    const messageReceived = new Promise((resolve) => {
+      notifyMessage = resolve;
+    });
+    const child = Bun.spawn({ cmd: [process.execPath, '--input-type=module', '--tsconfig-override', tsconfigOverride, '-e', `
       import { lockSync } from 'proper-lockfile';
       import { McpNameRegistry } from ${JSON.stringify(moduleUrl)};
       new McpNameRegistry(${JSON.stringify(path)}).assignServers(${JSON.stringify([a])});
       const release = lockSync(${JSON.stringify(path)}, { realpath: false });
       process.send('locked');
       process.once('message', () => { release(); process.disconnect(); });
-    `], { stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
-    const exited = once(child, 'exit');
+    `],
+      ipc: (message) => notifyMessage(message),
+      stdin: 'ignore',
+      stdout: 'ignore',
+      stderr: 'pipe',
+    });
+    const exited = child.exited;
     let stderr = '';
-    child.stderr?.on('data', chunk => { stderr += String(chunk); });
+    const drain = (async () => {
+      for await (const chunk of child.stderr) stderr += String(chunk);
+    })();
     try {
       const ready = await Promise.race([
-        once(child, 'message'),
+        messageReceived,
         exited.then(() => { throw new Error(`Registry writer exited before acquiring lock: ${stderr}`); }),
       ]);
-      expect(ready[0]).toBe('locked');
+      expect(ready).toBe('locked');
       expect(() => registry.assignServers([b])).toThrow(expect.objectContaining({ code: 'ELOCKED' }));
       expect(JSON.parse(readFileSync(path, 'utf8')).servers).toHaveLength(1);
     } finally {
-      if (child.connected) child.send('release');
+      if (child.exitCode === null && child.signalCode === null) child.send('release');
       else child.kill();
-      expect((await exited)[0]).toBe(0);
+      await drain;
+      expect(await exited).toBe(0);
     }
     expect(registry.assignServers([b]).names.get(b.key)).toBe('docs_2');
     expect(new McpNameRegistry(path).assignServers([a, b]).names.size).toBe(2);

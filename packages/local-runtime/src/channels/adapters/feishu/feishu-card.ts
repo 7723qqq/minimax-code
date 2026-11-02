@@ -1,4 +1,4 @@
-import { createDecipheriv, createHash } from 'node:crypto';
+import { createDecipheriv } from 'node:crypto';
 
 import type { AskQuestionnaireRequest } from '@mavis/shared/questionnaire';
 
@@ -338,7 +338,7 @@ export function decryptFeishuEvent(
 ): Record<string, unknown> | undefined {
   if (!encryptedBase64 || !encryptKey) return undefined;
   try {
-    const key = createHash('sha256').update(encryptKey, 'utf8').digest();
+    const key = new Bun.CryptoHasher('sha256').update(encryptKey).digest();
     const cipherBytes = Buffer.from(encryptedBase64, 'base64');
     if (cipherBytes.length <= 16) return undefined;
     const iv = cipherBytes.subarray(0, 16);

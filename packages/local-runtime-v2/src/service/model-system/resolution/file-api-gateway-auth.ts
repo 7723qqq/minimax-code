@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 
 import {
   managedBackendRoutingHeaders,
@@ -40,5 +39,5 @@ function currentBuildEnv(): MavisBuildEnv | undefined {
 }
 
 function sha256(value: string): string {
-  return createHash('sha256').update(value).digest('hex');
+  return new Bun.CryptoHasher('sha256').update(value).digest('hex');
 }

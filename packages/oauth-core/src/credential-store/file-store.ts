@@ -1,7 +1,8 @@
 import { readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { atomicWritePrivateFile, ensurePrivateDirectory } from '../fs/atomic-write.js';
+import { ensurePrivateDirectory } from '@mavis/shared';
+import { atomicWritePrivateFile } from '../fs/atomic-write.js';
 import {
   type CredentialKey,
   CredentialRecordCorruptError,

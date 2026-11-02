@@ -5,6 +5,8 @@
  */
 import path from 'node:path';
 
+import { tryJsonStringify } from '@mavis/shared/json-stringify';
+
 import type {
   LocalPermissionAction,
   LocalPermissionMatcher,
@@ -106,15 +108,7 @@ function permissionInputTarget(
     }
   }
   if (toolName === 'bash' && typeof input.cmd === 'string') return input.cmd;
-  return safeJsonStringify(input);
-}
-
-function safeJsonStringify(value: unknown): string | undefined {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return undefined;
-  }
+  return tryJsonStringify(input);
 }
 
 function isPathLikeWildcard(pattern: string): boolean {

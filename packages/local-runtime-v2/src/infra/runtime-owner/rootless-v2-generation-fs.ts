@@ -1,5 +1,4 @@
-import { execFile } from 'node:child_process';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import type { Stats } from 'node:fs';
 import {
@@ -14,9 +13,6 @@ import {
   statfs,
 } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
-import { promisify } from 'node:util';
-
-const execFileAsync = promisify(execFile);
 
 export const SOURCE_RELEASE = 'previewtrain-root-v1';
 export const TARGET_RELEASE = 'desktop-rootless-v2';
@@ -216,13 +212,13 @@ function optionalBoolean(value: unknown, message: string): boolean | undefined {
 export async function fingerprintGeneration(path: string, absent: boolean): Promise<string> {
   if (absent) {
     if (await pathExists(path)) throw new Error('Expected generation to be absent');
-    return createHash('sha256').update('rootless-v2:source-absent\0').digest('hex');
+    return new Bun.CryptoHasher('sha256').update('rootless-v2:source-absent\0').digest('hex');
   }
   const source = await lstat(path);
   if (!source.isDirectory() || source.isSymbolicLink()) {
     throw new Error('Generation root must be a physical directory');
   }
-  const hash = createHash('sha256');
+  const hash = new Bun.CryptoHasher('sha256');
   await hashTree(path, '', hash);
   return hash.digest('hex');
 }
@@ -230,7 +226,7 @@ export async function fingerprintGeneration(path: string, absent: boolean): Prom
 async function hashTree(
   root: string,
   relativePath: string,
-  hash: ReturnType<typeof createHash>,
+  hash: Bun.CryptoHasher,
 ): Promise<void> {
   const path = relativePath ? join(root, relativePath) : root;
   const info = await lstat(path);
@@ -297,8 +293,21 @@ export async function tryCloneTree(
   const argv = cloneArgsForPlatform(source, destination);
   if (!argv) return { cloned: false, reason: `unsupported platform ${process.platform}` };
   const [command, ...args] = argv;
+  // `Bun.spawn` replaces the promisified `execFile` wrapper. The clone must
+  // succeed as a whole, so a non-zero exit becomes the same failure reason
+  // `execFile` produced: an Error carrying the command's stderr.
   try {
-    await execFileAsync(command, args);
+    const child = Bun.spawn({
+      cmd: [command, ...args],
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const [stderr, code] = await Promise.all([
+      new Response(child.stderr).text(),
+      child.exited,
+    ]);
+    if (code !== 0) throw new Error(stderr.trim() || `${command} exited with code ${code}`);
     return { cloned: true };
   } catch (error) {
     await removeFailedCloneDestination(destination);

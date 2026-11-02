@@ -17,7 +17,7 @@
 <p align="center"><strong>English</strong> · <a href="README_ZH.md">简体中文</a></p>
 <p align="center">
   <img src="docs/assets/source-preview.svg" alt="Source preview">
-  <img src="docs/assets/node.svg" alt="Compatibility: Node.js 22.19+, 24.2+, 25, and 26">
+  <img src="docs/assets/bun.svg" alt="Runtime: Bun 1.4.4+">
   <a href="LICENSE-STATUS.md"><img src="docs/assets/license.svg" alt="First-party default license: MIT"></a>
 </p>
 
@@ -33,7 +33,7 @@ Give a blinking pocket pet a focus timer. Then ask: “Make pause a long press, 
 
 ### 1. Install MCode
 
-Use the official installer for your platform. It installs the latest CLI, prepares a compatible Node.js runtime when needed, and does not require `sudo` or administrator privileges. Alpine / musl Linux is not supported by the one-command installer.
+Use the official installer for your platform. It installs the latest CLI and does not require `sudo` or administrator privileges. Alpine / musl Linux is not supported by the one-command installer.
 
 **macOS / Linux / WSL**
 
@@ -49,13 +49,13 @@ irm https://filecdn.minimax.chat/public/install.ps1 | iex
 
 The scripts install into `~/.minimax-code` on macOS / Linux / WSL and `%USERPROFILE%\.minimax-code` on Windows. The launchers are `bin/mcode` and `bin/mcode-tools` on POSIX, or `mcode.cmd` / `mcode.ps1` and `mcode-tools.cmd` / `mcode-tools.ps1` on Windows. Set `MCODE_INSTALL_DIR` before installation to choose a different location. See [Uninstall](#uninstall) to remove the CLI.
 
-**npm** — you need **Bun 1.4.4+** (the CLI runtime) and, where npm performs the installation, **Node.js 22.19+ (22.x), 24.2+ (24.x), 25, or 26**:
+**Registry install** — you need **Bun 1.4.4+** (the CLI runtime):
 
 ```bash
-npm install -g @minimax-ai/code@latest --registry=https://registry.npmjs.org/ --ignore-scripts=false --include=optional --allow-scripts=@minimax-ai/code
+bun install --global @minimax-ai/code@latest --registry=https://registry.npmjs.org/ --trust @minimax-ai/code
 ```
 
-The npm command uses the public registry and permits the package lifecycle script; SQLite runs through Bun's builtin `bun:sqlite`. See the [installation guide](docs/installation.md) for version pinning and Node.js compatibility.
+The command uses the public registry and permits the package lifecycle script; SQLite runs through Bun's builtin `bun:sqlite`. See the [installation guide](docs/installation.md) for version pinning.
 
 Reopen your terminal and check the installation:
 
@@ -82,7 +82,7 @@ mcode login --region global
 
 Complete sign-in in your browser, then open `mcode` and use `/status` to check your account and `/provider` to choose a model. Run `mcode logout` to sign out.
 
-Token Plan requires an account with available credits. Builds from this repository and the published npm CLI `@minimax-ai/code@0.6.9` default to `~/.minimax` for user data (or `~/.minimax-<profile>` when a profile is selected). `MINIMAX_DATA_DIR` or `MAVIS_DATA_DIR` can override the data directory. The installer's `~/.minimax-code` installation directory is separate from this choice. See [Accounts and data](docs/installation.md#accounts-and-data) before locating or removing configuration and sessions.
+Token Plan requires an account with available credits. Builds from this repository and the published `@minimax-ai/code@0.6.9` default to `~/.minimax` for user data (or `~/.minimax-<profile>` when a profile is selected). `MINIMAX_DATA_DIR` or `MAVIS_DATA_DIR` can override the data directory. The installer's `~/.minimax-code` installation directory is separate from this choice. See [Accounts and data](docs/installation.md#accounts-and-data) before locating or removing configuration and sessions.
 
 <details>
 <summary>Use your own API key (BYOK)</summary>
@@ -111,14 +111,14 @@ Clone this repository and copy the starter into a separate directory:
 ```bash
 git clone https://github.com/MiniMax-AI/minimax-code.git
 cd minimax-code
-node examples/pocket-pet/setup.mjs ../my-pocket-pet
+bun examples/pocket-pet/setup.mjs ../my-pocket-pet
 cd ../my-pocket-pet
-node serve.mjs
+bun serve.mjs
 ```
 
 Open `http://127.0.0.1:4173`. In a second terminal, open `mcode` in `my-pocket-pet` and paste [the first prompt](examples/pocket-pet/README.md#first-request), then [the follow-up](examples/pocket-pet/README.md#change-the-requirement). Refresh the browser after each change.
 
-Prefer to try the result first? From the repository root, run `node examples/pocket-pet/serve.mjs finished` and open the same URL. Add `?demo=1` for the visibly labeled 10-second mode.
+Prefer to try the result first? From the repository root, run `bun examples/pocket-pet/serve.mjs finished` and open the same URL. Add `?demo=1` for the visibly labeled 10-second mode.
 
 [Full walkthrough and requirements](examples/pocket-pet) · [Small code-repair example](examples/clamp) · [Models, search, and tools](docs/examples.md)
 
@@ -196,7 +196,7 @@ Close running MCode sessions, including editor integrations, before uninstalling
 
 ### Installed with the script
 
-The commands below remove the default installation directory, including both launchers, downloaded releases, and any installer-managed Node.js runtime. If you used `MCODE_INSTALL_DIR`, substitute the actual installation directory. Inspect it first: earlier source builds used `~/.minimax-code` for user data, and a custom data directory can overlap the installation. Back up any configuration or sessions you want to keep before deleting it.
+The commands below remove the default installation directory, including both launchers, downloaded releases, and any installer-managed runtime files. If you used `MCODE_INSTALL_DIR`, substitute the actual installation directory. Inspect it first: earlier source builds used `~/.minimax-code` for user data, and a custom data directory can overlap the installation. Back up any configuration or sessions you want to keep before deleting it.
 
 **macOS / Linux / WSL**
 
@@ -214,12 +214,12 @@ Remove-Item -LiteralPath "$env:USERPROFILE\.minimax-code" -Recurse -Force
 
 Open **Edit environment variables for your account**, edit the user **Path**, and remove only the installation directory entry (by default `%USERPROFILE%\.minimax-code`, which may appear as an expanded absolute path). The Windows installer updates the user Path, not the PowerShell profile; `MCODE_NO_MODIFY_PATH` skips that persistent update.
 
-### Installed with npm or from source
+### Installed with the registry package or from source
 
-For a global npm installation, use the same npm installation/prefix you used to install MCode:
+For a global registry installation, use the same global prefix you used to install MCode:
 
 ```bash
-npm uninstall -g @minimax-ai/code
+bun remove --global @minimax-ai/code
 ```
 
 For a source build, save any work and remove only the checkout you created; see [Update or remove](docs/installation.md#update-or-remove).
@@ -257,17 +257,17 @@ Account features, updates, feedback, and diagnostics are also included. Managed 
 
 ## Build from source
 
-To develop MCode or run this source checkout, you need Git and **Bun 1.4.4+**: dependency installation, type checking, linting, builds, tests and the CLI runtime all run on it. Node.js is only needed where npm performs an installation. On Windows, keep the checkout on a local NTFS volume and outside cloud-synced folders; the preflight command below checks the volume before dependencies are installed.
+To develop MCode or run this source checkout, you need Git and **Bun 1.4.4+**: dependency installation, type checking, linting, builds, tests and the CLI runtime all run on it. On Windows, keep the checkout on a local NTFS volume and outside cloud-synced folders; the preflight command below checks the volume before dependencies are installed.
 ```bash
 git clone https://github.com/MiniMax-AI/minimax-code.git
 cd minimax-code
-node scripts/check-windows-source-location.mjs
+bun scripts/check-windows-source-location.mjs
 bun install --frozen-lockfile
 bun run build
 bun run mcode
 ```
 
-The first build requires an internet connection. Dependencies and the integrity-checked `mcode-tools` bundle come from public npm. See the [source installation guide](docs/installation.md) for Bun setup, system dependencies, and updates.
+The first build requires an internet connection. Dependencies and the integrity-checked `mcode-tools` bundle come from the public registry. See the [source installation guide](docs/installation.md) for Bun setup, system dependencies, and updates.
 
 From the source directory, use `bun run mcode` in place of `mcode` in the examples above. To work on your own project, open its directory and launch the built CLI:
 
@@ -275,7 +275,7 @@ From the source directory, use `bun run mcode` in place of `mcode` in the exampl
 bun /absolute/path/to/minimax-code/dist/cli.js
 ```
 
-This repository targets the **0.6.3 source preview**. Installing the published package and building this checkout are separate paths. Matching versions do not prove identical build provenance; see the [version and evidence baseline](docs/open-source-status.md#version-and-evidence-baseline).
+This repository targets the **0.6.5 source preview**. Installing the published package and building this checkout are separate paths. Matching versions do not prove identical build provenance; see the [version and evidence baseline](docs/open-source-status.md#version-and-evidence-baseline).
 
 ## Documentation and contributing
 

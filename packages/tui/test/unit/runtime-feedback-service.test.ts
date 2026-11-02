@@ -32,6 +32,8 @@ describe('TuiFeedbackService', () => {
       platform: () => ({
         platform: 'test-os',
         arch: 'test-arch',
+        runtime: 'bun',
+        runtimeVersion: '1.4.4',
         nodeVersion: 'test-node',
         osVersion: '1.0',
       }),

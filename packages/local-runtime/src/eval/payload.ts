@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
 
 import type { EvalStep } from './types.js';
@@ -100,7 +98,7 @@ export function buildLocalTrajectoryId(sessionId: string): string {
     return sessionId;
   }
 
-  const digest = createHash('sha256').update(sessionId).digest('hex').slice(0, 16);
+  const digest = new Bun.CryptoHasher('sha256').update(sessionId).digest('hex').slice(0, 16);
   const maxStemBytes =
     MAX_TRAJECTORY_ID_BYTES -
     Buffer.byteLength(LOCAL_TRAJECTORY_PREFIX, 'utf8') -

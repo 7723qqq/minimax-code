@@ -72,7 +72,7 @@ describe('installer-owned npm runtime binding', () => {
         shim().replace('#!/bin/sh', `#!/bin/sh\ntouch "${marker}"`),
       );
       const cli = write(`pnpm home/${target}`, 'console.log(JSON.stringify("1.2.4"));');
-      // A different installed pnpm Node version must not influence the selection.
+      // A different installed pnpm toolchain version must not influence the selection.
       write(
         'pnpm home/nodejs/24.2.0/lib/node_modules/npm/bin/npm-cli.js',
         'throw new Error("wrong npm");',

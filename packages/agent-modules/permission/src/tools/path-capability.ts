@@ -469,7 +469,7 @@ export function generateSuggestionRules(
   workingDirectory?: string,
   homeDir = os.homedir(),
 ): string[] {
-  // Shell-aware resolution is required here: Node's path.resolve treats `~/x`
+  // Shell-aware resolution is required here: the `node:path` resolve treats `~/x`
   // as a relative path and would persist `<workingDirectory>/~/x/**`, which is
   // not the path the shell checked or executed. Keep this adapter conservative
   // and expand only the unquoted-looking home forms supplied by this API.

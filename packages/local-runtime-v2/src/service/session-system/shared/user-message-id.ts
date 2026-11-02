@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 
 export type UserMessageId = `msg-user-v1-${string}`;
 
@@ -11,7 +10,7 @@ export function createUserMessageId(input: {
 }): UserMessageId {
   if (!input.sessionId) throw new Error('sessionId is required');
   if (!input.messageKey) throw new Error('messageKey is required');
-  const digest = createHash('sha256')
+  const digest = new Bun.CryptoHasher('sha256')
     .update(input.sessionId)
     .update('\0')
     .update(input.messageKey)

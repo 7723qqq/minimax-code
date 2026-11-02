@@ -73,9 +73,9 @@ export class DesktopMatrixClient implements MatrixExecutor {
     this.useManagedAuth = endpoint.managed && !explicitAccessToken;
     this.authContext = options.authContext;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-    // Keep fetch and dispatcher on the same Undici implementation. Node 26's
-    // built-in fetch uses Undici 8, whose dispatcher handler contract is not
-    // compatible with the Undici 6 Agent used for long Matrix requests.
+    // Keep fetch and dispatcher on the same Undici implementation. Newer
+    // built-in fetch stacks use Undici 8, whose dispatcher handler contract is
+    // not compatible with the Undici 6 Agent used for long Matrix requests.
     this.fetchImpl = options.fetchImpl ?? (undiciFetch as unknown as typeof fetch);
     this.dispatcherFactory =
       options.dispatcherFactory ??

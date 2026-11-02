@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { constants as fsConstants } from 'node:fs';
 import type { Dirent } from 'node:fs';
 import { open, opendir } from 'node:fs/promises';
@@ -275,7 +274,7 @@ export async function computeMiniAppPackageDigests(
   const nodeHash = createContentHash(nodeFiles.length);
   for (const file of files) {
     const size = entrySize(file);
-    const hashes: ReturnType<typeof createHash>[] = [];
+    const hashes: Bun.CryptoHasher[] = [];
     if (ordinaryHash) {
       updateFileHeader(ordinaryHash, file.path, size);
       hashes.push(ordinaryHash);
@@ -456,7 +455,7 @@ function assertRequiredContent(files: readonly PluginContractEntry[]): void {
 }
 
 function createContentHash(fileCount: number) {
-  const hash = createHash('sha256');
+  const hash = new Bun.CryptoHasher('sha256');
   const header = Buffer.alloc(8);
   header.writeUInt32BE(1, 0);
   header.writeUInt32BE(fileCount, 4);
@@ -466,7 +465,7 @@ function createContentHash(fileCount: number) {
 }
 
 function updateFileHeader(
-  hash: ReturnType<typeof createHash>,
+  hash: Bun.CryptoHasher,
   relativePath: string,
   size: number,
 ): void {
@@ -567,7 +566,7 @@ async function hashStableRegularFile(
   relativePath: string,
   expectedSize: number,
   options: {
-    readonly hashes: readonly ReturnType<typeof createHash>[];
+    readonly hashes: readonly Bun.CryptoHasher[];
     readonly rejectHardlinks?: boolean;
   },
 ): Promise<void> {
@@ -603,7 +602,7 @@ async function hashFileBytes(
   handle: Awaited<ReturnType<typeof open>>,
   relativePath: string,
   expectedSize: number,
-  hashes: readonly ReturnType<typeof createHash>[],
+  hashes: readonly Bun.CryptoHasher[],
 ): Promise<void> {
   let offset = 0;
   const chunk = Buffer.allocUnsafe(64 * 1024);

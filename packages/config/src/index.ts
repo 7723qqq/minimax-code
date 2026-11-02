@@ -154,6 +154,20 @@ export {
 } from './tool-result-compaction-config.js';
 export type { ToolResultCompactionSettings } from './tool-result-compaction-config.js';
 export {
+  REQUEST_MEDIA_DEFAULTS,
+  REQUEST_MEDIA_MAX_BASE64_BYTES,
+  parseRequestMediaConfig,
+} from './request-media-config.js';
+export type {
+  RequestMediaConfig,
+  RequestMediaImageConfig,
+} from './request-media-config.js';
+export {
+  CONVERSATION_STOP_CONFIG_DEFAULTS,
+  parseConversationStopConfig,
+} from './conversation-stop-config.js';
+export type { ConversationStopConfig } from './conversation-stop-config.js';
+export {
   parseSandboxConfig,
   getSandboxConfigDefaults,
   SANDBOX_CONFIG_DEFAULTS,

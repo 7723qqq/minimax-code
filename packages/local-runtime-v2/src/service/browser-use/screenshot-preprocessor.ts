@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 
 import type { LocalBrowserScreenshotPreprocessor } from '@mavis/agent-tools/desktop';
 
@@ -113,7 +112,7 @@ function preprocessPostActionScreenshot(
   sessionId: string,
   fingerprints: Map<string, string>,
 ): Readonly<Record<string, unknown>> {
-  const fingerprint = createHash('sha256').update(prepared.decoded).digest('hex');
+  const fingerprint = new Bun.CryptoHasher('sha256').update(prepared.decoded).digest('hex');
   if (fingerprints.get(sessionId) === fingerprint) {
     const metadata: Record<string, unknown> = { ...prepared.result };
     delete metadata.data;

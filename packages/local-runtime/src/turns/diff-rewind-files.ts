@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -183,7 +182,7 @@ async function snapshotFile(
     return {
       file: plan.file,
       exists: true,
-      hash: createHash('sha256').update(content).digest('hex'),
+      hash: new Bun.CryptoHasher('sha256').update(content).digest('hex'),
       sizeBytes: content.byteLength,
       content: content.toString('utf8'),
     };
@@ -207,7 +206,7 @@ function snapshotDigest(snapshot: LocalTurnDiffSnapshotEntry): string | undefine
     snapshot.hash ??
     (snapshot.content === undefined
       ? undefined
-      : createHash('sha256').update(snapshot.content).digest('hex'))
+      : new Bun.CryptoHasher('sha256').update(snapshot.content).digest('hex'))
   );
 }
 

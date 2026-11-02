@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
@@ -173,7 +172,7 @@ function resolveMatrixWorkspaceRoot(context?: LocalMcpRuntimeContext): string {
 }
 
 function shortStableHash(value: string): string {
-  return createHash('sha256').update(value).digest('hex').slice(0, 12);
+  return new Bun.CryptoHasher('sha256').update(value).digest('hex').slice(0, 12);
 }
 
 function buildBuiltinMatrixRuntimeEnv(): Record<string, string> {

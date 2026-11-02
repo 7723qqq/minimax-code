@@ -1,7 +1,7 @@
 import {
-  MINIMAX_CODE_SUPPORTED_NODE_VERSIONS,
+  MINIMAX_CODE_MIN_BUN_VERSION,
   MINIMAX_CODE_VERSION,
-  supportsTuiNodeVersion,
+  supportsBunVersion,
 } from '../build-info.js';
 import type { RawTuiExecOptions } from '../headless/invocation.js';
 import type { MavisRegion } from '@mavis/config';
@@ -29,7 +29,7 @@ export interface TuiCliProcess {
   title: string;
   readonly argv: readonly string[];
   readonly env: NodeJS.ProcessEnv;
-  readonly versions: { readonly node: string };
+  readonly versions: { readonly node: string; readonly bun?: string };
   readonly stdout: TuiOutputStream;
   readonly stderr: TuiOutputStream;
   exitCode?: number | string;
@@ -44,7 +44,6 @@ export interface RunTuiCliDependencies {
   readonly processRef?: TuiCliProcess;
   readonly platform?: NodeJS.Platform;
   readonly createProgram?: typeof createTuiProgram;
-  readonly supportsNodeVersion?: (version: string) => boolean;
   readonly launchTui?: (input: LaunchTuiInput) => Promise<void>;
   readonly runExec?: (
     prompt: string | undefined,
@@ -87,11 +86,12 @@ export async function runTuiCli(dependencies: RunTuiCliDependencies = {}): Promi
   const processRef = dependencies.processRef ?? process;
   processRef.title = MINIMAX_CODE_PROCESS_TITLE;
   const resumeDraftAfterLogin = consumeLoginRestartHandoff(processRef.env);
-  const supportsNodeVersion =
-    dependencies.supportsNodeVersion ?? ((version: string) => supportsTuiNodeVersion(version));
-  if (!supportsNodeVersion(processRef.versions.node)) {
+  const bunVersion = processRef.versions.bun;
+  if (bunVersion === undefined || !supportsBunVersion(bunVersion)) {
     processRef.stderr.write(
-      `Minimax Code supports Node.js ${MINIMAX_CODE_SUPPORTED_NODE_VERSIONS}; current version is ${processRef.versions.node}.\n`,
+      bunVersion === undefined || bunVersion.length === 0
+        ? `Minimax Code requires Bun ${MINIMAX_CODE_MIN_BUN_VERSION}+; this process is running Node.js ${processRef.versions.node}.\n`
+        : `Minimax Code requires Bun ${MINIMAX_CODE_MIN_BUN_VERSION}+; current version is ${bunVersion}.\n`,
     );
     processRef.exitCode = 1;
     return;
@@ -227,7 +227,7 @@ async function formatTuiCliError(error: unknown): Promise<string> {
   if (resolveMcodeNpmPrefixInstall()) {
     return [
       'MCode could not load its native SQLite dependency.',
-      'The Node runtime recorded by this installation no longer loads it (for example after a Homebrew Node upgrade).',
+      'The runtime recorded by this installation no longer loads it (for example after a system upgrade).',
       'Reinstall with the original installer to repair this installation.',
       '',
       `Original error: ${diagnostic}`,

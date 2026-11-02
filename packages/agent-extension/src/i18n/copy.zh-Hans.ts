@@ -4,7 +4,7 @@ import type { SourceReferenceTranslations } from './copy.en.js';
  * Simplified Chinese source-reference labels.
  *
  * `satisfies SourceReferenceTranslations` is the completeness check: a key
- * present in the English catalog but absent here fails `pnpm typecheck`.
+ * present in the English catalog but absent here fails `bun run typecheck`.
  *
  * Chinese has no plural form, so the list header and the per-item label are the
  * same string; the English catalog keeps them apart because English does.

@@ -26,9 +26,19 @@ export function resolveTuiBrowserProviderOptions(
 ): HeadlessChromeBrowserProviderOptions | undefined {
   if (config.beta?.browserUseTooling !== true) return undefined;
   const chromePath = env.MCODE_CHROME_PATH?.trim() || config.browser?.chromePath?.trim();
+  const swiftshader = env.MCODE_BROWSER_USE_SWIFTSHADER?.trim().toLowerCase() === 'true';
   return {
     dataDir,
     ...(chromePath ? { chromePath } : {}),
+    ...(swiftshader
+      ? {
+          extraArgs: [
+            '--use-gl=angle',
+            '--use-angle=swiftshader',
+            '--enable-unsafe-swiftshader',
+          ],
+        }
+      : {}),
   };
 }
 

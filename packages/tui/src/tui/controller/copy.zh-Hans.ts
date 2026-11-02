@@ -4,7 +4,7 @@ import type { ControllerCopyKey } from './copy.en.js';
  * Simplified Chinese copy for the shared TUI controller surfaces.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  */
 export const ZH_HANS_CONTROLLER_COPY = {
   'common.retry': '请重试。',

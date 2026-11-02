@@ -1,10 +1,8 @@
-import { createHash } from 'node:crypto';
-
 const UTF8_CHUNK_CODE_UNITS = 8 * 1_024;
 
 /** Native SHA-256 with bounded batching and independent UTF-8 update boundaries. */
 export class IncrementalSha256 {
-  private readonly hash = createHash('sha256');
+  private readonly hash = new Bun.CryptoHasher('sha256');
   private finalized = false;
   private pending = '';
 
@@ -35,7 +33,7 @@ export class IncrementalSha256 {
 
   private flush(): void {
     if (this.pending.length === 0) return;
-    this.hash.update(this.pending, 'utf8');
+    this.hash.update(this.pending);
     this.pending = '';
   }
 }

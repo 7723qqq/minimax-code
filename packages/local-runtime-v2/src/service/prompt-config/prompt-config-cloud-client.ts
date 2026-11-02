@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 
 import { getRuntimeBuildEnv, getRuntimeRegion } from '@mavis/config';
 
@@ -253,7 +252,7 @@ function joinUrl(baseUrl: string, path: string): string {
   return `${baseUrl.replace(/\/+$/u, '')}${path}`;
 }
 function md5(value: string): string {
-  return createHash('md5').update(value).digest('hex');
+  return new Bun.CryptoHasher('md5').update(value).digest('hex');
 }
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

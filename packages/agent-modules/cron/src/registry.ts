@@ -1,4 +1,5 @@
 import type { CronEventBusPort } from './host-ports.js';
+import { errorMessage } from '@mavis/shared/error-message';
 import {
   logger,
   backgroundCtx,
@@ -131,7 +132,7 @@ export class CronRegistry {
         );
       } catch (err) {
         logger.error(
-          { agentName, cronName, schedule: config.schedule, err: (err as Error).message },
+          { agentName, cronName, schedule: config.schedule, err: errorMessage(err) },
           '[cron] Failed to register task — invalid schedule?',
         );
       }
@@ -153,7 +154,7 @@ export class CronRegistry {
       .catch((err: unknown) => {
         logger.warn(
           sweepCtx,
-          `[cron] Startup session retention sweep failed (non-fatal), err=${(err as Error).message}`,
+          `[cron] Startup session retention sweep failed (non-fatal), err=${errorMessage(err)}`,
         );
       });
 
@@ -177,7 +178,7 @@ export class CronRegistry {
       .catch((err: unknown) => {
         logger.warn(
           backgroundCtx(),
-          `[cron] Orphan cron session cleanup failed (non-fatal), err=${(err as Error).message}`,
+          `[cron] Orphan cron session cleanup failed (non-fatal), err=${errorMessage(err)}`,
         );
       });
   }
@@ -364,7 +365,7 @@ export class CronRegistry {
     } catch (err) {
       logger.warn(
         backgroundCtx(),
-        `[cron] Session cleanup on delete failed (non-fatal), agentName=${agentName}, cronName=${cronName}, err=${(err as Error).message}`,
+        `[cron] Session cleanup on delete failed (non-fatal), agentName=${agentName}, cronName=${cronName}, err=${errorMessage(err)}`,
       );
     }
 
@@ -477,7 +478,7 @@ export class CronRegistry {
           registered.push(cronName);
         } catch (err) {
           logger.error(
-            { harnessName, cronName, err: (err as Error).message },
+            { harnessName, cronName, err: errorMessage(err) },
             '[cron] Failed to register harness cron timer',
           );
         }
@@ -543,7 +544,7 @@ export class CronRegistry {
             void this.completeOnceAfterExecution(agentName, cronName, result).catch(
               (err: unknown) => {
                 logger.error(
-                  { agentName, cronName, err: (err as Error).message },
+                  { agentName, cronName, err: errorMessage(err) },
                   '[cron] Failed to complete once task',
                 );
               },
@@ -552,7 +553,7 @@ export class CronRegistry {
         })
         .catch((err: unknown) => {
           logger.error(
-            { agentName, cronName, err: (err as Error).message },
+            { agentName, cronName, err: errorMessage(err) },
             '[cron] Unhandled execution error',
           );
         });
@@ -588,7 +589,7 @@ export class CronRegistry {
       if (drainResult !== 'sent') return;
       return this.completeOnceTask(agentName, cronName).catch((err: unknown) => {
         logger.error(
-          { agentName, cronName, err: (err as Error).message },
+          { agentName, cronName, err: errorMessage(err) },
           '[cron] Failed to complete once task after queued send',
         );
       });

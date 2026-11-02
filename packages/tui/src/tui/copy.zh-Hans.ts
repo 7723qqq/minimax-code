@@ -5,7 +5,7 @@ import type { TuiTranslations } from './copy.en.js';
  * catalog.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  *
  * Chinese is denser than English, so a few compact labels carry the same
  * wording as their full form. The keys stay apart because the English pair

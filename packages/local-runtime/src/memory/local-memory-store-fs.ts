@@ -1,7 +1,8 @@
-import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdir, rename, stat, writeFile } from 'node:fs/promises';
+import { mkdir, rename, stat } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
+
+import { atomicWriteFile } from '@mavis/shared';
 
 import {
   LOCAL_MEMORY_TOPIC_NAME_RE,
@@ -441,9 +442,9 @@ export class FsLocalMemoryStore {
 
   private async writeFileAtomic(filePath: string, content: string): Promise<void> {
     await mkdir(dirname(filePath), { recursive: true });
-    const tmp = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
-    await writeFile(tmp, content, 'utf8');
-    await rename(tmp, filePath);
+    // Memory notes predate private-by-default state files; keep the platform
+    // creation default rather than forcing 0o600 here.
+    await atomicWriteFile(filePath, content, { ensureDirectory: false, mode: null });
   }
 
   private assertWritable(): void {

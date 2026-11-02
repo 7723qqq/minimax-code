@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, join } from 'node:path';
 
@@ -53,7 +52,7 @@ export async function readLocalAgentCustomConfig(input: {
   const evidence: LocalAgentCustomConfigEvidence = {
     present: true,
     applied: false,
-    rawHash: createHash('sha256').update(raw).digest('hex'),
+    rawHash: new Bun.CryptoHasher('sha256').update(raw).digest('hex'),
     rawBytes: raw.byteLength,
     errorCount: 0,
     errors: [],

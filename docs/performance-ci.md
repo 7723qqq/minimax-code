@@ -85,11 +85,11 @@ Reports checkpoint after each run; setup failures before the runner starts
 remain in job logs. CPU and sampled RSS are compared separately; the combined
 CU score is not a gate. Sampling can miss brief memory peaks.
 
-Install and build both checkouts with identical Node/pnpm versions and install
+Install and build both checkouts with identical Bun versions and install
 the pinned benchmark with `bun install --frozen-lockfile`, then run:
 
 ```bash
-node scripts/perf/run.mjs --base /path/to/base --head /path/to/head \
+bun scripts/perf/run.mjs --base /path/to/base --head /path/to/head \
   --benchmark /path/to/pinned-benchmark --out /tmp/new-performance-output
 ```
 

@@ -4,7 +4,7 @@ import type { ComposerCopyKey } from './copy.en.js';
  * Simplified Chinese copy for the composer.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  */
 export const ZH_HANS_COMPOSER_COPY = {
   imagePreviewLoading: '正在加载预览…',

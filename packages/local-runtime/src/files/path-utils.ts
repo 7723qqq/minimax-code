@@ -10,7 +10,7 @@ export function resolvePath(input: string): string {
   let path = input.startsWith('~') ? join(homedir(), input.slice(1)) : input;
   // Convert MSYS-style paths (/c/Users/...) to Windows paths (C:\Users\...) on win32.
   // Git Bash translates Windows paths to this format, and models may include them in
-  // tool results. Node's path.resolve() would otherwise produce C:\c\Users\....
+  // tool results. the `node:path` resolve() would otherwise produce C:\c\Users\....
   if (process.platform === 'win32') {
     const msysMatch = path.match(/^\/([a-zA-Z])(\/.*)?$/);
     if (msysMatch) {

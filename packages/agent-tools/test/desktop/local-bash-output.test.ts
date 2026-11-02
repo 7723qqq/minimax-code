@@ -18,6 +18,24 @@ const SESSION_CTX = {
   turnId: 'turn-test',
 } satisfies LocalRuntimeToolContext;
 
+/**
+ * Build a foreground command that runs a runtime script through whatever shell
+ * the tool uses. Windows runs these through `powershell -Command`, where a
+ * statement may not start with a quoted literal: the call operator `&` plus
+ * single-quoted literals (with `''` escapes) is the portable form, and `exit
+ * $LASTEXITCODE` propagates the child's code because PowerShell's `-Command`
+ * otherwise reports only `$?` (0/1) — a vendored pi shell-path fidelity gap,
+ * recorded in the audit rather than patched in `third_party/`. POSIX gets
+ * ordinary single-quoted argv.
+ */
+function runtimeCommand(script: string): string {
+  const exe = process.execPath;
+  if (process.platform === 'win32') {
+    return `& '${exe.replaceAll("'", "''")}' -e '${script.replaceAll("'", "''")}'; exit $LASTEXITCODE`;
+  }
+  return `'${exe.replaceAll("'", "'\\''")}' -e '${script.replaceAll("'", "'\\''")}'`;
+}
+
 describe('LocalBashTool — foreground output truncation', () => {
   let workspace: string;
 
@@ -31,7 +49,9 @@ describe('LocalBashTool — foreground output truncation', () => {
   it('preserves exact stdout and stderr for Compatible PostToolUse', async () => {
     const tool = new LocalBashTool(workspace, undefined, { mode: 'off' });
     const result = await tool.execute(SESSION_CTX, {
-      command: "printf 'from-stdout'; printf 'from-stderr' >&2",
+      command: runtimeCommand(
+        "process.stdout.write('from-stdout'); process.stderr.write('from-stderr')",
+      ),
     });
 
     expect(readPluginHookCompatibleToolResponse(result)).toEqual({
@@ -53,7 +73,7 @@ describe('LocalBashTool — foreground output truncation', () => {
   it('caps 24-50 KiB foreground output with head and tail and persists the complete output', async () => {
     const tool = new LocalBashTool(workspace, undefined, { mode: 'off' });
     const script = `for(let i=0;i<400;i++) console.log('row-'+i+'-'+'x'.repeat(90))`;
-    const command = `${JSON.stringify(process.execPath)} -e ${JSON.stringify(script)}`;
+    const command = runtimeCommand(script);
     const result = await tool.execute(SESSION_CTX, { command });
 
     expect(Buffer.byteLength(result.text, 'utf8')).toBeLessThanOrEqual(
@@ -129,7 +149,7 @@ describe('LocalBashTool — foreground output truncation', () => {
     const tool = new LocalBashTool(workspace, undefined, { mode: 'off' });
     // Let pending stderr writes drain before exiting with the intended error code.
     const script = `for(let i=0;i<400;i++) console.error('error-row-'+i+'-'+'e'.repeat(90)); process.exitCode = 7`;
-    const command = `${JSON.stringify(process.execPath)} -e ${JSON.stringify(script)}`;
+    const command = runtimeCommand(script);
     const result = await tool.execute(SESSION_CTX, { command });
 
     expect(result.isError).toBe(true);
@@ -159,7 +179,7 @@ describe('LocalBashTool — foreground output truncation', () => {
   it('output beyond 2000 lines preserves head and tail with a complete output file', async () => {
     const tool = new LocalBashTool(workspace, undefined, { mode: 'off' });
     const script = `for(let i=0;i<3000;i++) console.log('spill-row-'+i+'-'+'z'.repeat(50))`;
-    const command = `${JSON.stringify(process.execPath)} -e ${JSON.stringify(script)}`;
+    const command = runtimeCommand(script);
     const result = await tool.execute(SESSION_CTX, { command });
 
     const lower = result.text.toLowerCase();

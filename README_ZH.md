@@ -17,7 +17,7 @@
 <p align="center"><a href="README.md">English</a> · <strong>简体中文</strong></p>
 <p align="center">
   <img src="docs/assets/source-preview.svg" alt="Source preview">
-  <img src="docs/assets/node.svg" alt="Compatibility: Node.js 22.19+, 24.2+, 25, and 26">
+  <img src="docs/assets/bun.svg" alt="Runtime: Bun 1.4.4+">
   <a href="LICENSE-STATUS.md"><img src="docs/assets/license.svg" alt="First-party default license: MIT"></a>
 </p>
 
@@ -33,7 +33,7 @@
 
 ### 1. 安装 MCode
 
-按操作系统选择官方安装器。安装器会安装最新版 CLI，并在需要时准备兼容的 Node.js，无需 `sudo` 或管理员权限；目前不支持 Alpine / musl Linux。
+按操作系统选择官方安装器。安装器会安装最新版 CLI，无需 `sudo` 或管理员权限；目前不支持 Alpine / musl Linux。
 
 **macOS / Linux / WSL**
 
@@ -49,13 +49,13 @@ irm https://filecdn.minimax.chat/public/install.ps1 | iex
 
 脚本在 macOS / Linux / WSL 上默认安装到 `~/.minimax-code`，在 Windows 上默认安装到 `%USERPROFILE%\.minimax-code`。POSIX 启动器为 `bin/mcode` 和 `bin/mcode-tools`；Windows 启动器为 `mcode.cmd` / `mcode.ps1` 和 `mcode-tools.cmd` / `mcode-tools.ps1`。安装前设置 `MCODE_INSTALL_DIR` 可更改安装位置。移除 CLI 的方法见[卸载](#卸载)。
 
-**npm**：适用于已安装 **Node.js 22.19+（22.x）、24.2+（24.x）、25 或 26** 的环境。
+**registry 安装**：需要 **Bun 1.4.4+**（CLI 运行时）。
 
 ```bash
-npm install -g @minimax-ai/code@latest --registry=https://registry.npmjs.org/ --ignore-scripts=false --include=optional --allow-scripts=@minimax-ai/code,better-sqlite3
+bun install --global @minimax-ai/code@latest --registry=https://registry.npmjs.org/ --trust @minimax-ai/code
 ```
 
-该 npm 命令使用公共 registry，包含可选的 SQLite 依赖，并允许执行主包和 SQLite 的安装脚本。固定版本和 Node.js 兼容范围见[安装指南](docs/installation.md)。
+该命令使用公共 registry，并允许执行主包的生命周期脚本；SQLite 通过 Bun 内置的 `bun:sqlite` 运行。固定版本见[安装指南](docs/installation.md)。
 
 重新打开终端后检查安装：
 
@@ -82,7 +82,7 @@ mcode login --region global
 
 在浏览器中完成登录，再启动 `mcode`，通过 `/status` 检查账号、通过 `/provider` 选择模型。退出登录使用 `mcode logout`。
 
-Token Plan 需要账号与可用额度。从本仓库构建的版本与已发布的 npm CLI `@minimax-ai/code@0.6.9` 均默认将用户数据保存在 `~/.minimax`（选择 profile 时为 `~/.minimax-<profile>`）。`MINIMAX_DATA_DIR` 或 `MAVIS_DATA_DIR` 可以覆盖数据目录。安装脚本使用的 `~/.minimax-code` 安装目录与数据目录的选择是两回事。查找或删除配置和会话前，请参阅[账号与数据](docs/installation.md#accounts-and-data)。
+Token Plan 需要账号与可用额度。从本仓库构建的版本与已发布的 `@minimax-ai/code@0.6.9` 均默认将用户数据保存在 `~/.minimax`（选择 profile 时为 `~/.minimax-<profile>`）。`MINIMAX_DATA_DIR` 或 `MAVIS_DATA_DIR` 可以覆盖数据目录。安装脚本使用的 `~/.minimax-code` 安装目录与数据目录的选择是两回事。查找或删除配置和会话前，请参阅[账号与数据](docs/installation.md#accounts-and-data)。
 
 <details>
 <summary>使用自己的 API Key（BYOK）</summary>
@@ -111,14 +111,14 @@ mcode
 ```bash
 git clone https://github.com/MiniMax-AI/minimax-code.git
 cd minimax-code
-node examples/pocket-pet/setup.mjs ../my-pocket-pet
+bun examples/pocket-pet/setup.mjs ../my-pocket-pet
 cd ../my-pocket-pet
-node serve.mjs
+bun serve.mjs
 ```
 
 打开 `http://127.0.0.1:4173`。另开一个终端，在 `my-pocket-pet` 目录运行 `mcode`，依次粘贴[第一条提示词](examples/pocket-pet/README.md#first-request)和[追加需求](examples/pocket-pet/README.md#change-the-requirement)，每次修改后刷新浏览器。
 
-想先体验成品？在仓库根目录运行 `node examples/pocket-pet/serve.mjs finished`，打开同一地址。加上 `?demo=1` 可体验有明确标识的 10 秒演示模式。
+想先体验成品？在仓库根目录运行 `bun examples/pocket-pet/serve.mjs finished`，打开同一地址。加上 `?demo=1` 可体验有明确标识的 10 秒演示模式。
 
 [完整教程与使用条件](examples/pocket-pet) · [小型代码修复示例](examples/clamp) · [模型、搜索与工具](docs/examples.md)
 
@@ -193,7 +193,7 @@ mcode --session
 
 ### 通过脚本安装
 
-以下命令会删除默认安装目录，包括两个启动器、下载的版本，以及安装器管理的 Node.js 运行时。如果使用过 `MCODE_INSTALL_DIR`，请替换为实际安装目录。删除前请先检查：早期源码构建曾将用户数据保存在 `~/.minimax-code`，自定义数据目录也可能与安装目录重合。请先备份需要保留的配置和会话。
+以下命令会删除默认安装目录，包括两个启动器、下载的版本，以及安装器管理的运行时文件。如果使用过 `MCODE_INSTALL_DIR`，请替换为实际安装目录。删除前请先检查：早期源码构建曾将用户数据保存在 `~/.minimax-code`，自定义数据目录也可能与安装目录重合。请先备份需要保留的配置和会话。
 
 **macOS / Linux / WSL**
 
@@ -211,12 +211,12 @@ Remove-Item -LiteralPath "$env:USERPROFILE\.minimax-code" -Recurse -Force
 
 打开“编辑账户的环境变量”，编辑用户 **Path**，仅删除安装目录对应的条目（默认为 `%USERPROFILE%\.minimax-code`，也可能显示为展开后的绝对路径）。Windows 安装器修改的是用户 Path，不是 PowerShell 配置文件；设置 `MCODE_NO_MODIFY_PATH` 会跳过此持久化修改。
 
-### 通过 npm 或源码安装
+### 通过 registry 包或源码安装
 
-全局 npm 安装请使用当初安装 MCode 时的同一套 npm 和安装前缀：
+全局 registry 安装请使用当初安装 MCode 时的同一全局前缀：
 
 ```bash
-npm uninstall -g @minimax-ai/code
+bun remove --global @minimax-ai/code
 ```
 
 源码构建请先保存工作，再仅删除自己创建的源码目录，详见[更新或移除](docs/installation.md#update-or-remove)。
@@ -254,25 +254,25 @@ profile 使用 `~/.minimax-<profile>`；`MINIMAX_DATA_DIR` 或 `MAVIS_DATA_DIR` 
 
 ## 从源码构建
 
-开发 MCode 或运行本仓库源码需要 Git、Node.js **22.19+（22 系列）、24.2+（24 系列）、25 或 26**，以及 **pnpm 9.12.0**。在 Windows 上，请将源码放在本地 NTFS 卷上，并避开云同步目录；下面的预检命令会在 pnpm 创建 workspace link 前检查卷类型。
+开发 MCode 或运行本仓库源码需要 Git 和 **Bun 1.4.4+**：依赖安装、类型检查、lint、构建、测试和 CLI 运行时都跑在它上面。在 Windows 上，请将源码放在本地 NTFS 卷上，并避开云同步目录；下面的预检命令会在安装依赖前检查卷类型。
 ```bash
 git clone https://github.com/MiniMax-AI/minimax-code.git
 cd minimax-code
-node scripts/check-windows-source-location.mjs
-pnpm install --frozen-lockfile
-pnpm build
-pnpm mcode
+bun scripts/check-windows-source-location.mjs
+bun install --frozen-lockfile
+bun run build
+bun run mcode
 ```
 
-首次构建需要联网；依赖和经过校验的 `mcode-tools` 均来自公共 npm。pnpm 安装、系统依赖和更新方法见[源码安装指南](docs/installation.md)。
+首次构建需要联网；依赖和经过校验的 `mcode-tools` 均来自公共 registry。Bun 安装、系统依赖和更新方法见[源码安装指南](docs/installation.md)。
 
-从源码目录运行时，将上方示例中的 `mcode` 替换为 `pnpm mcode`。要在自己的项目中工作，先切换到项目目录，再运行构建产物：
+从源码目录运行时，将上方示例中的 `mcode` 替换为 `bun run mcode`。要在自己的项目中工作，先切换到项目目录，再运行构建产物：
 
 ```bash
-node /absolute/path/to/minimax-code/dist/cli.js
+bun /absolute/path/to/minimax-code/dist/cli.js
 ```
 
-本仓库目标为 **0.6.3 源码预览**。安装已发布的包与构建本仓库是两条独立路径，版本一致不代表构建来源完全相同，详见[版本与证据基线](docs/open-source-status.md#version-and-evidence-baseline)。
+本仓库目标为 **0.6.5 源码预览**。安装已发布的包与构建本仓库是两条独立路径，版本一致不代表构建来源完全相同，详见[版本与证据基线](docs/open-source-status.md#version-and-evidence-baseline)。
 
 ## 文档与贡献
 

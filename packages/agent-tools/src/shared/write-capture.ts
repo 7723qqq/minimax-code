@@ -114,7 +114,7 @@ export function detectEncodingFromBuffer(buf: Buffer): { encoding: WriteEncoding
 }
 
 function decodeText(buf: Buffer, encoding: WriteEncoding): string {
-  // Node's utf16le decoding ignores a stray trailing byte in corrupt files;
+  // the `node:buffer` utf16le decoder ignores a stray trailing byte in corrupt files;
   // no byte swapping happens anywhere in this module (cc likewise).
   const text = encoding === 'utf16le' ? buf.toString('utf16le') : buf.toString('utf-8');
   return splitBomText(text).text;

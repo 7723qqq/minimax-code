@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -262,8 +261,8 @@ export function scanLegacyMessages(raw: readonly string[]): LegacyOpencodeMessag
   return scanLegacyMessageValues(raw);
 }
 export function scanLegacyMessageValues(raw: Iterable<string>): LegacyOpencodeMessageScan {
-  const rawHash = createHash('sha256');
-  const parsedHash = createHash('sha256');
+  const rawHash = new Bun.CryptoHasher('sha256');
+  const parsedHash = new Bun.CryptoHasher('sha256');
   parsedHash.update('[');
   const seenIds = new Set<string>();
   const duplicateSourceMsgIds = new Set<string>();
@@ -397,7 +396,7 @@ function namedFirstString<Key extends string>(
   return found ? ({ [key]: found } as Record<Key, string>) : {};
 }
 function hash(value: string) {
-  return createHash('sha256').update(value).digest('hex');
+  return new Bun.CryptoHasher('sha256').update(value).digest('hex');
 }
 function matches(value: string | undefined, choices: readonly string[]) {
   return choices.includes(value ?? '');

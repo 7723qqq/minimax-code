@@ -1,7 +1,7 @@
-import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { atomicWriteFileSync } from '@mavis/shared';
 import yaml from 'js-yaml';
 
 import { buildLocalChannelBindingKey } from '../../channels/channel-inbound-utils.js';
@@ -389,18 +389,11 @@ function mapCronPurpose(value: string, mappings: AgentNameMapping[]): string {
 }
 
 export function writeJsonAtomic(filePath: string, value: unknown): void {
-  const temporary = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
-  fs.mkdirSync(path.dirname(filePath), { recursive: true, mode: 0o700 });
-  fs.writeFileSync(temporary, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
-  fs.renameSync(temporary, filePath);
-  fs.chmodSync(filePath, 0o600);
+  atomicWriteFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 function writeYamlAtomic(filePath: string, value: unknown): void {
-  const temporary = `${filePath}.${process.pid}.${randomUUID()}.tmp`;
-  fs.writeFileSync(temporary, yaml.dump(value, { lineWidth: 120, noRefs: true }), 'utf8');
-  fs.renameSync(temporary, filePath);
-  fs.chmodSync(filePath, 0o600);
+  atomicWriteFileSync(filePath, yaml.dump(value, { lineWidth: 120, noRefs: true }));
 }
 
 export function listTables(db: DatabaseLike): string[] {

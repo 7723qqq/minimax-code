@@ -23,7 +23,9 @@ import {
   buildMiddleDeletionCandidate,
   buildMinimalGenuineQueryCandidate,
   buildProtectedSkeletonCandidate,
+  buildReducedMediaCandidate,
   buildToolTrimCandidate,
+  countStructuredMediaBlocks,
   type ToolTrimCandidate,
 } from './history-reduction.js';
 import {
@@ -54,6 +56,20 @@ export interface CompactContextInput {
    * appendix); the caller observes that case instead of intercepting it.
    */
   readonly finalAdmission?: 'enforce' | 'bypass';
+  /**
+   * `requestMedia.recoveryDivisor`: when set, a media-rejected request first
+   * retries with only the newest `1 / divisor` of its images before dropping
+   * every attachment.
+   */
+  readonly recoveryDivisor?: number;
+  /** Directories the summary can point at for details it omits. */
+  readonly earlierFiles?: () => Promise<
+    | {
+        readonly snapshots?: string;
+        readonly toolOutputs?: string;
+      }
+    | undefined
+  >;
   readonly checkpoint: {
     readonly tokensBefore: number;
     readonly timestamp: number;
@@ -130,10 +146,18 @@ export async function compactContext(input: CompactContextInput): Promise<Compac
   const validated = validateCheckpointGeneration(generated.generation, generated.maxOutputTokens);
   const subagents = await captureSubagents(input);
   input.signal?.throwIfAborted();
+  let earlierFiles: { snapshots?: string; toolOutputs?: string } | undefined;
+  try {
+    earlierFiles = await input.earlierFiles?.();
+  } catch {
+    earlierFiles = undefined;
+  }
+  input.signal?.throwIfAborted();
   let replacementMessages = [
     buildCheckpointMessage(input.history, validated.summary, input.checkpoint.tokensBefore, {
       timestamp: input.checkpoint.timestamp,
       ...(subagents ? { subagents } : {}),
+      ...(earlierFiles ? { earlierFiles } : {}),
     }),
   ];
   let measurement = await input.measurePair({
@@ -146,6 +170,7 @@ export async function compactContext(input: CompactContextInput): Promise<Compac
     replacementMessages = [
       buildCheckpointMessage(input.history, validated.summary, input.checkpoint.tokensBefore, {
         timestamp: input.checkpoint.timestamp,
+        ...(earlierFiles ? { earlierFiles } : {}),
       }),
     ];
     measurement = await input.measurePair({
@@ -416,9 +441,43 @@ async function recoverAfterMediaRejection({
   readonly cause: CheckpointCandidateMediaRejectedError;
 }): ReturnType<typeof recoverAfterHall> {
   input.signal?.throwIfAborted();
+  let overflow = priorOverflow;
+  const divisor = input.recoveryDivisor;
+  if (divisor !== undefined && Number.isFinite(divisor) && divisor > 1) {
+    const mediaCount = countStructuredMediaBlocks(rejectedMessages);
+    if (mediaCount >= 2) {
+      const reduced = buildReducedMediaCandidate(
+        rejectedMessages,
+        Math.max(1, Math.floor(mediaCount / divisor)),
+      );
+      if (
+        reduced.replacedBlockCount > 0 &&
+        session.fits(checkpointRequest(input, reduced.messages, instructions))
+      ) {
+        try {
+          const settled = await generateCandidateWithProviderRetry({
+            input,
+            session,
+            candidate: 'hmedia',
+            counter,
+            messages: reduced.messages,
+            instructions,
+          });
+          return {
+            generation: settled.generation,
+            attempts: settled.attemptNumber,
+            maxOutputTokens: session.maxOutputTokens,
+            ...tokenUsageMetadata(input.checkpoint.getTokenUsage?.()),
+          };
+        } catch (next) {
+          if (next instanceof CheckpointCandidateTooLargeError) overflow = next;
+          else if (!(next instanceof CheckpointCandidateMediaRejectedError)) throw next;
+        }
+      }
+    }
+  }
   const attachmentFree = buildAttachmentFreeCandidate(rejectedMessages);
   if (attachmentFree.replacedBlockCount === 0) throw mediaRejectedProviderFailure(cause);
-  let overflow = priorOverflow;
   let attachmentFreeAttempted = false;
   try {
     if (session.fits(checkpointRequest(input, attachmentFree.messages, instructions))) {

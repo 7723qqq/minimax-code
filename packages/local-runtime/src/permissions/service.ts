@@ -31,7 +31,7 @@
  */
 
 import path from 'node:path';
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 
 import type { Config, MavisRegion, MavisBuildEnv } from '@mavis/config';
 import { getConfig, getRuntimeRegion, getRuntimeBuildEnv } from '@mavis/config';
@@ -389,6 +389,4 @@ function containsPermissionResponse(message: AgentMessageProtocol): boolean {
   }
 }
 
-// Silence unused warnings for helpers reserved for facade future use.
-void statSync;
 export type { LocalPermissionCheckParams, LocalPermissionCheckResult };

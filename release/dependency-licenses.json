@@ -1,5 +1,5 @@
 {
-  "generatedFrom": "pnpm licenses list --json",
+  "generatedFrom": "bun.lock and each package's declared license field",
   "packages": [
     {
       "name": "@agentclientprotocol/sdk",

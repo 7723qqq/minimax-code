@@ -1,5 +1,4 @@
 import { validPluginMentions } from '../../widgets/editor/plugin-mentions.js';
-import { createHash } from 'node:crypto';
 import {
   chmod,
   copyFile,
@@ -14,6 +13,7 @@ import {
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, extname, isAbsolute, join, relative, resolve } from 'node:path';
+import { atomicWriteFile, ensurePrivateDirectory } from '@mavis/shared';
 import type { TuiAttachment, TuiTransportAttachment } from '../../../types/invocation.js';
 import type { EditorDraftSnapshot } from '../../widgets/editor/editor.js';
 import type { TuiRetrySubmission, TuiSubmissionSnapshot } from './submission.js';
@@ -276,21 +276,9 @@ export class TuiDraftRecovery {
     };
     const content = `${JSON.stringify(stored)}\n`;
     if (Buffer.byteLength(content) > MAX_DRAFT_FILE_BYTES) throw draftTooLargeError();
-    const directory = dirname(this.filePath);
-    await mkdir(directory, { recursive: true, mode: 0o700 });
-    await chmod(directory, 0o700);
-    const temporaryPath = `${this.filePath}.${process.pid}.${++this.writeGeneration}.tmp`;
-    let temporaryCreated = false;
-    try {
-      await writeDraftTemporaryFile(temporaryPath, content);
-      temporaryCreated = true;
-      await rename(temporaryPath, this.filePath);
-      temporaryCreated = false;
-      await chmod(this.filePath, 0o600);
-      await this.pruneMaterializedAssets(stored);
-    } finally {
-      if (temporaryCreated) await removeExistingDraftPath(temporaryPath).catch(() => undefined);
-    }
+    await ensurePrivateDirectory(dirname(this.filePath));
+    await atomicWriteFile(this.filePath, content, { ensureDirectory: false });
+    await this.pruneMaterializedAssets(stored);
   }
 
   private async migrateSessionState(
@@ -386,11 +374,10 @@ export class TuiDraftRecovery {
         continue;
       }
       const suffix = extname(attachment.fileName).slice(0, 16);
-      const id = createHash('sha256').update(attachment.filePath).digest('hex').slice(0, 16);
+      const id = new Bun.CryptoHasher('sha256').update(attachment.filePath).digest('hex').slice(0, 16);
       const target = join(this.assetsDirectory, `${id}${suffix}`);
       try {
-        await mkdir(this.assetsDirectory, { recursive: true, mode: 0o700 });
-        await chmod(this.assetsDirectory, 0o700);
+        await ensurePrivateDirectory(this.assetsDirectory);
         await copyFile(attachment.filePath, target);
         await chmod(target, 0o600);
         output.push({ ...attachment, filePath: target });
@@ -500,11 +487,14 @@ export function resolveTuiDraftRecoveryPath(
   workspaceDir: string,
   sessionKey?: string,
 ): string {
-  const workspaceId = createHash('sha256').update(resolve(workspaceDir)).digest('hex').slice(0, 24);
+  const workspaceId = new Bun.CryptoHasher('sha256')
+    .update(resolve(workspaceDir))
+    .digest('hex')
+    .slice(0, 24);
   if (!sessionKey) {
     return join(resolve(dataDir), 'v2', 'mcode', 'drafts', `${workspaceId}.json`);
   }
-  const sessionId = createHash('sha256')
+  const sessionId = new Bun.CryptoHasher('sha256')
     .update(normalizeSessionKey(sessionKey))
     .digest('hex')
     .slice(0, 24);

@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 
 import type {
   AgentHostInputAttachment,
@@ -655,7 +654,7 @@ function requireEditRequest(input: RewindEditRequest | EditRequest): EditRequest
 
 function requestFingerprint(input: RewindEditRequest | EditRequest, kind: RewindEditKind): string {
   const edit = kind === 'session-edit' ? (input as EditRequest) : undefined;
-  return createHash('sha256')
+  return new Bun.CryptoHasher('sha256')
     .update(
       stableJson({
         kind,

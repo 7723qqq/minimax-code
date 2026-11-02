@@ -1,7 +1,6 @@
 import type { Writable } from 'node:stream';
-import { randomUUID } from 'node:crypto';
-import { rename, unlink, writeFile } from 'node:fs/promises';
-import { basename, dirname, join } from 'node:path';
+
+import { atomicWriteFile } from '@mavis/shared';
 
 import { simplifyAssistantContentForTerminal } from '../application/assistant-content.js';
 import type { TuiStreamEvent } from '../runtime/stream-events.js';
@@ -72,15 +71,11 @@ export function createHeadlessOutputEncoder(
 }
 
 export async function writeHeadlessLastMessage(filePath: string, answer: string): Promise<void> {
-  const temporaryPath = join(
-    dirname(filePath),
-    `.${basename(filePath)}.${process.pid}.${randomUUID()}.tmp`,
-  );
   try {
-    await writeFile(temporaryPath, answer, { encoding: 'utf8', flag: 'wx' });
-    await rename(temporaryPath, filePath);
+    // Keep the platform creation default: this is a user-specified output file,
+    // not a private state file.
+    await atomicWriteFile(filePath, answer, { ensureDirectory: false, mode: null });
   } catch (error) {
-    await unlink(temporaryPath).catch(() => undefined);
     throw new TuiExecError('internal', `Could not write --output-last-message: ${filePath}`, {
       cause: error,
     });

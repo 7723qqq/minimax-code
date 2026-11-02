@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 
 import { json, readFirstString } from '../api/http-helpers.js';
 import type { LocalMessageAttachment, LocalMessageQuotedMessage } from '../messages/input.js';
@@ -88,7 +88,7 @@ export function buildLocalChannelInboundRequestKey(
 }
 
 export function hashLocalChannelRequestId(requestId: string): string {
-  return createHash('sha256').update(requestId, 'utf8').digest('hex');
+  return new Bun.CryptoHasher('sha256').update(requestId).digest('hex');
 }
 
 export function readChannelContext(

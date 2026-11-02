@@ -1,4 +1,3 @@
-import { spawn, type ChildProcess } from 'node:child_process';
 import { constants } from 'node:fs';
 import { access, chmod, mkdir, readFile, rm } from 'node:fs/promises';
 import { platform } from 'node:os';
@@ -132,23 +131,27 @@ interface RelatedPageTarget {
 }
 
 /**
+ * Chrome is a long-lived child with all stdio ignored, so the Bun subprocess
+ * handle is the whole interface. `Bun.spawn` replaces the child_process
+ * wrapper: it throws synchronously when the executable cannot start, which the
+ * launch path maps to the same `CHROME_START_FAILED` error the old error event
+ * produced.
+ */
+type ChromeChild = Bun.Subprocess<'ignore', 'ignore', 'ignore'>;
+
+/**
  * Small CDP browser owner used by the headless provider. It intentionally
  * speaks the browser-level protocol instead of depending on Playwright, so
  * the same page transport can be used by the Electron provider.
  */
 export class HeadlessChromeBrowser {
-  private readonly process: ChildProcess;
+  private readonly process: ChromeChild;
   private readonly connection: CdpConnection;
   private readonly pages = new Set<HeadlessChromePageImpl>();
   private readonly unexpectedExitListeners = new Set<(error: Error) => void>();
   private closed = false;
   private closePromise: Promise<void> | undefined;
   private processFailure: Error | undefined;
-  private readonly processErrorListener = (error: Error): void => {
-    this.recordUnexpectedProcessFailure(
-      new Error(`CHROME_PROCESS_ERROR: ${error.message}`, { cause: error }),
-    );
-  };
   private readonly processExitListener = (
     code: number | null,
     signal: NodeJS.Signals | null,
@@ -161,15 +164,19 @@ export class HeadlessChromeBrowser {
   };
 
   private constructor(
-    process: ChildProcess,
+    process: ChromeChild,
     connection: CdpConnection,
     private readonly downloadDir: string,
     private readonly userDataDir: string,
   ) {
     this.process = process;
     this.connection = connection;
-    this.process.on('error', this.processErrorListener);
-    this.process.on('exit', this.processExitListener);
+    // Bun's handle reports termination through `exited` instead of an exit
+    // event. A start failure now throws at Bun.spawn, so there is no error
+    // event to mirror: unexpected exits still reach the registered listeners.
+    void this.process.exited.then((code) => {
+      this.processExitListener(code, this.process.signalCode);
+    });
   }
 
   static async launch(
@@ -206,7 +213,18 @@ export class HeadlessChromeBrowser {
       'about:blank',
       ...(options.extraArgs ?? []),
     ];
-    const child = spawn(chromePath, args, { stdio: ['ignore', 'ignore', 'ignore'] });
+    let child: ChromeChild;
+    try {
+      child = Bun.spawn({
+        cmd: [chromePath, ...args],
+        stdin: 'ignore',
+        stdout: 'ignore',
+        stderr: 'ignore',
+        windowsHide: true,
+      });
+    } catch (error) {
+      throw new Error(`CHROME_START_FAILED: ${error instanceof Error ? error.message : String(error)}`);
+    }
     try {
       const endpoint = await waitForDevToolsEndpoint(child, devToolsActivePortPath, signal);
       const connection = await CdpConnection.connect(
@@ -335,8 +353,6 @@ export class HeadlessChromeBrowser {
       await terminateChildProcess(this.process);
       await removeChromeProfileLocks(this.userDataDir);
     } finally {
-      this.process.removeListener('error', this.processErrorListener);
-      this.process.removeListener('exit', this.processExitListener);
       this.unexpectedExitListeners.clear();
     }
   }
@@ -382,7 +398,7 @@ export class HeadlessChromeBrowser {
   }
 }
 
-async function terminateChildProcess(child: ChildProcess): Promise<void> {
+async function terminateChildProcess(child: ChromeChild): Promise<void> {
   if (childProcessExited(child)) return;
   const gracefulExit = waitForChildExit(child, PROCESS_EXIT_TIMEOUT_MS);
   child.kill();
@@ -395,25 +411,25 @@ async function terminateChildProcess(child: ChildProcess): Promise<void> {
   );
 }
 
-function childProcessExited(child: ChildProcess): boolean {
+function childProcessExited(child: ChromeChild): boolean {
   return child.exitCode !== null || child.signalCode !== null;
 }
 
-function waitForChildExit(child: ChildProcess, timeoutMs: number): Promise<boolean> {
+function waitForChildExit(child: ChromeChild, timeoutMs: number): Promise<boolean> {
   if (childProcessExited(child)) return Promise.resolve(true);
+  // The handle's `exited` promise replaces the exit-event listener: it settles
+  // when the process is gone, and the timer still bounds the wait.
   return new Promise((resolve) => {
     let settled = false;
     const finish = (exited: boolean): void => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      child.removeListener('exit', onExit);
       resolve(exited);
     };
-    const onExit = (): void => finish(true);
     const timer = setTimeout(() => finish(childProcessExited(child)), timeoutMs);
     timer.unref?.();
-    child.once('exit', onExit);
+    void child.exited.then(() => finish(true));
   });
 }
 
@@ -688,23 +704,17 @@ function asString(value: unknown): string {
 }
 
 async function waitForDevToolsEndpoint(
-  child: ChildProcess,
+  child: ChromeChild,
   devToolsActivePortPath: string,
   signal?: AbortSignal,
 ): Promise<string> {
   const deadline = Date.now() + STARTUP_TIMEOUT_MS;
   let lastError: unknown;
-  let processError: Error | undefined;
-  const onProcessError = (error: Error): void => {
-    processError = error;
-  };
-  child.once('error', onProcessError);
+  // A failed process start now throws at Bun.spawn and is mapped to
+  // CHROME_START_FAILED there, so no error-event listener is needed here.
   try {
     while (Date.now() < deadline) {
       throwIfAborted(signal);
-      if (processError) {
-        throw new Error(`CHROME_START_FAILED: ${processError.message}`);
-      }
       if (childProcessExited(child)) {
         throw new Error(
           `Chrome exited during startup (${child.exitCode !== null ? `code ${child.exitCode}` : `signal ${child.signalCode ?? 'unknown'}`})`,
@@ -719,12 +729,10 @@ async function waitForDevToolsEndpoint(
       }
       await delay(100);
     }
-    if (processError) throw new Error(`CHROME_START_FAILED: ${processError.message}`);
     throw new Error(
       `Timed out waiting for Chrome DevTools${lastError ? `: ${String(lastError)}` : ''}`,
     );
   } finally {
-    child.removeListener('error', onProcessError);
   }
 }
 

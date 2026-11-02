@@ -4,7 +4,7 @@ import type { SessionHistoryCopyKey, SessionMutationCopyKey } from './copy.en.js
  * Simplified Chinese copy for the Session history browser.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  */
 export const ZH_HANS_SESSION_HISTORY_COPY = {
   title: '历史',
@@ -46,7 +46,7 @@ export const ZH_HANS_SESSION_HISTORY_COPY = {
  * Simplified Chinese copy for the Session mutation surfaces: fork, edit and rewind.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  */
 export const ZH_HANS_SESSION_MUTATION_COPY = {
   'sessionMutation.history.fork.title': '从历史消息创建分支',

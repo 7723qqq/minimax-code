@@ -272,7 +272,12 @@ export interface ConversationCommittedMessage {
   readonly thinking?: string;
   readonly toolCalls?: readonly ConversationToolCall[];
   readonly kind?: string;
-  readonly raw?: Readonly<Record<string, unknown>>;
+  /**
+   * The full durable display record this DTO was projected from. Always set by
+   * the sole producer (`toConversationCommittedMessage`); the flat fields
+   * above are a convenience projection and `raw` is the lossless channel.
+   */
+  readonly raw: Readonly<Record<string, unknown>>;
 }
 
 /**

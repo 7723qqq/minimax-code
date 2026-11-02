@@ -87,7 +87,7 @@ export async function buildReplaceAllEdit(
 }
 
 /**
- * `String.prototype.replaceAll` exists on Node 15+; we keep a tiny
+ * `String.prototype.replaceAll` exists in every supported runtime; we keep a tiny
  * `split().join()` fallback here for environments where the runtime
  * shim strips it (older electron preload, jsdom test runners, etc.).
  */

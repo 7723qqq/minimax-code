@@ -49,6 +49,9 @@ export interface TuiFeedbackServiceOptions {
 interface PlatformSnapshot {
   readonly platform: string;
   readonly arch: string;
+  readonly runtime: 'bun' | 'node';
+  readonly runtimeVersion: string;
+  /** The runtime's Node-compatibility value; kept for the existing payload. */
   readonly nodeVersion: string;
   readonly osVersion: string;
 }
@@ -98,12 +101,20 @@ export class TuiFeedbackService {
     this.draftTtlMs = positiveMs(options.draftTtlMs, DEFAULT_DRAFT_TTL_MS);
     this.platform =
       options.platform ??
-      (() => ({
-        platform: process.platform,
-        arch: process.arch,
-        nodeVersion: process.versions.node,
-        osVersion: release(),
-      }));
+      (() => {
+        const bunVersion =
+          typeof process.versions.bun === 'string' && process.versions.bun.length > 0
+            ? process.versions.bun
+            : undefined;
+        return {
+          platform: process.platform,
+          arch: process.arch,
+          runtime: bunVersion ? 'bun' : 'node',
+          runtimeVersion: bunVersion ?? process.versions.node,
+          nodeVersion: process.versions.node,
+          osVersion: release(),
+        };
+      });
   }
 
   prepare(input: {
@@ -125,7 +136,7 @@ export class TuiFeedbackService {
         { label: 'Runtime', value: 'clean · cli' },
         {
           label: 'Platform',
-          value: `${cleanFeedbackText(platform.platform)} ${cleanFeedbackText(platform.arch)} · Node ${cleanFeedbackText(platform.nodeVersion)}`,
+          value: `${cleanFeedbackText(platform.platform)} ${cleanFeedbackText(platform.arch)} · ${platform.runtime === 'bun' ? 'Bun' : 'Node'} ${cleanFeedbackText(platform.runtimeVersion)}`,
         },
         { label: 'OS', value: cleanFeedbackText(platform.osVersion) },
         { label: 'Session', value: sessionId ?? 'not included' },

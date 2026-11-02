@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 
 import type { LocalBrowserSkillSessionStore } from '@mavis/agent-tools/desktop';
 
@@ -36,7 +35,7 @@ export class BrowserSkillSessionStore implements LocalBrowserSkillSessionStore {
 }
 
 function contentDigest(content: string): string {
-  return createHash('sha256').update(content).digest('hex');
+  return new Bun.CryptoHasher('sha256').update(content).digest('hex');
 }
 
 interface StoredBrowserTurnContext {

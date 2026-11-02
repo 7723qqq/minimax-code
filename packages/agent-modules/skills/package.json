@@ -13,8 +13,7 @@
   "devDependencies": {
     "@types/js-yaml": "^4",
     "@types/node": "^20",
-    "typescript": "^5",
-    "vitest": "^2"
+    "typescript": "^5"
   },
   "dependencies": {
     "js-yaml": "^4"

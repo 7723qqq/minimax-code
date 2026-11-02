@@ -31,6 +31,7 @@ import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
 
 import type { ToolResult, ToolResultContent } from '@mavis/agent-core/tools';
+import { errorMessage } from '@mavis/shared/error-message';
 
 import { readErrorResult } from './read-result.js';
 
@@ -92,7 +93,7 @@ export async function readNotebookAsToolResult(opts: ReadNotebookOptions): Promi
   } catch (err) {
     return readErrorResult(
       toolName,
-      `Invalid notebook JSON: ${(err as Error).message}. The file is not a valid .ipynb notebook.`,
+      `Invalid notebook JSON: ${errorMessage(err)}. The file is not a valid .ipynb notebook.`,
     );
   }
   if (!Array.isArray(notebook.cells)) {

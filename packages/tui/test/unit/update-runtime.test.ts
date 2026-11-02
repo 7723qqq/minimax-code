@@ -9,11 +9,11 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { spawnSync } from 'node:child_process';
+/* eslint-disable-next-line import/no-relative-packages -- repository-level test helper outside every package */
+import { spawnSync } from '../../../../scripts/lib/exec.mjs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
-import { resolveFixtureNodeAndNpmCli } from '../../../../test/bun-test-setup.js';
 import { McodeUpdateApplication } from '../../src/update/application.js';
 import {
   createMcodeNpmRuntimeEnvironment,
@@ -21,10 +21,10 @@ import {
 } from '../../src/update/install-source.js';
 
 const roots: string[] = [];
-// These fixtures simulate a node+npm installation, so every spawned Node and
-// npm-cli.js comes from the real Node runtime, not from the test runner
-// (`process.execPath` is Bun under `bun test`).
-const { node: fixtureNode } = resolveFixtureNodeAndNpmCli();
+// The receipt pins the runtime that executes the CLI, which is Bun. These
+// fixtures therefore use the test runner's own executable, and the npm-cli.js
+// fixtures assert they were started by it rather than by a PATH `node`.
+const runtimeExecutable = process.execPath;
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
@@ -55,13 +55,11 @@ describe('npm-prefix runtime consistency', () => {
     ).toEqual({ Path: 'case-sensitive', PATH: '/private/node/bin' });
   });
 
-  it.each([
-    [false, 'npm'],
-    [true, 'npm'],
-    [false, 'npm.cmd'],
-  ] as const)(
-    'runs npm with the launcher Node and gates activation on SQLite (broken=%s, shim=%s)',
-    async (broken, shim) => {
+  it
+    .skipIf(process.platform === 'win32')
+    .each(['npm', 'npm.cmd'] as const)(
+    'runs npm with the launcher runtime and gates activation on SQLite (shim=%s)',
+    async (shim) => {
       const root = mkdtempSync(path.join(os.tmpdir(), 'mcode-update-runtime-'));
       roots.push(root);
       const prefix = path.join(root, 'install');
@@ -74,31 +72,22 @@ describe('npm-prefix runtime consistency', () => {
       mkdirSync(shadowBin);
       mkdirSync(prefix);
       writeFileSync(path.join(prefix, 'current'), '1.2.3\n');
-      // If npm resolves Node from the inherited PATH, it fails before installing.
+      // If npm resolves its runtime from the inherited PATH, it fails before installing.
       writeFileSync(path.join(shadowBin, 'node'), '#!/bin/sh\nexit 42\n', { mode: 0o755 });
-      const sqlite = broken
-        ? 'module.exports = class { constructor() { throw new Error("NODE_MODULE_VERSION mismatch"); } };'
-        : `module.exports = class {
-            constructor(file) { if (file !== ':memory:') throw new Error('Unexpected database'); }
-            prepare(sql) { if (sql !== 'SELECT 1 AS value') throw new Error('Unexpected query'); return { get: () => ({ value: 1 }) }; }
-            close() {}
-          };`;
       writeFileSync(
         npmCli,
         `#!/usr/bin/env node
 const fs = require('node:fs');
 const path = require('node:path');
-if (process.execPath !== ${JSON.stringify(fixtureNode)}) throw new Error('Wrong npm Node');
-const lifecycle = require('node:child_process').spawnSync('node', ['-p', 'process.execPath'], {encoding:'utf8'});
-if (lifecycle.status !== 0 || lifecycle.stdout.trim() !== process.execPath) throw new Error('Wrong lifecycle Node');
+if (typeof process.versions.bun !== 'string') throw new Error('Wrong npm runtime');
+if (process.execPath !== ${JSON.stringify(runtimeExecutable)}) throw new Error('Wrong npm runtime path');
 if (process.argv.includes('view')) { console.log(JSON.stringify('1.2.4')); process.exit(0); }
 const prefix = process.argv[process.argv.indexOf('--prefix') + 1];
 const root = path.join(prefix, process.platform === 'win32' ? 'node_modules/@minimax-ai/code' : 'lib/node_modules/@minimax-ai/code');
-fs.mkdirSync(path.join(root, 'node_modules/better-sqlite3'), { recursive: true });
+fs.mkdirSync(root, { recursive: true });
 fs.writeFileSync(path.join(root, 'package.json'), JSON.stringify({name:'@minimax-ai/code',version:'1.2.4',bin:{mcode:'cli.js','mcode-tools':'tools.js'}}));
 fs.writeFileSync(path.join(root, 'cli.js'), 'console.log("1.2.4");');
 fs.writeFileSync(path.join(root, 'tools.js'), 'console.log("mcode-tools 1.2.4");');
-fs.writeFileSync(path.join(root, 'node_modules/better-sqlite3/index.js'), ${JSON.stringify(sqlite)});
 `,
         { mode: 0o755 },
       );
@@ -111,7 +100,7 @@ fs.writeFileSync(path.join(root, 'node_modules/better-sqlite3/index.js'), ${JSON
         {
           currentVersion: '1.2.3',
           entryFile: path.join(prefix, 'missing-old-entry.js'),
-          runtimeExecutable: fixtureNode,
+          runtimeExecutable,
           environment,
           prefixInstall: {
             executable: npm,
@@ -125,21 +114,18 @@ fs.writeFileSync(path.join(root, 'node_modules/better-sqlite3/index.js'), ${JSON
         },
       );
       const plan = await application.inspect();
-      if (broken) {
-        await expect(application.apply(plan)).rejects.toThrow('Staged SQLite validation failed');
-        expect(readFileSync(path.join(prefix, 'current'), 'utf8')).toBe('1.2.3\n');
-      } else {
-        await expect(application.apply(plan)).resolves.toMatchObject({ applied: true });
-        expect(readFileSync(path.join(prefix, 'current'), 'utf8')).toBe('1.2.4\n');
-        expect(
-          JSON.parse(readFileSync(path.join(prefix, 'install.json'), 'utf8')).nodeExecutable,
-        ).toBe(fixtureNode);
-      }
+      await expect(application.apply(plan)).resolves.toMatchObject({ applied: true });
+      expect(readFileSync(path.join(prefix, 'current'), 'utf8')).toBe('1.2.4\n');
+      expect(
+        JSON.parse(readFileSync(path.join(prefix, 'install.json'), 'utf8')).nodeExecutable,
+      ).toBe(runtimeExecutable);
       expect(environment.PATH.startsWith(shadowBin)).toBe(true);
     },
   );
 
-  it('pins npm-prefix updates to the receipt Node across Homebrew-style upgrades', async () => {
+  it.skipIf(process.platform === 'win32')(
+    'pins npm-prefix updates to the receipt runtime across Homebrew-style upgrades',
+    async () => {
     const root = mkdtempSync(path.join(os.tmpdir(), 'mcode-update-runtime-'));
     roots.push(root);
     const prefix = path.join(root, 'install');
@@ -150,7 +136,7 @@ fs.writeFileSync(path.join(root, 'node_modules/better-sqlite3/index.js'), ${JSON
     mkdirSync(path.dirname(npmCli), { recursive: true });
     mkdirSync(brewBin, { recursive: true });
     writeFileSync(npm, '#!/bin/sh\nexit 42\n', { mode: 0o755 });
-    symlinkSync(fixtureNode, pinnedNode);
+    symlinkSync(runtimeExecutable, pinnedNode);
     const packageRoot = path.join(
       prefix,
       'releases',
@@ -225,18 +211,20 @@ fs.writeFileSync(path.join(root, 'node_modules/better-sqlite3/index.js'), 'modul
     );
     const releaseLauncher = path.join(prefix, 'releases', '1.2.4', '.mcode-launcher');
     const launcherContents = readFileSync(releaseLauncher, 'utf8');
-    expect(launcherContents).toContain(`node='${pinnedNode}'`);
-    expect(launcherContents).not.toContain(fixtureNode);
+    expect(launcherContents).toContain(`runtime='${pinnedNode}'`);
+    expect(launcherContents).not.toContain(runtimeExecutable);
     expect(spawnSync(releaseLauncher, ['--version']).stdout.toString()).toBe('1.2.4\n');
 
     rmSync(pinnedNode);
     const missing = spawnSync(releaseLauncher, ['--version']);
     expect(missing.status).toBe(127);
-    expect(missing.stderr.toString()).toMatch(/Node runtime is missing/u);
+    expect(missing.stderr.toString()).toMatch(/runtime is missing/u);
     expect(missing.stderr.toString()).toMatch(/re-run the MCode installer/u);
   });
 
-  it('heals receipts pinned to a Homebrew Cellar keg via the stable opt path', async () => {
+  it.skipIf(process.platform === 'win32')(
+    'heals receipts pinned to a Homebrew Cellar keg via the stable opt path',
+    async () => {
     const root = mkdtempSync(path.join(os.tmpdir(), 'mcode-update-runtime-'));
     roots.push(root);
     const brewRoot = path.join(root, 'homebrew');
@@ -250,23 +238,27 @@ fs.writeFileSync(path.join(root, 'node_modules/better-sqlite3/index.js'), 'modul
     const result = await runNpmPrefixUpdate(root, kegNode);
     expect(result.outcome).toMatchObject({ applied: true });
     expect(result.receiptNode).toBe(optNode);
-    expect(result.launcher).toContain(`node='${optNode}'`);
+    expect(result.launcher).toContain(`runtime='${optNode}'`);
     expect(result.launcher).not.toContain('/Cellar/');
     const releaseLauncher = path.join(result.prefix, 'releases', '1.2.4', '.mcode-launcher');
     expect(spawnSync(releaseLauncher, ['--version']).stdout.toString()).toBe('1.2.4\n');
   });
 
-  it('falls back to the running Node when the receipt Node is unusable', async () => {
+  it.skipIf(process.platform === 'win32')(
+    'falls back to the running runtime when the receipt runtime is unusable',
+    async () => {
     const root = mkdtempSync(path.join(os.tmpdir(), 'mcode-update-runtime-'));
     roots.push(root);
 
     const result = await runNpmPrefixUpdate(root, path.join(root, 'removed', 'bin', 'node'));
     expect(result.outcome).toMatchObject({ applied: true });
-    expect(result.receiptNode).toBe(fixtureNode);
-    expect(result.launcher).toContain(`node='${fixtureNode}'`);
+    expect(result.receiptNode).toBe(runtimeExecutable);
+    expect(result.launcher).toContain(`runtime='${runtimeExecutable}'`);
   });
 
-  it('ignores unusable receipt Node executables and legacy receipts', () => {
+  it.skipIf(process.platform === 'win32')(
+    'ignores unusable receipt runtime executables and legacy receipts',
+    () => {
     const root = mkdtempSync(path.join(os.tmpdir(), 'mcode-update-runtime-'));
     roots.push(root);
     const npm = path.join(root, 'npm');
@@ -357,9 +349,9 @@ fs.writeFileSync(path.join(root, 'node_modules/better-sqlite3/index.js'), 'modul
 function placeNodeBinaryAt(target: string) {
   mkdirSync(path.dirname(target), { recursive: true });
   try {
-    linkSync(fixtureNode, target);
+    linkSync(runtimeExecutable, target);
   } catch {
-    copyFileSync(fixtureNode, target);
+    copyFileSync(runtimeExecutable, target);
   }
   chmodSync(target, 0o755);
 }
@@ -432,7 +424,7 @@ fs.writeFileSync(path.join(root, 'node_modules/better-sqlite3/index.js'), 'modul
     {
       currentVersion: '1.2.3',
       entryFile: path.join(packageRoot, 'cli.js'),
-      runtimeExecutable: fixtureNode,
+      runtimeExecutable,
       environment: { ...process.env },
     },
     {

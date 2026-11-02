@@ -127,6 +127,26 @@
       "import": "./dist/bounded-json-stringify.js",
       "default": "./dist/bounded-json-stringify.js"
     },
+    "./json-stringify": {
+      "types": "./src/json-stringify.ts",
+      "import": "./dist/json-stringify.js",
+      "default": "./dist/json-stringify.js"
+    },
+    "./cjk-token-estimate": {
+      "types": "./src/cjk-token-estimate.ts",
+      "import": "./dist/cjk-token-estimate.js",
+      "default": "./dist/cjk-token-estimate.js"
+    },
+    "./error-message": {
+      "types": "./src/error-message.ts",
+      "import": "./dist/error-message.js",
+      "default": "./dist/error-message.js"
+    },
+    "./atomic-write": {
+      "types": "./src/atomic-write.ts",
+      "import": "./dist/atomic-write.js",
+      "default": "./dist/atomic-write.js"
+    },
     "./subagent-roles": {
       "types": "./src/subagent-roles.ts",
       "import": "./dist/subagent-roles.js"
@@ -307,6 +327,18 @@
       "bounded-json-stringify": [
         "src/bounded-json-stringify.ts"
       ],
+      "json-stringify": [
+        "src/json-stringify.ts"
+      ],
+      "cjk-token-estimate": [
+        "src/cjk-token-estimate.ts"
+      ],
+      "error-message": [
+        "src/error-message.ts"
+      ],
+      "atomic-write": [
+        "src/atomic-write.ts"
+      ],
       "comment-composer": [
         "src/comment-composer.ts"
       ],
@@ -354,9 +386,7 @@
   },
   "devDependencies": {
     "@types/node": "^20",
-    "@vitest/coverage-v8": "^2",
-    "typescript": "^5",
-    "vitest": "^2"
+    "typescript": "^5"
   },
   "private": true,
   "license": "MIT"

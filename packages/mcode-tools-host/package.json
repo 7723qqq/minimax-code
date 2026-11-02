@@ -18,7 +18,7 @@
     "README.md"
   ],
   "engines": {
-    "node": ">=20"
+    "bun": ">=1.4.4"
   },
   "scripts": {
     "build": "tsc --build",
@@ -26,7 +26,8 @@
     "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
-    "@mavis/oauth-lease-protocol": "workspace:*"
+    "@mavis/oauth-lease-protocol": "workspace:*",
+    "@mavis/shared": "workspace:^"
   },
   "devDependencies": {},
   "private": true

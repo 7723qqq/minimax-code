@@ -540,6 +540,7 @@ export function createV1RuntimeCompatibility(
           userStop: createUserStopCascade({
             host: api,
             pauseActiveGoal: (sessionId) => api.threadGoal.pauseActiveGoalForAbort(sessionId),
+            readConversationStopConfig: () => api.configGetter().conversation,
           }),
         },
         conversation: {

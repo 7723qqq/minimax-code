@@ -15,6 +15,8 @@
  * Reference: permission_design.md §4
  */
 
+import { errorMessage } from '@mavis/shared/error-message';
+
 import { logger, backgroundCtx } from './host-utils.js';
 import { matchesMcpServerRuntimeName } from './mcp-runtime-name.js';
 import type {
@@ -232,7 +234,7 @@ export class PermissionEngine {
         ? checker.checkPermissions(toolName, input, context)
         : decideUnknownToolPathCapabilities(toolName, input, context);
     } catch (err) {
-      checkerError = (err as Error).message;
+      checkerError = errorMessage(err);
       logger.error(
         ctx,
         `Tool permission checker threw an error: toolName=${toolName} error=${checkerError}`,
@@ -290,7 +292,7 @@ export class PermissionEngine {
         ? checker.checkPermissions(toolName, input, context)
         : decideUnknownToolPathCapabilities(toolName, input, context);
     } catch (err) {
-      checkerError = (err as Error).message;
+      checkerError = errorMessage(err);
       logger.error(
         ctx,
         `Tool permission checker threw an error: toolName=${toolName} error=${checkerError}`,
