@@ -334,11 +334,3 @@ function steering(
     provenance: { source: 'api', routingFingerprint: `api:${idempotencyKey}` },
   };
 }
-
-function deferredVoid(): { readonly promise: Promise<void>; readonly resolve: () => void } {
-  let resolvePromise: (() => void) | undefined;
-  const promise = new Promise<void>((resolve) => {
-    resolvePromise = resolve;
-  });
-  return { promise, resolve: () => resolvePromise?.() };
-}

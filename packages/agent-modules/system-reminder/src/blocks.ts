@@ -733,18 +733,6 @@ export function buildSkillEvolutionChannelsBlock(
   return lines.join('\n');
 }
 
-/**
- * Backward-compatible alias for the renamed block builder. New code should
- * call `buildSkillEvolutionChannelsBlock` directly. This re-export exists
- * only to keep external imports compiling during the rename window — it can
- * be removed in a follow-up cleanup.
- *
- * @deprecated Use `buildSkillEvolutionChannelsBlock`.
- */
-export function buildSkillSignalReportingBlock(): string {
-  return buildSkillEvolutionChannelsBlock();
-}
-
 // ─── Note ────────────────────────────────────────────────────────────────────
 // The monolithic buildSystemReminders() assembler has been replaced by
 // the chain-of-responsibility pattern in providers.ts + registry.ts.
