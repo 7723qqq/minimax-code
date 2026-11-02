@@ -27,6 +27,9 @@
 
 import { homedir } from 'node:os';
 import { join, normalize, resolve } from 'node:path';
+
+import { errorMessage } from '@mavis/shared/error-message';
+
 import { logger } from '../hooks/engine/host-utils.js';
 import { git } from '../files/git-process.js';
 import type {
@@ -158,7 +161,7 @@ export function createReviewLinkRecorderHandler(
       );
     } catch (err) {
       // Recording is derived state — never let it surface as a tool failure.
-      logger.warn(`[review-link] failed to record: ${(err as Error).message}`);
+      logger.warn(`[review-link] failed to record: ${errorMessage(err)}`);
     }
   };
 }

@@ -137,6 +137,11 @@
       "import": "./dist/cjk-token-estimate.js",
       "default": "./dist/cjk-token-estimate.js"
     },
+    "./error-message": {
+      "types": "./src/error-message.ts",
+      "import": "./dist/error-message.js",
+      "default": "./dist/error-message.js"
+    },
     "./subagent-roles": {
       "types": "./src/subagent-roles.ts",
       "import": "./dist/subagent-roles.js"
@@ -322,6 +327,9 @@
       ],
       "cjk-token-estimate": [
         "src/cjk-token-estimate.ts"
+      ],
+      "error-message": [
+        "src/error-message.ts"
       ],
       "comment-composer": [
         "src/comment-composer.ts"

@@ -4,6 +4,7 @@ import {
   MEMORY_CLEANUP_CRON_NAME,
   parseCronSessionPurpose,
 } from '@mavis/shared/cron-purpose';
+import { errorMessage } from '@mavis/shared/error-message';
 import {
   logger,
   backgroundCtx,
@@ -169,7 +170,7 @@ export class CronExecutor {
       } catch (err) {
         logger.error(
           ctx,
-          `[cron] Invalid timezone in activeHours config: agent=${state.agentName} cron=${state.cronName} err=${(err as Error).message}`,
+          `[cron] Invalid timezone in activeHours config: agent=${state.agentName} cron=${state.cronName} err=${errorMessage(err)}`,
         );
         return { executed: false, reason: 'invalid_timezone' };
       }
@@ -356,15 +357,15 @@ export class CronExecutor {
     } catch (err) {
       state.lastRun = nowMs();
       state.lastResult = 'error';
-      state.lastError = (err as Error).message;
+      state.lastError = errorMessage(err);
       this.eventBus?.emit('cron.failed', 'cron-executor', {
         agentName: state.agentName,
         cronName: state.cronName,
-        error: (err as Error).message,
+        error: errorMessage(err),
       });
       logger.error(
         ctx,
-        `[cron] Execution failed: agent=${state.agentName} cron=${state.cronName} err=${(err as Error).message}`,
+        `[cron] Execution failed: agent=${state.agentName} cron=${state.cronName} err=${errorMessage(err)}`,
       );
 
       return { executed: false, reason: 'error', sessionId };
@@ -414,7 +415,7 @@ export class CronExecutor {
       } catch (err) {
         logger.warn(
           backgroundCtx(),
-          `[cron] Archive cleanup failed (non-fatal), agent=${agentName} cron=${cronName} err=${(err as Error).message}`,
+          `[cron] Archive cleanup failed (non-fatal), agent=${agentName} cron=${cronName} err=${errorMessage(err)}`,
         );
       }
     });
@@ -435,7 +436,7 @@ export class CronExecutor {
     } catch (err) {
       logger.warn(
         ctx,
-        `[cron] cleanupAllCronSessions: listAll failed (non-fatal), err=${(err as Error).message}`,
+        `[cron] cleanupAllCronSessions: listAll failed (non-fatal), err=${errorMessage(err)}`,
       );
       return;
     }
@@ -539,7 +540,7 @@ export class CronExecutor {
           // silently lose history.
           logger.warn(
             ctx,
-            `[cron] Failed to archive session, agent=${agentName} cron=${cronName} sessionId=${record.sessionId} err=${(err as Error).message}`,
+            `[cron] Failed to archive session, agent=${agentName} cron=${cronName} sessionId=${record.sessionId} err=${errorMessage(err)}`,
           );
           next.push(record);
         }
@@ -606,7 +607,7 @@ export class CronExecutor {
       } catch (err) {
         logger.warn(
           ctx,
-          `[cron] Failed to delete session on cron delete, agent=${agentName} cron=${cronName} sessionId=${record.sessionId} err=${(err as Error).message}`,
+          `[cron] Failed to delete session on cron delete, agent=${agentName} cron=${cronName} sessionId=${record.sessionId} err=${errorMessage(err)}`,
         );
       }
     }
@@ -630,14 +631,14 @@ export class CronExecutor {
           } catch (err) {
             logger.warn(
               ctx,
-              `[cron] Failed to delete orphan session on cron delete, agent=${agentName} cron=${cronName} sessionId=${orphan.sessionId} err=${(err as Error).message}`,
+              `[cron] Failed to delete orphan session on cron delete, agent=${agentName} cron=${cronName} sessionId=${orphan.sessionId} err=${errorMessage(err)}`,
             );
           }
         }
       } catch (err) {
         logger.warn(
           ctx,
-          `[cron] Purpose-based orphan sweep failed (non-fatal), agent=${agentName} cron=${cronName} err=${(err as Error).message}`,
+          `[cron] Purpose-based orphan sweep failed (non-fatal), agent=${agentName} cron=${cronName} err=${errorMessage(err)}`,
         );
       }
     }
@@ -669,7 +670,7 @@ export class CronExecutor {
     } catch (err) {
       logger.warn(
         ctx,
-        `[cron] Orphan session cleanup: listByPurposePrefix failed (non-fatal), err=${(err as Error).message}`,
+        `[cron] Orphan session cleanup: listByPurposePrefix failed (non-fatal), err=${errorMessage(err)}`,
       );
       return;
     }
@@ -698,7 +699,7 @@ export class CronExecutor {
       } catch (err) {
         logger.warn(
           ctx,
-          `[cron] Orphan session cleanup: failed to delete session=${session.sessionId} purpose=${session.purpose} err=${(err as Error).message}`,
+          `[cron] Orphan session cleanup: failed to delete session=${session.sessionId} purpose=${session.purpose} err=${errorMessage(err)}`,
         );
       }
     }
@@ -724,7 +725,7 @@ export class CronExecutor {
       .catch((err) => {
         logger.debug(
           backgroundCtx(),
-          `[cron] Previous lock holder failed (chained call proceeds): agent=${agentName} cron=${cronName} err=${(err as Error).message}`,
+          `[cron] Previous lock holder failed (chained call proceeds): agent=${agentName} cron=${cronName} err=${errorMessage(err)}`,
         );
       })
       .then(() => fn());

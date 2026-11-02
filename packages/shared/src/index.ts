@@ -5,6 +5,7 @@
 // semantics stable; do not re-implement per package.
 export { safeJsonStringify, tryJsonStringify } from './json-stringify.js';
 export { estimateCharsToTokensCjkAware } from './cjk-token-estimate.js';
+export { errorMessage } from './error-message.js';
 
 export {
   MEMORY_SOFT_LIMIT_BYTES,

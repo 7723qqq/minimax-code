@@ -24,6 +24,9 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+
+import { errorMessage } from '@mavis/shared/error-message';
+
 import { logger } from '../host-utils.js';
 import { buildCompressedModelImageFromFile } from '../../../utils/model-image-preprocess.js';
 import type {
@@ -117,7 +120,7 @@ export const cuImageInjectorHandler: HookHandler<PostToolUseInput, PostToolUseOu
         logger.warn(`[cu-image-injector] compression returned null for filePath=${filePath}`);
       }
     } catch (err) {
-      logger.warn(`[cu-image-injector] failed to compress ${filePath}: ${(err as Error).message}`);
+      logger.warn(`[cu-image-injector] failed to compress ${filePath}: ${errorMessage(err)}`);
     } finally {
       tryCleanup(filePath);
     }

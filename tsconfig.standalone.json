@@ -259,6 +259,9 @@
       "@mavis/shared/daily-signin": [
         "./packages/shared/src/daily-signin.ts"
       ],
+      "@mavis/shared/error-message": [
+        "./packages/shared/src/error-message.ts"
+      ],
       "@mavis/shared/eval-meta-info": [
         "./packages/shared/src/eval-meta-info.ts"
       ],

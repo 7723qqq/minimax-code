@@ -1,3 +1,5 @@
+import { errorMessage } from '@mavis/shared/error-message';
+
 import { logger, backgroundCtx } from './host-utils.js';
 
 /** TTL for queued entries — 30 minutes */
@@ -131,7 +133,7 @@ export class BusyQueue {
         entry.resolveDrain('failed');
         logger.error(
           ctx,
-          `[cron] Failed to drain queued message: sessionId=${sessionId} cronName=${entry.cronName} err=${(err as Error).message}`,
+          `[cron] Failed to drain queued message: sessionId=${sessionId} cronName=${entry.cronName} err=${errorMessage(err)}`,
         );
       }
     }
