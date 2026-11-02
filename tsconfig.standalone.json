@@ -241,6 +241,9 @@
       "@mavis/shared/asset-markup": [
         "./packages/shared/src/asset-markup/index.ts"
       ],
+      "@mavis/shared/atomic-write": [
+        "./packages/shared/src/atomic-write.ts"
+      ],
       "@mavis/shared/bounded-json-stringify": [
         "./packages/shared/src/bounded-json-stringify.ts"
       ],

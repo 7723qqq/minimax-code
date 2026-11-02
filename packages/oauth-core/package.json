@@ -29,6 +29,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@mavis/shared": "workspace:^",
     "proper-lockfile": "^4.1.2"
   },
   "devDependencies": {},

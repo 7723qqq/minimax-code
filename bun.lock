@@ -125,6 +125,7 @@
       "name": "@mavis/mcp",
       "version": "0.2.1",
       "dependencies": {
+        "@mavis/shared": "workspace:^",
         "@modelcontextprotocol/sdk": "^1.30.0",
         "proper-lockfile": "^4",
       },
@@ -167,6 +168,9 @@
     "packages/agent-modules/session-report": {
       "name": "@mavis/session-report",
       "version": "0.1.0",
+      "dependencies": {
+        "@mavis/shared": "workspace:^",
+      },
       "devDependencies": {
         "@types/node": "^20",
         "typescript": "^5",
@@ -364,12 +368,14 @@
       "version": "0.1.0-beta.0",
       "dependencies": {
         "@mavis/oauth-lease-protocol": "workspace:*",
+        "@mavis/shared": "workspace:^",
       },
     },
     "packages/oauth-core": {
       "name": "@mavis/oauth-core",
       "version": "0.2.1-beta.7",
       "dependencies": {
+        "@mavis/shared": "workspace:^",
         "proper-lockfile": "^4.1.2",
       },
     },

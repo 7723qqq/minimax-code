@@ -142,6 +142,11 @@
       "import": "./dist/error-message.js",
       "default": "./dist/error-message.js"
     },
+    "./atomic-write": {
+      "types": "./src/atomic-write.ts",
+      "import": "./dist/atomic-write.js",
+      "default": "./dist/atomic-write.js"
+    },
     "./subagent-roles": {
       "types": "./src/subagent-roles.ts",
       "import": "./dist/subagent-roles.js"
@@ -330,6 +335,9 @@
       ],
       "error-message": [
         "src/error-message.ts"
+      ],
+      "atomic-write": [
+        "src/atomic-write.ts"
       ],
       "comment-composer": [
         "src/comment-composer.ts"

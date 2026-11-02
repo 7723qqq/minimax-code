@@ -26,7 +26,8 @@
     "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
-    "@mavis/oauth-lease-protocol": "workspace:*"
+    "@mavis/oauth-lease-protocol": "workspace:*",
+    "@mavis/shared": "workspace:^"
   },
   "devDependencies": {},
   "private": true

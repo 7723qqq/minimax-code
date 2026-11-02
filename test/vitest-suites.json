@@ -254,6 +254,7 @@
       "packages/shared/test/unit/mavis-tags.test.ts",
       "packages/shared/test/unit/error-message.test.ts",
       "packages/shared/test/unit/cjk-token-estimate.test.ts",
+      "packages/shared/test/unit/atomic-write.test.ts",
       "packages/local-runtime-v2/test/unit/session-system/archived-root-title.test.ts",
       "packages/local-runtime-v2/test/unit/i18n-catalogs.test.ts",
       "packages/local-runtime/test/unit/local-runtime-copy-catalogs.test.ts",

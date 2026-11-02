@@ -58,7 +58,15 @@ export {
   withOpenRouterAttributionHeaders,
 } from './openrouter-attribution.js';
 export {
+  atomicWriteFile,
+  atomicWriteFileSync,
+  ensurePrivateDirectory,
+  ensurePrivateDirectorySync,
+  type AtomicWriteFileOptions,
+} from './atomic-write.js';
+export {
   retryWindowsFileSystemOperation,
+  retryWindowsFileSystemOperationAsync,
   type WindowsFileSystemRetryOptions,
 } from './windows-file-system.js';
 
