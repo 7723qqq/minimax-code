@@ -1,4 +1,5 @@
 import { bindTool, type ToolImpl, type ToolResult } from '@mavis/agent-core/tools';
+import { estimateCharsToTokensCjkAware } from '@mavis/shared/cjk-token-estimate';
 
 import { LocalWebFetchToolDef, type LocalWebFetchToolInput } from './builtin-defs.js';
 import type { LocalRuntimeToolContext, LocalWebFetchAdapter } from './types.js';
@@ -81,13 +82,13 @@ function truncateWebFetchContentByEstimatedTokens(
   text: string,
   maxTokens: number,
 ): { text: string; truncated: boolean; originalTokens: number; returnedTokens: number } {
-  const originalTokens = estimateTextTokens(text);
+  const originalTokens = estimateCharsToTokensCjkAware(text);
   if (originalTokens <= maxTokens) {
     return { text, truncated: false, originalTokens, returnedTokens: originalTokens };
   }
 
   const marker = `\n\n[web_fetch response truncated: estimated ${originalTokens} tokens exceeded ${maxTokens}; omitted middle content.]\n\n`;
-  const markerTokens = estimateTextTokens(marker);
+  const markerTokens = estimateCharsToTokensCjkAware(marker);
   const contentBudget = Math.max(1, maxTokens - markerTokens);
   const headBudget = Math.floor(contentBudget / 2);
   const tailBudget = contentBudget - headBudget;
@@ -97,7 +98,7 @@ function truncateWebFetchContentByEstimatedTokens(
 
   for (
     let iterations = 0;
-    estimateTextTokens(clipped) > maxTokens && tail.length > 0 && iterations < text.length;
+    estimateCharsToTokensCjkAware(clipped) > maxTokens && tail.length > 0 && iterations < text.length;
     iterations += 1
   ) {
     tail = dropLeadingCodePoint(tail);
@@ -108,7 +109,7 @@ function truncateWebFetchContentByEstimatedTokens(
     text: clipped,
     truncated: true,
     originalTokens,
-    returnedTokens: estimateTextTokens(clipped),
+    returnedTokens: estimateCharsToTokensCjkAware(clipped),
   };
 }
 
@@ -119,7 +120,7 @@ function takePrefixByEstimatedTokens(text: string, maxTokens: number): string {
   let best = 0;
   for (let iterations = 0; lo <= hi && iterations < MAX_BINARY_SEARCH_ITERATIONS; iterations += 1) {
     const mid = Math.floor((lo + hi) / 2);
-    if (estimateTextTokens(text.slice(0, mid)) <= maxTokens) {
+    if (estimateCharsToTokensCjkAware(text.slice(0, mid)) <= maxTokens) {
       best = mid;
       lo = mid + 1;
     } else {
@@ -136,7 +137,7 @@ function takeSuffixByEstimatedTokens(text: string, maxTokens: number): string {
   let best = text.length;
   for (let iterations = 0; lo <= hi && iterations < MAX_BINARY_SEARCH_ITERATIONS; iterations += 1) {
     const mid = Math.floor((lo + hi) / 2);
-    if (estimateTextTokens(text.slice(mid)) <= maxTokens) {
+    if (estimateCharsToTokensCjkAware(text.slice(mid)) <= maxTokens) {
       best = mid;
       hi = mid - 1;
     } else {
@@ -170,16 +171,3 @@ function isLowSurrogate(code: number): boolean {
   return code >= 0xdc00 && code <= 0xdfff;
 }
 
-const CJK_RE =
-  /[\u{3000}-\u{303F}\u{3040}-\u{30FF}\u{3400}-\u{4DBF}\u{4E00}-\u{9FFF}\u{F900}-\u{FAFF}\u{FF00}-\u{FFEF}\u{AC00}-\u{D7AF}\u{20000}-\u{2FA1F}]/u;
-
-function estimateTextTokens(text: string): number {
-  if (!text) return 0;
-  let cjk = 0;
-  let other = 0;
-  for (const ch of text) {
-    if (CJK_RE.test(ch)) cjk += 1;
-    else other += 1;
-  }
-  return cjk + Math.ceil(other / 4);
-}

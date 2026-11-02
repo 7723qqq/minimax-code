@@ -6,20 +6,13 @@ import {
   createDefaultTokenEstimator,
 } from '@mavis/context-manager';
 import type { PiBeforeLlmCallHookInput } from '@mavis/agent-core/pi-turn-runner';
+import { safeJsonStringify } from '@mavis/shared/json-stringify';
 
 type LocalContextMessage = PiBeforeLlmCallHookInput['messages'][number];
 type PiUsage = Parameters<typeof calculateContextTokens>[0];
 
 interface TokenEstimateOptions {
   model?: Model<Api>;
-}
-
-function safeJsonStringify(value: unknown): string {
-  try {
-    return JSON.stringify(value) ?? '';
-  } catch {
-    return '[unserializable]';
-  }
 }
 
 export function estimateMessagesTokens(

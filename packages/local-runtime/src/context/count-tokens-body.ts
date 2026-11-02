@@ -1,5 +1,7 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import type { Api, Model, Tool } from '@earendil-works/pi-ai';
+import { estimateCharsToTokensCjkAware } from '@mavis/shared/cjk-token-estimate';
+import { safeJsonStringify } from '@mavis/shared/json-stringify';
 import {
   buildMessagesCountTokensRequestBody,
   type MessagesCountTokensBuildOptions,
@@ -11,13 +13,10 @@ const FALLBACK_MESSAGE_OVERHEAD = 4;
 
 export type CountTokensRequestBody = MessagesCountTokensRequestBody;
 
-function safeJsonStringify(value: unknown): string {
-  try {
-    return JSON.stringify(value) ?? '';
-  } catch {
-    return '[unserializable]';
-  }
-}
+// safeJsonStringify and estimateCharsToTokensCjkAware live in @mavis/shared
+// (single source of truth); re-exported here so existing imports inside the
+// package keep working unchanged.
+export { estimateCharsToTokensCjkAware, safeJsonStringify };
 
 export type CountTokensRequestBodyOptions = MessagesCountTokensBuildOptions;
 
@@ -52,20 +51,6 @@ export function countTokensBodyHasImages(body: CountTokensRequestBody): boolean 
 function isBase64MediaBlock(block: unknown): boolean {
   const type = (block as { type?: unknown } | undefined)?.type;
   return type === 'image' || type === 'video';
-}
-
-const CJK_RE =
-  /[\u{3000}-\u{303F}\u{3040}-\u{30FF}\u{3400}-\u{4DBF}\u{4E00}-\u{9FFF}\u{F900}-\u{FAFF}\u{FF00}-\u{FFEF}\u{AC00}-\u{D7AF}\u{20000}-\u{2FA1F}]/u;
-
-export function estimateCharsToTokensCjkAware(text: string): number {
-  if (!text) return 0;
-  let cjk = 0;
-  let other = 0;
-  for (const ch of text) {
-    if (CJK_RE.test(ch)) cjk += 1;
-    else other += 1;
-  }
-  return cjk + Math.ceil(other / 4);
 }
 
 export function cjkFallbackTokensForBody(body: CountTokensRequestBody, model?: Model<Api>): number {

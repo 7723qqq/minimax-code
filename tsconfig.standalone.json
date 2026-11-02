@@ -247,6 +247,9 @@
       "@mavis/shared/bundled-assets": [
         "./packages/shared/src/bundled-assets.ts"
       ],
+      "@mavis/shared/cjk-token-estimate": [
+        "./packages/shared/src/cjk-token-estimate.ts"
+      ],
       "@mavis/shared/cron-model": [
         "./packages/shared/src/cron-model.ts"
       ],
@@ -273,6 +276,9 @@
       ],
       "@mavis/shared/image-dimensions": [
         "./packages/shared/src/image-dimensions.ts"
+      ],
+      "@mavis/shared/json-stringify": [
+        "./packages/shared/src/json-stringify.ts"
       ],
       "@mavis/shared/keyed-operation-lane": [
         "./packages/shared/src/keyed-operation-lane.ts"

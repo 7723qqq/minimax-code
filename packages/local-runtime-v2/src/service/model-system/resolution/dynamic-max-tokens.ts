@@ -2,6 +2,7 @@ import { streamSimple, type Api, type Context, type Model } from '@earendil-work
 import type { AgentMessage, StreamFn } from '@earendil-works/pi-agent-core';
 import { LLM_RETRY_CALL_IDENTITY } from '@mavis/agent-core/pi-turn-runner';
 import { createDefaultTokenEstimator, resolveDynamicMaxTokens } from '@mavis/context-manager';
+import { safeJsonStringify } from '@mavis/shared/json-stringify';
 
 const MIN_OUTPUT_TOKENS = 1_024;
 const EMERGENCY_OUTPUT_TOKENS = 1;
@@ -35,7 +36,7 @@ function estimatePiContextTokens(context: Context): number {
     (tokens, tool) =>
       tokens +
       estimator.estimateTextTokens(
-        [tool.name ?? '', tool.description ?? '', safeJson(tool.parameters)].join('\n'),
+        [tool.name ?? '', tool.description ?? '', safeJsonStringify(tool.parameters)].join('\n'),
       ),
     0,
   );
@@ -119,10 +120,3 @@ function positive(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
 }
 
-function safeJson(value: unknown): string {
-  try {
-    return JSON.stringify(value) ?? '';
-  } catch {
-    return '[unserializable]';
-  }
-}

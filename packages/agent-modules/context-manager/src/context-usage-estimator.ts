@@ -4,6 +4,7 @@ import {
   type ContextUsagePromptRange,
 } from '@mavis/agent-core/protocol';
 
+import { safeJsonStringify } from '@mavis/shared/json-stringify';
 import { createDefaultTokenEstimator } from './token-estimator.js';
 
 export interface PreparedContextUsageEstimate {
@@ -106,10 +107,3 @@ function normalizeTokenCount(value: number): number {
   return Number.isFinite(value) && value >= 0 ? Math.round(value) : 0;
 }
 
-function safeJsonStringify(value: unknown): string {
-  try {
-    return JSON.stringify(value) ?? '';
-  } catch {
-    return '[unserializable]';
-  }
-}

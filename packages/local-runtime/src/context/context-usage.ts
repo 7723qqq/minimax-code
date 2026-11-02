@@ -13,6 +13,7 @@ import {
   type PromptRange,
 } from './context-usage-types.js';
 import { validComponentWeights, validPromptRanges } from './context-usage-validation.js';
+import { safeJsonStringify } from '@mavis/shared/json-stringify';
 import { estimateImageBlockTokens, type ImageTokenEstimateOptions } from './image-detection.js';
 
 export { CONTEXT_USAGE_COMPONENT_KINDS } from './context-usage-types.js';
@@ -275,14 +276,6 @@ function estimateTextTokens(text: string): number {
 function estimateStructuredTokens(value: unknown): number {
   const serialized = safeJsonStringify(value);
   return serialized ? estimateTextTokens(serialized) : 0;
-}
-
-function safeJsonStringify(value: unknown): string {
-  try {
-    return JSON.stringify(value) ?? '';
-  } catch {
-    return '[unserializable]';
-  }
 }
 
 function toProviderMessageUsage(

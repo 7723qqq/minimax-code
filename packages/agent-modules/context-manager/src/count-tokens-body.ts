@@ -20,6 +20,8 @@
 import { convertToLlm } from '@earendil-works/pi-coding-agent/messages';
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import type { Api, Model, Tool } from '@earendil-works/pi-ai';
+import { estimateCharsToTokensCjkAware } from '@mavis/shared/cjk-token-estimate';
+import { safeJsonStringify } from '@mavis/shared/json-stringify';
 
 /** Temperature is required by the gateway body but ignored for counting. */
 const COUNT_TOKENS_TEMPERATURE = 1;
@@ -77,14 +79,6 @@ function textFromContent(content: unknown): string {
     }
   }
   return parts.join('\n');
-}
-
-function safeJsonStringify(value: unknown): string {
-  try {
-    return JSON.stringify(value) ?? '';
-  } catch {
-    return '[unserializable]';
-  }
 }
 
 function assistantText(content: unknown): string {
@@ -173,32 +167,9 @@ export function buildCountTokensRequestBody(
   };
 }
 
-/**
- * CJK / fullwidth ranges that consume roughly one BPE token per character.
- * Expressed as \u code-point escapes to avoid source-encoding ambiguity.
- * Covers: CJK symbols & punctuation, Hiragana/Katakana, CJK Ext-A, CJK
- * Unified Ideographs, CJK Compatibility Ideographs, halfwidth/fullwidth forms,
- * Hangul syllables, and CJK Ext-B+ (astral).
- */
-const CJK_RE =
-  /[\u{3000}-\u{303F}\u{3040}-\u{30FF}\u{3400}-\u{4DBF}\u{4E00}-\u{9FFF}\u{F900}-\u{FAFF}\u{FF00}-\u{FFEF}\u{AC00}-\u{D7AF}\u{20000}-\u{2FA1F}]/u;
-
-/**
- * CJK-aware char→token estimate. CJK / fullwidth code points consume roughly
- * one token each; other (mostly ASCII) text averages ~4 chars per token. This
- * is the fallback when the remote endpoint times out or fails — far closer to
- * truth for Chinese than the legacy `chars/4` which under-counts CJK 4-8x.
- */
-export function estimateCharsToTokensCjkAware(text: string): number {
-  if (!text) return 0;
-  let cjk = 0;
-  let other = 0;
-  for (const ch of text) {
-    if (CJK_RE.test(ch)) cjk += 1;
-    else other += 1;
-  }
-  return cjk + Math.ceil(other / 4);
-}
+// estimateCharsToTokensCjkAware lives in @mavis/shared (single source of
+// truth); re-exported here so the package's public API stays unchanged.
+export { estimateCharsToTokensCjkAware };
 
 /**
  * Fallback total-token estimate from the same body the remote call would send,

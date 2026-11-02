@@ -1,3 +1,11 @@
+// Shared single-source primitives — estimator/measurement helpers
+// (safeJsonStringify, estimateCharsToTokensCjkAware) and the lossless
+// error-to-string extractor (errorMessage) — consumed by context-manager,
+// local-runtime, agent-core, agent-tools and local-runtime-v2. Keep
+// semantics stable; do not re-implement per package.
+export { safeJsonStringify, tryJsonStringify } from './json-stringify.js';
+export { estimateCharsToTokensCjkAware } from './cjk-token-estimate.js';
+
 export {
   MEMORY_SOFT_LIMIT_BYTES,
   MEMORY_HARD_LIMIT_BYTES,

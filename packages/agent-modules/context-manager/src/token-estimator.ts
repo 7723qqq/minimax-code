@@ -48,6 +48,7 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import { Buffer } from 'node:buffer';
 import { countTokens as countO200kBase } from 'gpt-tokenizer/model/gpt-4o';
+import { safeJsonStringify } from '@mavis/shared/json-stringify';
 import type { ContextCompactionSummaryMessage } from './types.js';
 
 export interface ContextTokenEstimate {
@@ -119,14 +120,6 @@ function hasOversizedAlphanumericRun(text: string): boolean {
 
 function estimateTextTokensUpperBound(text: string): number {
   return Buffer.byteLength(text, 'utf8');
-}
-
-function safeJsonStringify(value: unknown): string {
-  try {
-    return JSON.stringify(value) ?? 'undefined';
-  } catch {
-    return '[unserializable]';
-  }
 }
 
 function isVisualContentBlock(block: { type?: unknown }): boolean {

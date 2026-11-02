@@ -1,5 +1,6 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import type { Api, Context, Model, SimpleStreamOptions } from '@earendil-works/pi-ai';
+import { safeJsonStringify } from '@mavis/shared/json-stringify';
 
 import type { RemoteTokenCountContext, RemoteTokenCounter } from './remote-token-counter.js';
 
@@ -170,10 +171,3 @@ function buildToolFingerprint(model: Model<Api>, tools: Context['tools']): strin
   return new Bun.CryptoHasher('sha256').update(serialized).digest('hex');
 }
 
-function safeJsonStringify(value: unknown): string {
-  try {
-    return JSON.stringify(value) ?? '';
-  } catch {
-    return '[unserializable]';
-  }
-}

@@ -1,3 +1,5 @@
+import { tryJsonStringify } from '@mavis/shared/json-stringify';
+
 import type { SessionRecord, SessionRepository } from '../../sessions/repo/contract.js';
 import type { DisplayMessageRecord, MessageRepository } from '../repo/contract.js';
 import type { MessageDisplayReadiness } from '../repo/readiness.js';
@@ -74,7 +76,7 @@ function formatPeekMessage(message: DisplayMessageRecord): string | undefined {
   const content =
     typeof message.msg_content === 'string'
       ? message.msg_content
-      : safeJsonStringify(message.msg_content);
+      : tryJsonStringify(message.msg_content);
   if (!content) return undefined;
   const role = peekMessageRole(message.role);
   return `${role}: ${content.slice(0, 2_000)}`;
@@ -84,12 +86,4 @@ function peekMessageRole(role: unknown): 'user' | 'assistant' | 'system' {
   if (role === 'user') return 'user';
   if (role === 'assistant') return 'assistant';
   return 'system';
-}
-
-function safeJsonStringify(value: unknown): string | undefined {
-  try {
-    return JSON.stringify(value);
-  } catch {
-    return undefined;
-  }
 }
