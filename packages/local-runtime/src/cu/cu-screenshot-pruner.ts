@@ -99,10 +99,10 @@ export function createCuScreenshotPrunerHook(
     const toPrune = screenshotLocations.slice(maxScreenshots);
     if (toPrune.length === 0) return undefined;
 
-    // Deep-clone messages so we don't mutate the original array
-    const pruned = input.messages.map((msg) =>
-      JSON.parse(JSON.stringify(msg)),
-    ) as typeof input.messages;
+    // Deep-clone messages so we don't mutate the original array. Single-pass
+    // structuredClone (mirrors the v2 pruner); a per-message JSON round-trip
+    // re-serializes the whole history string-wise on every pruning call.
+    const pruned = structuredClone(input.messages);
 
     for (const { msgIndex, contentPartIndex } of toPrune) {
       const msg = pruned[msgIndex] as unknown as Record<string, unknown>;

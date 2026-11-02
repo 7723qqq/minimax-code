@@ -47,8 +47,8 @@ export interface LocalRuntimeMessageStore {
   /**
    * Batched, streaming-friendly display import. Upserts one batch of rows in a
    * single transaction so a large legacy migration can be written in bounded
-   * chunks instead of materializing the whole session's display array (plus a
-   * `cloneJson` copy) at once. Pass `replaceExisting: true` on the FIRST batch
+   * chunks instead of materializing the whole session's display array at
+   * once. Pass `replaceExisting: true` on the FIRST batch
    * to clear the session's rows before the batch is written; subsequent batches
    * must omit it (or pass `false`) so earlier batches are preserved. Optional so
    * lightweight test doubles need not implement it (mirrors

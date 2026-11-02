@@ -207,6 +207,7 @@
       "packages/tui/test/unit/tui-surface-host.test.ts",
       "packages/local-runtime/test/unit/token-counter-adapter-routing.test.ts",
       "packages/local-runtime/test/unit/count-tokens-body.test.ts",
+      "packages/local-runtime/test/unit/cu-screenshot-pruner.test.ts",
       "packages/local-runtime-v2/test/integration/btw-settled-history.integration.test.ts",
       "packages/tui/test/unit/tui/controller/side-session-flow.test.ts",
       "packages/tui/test/unit/session-lifecycle-bridge.test.ts",
