@@ -321,17 +321,6 @@ const memorySkillReminderState = new Map<string, MemorySkillReminderState>();
 /** Default backoff schedule: 10, 20, 40 (cap). Apollo `intervals` overrides this. */
 const MEMORY_SKILL_REMINDER_DEFAULTS = [10, 20, 40] as const;
 
-/**
- * @deprecated Use `effectiveInterval(level, override, MEMORY_SKILL_REMINDER_DEFAULTS)`.
- * Kept temporarily for any external import; the inline impl matches the old
- * 10 / 20 / 40 (cap) ladder.
- */
-function memorySkillReminderInterval(level: number): number {
-  return effectiveInterval(level, undefined, MEMORY_SKILL_REMINDER_DEFAULTS);
-}
-// Suppress lint warning — kept on purpose for back-compat (see deprecation note above).
-void memorySkillReminderInterval;
-
 /** Test helper — clear memory-skill-reminder backoff state. */
 export function _resetMemorySkillReminderStateForTests(): void {
   memorySkillReminderState.clear();

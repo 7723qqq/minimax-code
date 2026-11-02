@@ -1424,7 +1424,3 @@ function hasMatchingLocalAllowRule(
 ): boolean {
   return selectMatchingRule(rules, toolName, input)?.ruleBehavior === 'allow';
 }
-
-// `statSync` is used by the `isFile` probe above; this reference is a no-op
-// guard kept for the reserved filesystem-touch validation helper.
-void statSync;
