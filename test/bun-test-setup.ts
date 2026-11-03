@@ -22,7 +22,7 @@
 // replacement is `mock.module()` from `bun:test`.
 //
 // Load it with `bun test --preload ./test/bun-test-setup.ts`.
-import { expect, jest, mock } from 'bun:test';
+import { expect, jest, mock, vi } from 'bun:test';
 
 export type MockedFunction<T> = T extends (...args: never[]) => unknown ? T : never;
 
@@ -108,6 +108,30 @@ export function unstubAllGlobals(): void {
   }
   savedGlobals.clear();
 }
+
+// Bun aliases the `vitest` specifier to `bun:test`, so vitest-style suites
+// share this `vi` object. Bun's surface has no env/global stubs; attach the
+// helpers above so those suites run unchanged.
+const viSurface = vi as unknown as Record<string, unknown>;
+viSurface.stubEnv ??= stubEnv;
+viSurface.unstubAllEnvs ??= unstubAllEnvs;
+viSurface.stubGlobal ??= stubGlobal;
+viSurface.unstubAllGlobals ??= unstubAllGlobals;
+// Vitest hoists `vi.hoisted` above imports at transform time. Bun has no such
+// transform; executing the factory in place is sufficient when the value is
+// only read inside mock factories' closures, which run after module evaluation.
+viSurface.hoisted ??= <T>(factory: () => T): T => factory();
+
+// Vitest's `vi.mock` factory receives an `importOriginal` callback; Bun's
+// `mock.module` passes nothing. Capture the unmocked module before
+// registering the mock: an import that starts before registration resolves to
+// the original, while imports after registration resolve to the mock.
+const bunMockModule = mock.module.bind(mock);
+viSurface.mock = (specifier: string, factory?: (importOriginal: () => Promise<unknown>) => unknown) => {
+  if (factory === undefined) return bunMockModule(specifier, () => ({}));
+  const originalPromise = import(specifier);
+  return bunMockModule(specifier, () => factory(() => originalPromise));
+};
 
 /**
  * Advance fake timers and let the code under test settle.
