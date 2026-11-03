@@ -174,8 +174,25 @@ export function normalizeTuiRuntimeEvent(event: RawTuiRuntimeEvent): TuiRuntimeE
       return compact({
         ...base,
         type: event.type,
+        turnId: readString(payload, ['turnId', 'turn_id']),
         variant,
         lastUserMsgId: readString(payload, ['lastUserMsgId', 'last_user_msg_id']),
+      });
+    }
+  }
+  if (event.type === 'turn.prompt_suggestion.generated') {
+    const turnId = readString(payload, ['turnId', 'turn_id']);
+    const suggestion = readString(payload, ['suggestion'])?.trim();
+    if (sessionId && turnId && suggestion) {
+      const elapsedMs = payload.elapsedMs ?? payload.elapsed_ms;
+      return compact({
+        ...base,
+        type: event.type,
+        sessionId,
+        turnId,
+        suggestion,
+        promptVersion: readString(payload, ['promptVersion', 'prompt_version']),
+        elapsedMs: isFiniteNumber(elapsedMs) ? elapsedMs : undefined,
       });
     }
   }

@@ -125,6 +125,39 @@ describe("Minimax Code stream event projection", () => {
     });
   });
 
+  it('restores the PTC parent of a history Tool Call view from the message rawJson', () => {
+    const historyView = (rawJson: string | undefined) =>
+      normalizeTuiMessage({
+        msgId: 'message-ptc',
+        role: 'assistant',
+        toolCalls: [
+          { toolName: 'run_code', toolCallId: 'run-1', toolCallStatus: 3 },
+          { toolName: 'read', toolCallId: 'read-1', toolCallStatus: 2 },
+          {
+            toolName: 'grep',
+            toolCallId: 'grep-1',
+            toolCallStatus: 2,
+            parentToolCallId: 'run-own',
+          },
+        ],
+        ...(rawJson !== undefined ? { rawJson } : {}),
+      });
+    const rawJson = JSON.stringify({
+      tool_calls: [
+        { tool_name: 'run_code', tool_call_id: 'run-1' },
+        { tool_name: 'read', tool_call_id: 'read-1', parent_tool_call_id: 'run-1' },
+        { tool_name: 'grep', tool_call_id: 'grep-1', parent_tool_call_id: 'run-1' },
+      ],
+    });
+    const parents = (message: ReturnType<typeof normalizeTuiMessage>) =>
+      message.toolCalls?.map((call) => call.parentToolCallId);
+
+    expect(parents(historyView(rawJson))).toEqual([undefined, 'run-1', 'run-own']);
+    for (const missingOrBroken of [undefined, '{"tool_calls": [', '"text"', '{}']) {
+      expect(parents(historyView(missingOrBroken))).toEqual([undefined, undefined, 'run-own']);
+    }
+  });
+
   it("decodes generated Session Tool Call payloads while normalizing durable history", () => {
     expect(
       normalizeTuiMessage({
@@ -153,6 +186,34 @@ describe("Minimax Code stream event projection", () => {
         output: { details: { subSessionId: "session-child" } },
       }),
     ]);
+  });
+
+  it('keeps the outer run_code id of PTC child Tool Calls in history and parts', () => {
+    const message = normalizeTuiMessage({
+      msg_id: 'message-ptc',
+      role: 'assistant',
+      tool_calls: [
+        { tool_name: 'run_code', tool_call_id: 'run-1', tool_call_status: 2 },
+        {
+          tool_name: 'read',
+          tool_call_id: 'child-1',
+          parent_tool_call_id: 'run-1',
+          tool_call_status: 1,
+        },
+        { toolName: 'grep', toolCallId: 'child-2', parentToolCallId: 'run-1', toolCallStatus: 2 },
+      ],
+      parts: [{ type: 'toolCall', name: 'read', id: 'child-3', parent_tool_call_id: ' ' }],
+    });
+
+    expect(message.toolCalls?.map((toolCall) => toolCall.parentToolCallId)).toEqual([
+      undefined,
+      'run-1',
+      'run-1',
+    ]);
+    expect(message.parts?.[0]).toMatchObject({ type: 'tool', toolCall: { id: 'child-3' } });
+    expect(message.parts?.[0]?.type === 'tool' && message.parts[0].toolCall).not.toHaveProperty(
+      'parentToolCallId',
+    );
   });
 
   it("preserves ordered message parts instead of rebuilding chronology from flat fields", () => {

@@ -25,6 +25,7 @@
       "packages/tui/test/unit/network-proxy.test.ts",
       "packages/tui/test/unit/network-proxy-socks5.test.ts",
       "packages/tui/test/unit/application-login-gate.test.ts",
+      "packages/tui/test/unit/tui-account-status-inspection.test.ts",
       "packages/tui/test/unit/mcode-tools-integration.test.ts",
       "packages/tui/test/unit/provider-application.test.ts",
       "packages/tui/test/unit/plugin-application.test.ts",

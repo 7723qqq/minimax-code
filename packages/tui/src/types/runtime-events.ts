@@ -100,6 +100,7 @@ export type TuiCompactionEvent = TuiRuntimeEventBase & {
 export type TuiContentLifecycleEvent =
   | (TuiRuntimeEventBase & {
       type: 'content.retry.exceeded';
+      turnId?: string;
       variant: 'content' | 'network' | 'auth';
       lastUserMsgId?: string;
     })
@@ -151,6 +152,16 @@ export type TuiUnknownRuntimeEvent = TuiRuntimeEventBase & {
   originalType: string;
 };
 
+/** A validated next-message suggestion for one settled Turn of `sessionId`. */
+export type TuiPromptSuggestionEvent = TuiRuntimeEventBase & {
+  type: 'turn.prompt_suggestion.generated';
+  sessionId: string;
+  turnId: string;
+  suggestion: string;
+  promptVersion?: string;
+  elapsedMs?: number;
+};
+
 export type TuiRuntimeEvent =
   | TuiSessionLifecycleEvent
   | TuiQueueUpdatedEvent
@@ -162,4 +173,5 @@ export type TuiRuntimeEvent =
   | TuiRotationEvent
   | TuiLlmRetryEvent
   | TuiThreadGoalEvent
+  | TuiPromptSuggestionEvent
   | TuiUnknownRuntimeEvent;
