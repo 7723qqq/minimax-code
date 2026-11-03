@@ -244,8 +244,8 @@ blindly.
 | `pypdf`                                       | FILL, MUTATE                   | `pip install pypdf`                                            |
 | `pdfplumber`                                  | READ (default)                 | `pip install pdfplumber`                                       |
 | `pdf2image`, `pillow`, `pypdfium2`            | READ vision + page rasterise   | `pip install pdf2image pillow pypdfium2`                       |
-| Bun (bundled with MCode)                      | `render_html.cjs`              | system                                                         |
-| `playwright` + Chromium                       | `render_html.cjs`              | `bun install --global playwright && bunx playwright install chromium` |
+| Node.js 18+                                   | `render_html.cjs`              | system                                                         |
+| `playwright` + Chromium                       | `render_html.cjs`              | `npm install -g playwright && npx playwright install chromium` |
 | `pdfinfo`, `pdftotext`, `pdfimages` (poppler) | READ + verification            | `brew install poppler`                                         |
 | `qpdf`                                        | MUTATE / decryption            | `brew install qpdf` (optional)                                 |
 

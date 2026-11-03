@@ -14,8 +14,6 @@
  *   - `always` — grant and persist the rule
  */
 
-import { telegramText } from './telegram-copy.js';
-
 /** Telegram `callback_data` hard limit (64 UTF-8 bytes). */
 export const TELEGRAM_CALLBACK_DATA_MAX_BYTES = 64;
 
@@ -64,10 +62,10 @@ export function buildPermissionKeyboard(
   return {
     inline_keyboard: [
       [
-        { text: telegramText('permission.allow'), callback_data: allow },
-        { text: telegramText('permission.deny'), callback_data: deny },
+        { text: 'Allow', callback_data: allow },
+        { text: 'Deny', callback_data: deny },
       ],
-      [{ text: telegramText('permission.always'), callback_data: always }],
+      [{ text: 'Always allow', callback_data: always }],
     ],
   };
 }

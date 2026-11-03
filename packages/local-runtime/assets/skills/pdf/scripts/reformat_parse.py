@@ -10,7 +10,7 @@ Input formats (auto-detected by extension):
   .html / .htm      — Pass-through body extraction (<body>…</body>)
 
 Output: a single HTML file (templates/<template>/skeleton.html with
-placeholders filled). Hand it to `bun scripts/render_html.cjs`.
+placeholders filled). Hand it to `node scripts/render_html.cjs`.
 
 Usage:
     python3 reformat_parse.py --input doc.md --out page.html

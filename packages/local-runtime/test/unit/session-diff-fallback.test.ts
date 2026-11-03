@@ -1,10 +1,9 @@
-import { stubEnv, unstubAllEnvs } from '../../../../test/bun-test-setup.js';
-import { execFileSync } from "../../../../scripts/lib/exec.mjs";
+import { execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, writeFile, appendFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { closeLocalRuntimeDb } from '../../src/persistence/db.js';
 import { SqliteLocalTurnDiffStore } from '../../src/persistence/sqlite-persistence.js';
@@ -50,10 +49,10 @@ beforeEach(async () => {
   dataDir = path.join(root, 'data');
   await mkdir(workspaceDir);
   // Keep user hooks, attributes, diff drivers and quoting defaults out of fixtures.
-  stubEnv('GIT_CONFIG_NOSYSTEM', '1');
-  stubEnv('GIT_CONFIG_GLOBAL', path.join(root, 'no-global-config'));
+  vi.stubEnv('GIT_CONFIG_NOSYSTEM', '1');
+  vi.stubEnv('GIT_CONFIG_GLOBAL', path.join(root, 'no-global-config'));
   for (const key of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_PREFIX']) {
-    stubEnv(key, undefined);
+    vi.stubEnv(key, undefined);
   }
   git('init', '-q');
   git('config', 'user.name', 'Diff Test');
@@ -71,7 +70,7 @@ afterEach(async () => {
   // Windows reports EBUSY and unfinished work can overlap the next fixture.
   await Promise.allSettled(pendingReads);
   closeLocalRuntimeDb(dataDir);
-  unstubAllEnvs();
+  vi.unstubAllEnvs();
   await rm(root, { recursive: true, force: true });
 }, process.platform === 'win32' ? 30_000 : 10_000);
 

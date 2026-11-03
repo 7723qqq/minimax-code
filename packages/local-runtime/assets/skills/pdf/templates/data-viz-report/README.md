@@ -147,7 +147,7 @@ cp templates/data-viz-report/skeleton.html /tmp/report/page.html
   "file:///tmp/report/page.html"
 
 # OR via the project's renderer (drives Playwright + same delays):
-bun packages/local-runtime/assets/skills/pdf/scripts/render_html.cjs \
+node packages/local-runtime/assets/skills/pdf/scripts/render_html.cjs \
   /tmp/report/page.html /tmp/report/out.pdf
 ```
 

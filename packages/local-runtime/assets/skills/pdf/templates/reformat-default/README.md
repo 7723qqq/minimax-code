@@ -76,7 +76,7 @@ bash scripts/make.sh reformat \
 # Or two-step manually
 python3 scripts/reformat_parse.py --input mydoc.md --out /tmp/page.html \
   --title "My Document" --accent "#0a7488"
-bun scripts/render_html.cjs --in /tmp/page.html --out mydoc.pdf
+node scripts/render_html.cjs --in /tmp/page.html --out mydoc.pdf
 ```
 
 

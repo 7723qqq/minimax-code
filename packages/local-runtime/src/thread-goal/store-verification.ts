@@ -1,3 +1,4 @@
+
 import {
   type LastVerificationV1,
   type ThreadGoalDecisionResult,
@@ -91,9 +92,7 @@ function normalizeVerificationResult(
       notMetStreak: 0,
     };
   }
-  const missingFingerprint = new Bun.CryptoHasher('sha256')
-    .update(JSON.stringify(missing))
-    .digest('hex');
+  const missingFingerprint = new Bun.CryptoHasher('sha256').update(JSON.stringify(missing)).digest('hex');
   const notMetStreak =
     previous?.verdict === 'not_met' && previous.missingFingerprint === missingFingerprint
       ? previous.notMetStreak + 1

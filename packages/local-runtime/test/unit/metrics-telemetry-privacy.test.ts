@@ -1,24 +1,22 @@
-import { stubEnv, stubGlobal, unstubAllEnvs, unstubAllGlobals } from '../../../../test/bun-test-setup.js';
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
-
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildLocalRuntimeMetricsClient } from '../../src/runtime/host-metrics.js';
 import type { MetricsClient } from '../../src/common/metrics.js';
 
 const clients: MetricsClient[] = [];
-const fetchRequest = mock<typeof fetch>();
+const fetchRequest = vi.fn<typeof fetch>();
 beforeEach(() => {
-  stubEnv('__MAVIS_RUNTIME_MANAGED', '1');
-  stubEnv('MAVIS_BUILD_ENV', 'prod');
-  stubEnv('MAVIS_REGION', 'en');
-  stubEnv('MCODE_DISABLE_TELEMETRY', '');
-  stubEnv('DO_NOT_TRACK', '');
+  vi.stubEnv('__MAVIS_RUNTIME_MANAGED', '1');
+  vi.stubEnv('MAVIS_BUILD_ENV', 'prod');
+  vi.stubEnv('MAVIS_REGION', 'en');
+  vi.stubEnv('MCODE_DISABLE_TELEMETRY', '');
+  vi.stubEnv('DO_NOT_TRACK', '');
   fetchRequest.mockReset().mockResolvedValue(new Response('{}', { status: 200 }));
-  stubGlobal('fetch', fetchRequest);
+  vi.stubGlobal('fetch', fetchRequest);
 });
 afterEach(async () => {
   for (const client of clients.splice(0)) await client.close();
-  unstubAllGlobals();
-  unstubAllEnvs();
+  vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 
 function fixture(metrics?: boolean) {
@@ -48,7 +46,7 @@ describe('automatic runtime metrics consent', () => {
   });
 
   it.each(['MCODE_DISABLE_TELEMETRY', 'DO_NOT_TRACK'])('%s overrides the metrics opt-in', async (key) => {
-    stubEnv(key, '1');
+    vi.stubEnv(key, '1');
     const client = fixture(true);
     client.counter('started_total', 1);
     await client.flush();

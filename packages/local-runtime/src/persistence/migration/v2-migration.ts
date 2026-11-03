@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { FinalizingSqliteDatabase } from '@mavis/shared';
-import { Database } from 'bun:sqlite';
 
 import { registerLocalAssetSync, type LocalRuntimeAssetRecord } from '../../assets/store.js';
 import { openLocalRuntimeDb, type DatabaseLike } from '../db.js';
@@ -393,7 +392,7 @@ function readLatestV2LayoutMigrationManifest(dataDir: string): V2MigrationManife
 }
 
 function collectV2LayoutMigrationManifestPaths(directory: string, depth = 0): string[] {
-  if (depth > 3 || !pathExists(directory)) return [];
+  if (depth > 3 || !fs.existsSync(directory)) return [];
   try {
     return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
       if (entry.isSymbolicLink()) return [];
@@ -633,7 +632,7 @@ function migrateOneAttachment(
   const filePath = readString(attachment.file_path) ?? readString(attachment.filePath);
   const dataUrl = readString(attachment.data_url) ?? readString(attachment.dataUrl);
   if (!filePath && !dataUrl?.startsWith('data:')) return attachment;
-  if (filePath && !pathExists(filePath) && !dataUrl?.startsWith('data:')) return attachment;
+  if (filePath && !fs.existsSync(filePath) && !dataUrl?.startsWith('data:')) return attachment;
   const fileName =
     readString(attachment.file_name) ??
     readString(attachment.fileName) ??
@@ -740,7 +739,7 @@ function copyOrReconcileSqliteSnapshot(
   manifest: V2MigrationManifest,
   managedRoot: string,
 ): void {
-  if (!pathExists(source)) {
+  if (!fs.existsSync(source)) {
     manifest.skipped.push(`${label}:source-missing`);
     return;
   }
@@ -750,7 +749,7 @@ function copyOrReconcileSqliteSnapshot(
   }
   ensureManagedDirectory(path.dirname(target), managedRoot);
   ensureManagedWriteTarget(target, managedRoot);
-  if (pathExists(target)) {
+  if (fs.existsSync(target)) {
     const inserted = reconcileMissingSqliteRows(source, target, label, manifest);
     if (inserted > 0) manifest.copied.push(`${label}:reconciled:${inserted}`);
     else manifest.skipped.push(`${label}:target-current`);
@@ -828,7 +827,7 @@ function reconcileMissingSqliteRows(
 }
 
 function ensureCurrentRuntimeSqliteSchemaIfPresent(dataDir: string): void {
-  if (!pathExists(resolveV2DirectoryContract(dataDir).db)) return;
+  if (!fs.existsSync(resolveV2DirectoryContract(dataDir).db)) return;
   const db = openLocalRuntimeDb(dataDir);
   assertCurrentRuntimeSqliteSchemaComplete(db);
 }
@@ -851,7 +850,7 @@ function publishSqliteSnapshot(tempTarget: string, target: string): boolean {
     return false;
   }
   try {
-    if (pathExists(target)) {
+    if (fs.existsSync(target)) {
       fs.rmSync(tempTarget, { force: true });
       return false;
     }
@@ -867,7 +866,7 @@ function publishSqliteSnapshot(tempTarget: string, target: string): boolean {
 function acquireSqliteSnapshotPublishLock(lockPath: string, target: string): number | undefined {
   const startedAt = Date.now();
   while (true) {
-    if (pathExists(target)) return undefined;
+    if (fs.existsSync(target)) return undefined;
     try {
       const fd = fs.openSync(lockPath, 'wx');
       fs.writeSync(fd, `${process.pid}\n${startedAt}\n`);
@@ -909,7 +908,7 @@ function copyDirIfMissing(
   manifest: V2MigrationManifest,
   managedRoot: string,
 ): void {
-  if (!pathExists(source)) {
+  if (!fs.existsSync(source)) {
     manifest.skipped.push(`${label}:source-missing`);
     return;
   }
@@ -918,7 +917,7 @@ function copyDirIfMissing(
     manifest.skipped.push(`${label}:source-not-directory`);
     return;
   }
-  if (pathExists(target) && !fs.statSync(target).isDirectory()) {
+  if (fs.existsSync(target) && !fs.statSync(target).isDirectory()) {
     throw new Error(`${label}:target-not-directory`);
   }
   ensureManagedDirectory(target, managedRoot);
@@ -941,7 +940,7 @@ function copyMissingDirEntries(source: string, target: string, managedRoot: stri
     } else if (entry.isFile()) {
       ensureManagedDirectory(path.dirname(targetPath), managedRoot);
       ensureManagedWriteTarget(targetPath, managedRoot);
-      if (pathExists(targetPath)) continue;
+      if (fs.existsSync(targetPath)) continue;
       fs.copyFileSync(sourcePath, targetPath);
       copied += 1;
     }
@@ -1073,23 +1072,4 @@ function readString(value: unknown): string | undefined {
 
 function resolveDataDir(dataDir: DataDirInput): string {
   return typeof dataDir === 'function' ? dataDir() : dataDir;
-}
-
-/**
- * Whether `target` exists.
- *
- * A `statSync` inside a `try` answers the same question as `existsSync` for a
- * file, a directory, a missing entry and an unreadable path. It also removes the
- * second syscall these call sites used to pay, since `statSync` already yields
- * what they then inspect. `existsSync` is the `node:` compatibility surface and
- * measures roughly an order of magnitude slower per call in this runtime. This
- * module is synchronous throughout, so `Bun.file()` does not apply.
- */
-function pathExists(target: string): boolean {
-  try {
-    fs.statSync(target);
-    return true;
-  } catch {
-    return false;
-  }
 }

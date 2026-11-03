@@ -75,7 +75,7 @@ duplicate it per country in the loop).
 cp templates/multilang-research-report/skeleton.html /tmp/report/page.html
 # Edit --primary in :root.
 # Duplicate the per-country section for each of your N countries.
-bun packages/local-runtime/assets/skills/pdf/scripts/render_html.cjs /tmp/report/page.html /tmp/report/out.pdf
+node packages/local-runtime/assets/skills/pdf/scripts/render_html.cjs /tmp/report/page.html /tmp/report/out.pdf
 ```
 
 ## 6. Pitfalls (from m15 production)

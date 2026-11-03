@@ -1,10 +1,9 @@
-import { stubEnv, unstubAllEnvs } from '../../../../test/bun-test-setup.js';
-import { describe, expect, it, mock } from 'bun:test';
 import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { delimiter, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { describe, expect, it, vi } from 'vitest';
 import { resolveAgentCapabilities } from '@mavis/config';
 import type { IRuntimeEvent } from '@mavis/protocol';
 
@@ -21,11 +20,53 @@ import { initSkillService } from '../../src/skills/skill-service.js';
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '../..');
 
 describe('local native turn tools', () => {
+  it.skipIf(process.platform === 'win32')('reads nativeDelete from the live config for an existing Bash tool', async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), 'native-bash-policy-'));
+    let nativeDelete = false;
+    const environments: NodeJS.ProcessEnv[] = [];
+    const configGetter = vi.fn(() => ({ dataDir, provider: {}, permission: { nativeDelete } }));
+    const tools = buildLocalNativeRuntimeTools({
+      dataDir,
+      workspaceRoot: dataDir,
+      agentName: 'mavis',
+      configGetter,
+      sandboxOperationsFactory: {
+        create: () => ({
+          exec: async (_command, _cwd, options) => {
+            environments.push(options.env!);
+            return { exitCode: 0 };
+          },
+        }),
+      },
+    });
+    const bash = tools.find((tool) => tool.def.name === 'bash')!;
+    const shim = join(dataDir, 'shims');
+    vi.stubEnv('PATH', [shim, process.env.PATH].join(delimiter));
+    try {
+      expect(configGetter).not.toHaveBeenCalled();
+      for (const enabled of [false, true, false]) {
+        nativeDelete = enabled;
+        const result = await bash.impl.execute(
+          { sessionId: 'bash-session', turnId: 'bash-turn' },
+          { command: 'true' },
+        );
+        expect(result.isError).toBeFalsy();
+      }
+      expect(environments[0]!.PATH?.split(delimiter)).toContain(shim);
+      expect(environments[1]!.PATH?.split(delimiter)).not.toContain(shim);
+      expect(environments[2]!.PATH).toBe(environments[0]!.PATH);
+      expect(configGetter).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.unstubAllEnvs();
+      await rm(dataDir, { recursive: true, force: true });
+    }
+  });
+
   it('exposes native web_search only when the local product owner gate is enabled', () => {
     const base = {
       workspaceRoot: '/workspace',
       agentName: 'mavis',
-      webSearchAdapter: { search: mock() },
+      webSearchAdapter: { search: vi.fn() },
     };
 
     expect(buildLocalNativeRuntimeTools(base).map((tool) => tool.def.name)).not.toContain(
@@ -39,10 +80,10 @@ describe('local native turn tools', () => {
   });
 
   it('executes native search through the authenticated gateway without a Matrix MCP server', async () => {
-    stubEnv('MAVIS_BUILD_ENV', 'test');
+    vi.stubEnv('MAVIS_BUILD_ENV', 'test');
     const dataDir = await mkdtemp(join(tmpdir(), 'native-search-'));
     const mcpService = new LocalMcpService(() => dataDir);
-    const fetchImpl = mock<typeof fetch>().mockResolvedValue(
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(
         JSON.stringify({
           code: 0,
@@ -60,7 +101,7 @@ describe('local native turn tools', () => {
       toolsDisabled: false,
       nativeWebSearchEnabled: true,
       mcpService,
-      emitBusEvent: mock(),
+      emitBusEvent: vi.fn(),
       threadGoal: { runtimeToolsFor: async () => [] } as never,
       authContext: { accessToken: 'test-search-token' },
       fetchImpl,
@@ -91,7 +132,7 @@ describe('local native turn tools', () => {
       const noTools = await buildLocalTurnToolSources({ ...input, toolsDisabled: true });
       expect(noTools.nativeTools).toEqual([]);
     } finally {
-      unstubAllEnvs();
+      vi.unstubAllEnvs();
       await mcpService.close();
       await rm(dataDir, { recursive: true, force: true });
     }
@@ -271,8 +312,8 @@ describe('local native turn tools', () => {
   });
 
   it('keeps the Memory tool read-only when a session disables memory writes', async () => {
-    const getUserMemory = mock(async () => ({ content: 'saved user memory' }));
-    const appendMemory = mock();
+    const getUserMemory = vi.fn(async () => ({ content: 'saved user memory' }));
+    const appendMemory = vi.fn();
     const memory = buildLocalNativeRuntimeTools({
       workspaceRoot: '/workspace',
       agentName: 'mavis',
@@ -445,9 +486,9 @@ describe('local native turn tools', () => {
   it('uses the turn reporter for todo event identity without reusing it as the message id', async () => {
     const dataDir = await mkdtemp(join(tmpdir(), 'local-native-sources-'));
     const events: IRuntimeEvent[] = [];
-    const nextEventId = mock(() => 'evt_hosted-turn_todo_updated_39');
-    const nextRuntimeSeq = mock(() => 39);
-    const runtimeToolsFor = mock(async () => []);
+    const nextEventId = vi.fn(() => 'evt_hosted-turn_todo_updated_39');
+    const nextRuntimeSeq = vi.fn(() => 39);
+    const runtimeToolsFor = vi.fn(async () => []);
     try {
       const sources = await buildLocalTurnToolSources({
         toolsDisabled: false,
@@ -508,7 +549,7 @@ describe('local native turn tools', () => {
 
   it('degrades todo event emission when the turn reporter is unavailable', async () => {
     const dataDir = await mkdtemp(join(tmpdir(), 'local-native-sources-'));
-    const emitBusEvent = mock();
+    const emitBusEvent = vi.fn();
     try {
       const sources = await buildLocalTurnToolSources({
         toolsDisabled: false,
@@ -548,7 +589,7 @@ describe('local native turn tools', () => {
 
   it('degrades a rejected todo event append even when failure diagnostics throw', async () => {
     const dataDir = await mkdtemp(join(tmpdir(), 'local-native-sources-'));
-    const emitBusEvent = mock((type: string) => {
+    const emitBusEvent = vi.fn((type: string) => {
       if (type === 'todo.event_emit_failed') {
         throw new Error('diagnostic delivery unavailable');
       }
@@ -684,7 +725,7 @@ describe('local native turn tools', () => {
 
   it('wires injected fetchImpl into the local web_fetch tool', async () => {
     const dataDir = await mkdtemp(join(tmpdir(), 'local-native-tools-web-fetch-'));
-    const fetchImpl = mock(async () => {
+    const fetchImpl = vi.fn(async () => {
       return new Response('hello from injected fetch', {
         status: 200,
         headers: { 'Content-Type': 'text/plain' },
@@ -771,7 +812,7 @@ describe('local native turn tools', () => {
           deleteSession: async () => ({ success: true }),
           listMessages: async (req) => {
             sessionCalls.push(req);
-            return { messages: [{ content: 'ok' }] };
+            return { messages: [{ msg_id: 'msg-1', msg_content: 'ok' }] };
           },
         },
       });
@@ -815,7 +856,7 @@ describe('local native turn tools', () => {
       expect(JSON.parse(sessionResult.text)).toMatchObject({
         ok: true,
         command: 'session messages',
-        response: { messages: [{ content: 'ok' }] },
+        response: { messages: [{ msg_id: 'msg-1', msg_content: 'ok' }] },
       });
       expect(sessionCalls).toEqual([{ sessionId: 'session-current' }]);
 
@@ -899,7 +940,7 @@ describe('local native turn tools', () => {
         join(root, 'SKILL.md'),
         '---\nname: private-skill\ndescription: Private skill\n---\nRECREATED AGENT',
       );
-      const resolveAgentReadScope = mock(async () => {
+      const resolveAgentReadScope = vi.fn(async () => {
         throw new Error('Unexpected live Agent lookup');
       });
       initSkillService({

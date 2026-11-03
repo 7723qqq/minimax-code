@@ -1,8 +1,9 @@
-import { describe, expect, it, mock } from 'bun:test';
 import { PNG } from "pngjs";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+import { describe, expect, it, vi } from "vitest";
 
 import {
   digestThreadGoalObjective,
@@ -87,8 +88,8 @@ interface Harness {
   readonly initialGoal: ThreadGoalState;
   readonly verifier: VerifierPort;
   readonly transcriptReader: TranscriptWindowReader;
-  readonly enqueuePostTurnContinuation: ReturnType<typeof mock>;
-  readonly emitRuntimeEvent: ReturnType<typeof mock>;
+  readonly enqueuePostTurnContinuation: ReturnType<typeof vi.fn>;
+  readonly emitRuntimeEvent: ReturnType<typeof vi.fn>;
   settle(input?: {
     readonly tokens?: number;
     readonly finalAssistantText?: string;
@@ -106,7 +107,7 @@ async function withHarness(
     readonly tokenBudget?: number;
     readonly objectiveResources?: ThreadGoalState["objectiveResources"];
     readonly transcriptReader?: TranscriptWindowReader;
-    readonly enqueuePostTurnContinuation?: ReturnType<typeof mock>;
+    readonly enqueuePostTurnContinuation?: ReturnType<typeof vi.fn>;
   },
   run: (harness: Harness) => Promise<void>,
 ): Promise<void> {
@@ -115,12 +116,12 @@ async function withHarness(
   const nowMs = () => now++;
   const turnTimings = new LocalActiveTurnTimingRegistry(nowMs);
   const enqueuePostTurnContinuation =
-    options.enqueuePostTurnContinuation ?? mock(async () => undefined);
-  const emitRuntimeEvent = mock();
+    options.enqueuePostTurnContinuation ?? vi.fn(async () => undefined);
+  const emitRuntimeEvent = vi.fn();
   const transcriptReader =
     options.transcriptReader ??
     ({
-      capture: mock(async () => ({
+      capture: vi.fn(async () => ({
         messages: [{ role: "assistant", content: "Release checks finished." }],
         truncated: false,
       })),
@@ -129,7 +130,7 @@ async function withHarness(
     dataDir,
     nowMs,
     turnTimingReader: turnTimings,
-    publishGlobalEvent: mock(),
+    publishGlobalEvent: vi.fn(),
     isSessionBusy: () => false,
     hasPendingQuestionnaire: async () => false,
     retireGoalQuestionnaire: async () => false,
@@ -140,9 +141,9 @@ async function withHarness(
     enqueueInitialContinuationTurn: async () => undefined,
     enqueuePostTurnContinuation,
     cancelInitialContinuation: async () => undefined,
-    requestQueueDispatch: mock(),
+    requestQueueDispatch: vi.fn(),
     hasPendingInitialContinuation: async () => false,
-    reportFailure: mock(),
+    reportFailure: vi.fn(),
     formatError: (error) =>
       error instanceof Error ? error.message : String(error),
     isEnabled: () => true,
@@ -259,7 +260,7 @@ function fixedVerifier(
   backend: VerificationResult["backend"] = "evaluator",
 ): VerifierPort {
   return {
-    dispatch: mock(async () =>
+    dispatch: vi.fn(async () =>
       verifierResult(
         verdict,
         backend === "subagent" && usage.childTurns === undefined
@@ -437,7 +438,7 @@ describe("Thread Goal verifier host contract", () => {
 
   it("keeps the verifier child trace on the final Goal decision event", async () => {
     const verifier: VerifierPort = {
-      dispatch: mock(async () => ({
+      dispatch: vi.fn(async () => ({
         backend: "subagent",
         verdict: {
           verdict: "met",
@@ -910,7 +911,7 @@ describe("Thread Goal verifier host contract", () => {
       const started = deferred<void>();
       const released = deferred<VerificationResult>();
       const verifier: VerifierPort = {
-        dispatch: mock(async () => {
+        dispatch: vi.fn(async () => {
           started.resolve();
           return released.promise;
         }),
@@ -976,7 +977,7 @@ describe("Thread Goal verifier host contract", () => {
     "accounts a %s failure and pauses without synthesizing completion",
     async (code, expectedReason) => {
       const verifier: VerifierPort = {
-        dispatch: mock(async () => {
+        dispatch: vi.fn(async () => {
           throw new VerificationDispatchError(
             code as VerificationDispatchFailureCode,
             `Verifier failed with ${code}`,
@@ -1028,7 +1029,7 @@ describe("Thread Goal verifier host contract", () => {
       announceDispatch = resolve;
     });
     const verifier: VerifierPort = {
-      dispatch: mock(
+      dispatch: vi.fn(
         async (_attempt: VerificationAttempt, signal: AbortSignal) => {
           observed = signal;
           announceDispatch();
@@ -1115,7 +1116,7 @@ describe("Thread Goal verifier host contract", () => {
       reason: "More evidence is required.",
       missing: ["release approval"],
     });
-    const capture = mock(async () => ({ messages: [], truncated: false }));
+    const capture = vi.fn(async () => ({ messages: [], truncated: false }));
     await withHarness(
       { verifier, transcriptReader: { capture } },
       async (harness) => {
@@ -1145,14 +1146,14 @@ describe("Thread Goal verifier host contract", () => {
       reason: "The completion claim is not supported.",
       missing: ["independent approval"],
     });
-    const capture = mock(async () => ({ messages: [], truncated: false }));
+    const capture = vi.fn(async () => ({ messages: [], truncated: false }));
     await withHarness(
       { verifier, transcriptReader: { capture } },
       async (harness) => {
         await proposeCompletion(harness);
 
         await harness.settle();
-        const [attempt] = (verifier.dispatch as ReturnType<typeof mock>).mock
+        const [attempt] = (verifier.dispatch as ReturnType<typeof vi.fn>).mock
           .calls[0] as [VerificationAttempt];
         const persisted = await harness.integration.store.getById(
           harness.initialGoal.goalId,
@@ -1242,7 +1243,8 @@ describe("Thread Goal verifier host contract", () => {
       reason: "More evidence is required.",
       missing: ["release approval"],
     });
-    const enqueuePostTurnContinuation = mock()
+    const enqueuePostTurnContinuation = vi
+      .fn()
       .mockRejectedValueOnce(new Error("queue unavailable"))
       .mockResolvedValueOnce(undefined);
     await withHarness(
@@ -1285,7 +1287,7 @@ describe("Thread Goal verification execution wait", () => {
     let observed: ThreadGoalState | undefined;
     let epochAtDispatch: number | undefined;
     const verifier: VerifierPort = {
-      dispatch: mock(async (attempt: VerificationAttempt) => {
+      dispatch: vi.fn(async (attempt: VerificationAttempt) => {
         observed = await integrationRef?.store.getById(attempt.goalId);
         epochAtDispatch = attempt.goalUpdatedAt;
         return verifierResult({
@@ -1381,7 +1383,7 @@ describe("Thread Goal verification execution wait", () => {
     "retires the wait when dispatch fails: %s",
     async (code: VerificationDispatchFailureCode) => {
       const verifier: VerifierPort = {
-        dispatch: mock(async () => {
+        dispatch: vi.fn(async () => {
           throw new VerificationDispatchError(code, `verifier ${code}`, {
             tokens: null,
             activeSeconds: 0,
@@ -1403,7 +1405,7 @@ describe("Thread Goal verification execution wait", () => {
 
   it("retires the wait when an unclassified verifier child crashes", async () => {
     const verifier: VerifierPort = {
-      dispatch: mock(async () => {
+      dispatch: vi.fn(async () => {
         throw new Error("verifier child terminated");
       }),
     };
@@ -1430,7 +1432,7 @@ describe("Thread Goal verification execution wait", () => {
       announceDispatch = resolve;
     });
     const verifier: VerifierPort = {
-      dispatch: mock(
+      dispatch: vi.fn(
         async (_attempt: VerificationAttempt, signal: AbortSignal) => {
           announceDispatch();
           await new Promise<void>((resolve) =>

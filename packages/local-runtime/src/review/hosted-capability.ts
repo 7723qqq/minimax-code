@@ -20,7 +20,6 @@ import {
 } from './prompt-read-handoff.js';
 import { prepareReview, type PreparedReviewRead } from './prompt-preparation.js';
 import type { PreparedReview } from './preparation.js';
-import { reviewText } from './review-copy.js';
 import { projectReviewRuntimeEvent } from './projection-writer.js';
 import {
   inspectReviewProtocolOutput,
@@ -395,7 +394,7 @@ export class HostedReviewCapability {
       sessionType: 'branch',
       sessionKind: 'task',
       parentSessionId: parent.sessionId,
-      title: reviewText(preparedRead.prepared.responseLanguage, 'session.title'),
+      title: preparedRead.prepared.responseLanguage === 'zh-CN' ? '代码审查' : 'Code review',
       visibility: 'hidden',
       purpose: `code-review:${preparedRead.prepared.context.reviewRunId}`,
       runLocation: parent.runLocation,

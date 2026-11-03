@@ -1,5 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
-
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -39,11 +38,11 @@ const OBJECTIVE = "Consolidate the Goal runtime fixes";
 let dataDir: string;
 let integration: LocalThreadGoalIntegration;
 let turnTimings: LocalActiveTurnTimingRegistry;
-let enqueuePostTurnContinuation: ReturnType<typeof mock>;
-let enqueueInitialContinuationTurn: ReturnType<typeof mock>;
-let cancelInitialContinuation: ReturnType<typeof mock>;
-let hasPendingInitialContinuation: ReturnType<typeof mock>;
-let reportFailure: ReturnType<typeof mock>;
+let enqueuePostTurnContinuation: ReturnType<typeof vi.fn>;
+let enqueueInitialContinuationTurn: ReturnType<typeof vi.fn>;
+let cancelInitialContinuation: ReturnType<typeof vi.fn>;
+let hasPendingInitialContinuation: ReturnType<typeof vi.fn>;
+let reportFailure: ReturnType<typeof vi.fn>;
 let kickoffQueued: boolean;
 let permissionPending: boolean;
 
@@ -52,15 +51,15 @@ beforeEach(async () => {
   turnTimings = new LocalActiveTurnTimingRegistry(() => NOW);
   kickoffQueued = false;
   permissionPending = false;
-  enqueuePostTurnContinuation = mock(async () => undefined);
-  enqueueInitialContinuationTurn = mock(async () => {
+  enqueuePostTurnContinuation = vi.fn(async () => undefined);
+  enqueueInitialContinuationTurn = vi.fn(async () => {
     kickoffQueued = true;
   });
-  cancelInitialContinuation = mock(async () => {
+  cancelInitialContinuation = vi.fn(async () => {
     kickoffQueued = false;
   });
-  hasPendingInitialContinuation = mock(async () => kickoffQueued);
-  reportFailure = mock();
+  hasPendingInitialContinuation = vi.fn(async () => kickoffQueued);
+  reportFailure = vi.fn();
   integration = new LocalThreadGoalIntegration({
     dataDir,
     nowMs: () => NOW,
@@ -73,14 +72,14 @@ beforeEach(async () => {
     hasPendingPermission: async () => permissionPending,
     hasAutomationOwnerConflict: async () => false,
     hasRequiredBackgroundWork: async () => false,
-    startContinuationTurn: mock(async () => undefined),
+    startContinuationTurn: vi.fn(async () => undefined),
     enqueuePostTurnContinuation,
     enqueueInitialContinuationTurn,
     hasPendingInitialContinuation,
     cancelInitialContinuation,
     requestQueueDispatch: () => undefined,
     reportFailure,
-    emitRuntimeEvent: mock(),
+    emitRuntimeEvent: vi.fn(),
     formatError: (error) =>
       error instanceof Error ? error.message : String(error),
     isEnabled: () => true,

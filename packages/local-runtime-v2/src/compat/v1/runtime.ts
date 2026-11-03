@@ -21,7 +21,7 @@ import {
   SUBAGENT_TELEMETRY_EVENT,
   ThreadGoalContractError,
   updateLocalConfigFile,
-  withAgentNameConflictMigrationLock,
+  withAgentNameConflictMigrationScope,
   type CreateConversationCompatibilityHostOptions,
   type CreatedLocalRuntimeHost,
   type ManagedWorktreeServicePort,
@@ -51,6 +51,10 @@ import type {
 import type { ContentSafetyReviewPort } from "../../service/content-safety/index.js";
 import type { CronService } from "../../service/cron/index.js";
 import type { PluginServiceCompatibility } from "../../service/plugin-system/index.js";
+import type {
+  UserStopCascadePort,
+  UserStopCascadeRun,
+} from "../../service/turn-system/contracts.js";
 import {
   createV1AgentHostProductCapabilities,
   createV1AttachmentRegistration,
@@ -123,12 +127,33 @@ async function resolveDelegatableAgentReference(
   }
 }
 
+/**
+ * Adapts the v1 user-stop cascade to the TurnSystem port. The v1 cascade opens
+ * its window synchronously and exposes a `markBoundary` the unsynced TurnSystem
+ * never calls; per the v1 contract a `complete` without a mark is the
+ * documented fallback boundary. The upstream v2 sync replaces this adapter.
+ */
+function adaptUserStopCascade(cascade: UserStopCascade): UserStopCascadePort {
+  return {
+    begin: (sessionId) => {
+      const handle = cascade.begin(sessionId);
+      if (!handle) return Promise.resolve(undefined);
+      const run: UserStopCascadeRun = {
+        accept: (how) => handle.accept(how),
+        complete: (result) => handle.complete(result),
+        cancel: (reason) => handle.cancel(reason),
+      };
+      return Promise.resolve(run);
+    },
+  };
+}
+
 /** Cross-process cutover lock shared with the legacy conflict migration. */
 export function withAgentStorageLock<T>(
   dataDir: string,
   operation: (scope: AgentStorageLockScope) => T | PromiseLike<T>,
 ): Promise<T> {
-  return withAgentNameConflictMigrationLock(dataDir, async (legacyScope) => {
+  return withAgentNameConflictMigrationScope(dataDir, async (legacyScope) => {
     let active = true;
     const applyCollision = (nowMs?: () => number) => {
       if (!active)
@@ -339,7 +364,7 @@ export interface V1ServiceCompatibility extends V1ProcessLocalSupport {
     }): void;
     recover(recoveredTurnIds: readonly string[]): Promise<boolean | void>;
     pollRecovery(): Promise<boolean>;
-    readonly userStop: UserStopCascade;
+    readonly userStop: UserStopCascadePort;
   };
   readonly conversation: {
     bind(conversation: RuntimeConversation): Promise<void>;
@@ -537,11 +562,12 @@ export function createV1RuntimeCompatibility(
             return api.backgroundTaskService.hasPendingStartupRecovery();
           },
           pollRecovery: () => api.backgroundTaskService.pollStartupLostTasks(),
-          userStop: createUserStopCascade({
-            host: api,
-            pauseActiveGoal: (sessionId) => api.threadGoal.pauseActiveGoalForAbort(sessionId),
-            readConversationStopConfig: () => api.configGetter().conversation,
-          }),
+          userStop: adaptUserStopCascade(
+            createUserStopCascade({
+              host: api,
+              pauseActiveGoal: (sessionId) => api.threadGoal.pauseActiveGoalForAbort(sessionId),
+            }),
+          ),
         },
         conversation: {
           bind: async (service) => {

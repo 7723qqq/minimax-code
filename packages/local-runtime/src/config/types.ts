@@ -1,4 +1,4 @@
-import type { AsrConfig, Config, ConversationStopConfig, ModelConfig, ProviderAuthMode } from '@mavis/config';
+import type { AsrConfig, Config, ModelConfig, ProviderAuthMode } from '@mavis/config';
 
 type LocalModelLimit = Partial<NonNullable<ModelConfig['limit']>>;
 type LocalModelModalities = Partial<NonNullable<ModelConfig['modalities']>>;
@@ -76,8 +76,7 @@ export interface LocalRuntimeConfig {
   permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions' | 'auto' | 'off';
   /** Permission policy rollout; omitted local views inherit the config default. */
   permission?: Partial<Config['permission']>;
-  /** Conversation stop policy (`conversation.stopSubAgent` / `stopAsyncBash`). */
-  conversation?: ConversationStopConfig;
+  skipWindowsHardSafetyChecks?: Config['skipWindowsHardSafetyChecks'];
   dataDir: string;
   /**
    * Directory that startup seeds bundled builtin skills into. Defaults to
@@ -96,6 +95,7 @@ export interface LocalRuntimeConfig {
   askUser?: Config['askUser'];
   promptConfig?: Config['promptConfig'];
   runawayGuard?: Config['runawayGuard'];
+  promptSuggestion?: Config['promptSuggestion'];
   toolResultCompaction?: Config['toolResultCompaction'];
   mcp?: {
     nativeToolAllowlist?: string[];

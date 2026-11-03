@@ -1,6 +1,5 @@
-import { stubEnv, unstubAllEnvs } from '../../../../test/bun-test-setup.js';
-import { describe, expect, it, mock } from 'bun:test';
 import { createDecipheriv } from 'node:crypto';
+import { describe, expect, it, vi } from 'vitest';
 
 import { createDesktopErrorReporter, formatErrorLog } from '../../src/error-reporting/reporter.js';
 import { createLLMFailureReportHook } from '../../src/error-reporting/llm-integration.js';
@@ -34,7 +33,7 @@ function reporterFixture(readTelemetryEnabled: () => boolean | undefined = () =>
     authContextGetter: () => ({ accessToken: token, realUserID: userId }),
     region: () => 'en',
     buildEnv: () => 'prod',
-    fetchImpl: mock<typeof fetch>(async (url, init) => {
+    fetchImpl: vi.fn<typeof fetch>(async (url, init) => {
       requests.push({ url: String(url), init: init! });
       return new Response(null, { status: 204 });
     }),
@@ -51,14 +50,14 @@ describe('automatic error upload privacy boundary', () => {
   });
 
   it.each(['MCODE_DISABLE_TELEMETRY', 'DO_NOT_TRACK'])('%s overrides the diagnostics opt-in', async (key) => {
-    stubEnv(key, '1');
+    vi.stubEnv(key, '1');
     try {
       const { reporter, requests } = reporterFixture(() => true);
       reporter.report({ event_type: 'llm_request_failure', event_log: '{}', occurred_at_ms: 1, code_location: 'synthetic' });
       await reporter.flush();
       expect(requests).toEqual([]);
     } finally {
-      unstubAllEnvs();
+      vi.unstubAllEnvs();
     }
   });
 
@@ -68,16 +67,16 @@ describe('automatic error upload privacy boundary', () => {
     try {
       reporter.report({ event_type: 'llm_request_failure', event_log: '{}', occurred_at_ms: 1, code_location: 'synthetic' });
       if (source === 'config') enabled = false;
-      else stubEnv(source, '1');
+      else vi.stubEnv(source, '1');
       await reporter.flush();
       expect(requests).toEqual([]);
       enabled = true;
-      unstubAllEnvs();
+      vi.unstubAllEnvs();
       await reporter.flush();
       expect(requests).toEqual([]);
     } finally {
       await reporter.close();
-      unstubAllEnvs();
+      vi.unstubAllEnvs();
     }
   });
 
@@ -109,7 +108,7 @@ describe('automatic error upload privacy boundary', () => {
       map: new Map([[SECRET, SECRET]]),
     });
     error.stack = SECRET;
-    const getter = mock(() => SECRET);
+    const getter = vi.fn(() => SECRET);
     Object.defineProperty(error, 'toJSON', { get: getter });
     Object.defineProperty(cause, 'request', { get: getter });
     createLLMFailureReportHook(reporter, { appVersion: '0.4.12' })({
@@ -189,7 +188,7 @@ describe('automatic error upload privacy boundary', () => {
       message: SECRET,
     };
     error.cause = error;
-    const getter = mock(() => {
+    const getter = vi.fn(() => {
       throw new Error(SECRET);
     });
     Object.defineProperty(error, 'properties', { get: getter });

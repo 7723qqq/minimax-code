@@ -113,19 +113,19 @@ without a separate installation probe. For other operations, or after a real com
 error, use the `install-lark-cli` recipe from the selected platform command reference; if missing,
 install it for the user before retrying the requested command.
 
-The registry package is **`@larksuite/cli`** (provides the `lark-cli` binary). Do not guess other package
+The npm package is **`@larksuite/cli`** (provides the `lark-cli` binary). Do not guess other package
 names.
 
 Notes:
 
 - If the global install fails with a permission error, tell the user and offer either an elevated
-  install (e.g. `sudo bun install --global @larksuite/cli` on macOS/Linux, or running PowerShell as
+  install (e.g. `sudo npm install -g @larksuite/cli` on macOS/Linux, or running PowerShell as
   Administrator on Windows) or a per-user prefix. **Never run `sudo` without telling the user
   first.**
 - After install, do **not** run `lark-cli config init` unless you explicitly need to initialize the
   official CLI store outside Mavis. Bot binding in Mavis is handled by local-runtime channel config.
 - For upgrades after first install, see the update notice handling in
-  `cli-skills/lark-shared/SKILL.md` (`bun update --global @larksuite/cli`).
+  `cli-skills/lark-shared/SKILL.md` (`npm update -g @larksuite/cli`).
 
 ## Bot Binding
 

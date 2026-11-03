@@ -411,7 +411,7 @@ function numericDiffStat(value: string | undefined): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-export async function applyGitPatch(input: {
+async function applyGitPatch(input: {
   cwd: string;
   patch: string;
   reverse: boolean;

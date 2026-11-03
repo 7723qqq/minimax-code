@@ -12,7 +12,7 @@ silently corrupts UTF-8 content. Prefer Read/Write/Edit tools for file content o
 
 ```powershell
 $SkillDir = "<directory of the Location: path returned by skill({ name: 'skill-creator' })>"
-bun (Join-Path $SkillDir "scripts/lint-skill.js") "<path\to\new-skill\>"
+node (Join-Path $SkillDir "scripts/lint-skill.js") "<path\to\new-skill\>"
 ```
 
 Replace `<path\to\new-skill\>` with the absolute path of the skill you just authored.

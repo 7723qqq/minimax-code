@@ -4,7 +4,6 @@ import path from 'node:path';
 import type { AgentMessage } from '@mavis/agent-core/protocol/agent-message';
 
 import { FinalizingSqliteDatabase } from '@mavis/shared';
-import { Database } from 'bun:sqlite';
 
 import type {
   LocalSessionRecord,
@@ -324,7 +323,7 @@ export class LegacyOpencodeStore {
     maxPageBytes: number = DEFAULT_MESSAGE_PAGE_BYTES,
   ): AsyncGenerator<AgentMessage[], void, void> {
     const dbPath = path.join(this.dataDir, 'sqlite.db');
-    if (!pathExists(dbPath)) return;
+    if (!fs.existsSync(dbPath)) return;
     const limit = Number.isFinite(pageSize) && pageSize > 0 ? Math.floor(pageSize) : 500;
     let db: DatabaseLike;
     try {
@@ -485,22 +484,22 @@ export class LegacyOpencodeStore {
     const manifest: LegacyOpencodeSourceManifest = {
       sourceDataDir: this.dataDir,
       sourceSqlitePath: sqlitePath,
-      sourceSqliteExists: pathExists(sqlitePath),
+      sourceSqliteExists: fs.existsSync(sqlitePath),
       ...fileSizeField('sourceSqliteSizeBytes', sqlitePath),
       sourceSqliteWalPath: walPath,
-      sourceSqliteWalExists: pathExists(walPath),
+      sourceSqliteWalExists: fs.existsSync(walPath),
       ...fileSizeField('sourceSqliteWalSizeBytes', walPath),
       sourceSqliteShmPath: shmPath,
-      sourceSqliteShmExists: pathExists(shmPath),
+      sourceSqliteShmExists: fs.existsSync(shmPath),
       ...fileSizeField('sourceSqliteShmSizeBytes', shmPath),
       sourceOpenCodeDataPath,
-      sourceOpenCodeDataExists: pathExists(sourceOpenCodeDataPath),
+      sourceOpenCodeDataExists: fs.existsSync(sourceOpenCodeDataPath),
       sourceOpenCodeStatePath,
-      sourceOpenCodeStateExists: pathExists(sourceOpenCodeStatePath),
+      sourceOpenCodeStateExists: fs.existsSync(sourceOpenCodeStatePath),
       sourceOpenCodeXdgDataPath,
-      sourceOpenCodeXdgDataExists: pathExists(sourceOpenCodeXdgDataPath),
+      sourceOpenCodeXdgDataExists: fs.existsSync(sourceOpenCodeXdgDataPath),
       sourceOpenCodeXdgStatePath,
-      sourceOpenCodeXdgStateExists: pathExists(sourceOpenCodeXdgStatePath),
+      sourceOpenCodeXdgStateExists: fs.existsSync(sourceOpenCodeXdgStatePath),
       opencodeNative: inspectOpenCodeNativeSources({
         sandboxDataPath: sourceOpenCodeDataPath,
         sandboxStatePath: sourceOpenCodeStatePath,
@@ -583,7 +582,7 @@ export class LegacyOpencodeStore {
 
   private withDb<T>(fn: (db: DatabaseLike) => T): T | undefined {
     const dbPath = path.join(this.dataDir, 'sqlite.db');
-    if (!pathExists(dbPath)) return undefined;
+    if (!fs.existsSync(dbPath)) return undefined;
     let db: DatabaseLike;
     try {
       db = new FinalizingSqliteDatabase(dbPath, { readonly: true, create: false });
@@ -598,7 +597,7 @@ export class LegacyOpencodeStore {
   }
 
   private withNativeDb<T>(dbPath: string, fn: (db: DatabaseLike) => T): T | undefined {
-    if (!pathExists(dbPath)) return undefined;
+    if (!fs.existsSync(dbPath)) return undefined;
     let db: DatabaseLike;
     try {
       db = new FinalizingSqliteDatabase(dbPath, { readonly: true, create: false });
@@ -1479,9 +1478,9 @@ function inspectOpenCodeNativeCandidate(
   const base: LegacyOpenCodeNativeCandidate = {
     kind,
     path: candidatePath,
-    exists: pathExists(candidatePath),
+    exists: fs.existsSync(candidatePath),
     dbPath,
-    dbExists: pathExists(dbPath),
+    dbExists: fs.existsSync(dbPath),
     ...fileSizeField('dbSizeBytes', dbPath),
   };
   if (!base.dbExists) return base;
@@ -1526,6 +1525,7 @@ function fingerprintJson(value: unknown): string {
 
 function fileSizeField(key: string, filePath: string): Record<string, number> {
   try {
+    if (!fs.existsSync(filePath)) return {};
     return { [key]: fs.statSync(filePath).size };
   } catch {
     return {};
@@ -1654,23 +1654,4 @@ function scanMessageRows(rows: Iterable<MessageRow>): LegacyOpencodeMessageScan 
     rawChecksum: rawHash.digest('hex'),
     parsedChecksum: parsedHash.digest('hex'),
   };
-}
-
-/**
- * Whether `target` exists.
- *
- * A `statSync` inside a `try` answers the same question as `existsSync` for a
- * file, a directory, a missing entry and an unreadable path. It also removes the
- * second syscall the paired call sites used to pay: `existsSync` is the Node
- * compatibility surface and measures roughly an order of magnitude slower per
- * call in this runtime, while `statSync` reports what those sites then inspect.
- * This module is synchronous throughout, so `Bun.file()` does not apply.
- */
-function pathExists(target: string): boolean {
-  try {
-    fs.statSync(target);
-    return true;
-  } catch {
-    return false;
-  }
 }

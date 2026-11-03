@@ -1,5 +1,4 @@
 import type { AgentMessage } from '@mavis/agent-core/protocol/agent-message';
-import { isTurnLifecycleKind } from '@mavis/shared/turn-message-class';
 import type { ConversationCommittedMessage } from '@mavis/conversation-contract';
 
 export function toAgentMessages(messages: readonly ConversationCommittedMessage[]): AgentMessage[] {
@@ -14,10 +13,11 @@ export function toAgentMessages(messages: readonly ConversationCommittedMessage[
         ...(message.text ? { msg_content: message.text } : {}),
         ...(message.thinking ? { thinking_content: message.thinking } : {}),
         ...(message.toolCalls ? { tool_calls: [...message.toolCalls] } : {}),
-        // Preserve every lifecycle classification, not just the compaction
-        // subset; dropping a review frame here re-labels it as model output
-        // for every downstream consumer that reads `AgentMessage.kind`.
-        ...(isTurnLifecycleKind(message.kind) ? { kind: message.kind } : {}),
+        ...(message.kind === 'compaction_start' ||
+        message.kind === 'compaction' ||
+        message.kind === 'compaction_failed'
+          ? { kind: message.kind }
+          : {}),
       },
     ];
   });

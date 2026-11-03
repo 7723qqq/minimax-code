@@ -1,4 +1,5 @@
 import {
+  existsSync,
   mkdirSync,
   readdirSync,
   readFileSync,
@@ -50,10 +51,10 @@ export interface SeedBuiltinSkillsDeps {
  * skill) of the last fully successful seed. When the marker matches the
  * current combined value and every enabled skill dir exists, the whole seed
  * is skipped without a single write. On any mismatch every enabled skill dir
- * is replaced in place (other entries in the shared dir are left alone); the
- * marker is written last, only after every skill copied, so a crash or partial
- * failure replays the whole seed on the next startup (self-healing). Entries
- * not owned by this seed (another host's skills, user files) are never removed.
+ * is replaced in place (other entries in the shared dir are left alone); the marker is written last, only
+ * after every skill copied, so a crash or partial failure replays the whole
+ * seed on the next startup (self-healing). Entries not owned by this seed
+ * (another host's skills, user files) are never removed.
  *
  * Must not import registry code. Fail-open everywhere: a broken skill or an
  * unreadable source never throws out of this function.
@@ -149,7 +150,7 @@ export function seedBuiltinSkills(deps: SeedBuiltinSkillsDeps): void {
   let sawSourceDir = false;
   const sourceSkills = new Map<string, { src: string; buildAggregate: string | undefined }>();
   for (const candidate of sourceDirs) {
-    if (!pathExists(candidate)) continue;
+    if (!existsSync(candidate)) continue;
     let entries: Dirent[];
     try {
       entries = readdirSync(candidate, { withFileTypes: true });
@@ -224,7 +225,7 @@ export function seedBuiltinSkills(deps: SeedBuiltinSkillsDeps): void {
   if (readSeedMarker(builtinSkillsDir) === combined) {
     let allPresent = true;
     for (const skillName of enabledSkills.keys()) {
-      if (!pathExists(join(builtinSkillsDir, skillName))) {
+      if (!existsSync(join(builtinSkillsDir, skillName))) {
         allPresent = false;
         break;
       }
@@ -234,10 +235,9 @@ export function seedBuiltinSkills(deps: SeedBuiltinSkillsDeps): void {
 
   // Per-skill refresh: only dirs named after skills this seed owns are
   // replaced. The dest dir is shared with other hosts (desktop app, CLI/ACP),
-  // so foreign skills and user files are never touched. rmSync never follows
-  // symlinks, so a user-planted link inside a replaced skill dir is removed as
-  // a link and its target stays intact. Each failure (EPERM, EBUSY, ...) is
-  // contained to its skill; the marker is withheld so the next startup retries.
+  // so foreign skills and user files are never touched. Each failure (EPERM,
+  // EBUSY, ...) is contained to its skill; the marker is withheld so the next
+  // startup retries.
   try {
     mkdirSync(builtinSkillsDir, { recursive: true });
   } catch (err) {
@@ -299,10 +299,10 @@ export function seedBuiltinSkills(deps: SeedBuiltinSkillsDeps): void {
 function cleanupLegacySeedArtifacts(builtinSkillsDir: string): void {
   const legacyPaths: string[] = [];
   const manifestFile = join(builtinSkillsDir, LEGACY_MANIFEST_FILE);
-  if (pathExists(manifestFile)) legacyPaths.push(manifestFile);
+  if (existsSync(manifestFile)) legacyPaths.push(manifestFile);
   const backupDir = `${builtinSkillsDir}${LEGACY_BACKUP_DIR_SUFFIX}`;
-  if (pathExists(backupDir)) legacyPaths.push(backupDir);
-  if (pathExists(builtinSkillsDir)) {
+  if (existsSync(backupDir)) legacyPaths.push(backupDir);
+  if (existsSync(builtinSkillsDir)) {
     try {
       for (const name of readdirSync(builtinSkillsDir)) {
         if (name.includes(LEGACY_TMP_MARKER)) legacyPaths.push(join(builtinSkillsDir, name));
@@ -409,25 +409,6 @@ function isSkillRuntimeRetiredFile(skillFilePath: string): boolean {
     const data = yaml.load(match[1]);
     if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
     return (data as Record<string, unknown>).retired === true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Whether `target` exists.
- *
- * A `statSync` inside a `try` answers the same question as `existsSync` for a
- * file, a directory, a missing entry and an unreadable path. It also removes the
- * second syscall these call sites used to pay, since `statSync` already yields
- * what they then inspect. `existsSync` is the `node:` compatibility surface and
- * measures roughly an order of magnitude slower per call in this runtime. This
- * module is synchronous throughout, so `Bun.file()` does not apply.
- */
-function pathExists(target: string): boolean {
-  try {
-    statSync(target);
-    return true;
   } catch {
     return false;
   }

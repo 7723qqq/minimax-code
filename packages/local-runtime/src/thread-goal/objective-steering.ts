@@ -1,3 +1,4 @@
+
 import type { ThreadGoalState } from '@mavis/goal';
 
 export class ObjectiveSteeringTargetChangedError extends Error {

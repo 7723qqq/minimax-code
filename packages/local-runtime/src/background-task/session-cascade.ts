@@ -15,6 +15,7 @@ import {
   scopeToOwnerTurn,
   type CascadeChildScope,
 } from './session-cascade-targets.js';
+import { applyRootStopPolicy, type CascadeKindPolicy } from './user-stop-policy.js';
 
 /**
  * Session-level cascade: stop every piece of background work a Session owns.
@@ -75,10 +76,6 @@ export interface StopSessionBackgroundWorkInput {
    * after it can only come from the user's next message and must not be touched.
    */
   readonly boundaryMs: number;
-  /** Skip background subagent targets (`conversation.stopSubAgent: false`). */
-  readonly stopSubAgent?: boolean;
-  /** Skip background bash targets (`conversation.stopAsyncBash: false`). */
-  readonly stopAsyncBash?: boolean;
   readonly ctx: SessionCascadeContext;
   /**
    * Set only when sweeping a subagent's child Session. A child Session is shared by
@@ -89,6 +86,13 @@ export interface StopSessionBackgroundWorkInput {
    * is left untouched.
    */
   readonly childScope?: CascadeChildScope;
+  /**
+   * Root sweep only: which kinds of the stopped conversation's OWN work this stop
+   * may touch (the user-stop switches). Omitted = every kind: direct callers, and
+   * the future `owner_close`, which will pass the same switches.
+   * Never forwarded to a child sweep, see `sweepChildSession`.
+   */
+  readonly rootPolicy?: CascadeKindPolicy;
 }
 
 export async function stopSessionBackgroundWork(
@@ -114,11 +118,19 @@ export async function stopSessionBackgroundWork(
   }
   ctx.visited.add(visitKey);
 
+  // A child sweep is never filtered by kind, whatever a caller passes: see
+  // `sweepChildSession`.
+  const rootPolicy = childScope ? undefined : input.rootPolicy;
   const [collectedTargets, collectedReadSubagents] = await Promise.all([
     collectCascadeTargets(host, sessionId, boundaryMs),
-    collectReadSubagents(host, sessionId, boundaryMs),
+    // Subagents off: a read subagent's child Session belongs to that subagent, so
+    // it is not swept either, and the rows are not even listed.
+    rootPolicy?.stopSubAgent === false ? [] : collectReadSubagents(host, sessionId, boundaryMs),
   ]);
-  const scopedTargets = scopeToOwnerTurn(collectedTargets, childScope);
+  const scopedTargets = scopeToOwnerTurn(
+    applyRootStopPolicy(sessionId, collectedTargets, rootPolicy),
+    childScope,
+  );
   const scopedReadSubagents = scopeToOwnerTurn(collectedReadSubagents, childScope);
   if (childScope) {
     // One summary per child sweep; per-task lines would drown the stop in noise.
@@ -132,12 +144,8 @@ export async function stopSessionBackgroundWork(
         scopedTargets.skippedMissingOwner + scopedReadSubagents.skippedMissingOwner,
     });
   }
-  const stopSubAgent = input.stopSubAgent ?? true;
-  const stopAsyncBash = input.stopAsyncBash ?? true;
-  const candidates = scopedTargets.owned.filter((task) =>
-    task.kind === 'subagent' ? stopSubAgent : task.kind === 'bash' ? stopAsyncBash : true,
-  );
-  const readSubagents = stopSubAgent ? scopedReadSubagents.owned : [];
+  const candidates = scopedTargets.owned;
+  const readSubagents = scopedReadSubagents.owned;
   // Register targets for delivery suppression BEFORE stopping anything: stopping
   // a task drives it terminal, which schedules a delivery immediately.
   ctx.onTargets?.(candidates.map((task) => task.taskId));
@@ -145,7 +153,7 @@ export async function stopSessionBackgroundWork(
 
   const records: StoppedTaskRecord[] = [];
   const settled = await Promise.allSettled(
-    candidates.map((task) => stopOneTarget({ host, task, reason, ctx, stopSubAgent, stopAsyncBash })),
+    candidates.map((task) => stopOneTarget({ host, task, reason, ctx })),
   );
   settled.forEach((result, index) => {
     const task = candidates[index];
@@ -169,7 +177,7 @@ export async function stopSessionBackgroundWork(
   // keyed and scoped per owning child Turn they no longer collide, but finishing
   // every target's stop-then-sweep first keeps this cascade's order deterministic
   // and independent of that keying.
-  await traverseReadSubagents({ host, sessionId, readSubagents, reason, ctx, stopSubAgent, stopAsyncBash });
+  await traverseReadSubagents({ host, sessionId, readSubagents, reason, ctx });
   return { targets: records };
 }
 
@@ -179,10 +187,8 @@ async function traverseReadSubagents(input: {
   readonly readSubagents: readonly BackgroundTask[];
   readonly reason: CascadeReason;
   readonly ctx: SessionCascadeContext;
-  readonly stopSubAgent: boolean;
-  readonly stopAsyncBash: boolean;
 }): Promise<void> {
-  const { host, sessionId, readSubagents, reason, ctx, stopSubAgent, stopAsyncBash } = input;
+  const { host, sessionId, readSubagents, reason, ctx } = input;
   if (readSubagents.length === 0) return;
   logCascade('cascade_traverse_read_subagents', { sessionId, count: readSubagents.length });
   // `sweepChildSession` logs and swallows its own failure, so one bad child
@@ -195,8 +201,6 @@ async function traverseReadSubagents(input: {
         childSessionId: readChildSessionId(task),
         reason,
         ctx,
-        stopSubAgent,
-        stopAsyncBash,
       }),
     ),
   );
@@ -207,10 +211,8 @@ async function stopOneTarget(input: {
   readonly task: BackgroundTask;
   readonly reason: CascadeReason;
   readonly ctx: SessionCascadeContext;
-  readonly stopSubAgent: boolean;
-  readonly stopAsyncBash: boolean;
 }): Promise<StoppedTaskRecord | undefined> {
-  const { host, task, reason, ctx, stopSubAgent, stopAsyncBash } = input;
+  const { host, task, reason, ctx } = input;
   const childSessionId = readChildSessionId(task);
 
   // Already terminal: nothing to stop. It is a target purely so its undelivered
@@ -222,8 +224,6 @@ async function stopOneTarget(input: {
       childSessionId,
       reason,
       ctx,
-      stopSubAgent,
-      stopAsyncBash,
       event: 'cascade_target_already_terminal',
     });
   }
@@ -248,8 +248,6 @@ async function stopOneTarget(input: {
         childSessionId: readChildSessionId(current) ?? childSessionId,
         reason,
         ctx,
-        stopSubAgent,
-        stopAsyncBash,
         event: 'cascade_target_settled_before_stop',
         snapshotStatus: task.status,
       });
@@ -272,7 +270,7 @@ async function stopOneTarget(input: {
   // Sweeping first would race a still-running child that keeps spawning work.
   const settledStatus = await stopWithTimeout(host, task, reason);
   recordCascadeMetric(host, 'cascade_stopped');
-  await sweepChildSession({ host, parent: task, childSessionId, reason, ctx, stopSubAgent, stopAsyncBash });
+  await sweepChildSession({ host, parent: task, childSessionId, reason, ctx });
   return describe(task, settledStatus);
 }
 
@@ -290,13 +288,11 @@ async function handleTerminalTarget(input: {
   readonly childSessionId: string | undefined;
   readonly reason: CascadeReason;
   readonly ctx: SessionCascadeContext;
-  readonly stopSubAgent: boolean;
-  readonly stopAsyncBash: boolean;
   readonly event: 'cascade_target_already_terminal' | 'cascade_target_settled_before_stop';
   /** Set when the snapshot still showed the task active, to make the race visible. */
   readonly snapshotStatus?: BackgroundTaskStatus;
 }): Promise<StoppedTaskRecord> {
-  const { host, task, childSessionId, reason, ctx, stopSubAgent, stopAsyncBash } = input;
+  const { host, task, childSessionId, reason, ctx } = input;
   logCascade(input.event, {
     sessionId: task.ownerSessionId,
     taskId: task.taskId,
@@ -304,7 +300,7 @@ async function handleTerminalTarget(input: {
     ...(input.snapshotStatus ? { snapshotStatus: input.snapshotStatus } : {}),
     status: task.status,
   });
-  await sweepChildSession({ host, parent: task, childSessionId, reason, ctx, stopSubAgent, stopAsyncBash });
+  await sweepChildSession({ host, parent: task, childSessionId, reason, ctx });
   return describe(task, task.status);
 }
 
@@ -342,10 +338,8 @@ async function sweepChildSession(input: {
   readonly childSessionId: string | undefined;
   readonly reason: CascadeReason;
   readonly ctx: SessionCascadeContext;
-  readonly stopSubAgent: boolean;
-  readonly stopAsyncBash: boolean;
 }): Promise<void> {
-  const { host, parent, childSessionId, reason, ctx, stopSubAgent, stopAsyncBash } = input;
+  const { host, parent, childSessionId, reason, ctx } = input;
   if (!childSessionId) return;
   const ownerTurnId = readSubTurnId(parent);
   if (!ownerTurnId) {
@@ -361,6 +355,11 @@ async function sweepChildSession(input: {
     return;
   }
   try {
+    // Deliberately no `rootPolicy`: a subagent and everything in its child
+    // Session are one unit, owned by the subagent switch, and reaching this sweep
+    // means that switch let the subagent be stopped (or it had already ended). The
+    // bash switch only covers bash the stopped conversation started itself;
+    // keeping this child's bash alive would leave processes nobody owns any more.
     await stopSessionBackgroundWork({
       host,
       sessionId: childSessionId,
@@ -373,8 +372,6 @@ async function sweepChildSession(input: {
       // down after the root boundary (it carries the same child Turn id), and it
       // never touches a newer Turn that continued the same child Session.
       boundaryMs: Number.POSITIVE_INFINITY,
-      stopSubAgent,
-      stopAsyncBash,
       childScope: { ownerTurnId, parentTaskId: parent.taskId },
       ctx: { ...ctx, depth: ctx.depth + 1, path: [...(ctx.path ?? []), parent.ownerSessionId] },
     });

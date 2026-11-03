@@ -1,4 +1,3 @@
-import { describe, expect, it, mock } from 'bun:test';
 import { mkdtemp, mkdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -11,6 +10,7 @@ import {
 import type { StreamFn } from '@earendil-works/pi-agent-core';
 import { toRuntimeTool, type RuntimeTool } from '@mavis/agent-core/tools';
 import { LocalTaskOutputTool } from '@mavis/agent-tools/desktop';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { LocalTaskRunnerHostWithSessionLookup } from '../../src/api/local-task-host.js';
 import { startLocalBackgroundTaskDeliveryTurn } from '../../src/background-task/delivery.js';
@@ -82,7 +82,7 @@ async function createTaskOutputPollingCompositionHarness() {
     systemPrompt: 'You are Mavis.',
   };
   const sessionRepository = {
-    get: mock(async (sessionId: string) =>
+    get: vi.fn(async (sessionId: string) =>
       sessionId === session.sessionId ? session : undefined,
     ),
   };
@@ -167,26 +167,27 @@ function createDisplayProjection(session: SessionRecord) {
   const streamWrites: SessionFrameInput[] = [];
   const projection = createSessionSystemAgentProjection({
     state: {
-      markStarted: mock(async () => ({ status: 'applied' as const })),
-      markIdle: mock(async () => ({ status: 'applied' as const })),
-      markTerminal: mock(async () => ({ status: 'applied' as const })),
+      markStarted: vi.fn(async () => ({ status: 'applied' as const })),
+      markIdle: vi.fn(async () => ({ status: 'applied' as const })),
+      markTerminal: vi.fn(async () => ({ status: 'applied' as const })),
     },
-    sessions: { update: mock(async () => session) },
+    sessions: { update: vi.fn(async () => session) },
     messages: {
-      upsert: mock(async (input: MessageUpsertInput): Promise<NormalizedDisplayMessage> => {
+      get: vi.fn(async () => undefined),
+      upsert: vi.fn(async (input: MessageUpsertInput): Promise<NormalizedDisplayMessage> => {
         upserts.push(input);
         return normalizeDisplayMessage(input, upserts.length);
       }),
-      listTurn: mock(async () => []),
-      rewind: mock(async () => undefined),
+      listTurn: vi.fn(async () => []),
+      rewind: vi.fn(async () => undefined),
     },
     stream: {
-      write: mock((input: SessionFrameInput): SessionFrameWriteResult => {
+      write: vi.fn((input: SessionFrameInput): SessionFrameWriteResult => {
         streamWrites.push(input);
         return writeSessionFrame(input);
       }),
     },
-    conversationFacts: { handle: mock(async () => undefined) },
+    conversationFacts: { handle: vi.fn(async () => undefined) },
   });
   return { projection, streamWrites, upserts };
 }
@@ -241,11 +242,11 @@ function createTaskOutputState(sessionId: string): TaskOutputState {
   const taskOutput = {
     ...toRuntimeTool(
       new LocalTaskOutputTool({
-        get: mock(async (_context, requestedTaskId) =>
+        get: vi.fn(async (_context, requestedTaskId) =>
           requestedTaskId === taskId ? { ...task, status: taskStatus } : undefined,
         ),
-        list: mock(async () => ({ items: [] })),
-        readOutput: mock(async (_context, requestedTaskId) => {
+        list: vi.fn(async () => ({ items: [] })),
+        readOutput: vi.fn(async (_context, requestedTaskId) => {
           readOutputCalls += 1;
           return {
             content:
@@ -256,7 +257,7 @@ function createTaskOutputState(sessionId: string): TaskOutputState {
             status: taskStatus,
           };
         }),
-        stop: mock(async () => undefined),
+        stop: vi.fn(async () => undefined),
       } as never),
     ),
     source: 'builtin' as const,
@@ -344,39 +345,39 @@ async function createTaskOutputPollingHost(input: PollingHostInput) {
       },
     }),
     skills: {
-      listRuntimeSkills: mock(async () => ({ skills: [] })),
-      renderCatalog: mock(async () => ''),
+      listRuntimeSkills: vi.fn(async () => ({ skills: [] })),
+      renderCatalog: vi.fn(async () => ''),
     },
     staticPrompts: {
-      readBasePrompt: mock(async () => ''),
-      readSessionPrompt: mock(async () => ''),
-      readProjectInstructions: mock(async () => ''),
+      readBasePrompt: vi.fn(async () => ''),
+      readSessionPrompt: vi.fn(async () => ''),
+      readProjectInstructions: vi.fn(async () => ''),
     },
   };
   const preparation = createProductionAgentPreparation({
     configBuilder,
     modelResolver: {
-      resolveModel: mock(async () => ({ model, apiKey: 'test-key', streamFn: input.streamFn })),
+      resolveModel: vi.fn(async () => ({ model, apiKey: 'test-key', streamFn: input.streamFn })),
     },
   } as never);
   const scopedControl = {
-    drainSteering: mock(() => []),
-    ackSteering: mock(),
-    restoreSteering: mock(),
-    tryBeginClose: mock(() => ({ closed: true as const })),
-    sealAbnormalTerminal: mock(async () => undefined),
-    openToolResultTail: mock(() => true),
-    closeAndClaimToolResultTail: mock(() => []),
-    ackToolResultTail: mock(),
+    drainSteering: vi.fn(() => []),
+    ackSteering: vi.fn(),
+    restoreSteering: vi.fn(),
+    tryBeginClose: vi.fn(() => ({ closed: true as const })),
+    sealAbnormalTerminal: vi.fn(async () => undefined),
+    openToolResultTail: vi.fn(() => true),
+    closeAndClaimToolResultTail: vi.fn(() => []),
+    ackToolResultTail: vi.fn(),
   };
   return createLocalAgentHost({
     product: {
-      agents: { getExecutionSnapshot: mock(async () => input.agent) },
+      agents: { getExecutionSnapshot: vi.fn(async () => input.agent) },
       preparation: { configBuilder },
-      turnRuntimeFacts: { snapshot: mock(() => ({ cuModeActive: false })) },
-      checkpointState: { captureSubagents: mock(async () => undefined) },
+      turnRuntimeFacts: { snapshot: vi.fn(() => ({ cuModeActive: false })) },
+      checkpointState: { captureSubagents: vi.fn(async () => undefined) },
       toolSources: {
-        resolve: mock(async () => ({
+        resolve: vi.fn(async () => ({
           nativeTools: [input.taskOutput],
           mcpEntries: [],
           threadGoalTools: [],
@@ -385,43 +386,43 @@ async function createTaskOutputPollingHost(input: PollingHostInput) {
       },
       inputPreparation: {
         reminders: {
-          buildBackground: mock(async () => ({
+          buildBackground: vi.fn(async () => ({
             tasks: [],
             undeliveredTotal: 0,
             terminalTotal: 0,
           })),
-          buildSystem: mock(async () => ({ content: '' })),
-          confirmBackgroundTaskReads: mock(async () =>
+          buildSystem: vi.fn(async () => ({ content: '' })),
+          confirmBackgroundTaskReads: vi.fn(async () =>
             input.hasCompletedTask() ? [input.taskId] : [],
           ),
         },
       },
-      terminalMemory: { record: mock(async () => undefined) },
+      terminalMemory: { record: vi.fn(async () => undefined) },
       permission: {
-        decisions: { check: mock(async () => ({ behavior: 'allow' as const, reason: 'test' })) },
+        decisions: { check: vi.fn(async () => ({ behavior: 'allow' as const, reason: 'test' })) },
       },
-      runner: { logger: { info: mock(), error: mock() } },
+      runner: { logger: { info: vi.fn(), error: vi.fn() } },
       executor: {
         fileChanges: {
-          begin: mock(async () => undefined),
-          finalize: mock(async () => undefined),
-          markFailed: mock(async () => undefined),
+          begin: vi.fn(async () => undefined),
+          finalize: vi.fn(async () => undefined),
+          markFailed: vi.fn(async () => undefined),
         },
-        reportFailure: mock(),
+        reportFailure: vi.fn(),
       },
     },
     db: {} as AppDb,
     preparation,
     sessions: {
-      llmCalls: { writeCurrent: mock(async () => undefined) },
+      llmCalls: { writeCurrent: vi.fn(async () => undefined) },
       sessions: {
         repository: input.sessionRepository,
-        execution: { getExecutionSnapshot: mock(async () => input.session) },
+        execution: { getExecutionSnapshot: vi.fn(async () => input.session) },
         historyMutation: input.historyMutation,
       },
       canonicalHistory: input.canonicalHistory,
       artifacts: {
-        ensureReportsDirectory: mock(async () => {
+        ensureReportsDirectory: vi.fn(async () => {
           const reportsDirectory = join(input.dataDir, 'reports');
           await mkdir(reportsDirectory, { recursive: true });
           return reportsDirectory;
@@ -436,23 +437,23 @@ async function createTaskOutputPollingHost(input: PollingHostInput) {
         compactionLifecycle: input.projection.compactionLifecycle,
         compactionObserver: input.projection.compactionObserver,
       },
-      usage: { projector: { record: mock() } },
+      usage: { projector: { record: vi.fn() } },
     },
-    safety: { review: mock(async () => ({ pass: true })) },
+    safety: { review: vi.fn(async () => ({ pass: true })) },
     turnControl: {
-      scope: mock(() => scopedControl),
-      beginClose: mock(() => ({ closed: true as const })),
+      scope: vi.fn(() => scopedControl),
+      beginClose: vi.fn(() => ({ closed: true as const })),
     },
     pluginHookSessionOwnership: {
-      prepare: mock(async () => undefined),
-      activate: mock(async () => undefined),
+      prepare: vi.fn(async () => undefined),
+      activate: vi.fn(async () => undefined),
     },
     turnFacts: {
-      projectRuntimeEvent: mock(async () => undefined),
-      projectHistoryCommitted: mock(async () => undefined),
+      projectRuntimeEvent: vi.fn(async () => undefined),
+      projectHistoryCommitted: vi.fn(async () => undefined),
     },
-    onInputReviewResolved: mock(),
-    onSteeringConsumed: mock(async () => undefined),
+    onInputReviewResolved: vi.fn(),
+    onSteeringConsumed: vi.fn(async () => undefined),
     cliProductPolicy: true,
   } as never);
 }
@@ -534,7 +535,7 @@ describe('task_output polling reminder through Local Runtime background delivery
 
       const reloadedHistory = createSessionSystemCanonicalHistoryProvider({
         dataDir: fixture.dataDir,
-        sessions: { get: mock(async () => fixture.session) },
+        sessions: { get: vi.fn(async () => fixture.session) },
       });
       const reloadedAfterPolling = await reloadedHistory.read(fixture.session.sessionId);
       const remindersAfterPolling = reloadedAfterPolling.messages.flatMap((message, index) =>
@@ -552,7 +553,7 @@ describe('task_output polling reminder through Local Runtime background delivery
 
       fixture.setTaskStatus('succeeded');
       let continuation: Promise<unknown> | undefined;
-      const steer = mock(
+      const steer = vi.fn(
         async (input: {
           readonly message: { readonly content: string; readonly origin: unknown };
         }) => {
@@ -570,17 +571,17 @@ describe('task_output polling reminder through Local Runtime background delivery
       const deliveryHost = {
         runtimeConversation: { ingress: { steer } },
         backgroundTaskService: {
-          get: mock(async (taskId: string) =>
+          get: vi.fn(async (taskId: string) =>
             taskId === fixture.taskId ? fixture.task : undefined,
           ),
-          reminderSnapshot: mock(async () => ({
+          reminderSnapshot: vi.fn(async () => ({
             tasks: [fixture.task],
             undeliveredTotal: 1,
             terminalTotal: 1,
           })),
         },
         nowMs: () => 2_000,
-        getSessionById: mock(async () => fixture.session),
+        getSessionById: vi.fn(async () => fixture.session),
       } as unknown as LocalTaskRunnerHostWithSessionLookup;
 
       await expect(startLocalBackgroundTaskDeliveryTurn(deliveryHost, fixture.taskId)).resolves.toBe(

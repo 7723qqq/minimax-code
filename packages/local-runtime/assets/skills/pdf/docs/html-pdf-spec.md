@@ -464,7 +464,7 @@ Before committing the source HTML, confirm:
 [`scripts/render_html.cjs`](../scripts/render_html.cjs):
 
 ```bash
-bun scripts/render_html.cjs \
+node scripts/render_html.cjs \
   --in page.html --out report.pdf \
   [--wait 15000]              # extra settle (ms); 15000+ for Chart.js
   [--format A4|Letter]
@@ -477,7 +477,7 @@ bun scripts/render_html.cjs \
 ```
 
 The renderer:
-1. Loads `playwright` (local `node_modules` first, then the bun global root).
+1. Loads `playwright` (local node_modules first, then global `npm root -g`).
 2. `page.goto(url, { waitUntil: 'networkidle', timeout: 60000 })`.
 3. `page.waitForFunction(() => document.fonts.ready)` (best-effort, 15 s cap).
 4. `page.waitForTimeout(--wait)` for late JS / charts.

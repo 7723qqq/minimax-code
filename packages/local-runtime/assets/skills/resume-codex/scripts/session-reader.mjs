@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
 import { open, lstat, readdir, realpath, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
@@ -217,7 +217,7 @@ async function readWholeBounded(filePath, limit) {
 }
 
 function decompressZstd(buffer) {
-  // MCode runs on Bun, whose bundled `node:zlib` includes bounded synchronous Zstandard support.
+  // MCode requires Node >=22.19, whose zlib module includes bounded synchronous Zstandard support.
   return importZlib()
     .zstdDecompressSync(buffer, { maxOutputLength: 32 * 1024 * 1024 })
     .toString('utf8');

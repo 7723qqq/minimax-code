@@ -32,7 +32,7 @@ bold()   { printf '\033[1m%s\033[0m\n' "$*"; }
 
 # ── Minimum versions (single source of truth for `check` and `fix`) ───────────
 PY_MIN="3.9"
-BUN_MIN_MAJOR=1
+NODE_MIN_MAJOR=18
 PYPDF_MIN="3.0"
 MARKDOWN_IT_MIN="3.0"
 
@@ -110,25 +110,25 @@ cmd_check() {
   py_pkg_check pypdf       "pypdf"          "$PYPDF_MIN"
   py_pkg_check markdown_it "markdown-it-py" "$MARKDOWN_IT_MIN"
 
-  # Bun runtime + version gate
-  if command -v bun &>/dev/null; then
-    local bun_ver bun_major
-    bun_ver=$(bun --version 2>&1 | sed 's/^v//')
-    bun_major=${bun_ver%%.*}
-    if [[ "$bun_major" -ge "$BUN_MIN_MAJOR" ]]; then
-      green "  OK bun v$bun_ver (>= v$BUN_MIN_MAJOR)"
+  # Node.js + version gate
+  if command -v node &>/dev/null; then
+    local node_ver node_major
+    node_ver=$(node --version 2>&1 | sed 's/^v//')
+    node_major=${node_ver%%.*}
+    if [[ "$node_major" -ge "$NODE_MIN_MAJOR" ]]; then
+      green "  OK node v$node_ver (>= v$NODE_MIN_MAJOR)"
     else
-      red "  FAIL bun v$bun_ver is below required v$BUN_MIN_MAJOR"
+      red "  FAIL node v$node_ver is below required v$NODE_MIN_MAJOR"
       ok=false
     fi
   else
-    red "  MISSING bun not found - HTML rendering unavailable"
+    red "  MISSING node not found - HTML rendering unavailable"
     ok=false
   fi
 
   # Playwright (resolved either locally or globally)
-  if bun -e "require('playwright')" 2>/dev/null || \
-     bun -e "require(require('os').homedir()+'/.bun/install/global/node_modules/playwright')" 2>/dev/null; then
+  if node -e "require('playwright')" 2>/dev/null || \
+     node -e "require(require('child_process').execSync('npm root -g').toString().trim()+'/playwright')" 2>/dev/null; then
     green "  OK playwright"
   else
     yellow "  WARN playwright not found  (run: bash make.sh fix)"
@@ -184,19 +184,19 @@ cmd_fix() {
   rm -f "$pip_log"
 
   # Playwright -- skip when already resolvable
-  if bun -e "require('playwright')" 2>/dev/null || \
-     bun -e "require(require('os').homedir()+'/.bun/install/global/node_modules/playwright')" 2>/dev/null; then
+  if node -e "require('playwright')" 2>/dev/null || \
+     node -e "require(require('child_process').execSync('npm root -g').toString().trim()+'/playwright')" 2>/dev/null; then
     green "  OK playwright already installed -- skipping"
-  elif command -v bun &>/dev/null; then
-    if bun install --global playwright >/dev/null 2>&1 && \
-       bunx playwright install chromium >/dev/null 2>&1; then
+  elif command -v npm &>/dev/null; then
+    if npm install -g playwright --silent 2>/dev/null && \
+       npx playwright install chromium --silent 2>/dev/null; then
       green "  OK Playwright + Chromium installed"
     else
-      yellow "  playwright install failed -- try: bun install --global playwright && bunx playwright install chromium"
+      yellow "  playwright install failed -- try: npm install -g playwright && npx playwright install chromium"
       rc=3
     fi
   else
-    yellow "  bun not found - cannot install Playwright (HTML rendering will fail)"
+    yellow "  npm not found - cannot install Playwright (HTML rendering will fail)"
     rc=2
   fi
 
@@ -234,7 +234,7 @@ Examples:
 USAGE
     exit 1
   fi
-  exec bun "$SCRIPTS/render_html.cjs" "$@"
+  exec node "$SCRIPTS/render_html.cjs" "$@"
 }
 
 # ── reformat ───────────────────────────────────────────────────────────────────
@@ -296,7 +296,7 @@ USAGE
   $PY "$SCRIPTS/reformat_parse.py" "${parse_args[@]}"
 
   bold "Rendering → PDF: $out"
-  bun "$SCRIPTS/render_html.cjs" --in "$html" --out "$out" --wait "$wait_ms"
+  node "$SCRIPTS/render_html.cjs" --in "$html" --out "$out" --wait "$wait_ms"
 
   if $keep_html; then
     yellow "  (--keep-html) intermediate HTML kept at: $html"

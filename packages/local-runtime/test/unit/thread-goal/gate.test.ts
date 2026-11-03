@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from "vitest";
 
 import { digestThreadGoalObjective, type ThreadGoalState } from "@mavis/goal";
 

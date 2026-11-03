@@ -1,7 +1,6 @@
-import { waitFor } from '../../../../test/bun-test-setup.js';
-import { describe, expect, it, mock } from 'bun:test';
 import { digestThreadGoalObjective, type ThreadGoalState } from "@mavis/goal";
 import type { RuntimeConversation } from "@mavis/conversation-contract";
+import { describe, expect, it, vi } from "vitest";
 
 import type { LocalSessionRecord } from "../../src/sessions/controller.js";
 import type { LocalThreadGoalIntegration } from "../../src/thread-goal/host-integration.js";
@@ -58,16 +57,16 @@ function makeQueueHost(
     conversation?: Pick<RuntimeConversation, "query" | "ingress">;
   } = {},
 ) {
-  const recoverInitialContinuation = mock(
+  const recoverInitialContinuation = vi.fn(
     options.recoverInitialContinuation ?? (async () => undefined),
   );
-  const clearStaleVerificationWaits = mock(
+  const clearStaleVerificationWaits = vi.fn(
     options.clearStaleVerificationWaits ?? (async () => 0),
   );
-  const reportFailure = mock();
-  const reportRecoveryFailure = mock();
-  const rebindInternalPromptRead = mock();
-  const discardInternalPromptRead = mock();
+  const reportFailure = vi.fn();
+  const reportRecoveryFailure = vi.fn();
+  const rebindInternalPromptRead = vi.fn();
+  const discardInternalPromptRead = vi.fn();
   const host = new LocalThreadGoalKickoffQueue({
     ...(options.conversation ? { conversation: options.conversation } : {}),
     getIntegration: () =>
@@ -106,7 +105,7 @@ function makeQueueHost(
               ? "recovery-terminal-audit"
               : "recovery",
         }),
-        recordPromptSubmitted: mock(),
+        recordPromptSubmitted: vi.fn(),
         renderRecoveryContinuationPrompt:
           options.renderRecoveryContinuationPrompt ??
           (async (recoverableGoal) => `Continue: ${recoverableGoal.objective}`),
@@ -115,7 +114,7 @@ function makeQueueHost(
           (async (recoverableGoal) => ({
             content: `Continue: ${recoverableGoal.objective}`,
           })),
-        reserveInternalPromptRead: mock(() => undefined),
+        reserveInternalPromptRead: vi.fn(() => undefined),
         rebindInternalPromptRead,
         discardInternalPromptRead,
       }) as unknown as LocalThreadGoalIntegration,
@@ -202,8 +201,8 @@ describe("LocalThreadGoalKickoffQueue", () => {
         },
         ingress: {
           findQueuedByClientRequestId: async () => undefined,
-          submit: mock(),
-          dispatchQueue: mock(),
+          submit: vi.fn(),
+          dispatchQueue: vi.fn(),
           listQueued: async () => [],
         },
       } as unknown as Pick<RuntimeConversation, "query" | "ingress">,
@@ -232,9 +231,9 @@ describe("LocalThreadGoalKickoffQueue", () => {
   });
 
   it("materializes and recovers kickoffs only through the injected queue", async () => {
-    const submit = mock(async () => acceptedQueueTurn());
-    const dispatchQueue = mock(async () => undefined);
-    const findQueuedByClientRequestId = mock(async () => undefined);
+    const submit = vi.fn(async () => acceptedQueueTurn());
+    const dispatchQueue = vi.fn(async () => undefined);
+    const findQueuedByClientRequestId = vi.fn(async () => undefined);
     const fixture = makeQueueHost({
       recoverableGoals: [goal],
       conversation: {
@@ -291,7 +290,7 @@ describe("LocalThreadGoalKickoffQueue", () => {
   });
 
   it("keeps an initial continuation prompt snapshot with its admitted Turn", async () => {
-    const submit = mock(async () => acceptedQueueTurn());
+    const submit = vi.fn(async () => acceptedQueueTurn());
     const fixture = makeQueueHost({
       conversation: {
         query: {
@@ -299,9 +298,9 @@ describe("LocalThreadGoalKickoffQueue", () => {
           listSessions: async () => [session],
         },
         ingress: {
-          findQueuedByClientRequestId: mock(async () => undefined),
+          findQueuedByClientRequestId: vi.fn(async () => undefined),
           submit,
-          dispatchQueue: mock(async () => undefined),
+          dispatchQueue: vi.fn(async () => undefined),
         },
       } as Pick<RuntimeConversation, "query" | "ingress">,
     });
@@ -336,8 +335,8 @@ describe("LocalThreadGoalKickoffQueue", () => {
       kickoffState: "consumed" as const,
       kickoffAttachments: [],
     };
-    const submit = mock(async () => acceptedQueueTurn());
-    const listQueued = mock(async () => []);
+    const submit = vi.fn(async () => acceptedQueueTurn());
+    const listQueued = vi.fn(async () => []);
     const fixture = makeQueueHost({
       recoverableContinuations: [consumed],
       conversation: {
@@ -346,10 +345,10 @@ describe("LocalThreadGoalKickoffQueue", () => {
           listSessions: async () => [session],
         },
         ingress: {
-          findQueuedByClientRequestId: mock(async () => undefined),
+          findQueuedByClientRequestId: vi.fn(async () => undefined),
           listQueued,
           submit,
-          dispatchQueue: mock(async () => undefined),
+          dispatchQueue: vi.fn(async () => undefined),
         },
       } as Pick<RuntimeConversation, "query" | "ingress">,
     });
@@ -389,7 +388,7 @@ describe("LocalThreadGoalKickoffQueue", () => {
       updatedAt: 2_000,
     };
     let queued: ReturnType<typeof injectedQueueItem> | undefined;
-    const submit = mock(async (input: { clientRequestId?: string }) => {
+    const submit = vi.fn(async (input: { clientRequestId?: string }) => {
       queued = {
         ...injectedQueueItem("thread-goal"),
         clientRequestId: input.clientRequestId ?? "missing-client-request-id",
@@ -404,9 +403,9 @@ describe("LocalThreadGoalKickoffQueue", () => {
           listSessions: async () => [session],
         },
         ingress: {
-          findQueuedByClientRequestId: mock(async () => queued),
+          findQueuedByClientRequestId: vi.fn(async () => queued),
           submit,
-          dispatchQueue: mock(async () => undefined),
+          dispatchQueue: vi.fn(async () => undefined),
         },
       } as Pick<RuntimeConversation, "query" | "ingress">,
     });
@@ -441,7 +440,7 @@ describe("LocalThreadGoalKickoffQueue", () => {
       kickoffState: "consumed" as const,
       kickoffAttachments: [],
     };
-    const submit = mock();
+    const submit = vi.fn();
     const fixture = makeQueueHost({
       recoverableContinuations: [consumed],
       conversation: {
@@ -450,8 +449,8 @@ describe("LocalThreadGoalKickoffQueue", () => {
           listSessions: async () => [session],
         },
         ingress: {
-          findQueuedByClientRequestId: mock(async () => undefined),
-          listQueued: mock(async () => [
+          findQueuedByClientRequestId: vi.fn(async () => undefined),
+          listQueued: vi.fn(async () => [
             {
               ...injectedQueueItem("thread-goal"),
               message: {
@@ -470,7 +469,7 @@ describe("LocalThreadGoalKickoffQueue", () => {
             },
           ]),
           submit,
-          dispatchQueue: mock(async () => undefined),
+          dispatchQueue: vi.fn(async () => undefined),
         },
       } as Pick<RuntimeConversation, "query" | "ingress">,
     });
@@ -481,7 +480,7 @@ describe("LocalThreadGoalKickoffQueue", () => {
   });
 
   it("reports an injected queue wake failure without leaking the rejection", async () => {
-    const dispatchQueue = mock(async () => {
+    const dispatchQueue = vi.fn(async () => {
       throw new Error("dispatch failed");
     });
     const fixture = makeQueueHost({
@@ -491,8 +490,8 @@ describe("LocalThreadGoalKickoffQueue", () => {
           listSessions: async () => [session],
         },
         ingress: {
-          findQueuedByClientRequestId: mock(async () => undefined),
-          submit: mock(async () => acceptedQueueTurn()),
+          findQueuedByClientRequestId: vi.fn(async () => undefined),
+          submit: vi.fn(async () => acceptedQueueTurn()),
           dispatchQueue,
         },
       } as Pick<RuntimeConversation, "query" | "ingress">,
@@ -500,7 +499,7 @@ describe("LocalThreadGoalKickoffQueue", () => {
 
     fixture.host.integrationDeps().requestQueueDispatch(session.sessionId);
 
-    await waitFor(() =>
+    await vi.waitFor(() =>
       expect(fixture.reportFailure).toHaveBeenCalledWith(
         session.sessionId,
         "thread_goal_queue_dispatch_failed:dispatch failed",
@@ -509,13 +508,13 @@ describe("LocalThreadGoalKickoffQueue", () => {
   });
 
   it("treats an exact claimed kickoff as already materialized", async () => {
-    const submit = mock();
+    const submit = vi.fn();
     const claimed = {
       ...injectedQueueItem("thread-goal"),
       status: "claimed" as const,
       claimId: "claim-1",
     };
-    const findQueuedByClientRequestId = mock(async () => claimed);
+    const findQueuedByClientRequestId = vi.fn(async () => claimed);
     const fixture = makeQueueHost({
       conversation: {
         query: {
@@ -525,7 +524,7 @@ describe("LocalThreadGoalKickoffQueue", () => {
         ingress: {
           findQueuedByClientRequestId,
           submit,
-          dispatchQueue: mock(),
+          dispatchQueue: vi.fn(),
         },
       } as Pick<RuntimeConversation, "query" | "ingress">,
     });

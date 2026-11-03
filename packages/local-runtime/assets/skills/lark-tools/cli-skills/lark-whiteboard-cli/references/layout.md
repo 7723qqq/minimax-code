@@ -58,7 +58,7 @@
 | ---------------------- | ----------------------------------------------------------------------------- |
 | 纯 Flex / Dagre        | 直接写 JSON                                                                   |
 | 混合布局 (Flex包Dagre) | 直接写 JSON（外层先做分区，局部复杂关系交给 Dagre；若被嵌套，默认为不透明节点） |
-| 极度依赖几何坐标的图   | 写脚本生成 JSON（bun xxx.js）                                                |
+| 极度依赖几何坐标的图   | 写脚本生成 JSON（node xxx.js）                                                |
 | 需要精确避让的特殊线   | 脚本 + `--layout` 两阶段                                                      |
 
 ---
@@ -336,7 +336,7 @@ DSL 的语法是严格白名单，不能写原生 CSS 属性（不支持 `alignS
 先出骨架图导出坐标，再基于坐标补充连线和注解：
 
 ```bash
-bunx @larksuite/whiteboard-cli@^0.2.0 -i skeleton.json -o step1.png -l coords.json
+npx -y @larksuite/whiteboard-cli@^0.2.0 -i skeleton.json -o step1.png -l coords.json
 ```
 
 `coords.json` 包含每个带 id 节点的精确坐标（absX, absY, width, height）。

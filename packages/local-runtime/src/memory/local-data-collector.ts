@@ -1,4 +1,4 @@
-import { statSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 import type { ResolvedAgentCapabilities } from "@mavis/config";
@@ -467,30 +467,12 @@ function isTrustedPrimaryAgentDetail(
 }
 
 function isGitCheckout(workspaceDir: string): boolean {
-  return pathExists(join(workspaceDir, ".git"));
+  return existsSync(join(workspaceDir, ".git"));
 }
 
 function isInsideWorktree(workspaceDir: string): boolean {
   return (
-    pathExists(join(workspaceDir, ".git")) &&
-    !pathExists(join(workspaceDir, ".git", "HEAD"))
+    existsSync(join(workspaceDir, ".git")) &&
+    !existsSync(join(workspaceDir, ".git", "HEAD"))
   );
-}
-
-/**
- * Whether `target` exists.
- *
- * A `statSync` inside a `try` answers the same question as `existsSync` for a
- * file, a directory, a missing entry and an unreadable path, at a fraction of the
- * per-call cost: `existsSync` is the `node:` compatibility surface and measures
- * roughly an order of magnitude slower in this runtime. This module is
- * synchronous, so `Bun.file()` does not apply.
- */
-function pathExists(target: string): boolean {
-  try {
-    statSync(target);
-    return true;
-  } catch {
-    return false;
-  }
 }

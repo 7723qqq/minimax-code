@@ -11,7 +11,9 @@ import {
   type ConversationSteerResult,
   type ConversationTurnResult,
 } from '@mavis/conversation-contract';
-import { afterAll, beforeEach, describe, expect, it, jest, mock, spyOn } from 'bun:test';
+import { beforeEach, describe, expect, it, vi, afterAll } from 'vitest';
+
+import { mocked } from '../../../../test/bun-test-setup.js';
 
 import {
   startBackgroundLocalBash,
@@ -41,23 +43,23 @@ import type { LocalTaskRunnerHostWithSessionLookup } from '../../src/api/local-t
 import { logger } from '../../src/common/logger.js';
 import { closeLocalRuntimeDb } from '../../src/persistence/db.js';
 import type { LocalSessionRecord } from '../../src/sessions/controller.js';
-import { mocked } from '../../../../test/bun-test-setup.js';
 
-// `bun test` runs every file of a suite in one process, and `mock.module()`
-// replaces the module for that whole process. Snapshot the real module before
-// replacing it and put it back in `afterAll`, so the replacement never leaks
-// into the files that run after this one.
-const actualDelivery = { ...(await import('../../src/background-task/delivery.js')) };
-
-mock.module('../../src/background-task/delivery.js', () => ({
-  ...actualDelivery,
-  scheduleLocalBackgroundTaskDelivery: mock(),
+// Bun runs every file of a `bun test` invocation in one process and its
+// mock.module mutates the shared module namespace in place, so the mocked
+// delivery module must be restored after this file or later files (e.g.
+// local-background-task-delivery-user-stop-admission.test.ts) see the stub.
+// The real exports are snapshotted before registration because the mock
+// overwrites the namespace in place.
+const realDelivery = { ...(await import('../../src/background-task/delivery.js')) };
+vi.mock('../../src/background-task/delivery.js', () => ({
+  scheduleLocalBackgroundTaskDelivery: vi.fn(),
 }));
-
 afterAll(() => {
-  mock.module('../../src/background-task/delivery.js', () => actualDelivery);
+  vi.mock('../../src/background-task/delivery.js', () => ({ ...realDelivery }));
 });
 
+// Bun's vi surface has no `mocked`; the repo preload ships the same
+// compile-time narrowing as a standalone helper.
 const mockedSchedule = mocked(scheduleLocalBackgroundTaskDelivery);
 
 const NOW_MS = 90_000;
@@ -71,7 +73,7 @@ const toolCtx = {
 } as const;
 
 beforeEach(() => {
-  jest.clearAllMocks();
+  vi.clearAllMocks();
 });
 
 function childSession(overrides: Partial<ConversationSession> = {}): ConversationSession {
@@ -106,10 +108,10 @@ interface AppendHarness {
   readonly host: LocalTaskRunnerHostWithSessionLookup;
   readonly service: LocalBackgroundTaskService;
   readonly store: TaskStore;
-  readonly steer: ReturnType<typeof mock>;
-  readonly getSession: ReturnType<typeof mock>;
-  readonly abort: ReturnType<typeof mock>;
-  readonly warn: ReturnType<typeof mock>;
+  readonly steer: ReturnType<typeof vi.fn>;
+  readonly getSession: ReturnType<typeof vi.fn>;
+  readonly abort: ReturnType<typeof vi.fn>;
+  readonly warn: ReturnType<typeof vi.fn>;
   readonly append: (
     input?: {
       taskId?: string;
@@ -130,7 +132,7 @@ async function appendHarness(
 ): Promise<AppendHarness> {
   const dataDir = await mkdtemp(join(tmpdir(), 'local-task-append-'));
   const store = new SqliteLocalBackgroundTaskStore(dataDir, () => NOW_MS);
-  const abort = mock(async (_sessionId: string, _reason: string, _turnId?: string) => true);
+  const abort = vi.fn(async (_sessionId: string, _reason: string, _turnId?: string) => true);
   const service = new LocalBackgroundTaskService({
     store,
     outputStore: new FsLocalTaskOutputStore(dataDir),
@@ -152,7 +154,7 @@ async function appendHarness(
       mode: 'activated',
       completion: Promise.resolve(turnResult()),
     }));
-  const steer = mock(async (input: ConversationSteerInput): Promise<ConversationSteerResult> => {
+  const steer = vi.fn(async (input: ConversationSteerInput): Promise<ConversationSteerResult> => {
     const result = await rawSteer(input);
     if (result.mode !== 'duplicate') {
       await input.preDelivery?.accept({ mode: result.mode, turnId: result.turnId });
@@ -160,14 +162,14 @@ async function appendHarness(
     return result;
   });
   const target = options.session === undefined ? childSession() : options.session;
-  const getSession = mock(async (sessionId: string) =>
+  const getSession = vi.fn(async (sessionId: string) =>
     target && target.sessionId === sessionId ? target : undefined,
   );
-  const warn = mock();
+  const warn = vi.fn();
   const host = {
     runtimeConversation: { query: { getSession }, ingress: { steer, abort } },
     backgroundTaskService: service,
-    matrixLogger: { warn, info: mock() },
+    matrixLogger: { warn, info: vi.fn() },
     nowMs: () => NOW_MS,
     resolveDefaultWorkspaceDir: () => dataDir,
     getSessionById: async () => undefined,
@@ -245,7 +247,7 @@ describe('task_append process claim', () => {
 
   it('lets a Session stop cascade stop an activated append and sweep its child Turn', async () => {
     const harness = await appendHarness({ steer: activatedUntilAborted });
-    const info = spyOn(logger, 'info');
+    const info = vi.spyOn(logger, 'info');
     try {
       await harness.seedSourceTask({ deliveredAt: NOW_MS });
       harness.abort.mockImplementation(async (_sessionId, reason, turnId) => {
@@ -268,7 +270,7 @@ describe('task_append process claim', () => {
       );
       // Background bash the append's own child Turn started, via the real runner.
       const bashTaskId = await startChildBash(harness, turnId);
-      const onTargets = mock();
+      const onTargets = vi.fn();
 
       const { targets } = await stopSessionBackgroundWork({
         host: harness.host,
@@ -314,7 +316,7 @@ describe('task_append process claim', () => {
 
   it('rejects an activation during shutdown with the append contract error, claiming nothing', async () => {
     const harness = await appendHarness();
-    const warn = spyOn(logger, 'warn');
+    const warn = vi.spyOn(logger, 'warn');
     try {
       await harness.seedSourceTask();
       beginBackgroundTaskShutdown(harness.host, 'runtime-shutdown');
@@ -377,11 +379,11 @@ describe('task_append process claim', () => {
     },
   ])('releases the claim when $label', async ({ reason, steer, failRowCreate }) => {
     const harness = await appendHarness(steer ? { steer } : {});
-    const info = spyOn(logger, 'info');
+    const info = vi.spyOn(logger, 'info');
     try {
       await harness.seedSourceTask();
       if (failRowCreate) {
-        spyOn(harness.service, 'create').mockRejectedValueOnce(new Error('task store closed'));
+        vi.spyOn(harness.service, 'create').mockRejectedValueOnce(new Error('task store closed'));
       }
 
       await expect(harness.append()).rejects.toThrow();

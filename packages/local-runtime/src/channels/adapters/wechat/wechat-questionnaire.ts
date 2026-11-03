@@ -16,7 +16,6 @@ import type {
   ChannelQuestionnairePending,
   ChannelRenderableQuestionnaire,
 } from '../../questionnaire-bridge.js';
-import { wechatText } from './wechat-copy.js';
 
 /**
  * Render the questionnaire as a numbered-text WeChat message body. Mirrors
@@ -40,7 +39,7 @@ import { wechatText } from './wechat-copy.js';
  */
 export function formatQuestionnaireText(renderable: ChannelRenderableQuestionnaire): string {
   const lines: string[] = [];
-  lines.push(wechatText('questionnaire.header', { title: renderable.title ?? '' }).trimEnd());
+  lines.push(`【请补充信息】${renderable.title ?? ''}`.trimEnd());
 
   let counter = 0;
   renderable.steps.forEach((step, stepIndex) => {
@@ -53,12 +52,14 @@ export function formatQuestionnaireText(renderable: ChannelRenderableQuestionnai
       lines.push(`   ${counter}) ${opt.label}${desc}`);
     }
     if (step.options.length === 0) {
-      lines.push(`   ${wechatText('questionnaire.freeTextHint')}`);
+      lines.push('   （请直接输入文字作答）');
     }
   });
 
   lines.push('');
-  lines.push(wechatText('questionnaire.replyHint'));
+  lines.push(
+    '请回复编号选择（多选/多题用逗号分隔，中英文逗号均可，如 1,3 或 1，3）；无合适项可直接输入文字作答。',
+  );
   return lines.join('\n');
 }
 

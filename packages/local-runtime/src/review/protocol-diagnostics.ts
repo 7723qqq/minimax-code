@@ -1,3 +1,4 @@
+
 import type { PiAfterLlmCallHookInput } from '@mavis/agent-core/pi-turn-runner';
 
 import type { LocalRuntimeLogger } from '../common/logger.js';
@@ -54,9 +55,7 @@ export function recordReviewProjectionBypass(input: {
         : {}),
       protocol_markers: input.protocolOutput.markers,
       response_length: input.protocolOutput.text.length,
-      response_sha256: new Bun.CryptoHasher('sha256')
-        .update(input.protocolOutput.text)
-        .digest('hex'),
+      response_sha256: new Bun.CryptoHasher('sha256').update(input.protocolOutput.text).digest('hex'),
       response_text: responseText,
       response_truncated: responseText.length !== input.protocolOutput.text.length,
       ...(input.model ? { model: input.model } : {}),

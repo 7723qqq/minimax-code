@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { FinalizingSqliteDatabase } from '@mavis/shared';
-import { Database } from 'bun:sqlite';
 
 import { resolveAgentDbPath } from '../../agent/db.js';
 import type { DatabaseLike } from '../db.js';

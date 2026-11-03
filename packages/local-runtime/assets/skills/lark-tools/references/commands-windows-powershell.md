@@ -14,7 +14,7 @@ corrupts UTF-8 content. Prefer Read/Write/Edit tools for file content operations
 ```powershell
 if (-not (Get-Command lark-cli -ErrorAction SilentlyContinue)) {
   Write-Host "lark-cli not found, installing @larksuite/cli globally..."
-  bun install --global @larksuite/cli
+  npm install -g @larksuite/cli
 }
 lark-cli --version    # confirm install succeeded
 ```
