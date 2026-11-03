@@ -21,28 +21,19 @@ export const EN_MODEL_COPY = {
   availableModels: 'Available models',
   higherContextUsage: 'Higher usage with this context window.',
   addProviderDescription: 'Configure an API Key provider and add its models',
-  unknownProvider: 'Unknown provider',
   thinkEffort: 'Think effort',
   oauthCredentialsReady: 'OAuth credentials are ready',
   reopenBrowserSignIn: 'Open the browser sign-in again',
   previousSignInFailed: 'The previous sign-in failed',
   signInWithOpenAiOauth: 'Sign in with OpenAI OAuth',
   loginRequired: 'Login required',
-  deleteProviderTitle: 'Delete provider?',
-  deleteProviderFooter: 'Enter delete provider · Esc cancel',
-  deletingProvider: 'Deleting provider…',
-  deleteProviderRetry: 'Retry, or press Esc to cancel.',
-  deleteProviderUnchanged: 'The provider and its models are unchanged.',
-  deleteProviderModels:
-    'This removes its saved credentials and all {count} configured models.',
-  hintEffort: '↑↓ select · type to search · ←/→ effort · enter apply{context}{delete} · esc cancel',
+  hintEffort: '↑↓ select · type to search · ←/→ effort · enter apply{context}{favorite} · esc cancel',
   hintThinking:
-    '↑↓ select · type to search · ←/→ thinking · enter apply{context}{delete} · esc cancel',
-  hintPlain: '↑↓ select · type to search · enter apply{context}{delete} · esc cancel',
+    '↑↓ select · type to search · ←/→ thinking · enter apply{context}{favorite} · esc cancel',
+  hintPlain: '↑↓ select · type to search · enter apply{context}{favorite} · esc cancel',
   hintContext: ' · tab context',
   hintFavorite: ' · ctrl+s favorite',
   hintUnfavorite: ' · ctrl+s unfavorite',
-  hintDeleteProvider: ' · ctrl+d delete provider',
 } as const;
 
 /** Every key the model picker catalog defines. */

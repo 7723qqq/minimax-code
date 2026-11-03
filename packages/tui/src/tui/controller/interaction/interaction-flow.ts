@@ -45,6 +45,9 @@ import {
   type TuiPlanReviewAction,
 } from '../../features/interaction/plan-review-panel.js';
 import { TuiPlanViewerPanel } from '../../features/interaction/plan-viewer-panel.js';
+import { formatPlanPath } from '../../features/interaction/plan-path.js';
+import { interactionText } from '../../features/interaction/copy.js';
+import { formatTuiKeybinding, type TuiKeybindingRegistry } from '../../shell/keybindings.js';
 import {
   TuiPlanEntryPanel,
   type TuiPlanEntryAction,
@@ -83,6 +86,7 @@ export interface TuiInteractionFlowOptions {
   readonly permissionSessionScope?: (activeSessionId: string) => ReadonlySet<string>;
   readonly permissionOwnerTurnId?: (ownerSessionId: string) => string | undefined;
   readonly stopTurn: () => void;
+  readonly keybindings?: TuiKeybindingRegistry;
 }
 
 export class TuiInteractionFlow {
@@ -857,9 +861,19 @@ export class TuiInteractionFlow {
         );
       },
       this.options.onChanged,
+      {
+        fullViewShortcut: () => this.planFullViewShortcut(),
+      },
     );
     this.panel = panel;
     this.options.surface.show(panel);
+  }
+
+  private planFullViewShortcut(): string | undefined {
+    const keybindings = this.options.keybindings;
+    return keybindings && keybindings.keys('interaction.view-plan').length > 0
+      ? formatTuiKeybinding('interaction.view-plan', keybindings)
+      : undefined;
   }
 
   private async submitPlanReview(
@@ -989,13 +1003,20 @@ export class TuiInteractionFlow {
       await this.options.controller.refreshSessionMetadata(ownerSessionId).catch(() => undefined);
     }
     if (!this.isActiveSession(ownerSessionId)) return true;
+    const planPath = state.request.modePayload?.planReview?.path;
     this.updateQuestionTranscript(state.request.id, {
       status: 'resolved',
       title: state.request.modePayload?.planReview
         ? controllerInteractionText('question.planReviewTitle')
         : controllerInteractionText('question.planModeTitle'),
       content,
-      detail,
+      // Once resolved, the frozen body leaves the Transcript; keep where to read it again.
+      detail: planPath
+        ? interactionText('planPath.resolvedDetail', {
+            detail,
+            path: formatPlanPath(planPath),
+          })
+        : detail,
       ephemeral: true,
       updatedAtMs: Date.now(),
     });

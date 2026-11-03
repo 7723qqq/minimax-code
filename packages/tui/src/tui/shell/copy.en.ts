@@ -195,6 +195,7 @@ export const EN_SHELL_COPY = {
     'Permission mode: Ask, Auto, Full access',
   'keybinding.composer.restore-draft.description': 'Undo the last Draft clear',
   'keybinding.interaction.scroll-up.description': 'Scroll the current interaction',
+  'keybinding.interaction.view-plan.description': 'Show or hide the full Plan during Plan Review',
   'followUp.queuePaused': 'Queue paused · {n} pending · /queue to continue',
   'followUp.sendFailed': "Couldn't send",
   'followUp.sendFailedWithReason': "Couldn't send · {reason}",
@@ -235,8 +236,9 @@ export const EN_SHELL_COPY = {
   'inspection.scrollHintFull': '↑↓ / PgUp/PgDn scroll · {base}',
   'inspection.warnings': 'Warnings',
   'inspection.moreWarnings': '+{count} more warning(s)',
-  'chat.heldRows.one': '↑ {n} more line above · still updating',
-  'chat.heldRows.many': '↑ {n} more lines above · still updating',
+  'chat.heldRows.one': '↑ {n} more line above · {hint}',
+  'chat.heldRows.many': '↑ {n} more lines above · {hint}',
+  'chat.heldRows.stillUpdating': 'still updating',
   'shell.surfaceHost.modeChangeFailed':
     'TUI mode change failed and could not fully restore the feature presentation.',
   'shell.renderer.modeSwitchFailed':

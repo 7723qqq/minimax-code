@@ -1,4 +1,4 @@
-import { panelLayout, renderPanelFrame } from '../../widgets/panel-frame.js';
+import { panelLayout } from '../../widgets/panel-frame.js';
 import { getKeybindings, Input, Key, matchesKey } from '../../engine/public.js';
 import type { Component, Focusable } from '../../rendering/component.js';
 import { visibleWidth } from '../../rendering/text.js';
@@ -6,7 +6,6 @@ import { SelectList } from '../../widgets/select-list.js';
 import { sanitizeTerminalText } from '../../rendering/terminal-text.js';
 import type { TuiModel } from '../../../runtime/port.js';
 import type { McodeCodexOAuthState } from '../../../provider/contract.js';
-import { formatTuiActionFailure } from '../../../user-facing-failure.js';
 import {
   tuiChalk as chalk,
   tuiColors as colors,
@@ -60,9 +59,6 @@ export class TuiModelPicker implements Component, Focusable {
   /** Starred models in the order they were added; new favorites go last. */
   private favoriteKeys: ModelKey[];
   private favoriteStatus: string | undefined;
-  private deletingProviderId: string | undefined;
-  private deleteStatus: { readonly tone: 'info' | 'error'; readonly text: string } | undefined;
-  private busy = false;
   private _focused = false;
 
   constructor(
@@ -78,7 +74,6 @@ export class TuiModelPicker implements Component, Focusable {
         readonly onConnect: () => void;
       };
       onAddProvider?: () => void;
-      onDeleteProvider?: (providerId: string) => Promise<void>;
       /** Persists a favorite toggle; `false` or a rejection rolls the row back. */
       onToggleFavorite?: (model: TuiModel, favorite: boolean) => Promise<boolean | void> | boolean | void;
       requestRender?: () => void;
@@ -109,13 +104,7 @@ export class TuiModelPicker implements Component, Focusable {
   }
 
   handleInput(data: string): void {
-    if (this.busy) return;
     const keybindings = getKeybindings();
-    if (this.deletingProviderId) {
-      if (keybindings.matches(data, 'tui.select.cancel')) this.cancelProviderDeletion();
-      else if (keybindings.matches(data, 'tui.select.confirm')) void this.deleteProvider();
-      return;
-    }
     if (keybindings.matches(data, 'tui.select.cancel')) {
       this.onCancel();
       return;
@@ -124,17 +113,6 @@ export class TuiModelPicker implements Component, Focusable {
     const model = this.focusedModel();
     if (model && this.availability.onToggleFavorite && matchesKey(data, Key.ctrl('s'))) {
       this.toggleFavorite(model);
-      return;
-    }
-    if (
-      model &&
-      isCustomProviderModel(model) &&
-      this.availability.onDeleteProvider &&
-      matchesKey(data, Key.ctrl('d'))
-    ) {
-      this.deletingProviderId = model.providerId;
-      this.deleteStatus = undefined;
-      this.availability.requestRender?.();
       return;
     }
     if (
@@ -199,7 +177,6 @@ export class TuiModelPicker implements Component, Focusable {
   }
 
   renderViewport(width: number, height: number): string[] {
-    if (this.deletingProviderId) return this.renderDeleteConfirmation(width, height);
     const layout = panelLayout(width, height, this.renderHint());
     const searchPrompt = chalk.hex(colors.muted)('Search: ');
     const search =
@@ -464,80 +441,18 @@ export class TuiModelPicker implements Component, Focusable {
     const switchable = model?.thinkingConfig?.mode === 'switchable';
     const contextHint =
       model && contextWindowOptions(model).length > 1 ? modelText('hintContext') : '';
-    const deleteHint =
-      (model && this.availability.onToggleFavorite
+    const favoriteHint =
+      model && this.availability.onToggleFavorite
         ? this.isFavorite(model)
           ? modelText('hintUnfavorite')
           : modelText('hintFavorite')
-        : '') +
-      (model && isCustomProviderModel(model) && this.availability.onDeleteProvider
-        ? modelText('hintDeleteProvider')
-        : '');
+        : '';
     if (supportsTuiEffort(model)) {
-      return modelText('hintEffort', { context: contextHint, delete: deleteHint });
+      return modelText('hintEffort', { context: contextHint, favorite: favoriteHint });
     }
     return switchable
-      ? modelText('hintThinking', { context: contextHint, delete: deleteHint })
-      : modelText('hintPlain', { context: contextHint, delete: deleteHint });
-  }
-
-  private renderDeleteConfirmation(width: number, height?: number): string[] {
-    const providerId = this.deletingProviderId;
-    const providerModels = this.models.filter((model) => model.providerId === providerId);
-    const providerName =
-      providerModels[0]?.providerName?.trim() || providerId || modelText('unknownProvider');
-    const modelCount = providerModels.length;
-    return renderPanelFrame(
-      {
-        title: modelText('deleteProviderTitle'),
-        body: [
-          sanitizeTerminalText(providerName),
-          chalk.hex(colors.muted)(modelText('deleteProviderModels', { count: modelCount })),
-          ...(this.deleteStatus
-            ? [
-                this.deleteStatus.tone === 'error'
-                  ? chalk.hex(colors.error)(`! ${this.deleteStatus.text}`)
-                  : chalk.hex(colors.accent)(this.deleteStatus.text),
-              ]
-            : []),
-        ],
-        footer: modelText('deleteProviderFooter'),
-      },
-      width,
-      height,
-      'warning',
-    );
-  }
-
-  private cancelProviderDeletion(): void {
-    this.deletingProviderId = undefined;
-    this.deleteStatus = undefined;
-    this.availability.requestRender?.();
-  }
-
-  private async deleteProvider(): Promise<void> {
-    const providerId = this.deletingProviderId;
-    if (!providerId || !this.availability.onDeleteProvider) return;
-    this.busy = true;
-    this.deleteStatus = { tone: 'info', text: modelText('deletingProvider') };
-    this.availability.requestRender?.();
-    try {
-      await this.availability.onDeleteProvider(providerId);
-      this.deletingProviderId = undefined;
-      this.deleteStatus = undefined;
-    } catch (error) {
-      this.deleteStatus = {
-        tone: 'error',
-        text: formatTuiActionFailure(error, {
-          summary: "Couldn't delete provider.",
-          nextStep: modelText('deleteProviderRetry'),
-          preservation: modelText('deleteProviderUnchanged'),
-        }),
-      };
-    } finally {
-      this.busy = false;
-      this.availability.requestRender?.();
-    }
+      ? modelText('hintThinking', { context: contextHint, favorite: favoriteHint })
+      : modelText('hintPlain', { context: contextHint, favorite: favoriteHint });
   }
 
   private renderEffortControl(): string[] {
@@ -638,10 +553,6 @@ function favoriteRowValue(key: ModelKey): string {
 
 function rowModelKey(value: string): ModelKey {
   return value.startsWith(FAVORITE_ROW_PREFIX) ? value.slice(FAVORITE_ROW_PREFIX.length) : value;
-}
-
-function isCustomProviderModel(model: TuiModel): boolean {
-  return model.providerSource === 'custom_provider';
 }
 
 function searchableModelText(model: TuiModel): string {

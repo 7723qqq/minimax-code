@@ -116,6 +116,7 @@ function createHarness(
     offeredCodexSession = undefined;
   });
   const scrollByPage = mock();
+  const toggleFullView = mock(() => true);
   const composerDraft = {
     snapshot: mock(() => ({
       attachments: draft.attachments,
@@ -149,6 +150,7 @@ function createHarness(
     interaction: {
       isActive: mock(() => interactionActive),
       scrollByPage,
+      toggleFullView,
     } as never,
     interactionSurface: {} as never,
     interactionFlow: {} as never,
@@ -208,6 +210,7 @@ function createHarness(
     onChanged,
     requestRender,
     scrollByPage,
+    toggleFullView,
     trackAutocompleteSelect,
     takeRecentCodexSession,
     restoreRecentCodexSession,
@@ -637,6 +640,25 @@ describe("TuiInputFlow steer Draft handling", () => {
 
     expect(harness.scrollByPage).toHaveBeenNthCalledWith(1, -1);
     expect(harness.scrollByPage).toHaveBeenNthCalledWith(2, 1);
+  });
+
+  it("routes the full-view shortcut to an active interaction that supports it", () => {
+    const harness = createHarness(
+      "",
+      { attachments: [] },
+      false,
+      false,
+      false,
+      "consumed",
+      true,
+    );
+
+    expect(harness.inputListener?.("\x0f")).toEqual({ consume: true });
+    expect(harness.toggleFullView).toHaveBeenCalledOnce();
+    expect(harness.toggleTranscriptDetails).not.toHaveBeenCalled();
+
+    harness.toggleFullView.mockReturnValueOnce(false);
+    expect(harness.inputListener?.("\x0f")).toBeUndefined();
   });
 
   it("clears and restores text and attachments as one Draft", () => {

@@ -6,7 +6,7 @@ import {
   VStack,
 } from '../engine/public.js';
 import type { Component } from '../rendering/component.js';
-import { stripAnsi } from '../rendering/text.js';
+import { stripAnsi, truncateToWidth } from '../rendering/text.js';
 import { tuiChalk as chalk, tuiColors as colors } from '../theme/runtime.js';
 import { shellText } from './copy.js';
 import { resolveTuiLayoutPolicy } from './layout-policy.js';
@@ -384,11 +384,20 @@ export class TuiChatLayout implements Component {
       const shown = Math.max(0, liveBudget - 1);
       const hidden = live.length - shown;
       live = [
-        ...(liveBudget > 0 ? insetPart([renderHeldRowsNotice(hidden)]) : []),
+        ...(liveBudget > 0
+          ? insetPart([renderHeldRowsNotice(hidden, frame.contentWidth, this.heldRowsHint())])
+          : []),
         ...live.slice(live.length - shown),
       ];
     }
     return [...body.slice(0, finalRows), ...live, ...footer];
+  }
+
+  private heldRowsHint(): string | undefined {
+    const interaction = this.parts.interaction;
+    return 'heldRowsHint' in interaction && typeof interaction.heldRowsHint === 'function'
+      ? (interaction.heldRowsHint() as string | undefined)
+      : undefined;
   }
 
   private renderFullscreenBody(width: number): string[] {
@@ -632,12 +641,15 @@ function joinWelcomeAndTranscript(
   return [...compactWelcome, ...(isVisuallyBlank(transcript[0] ?? '') ? [] : ['']), ...transcript];
 }
 
-function renderHeldRowsNotice(hiddenRows: number): string {
-  const notice =
-    hiddenRows === 1
-      ? shellText('chat.heldRows.one', { n: hiddenRows })
-      : shellText('chat.heldRows.many', { n: hiddenRows });
-  return chalk.hex(colors.muted)(notice);
+function renderHeldRowsNotice(hiddenRows: number, width: number, hint?: string): string {
+  // Singular form is exactly 37 columns. A ~21-column pane then fails the
+  // regular-mode differential redraw guard (37 > 21) and stops the TUI.
+  // The current interaction may name a way to read the held rows instead.
+  const notice = shellText(hiddenRows === 1 ? 'chat.heldRows.one' : 'chat.heldRows.many', {
+    n: hiddenRows,
+    hint: hint ?? shellText('chat.heldRows.stillUpdating'),
+  });
+  return truncateToWidth(chalk.hex(colors.muted)(notice), Math.max(0, width), '…');
 }
 
 function isStableRowsAwareComponent(

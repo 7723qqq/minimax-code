@@ -2,7 +2,10 @@ import {
   classifyLLMRequestRejectionMessage,
   LLM_ERROR_CODES,
 } from '@mavis/shared/llm-error-classifier';
-import { tuiErrorDiagnostic } from '../../../user-facing-failure.js';
+import {
+  isOutputLimitExhaustedFailure,
+  tuiErrorDiagnostic,
+} from '../../../user-facing-failure.js';
 import { controllerText } from '../copy.js';
 
 const AUTH_ERROR_CODES = new Set<number>([401, LLM_ERROR_CODES.LLM_AUTH_ERROR]);
@@ -65,6 +68,17 @@ export function resolveTuiRuntimeFailure(
   const retryable =
     (errorCode !== undefined && FORCE_RETRY_ERROR_CODES.has(errorCode)) ||
     metadata.retryable !== false;
+  if (isOutputLimitExhaustedFailure(message)) {
+    return {
+      content: controllerText(
+        retryable
+          ? 'runtime.error.outputLimitExhaustedRetryable'
+          : 'runtime.error.outputLimitExhaustedFinal',
+        { provider, code },
+      ),
+      retryable,
+    };
+  }
   if (errorCode === 403) {
     return {
       content: controllerText('runtime.error.accessDenied', { diagnostics, code }),

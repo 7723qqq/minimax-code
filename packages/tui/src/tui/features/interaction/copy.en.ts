@@ -108,8 +108,9 @@ export const EN_INTERACTION_COPY = {
   // Plan review
   'planReview.title': 'Plan Review',
   'planReview.title.feedback': 'Add context',
+  'planReview.title.pendingView': 'Plan · pending review',
   'planReview.heading': 'Plan complete. What would you like to do?',
-  'planReview.meta': 'Full plan above · frozen snapshot',
+  'planReview.meta': 'frozen snapshot',
   'planReview.option.approve': 'Agree and start implementation',
   'planReview.option.skip': 'Skip for now',
   'planReview.option.feedback': 'Add context to revise',
@@ -117,13 +118,19 @@ export const EN_INTERACTION_COPY = {
   'planReview.status.skip': 'Skipping review…',
   'planReview.status.start': 'Starting implementation…',
   'planReview.feedback.hint': 'Tell MiniMax Code what to adjust, then press Enter.',
-  'planReview.footer': '↑/↓ select · Enter confirm · Esc skip',
-  'planReview.footer.feedback': 'Enter send · Esc back',
+  'planReview.footer': '↑/↓ select · Enter confirm{viewFull} · Esc skip',
+  'planReview.footer.feedback': 'Enter send{viewFull} · Esc back',
+  'planReview.footer.fullViewSuffix': ' · {shortcut} view full plan',
+  'planReview.fullView.hint': '{shortcut} view full plan',
+  'planReview.fullView.footer': '{shortcutPrefix}Esc back to review',
 
   // Plan viewer
   'planViewer.title': 'Latest Plan',
   'planViewer.navigation': 'Lines {a}-{b} of {n} · PgUp/PgDn scroll',
   'planViewer.footer': 'Esc close',
+
+  // Plan path
+  'planPath.resolvedDetail': '{detail}\nPlan: {path} · /plan view',
 
   // Questionnaire
   'questionnaire.title': 'Ask',

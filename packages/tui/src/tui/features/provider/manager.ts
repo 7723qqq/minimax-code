@@ -23,11 +23,13 @@ import { providerText } from './copy.js';
 /**
  * `/provider` owns the independent Codex connect action and MiniMax credential
  * source. The MiniMax API Key can be replaced and OAuth can start a fresh
- * sign-in. Custom connections are edited through revision-checked candidate saves.
+ * sign-in. Custom connections are edited through revision-checked candidate saves
+ * and deleted here; `/model` only picks models.
  */
 type ProviderManagerMode =
   | { readonly kind: 'list' }
-  | { readonly kind: 'minimax-key'; readonly replacing: boolean };
+  | { readonly kind: 'minimax-key'; readonly replacing: boolean }
+  | { readonly kind: 'confirm-delete'; readonly provider: McodeProviderView };
 
 export interface TuiProviderManagerOptions {
   snapshot: McodeProviderSnapshot;
@@ -36,6 +38,8 @@ export interface TuiProviderManagerOptions {
   onTest(providerId: string, modelId?: string): Promise<McodeProviderTestResult>;
   onConnectCodex?(): void;
   onSaveCustom?(input: McodeSaveProviderCandidateInput): Promise<McodeSaveProviderCandidateResult>;
+  /** Removes a custom connection with its credentials and models. */
+  onDelete?(providerId: string): Promise<void>;
   onSetMiniMaxApiKey(apiKey: string): Promise<void>;
   onSetMiniMaxSource(source: 'token_plan' | 'minimax_api_key'): Promise<void>;
   /** Starts the same sign-in flow as `/login`; absent when the host has no auth. */
@@ -83,6 +87,13 @@ export class TuiProviderManager implements Component, Focusable {
       this.requestRender();
       return;
     }
+    if (this.mode.kind === 'confirm-delete') {
+      // Only an explicit y deletes. Enter is the list's "use" key, so a
+      // reflexive Enter after a stray d must back out instead of confirming.
+      if (data.toLowerCase() === 'y') void this.deleteConfirmed(this.mode.provider);
+      else this.exitMode();
+      return;
+    }
     if (getKeybindings().matches(data, 'tui.select.cancel')) {
       this.options.onCancel();
       return;
@@ -103,6 +114,7 @@ export class TuiProviderManager implements Component, Focusable {
     if (key === 'r') void this.refreshSelectedModels();
     else if (key === 't') void this.testSelected();
     else if (key === 'e') this.editSelected();
+    else if (key === 'd') this.armDelete();
     else if (key === ' ') void this.useSelected();
   }
 
@@ -125,7 +137,9 @@ export class TuiProviderManager implements Component, Focusable {
     const lines =
       this.mode.kind === 'minimax-key'
         ? this.renderMiniMaxKey(safeWidth)
-        : this.renderList(safeWidth);
+        : this.mode.kind === 'confirm-delete'
+          ? this.renderDeleteConfirmation(this.mode.provider, safeWidth)
+          : this.renderList(safeWidth);
     return lines.map((line) => truncateToWidth(line, safeWidth, chalk.hex(colors.dim)('…')));
   }
 
@@ -224,6 +238,30 @@ export class TuiProviderManager implements Component, Focusable {
       ...(this.status ? [frameRow(chalk.hex(colors.error)(`! ${this.status.text}`), width)] : []),
       frameDivider(width),
       frameRow(renderTuiActionHint(providerText('managerSaveAndUseHint')), width),
+      frameBottom(width),
+    ];
+  }
+
+  private renderDeleteConfirmation(provider: McodeProviderView, width: number): string[] {
+    const count = provider.models.length;
+    return [
+      frameTop(width),
+      frameRow(
+        chalk.bold.hex(colors.warning)(
+          providerText('managerDeleteTitle', { name: sanitizeTerminalText(provider.name) }),
+        ),
+        width,
+      ),
+      frameRow(
+        chalk.hex(colors.muted)(
+          providerText(count === 1 ? 'managerDeleteModelsOne' : 'managerDeleteModelsMany', {
+            count,
+          }),
+        ),
+        width,
+      ),
+      frameDivider(width),
+      frameRow(renderTuiActionHint(providerText('managerDeleteHint')), width),
       frameBottom(width),
     ];
   }
@@ -348,6 +386,56 @@ export class TuiProviderManager implements Component, Focusable {
     });
     this.syncFocus();
     this.requestRender();
+  }
+
+  private armDelete(): void {
+    const provider = this.selectedProvider();
+    if (!provider) return;
+    if (provider.kind !== 'custom' || provider.readOnly) {
+      this.setStatus(providerText('managerDeleteOnlyCustom'), 'info');
+      return;
+    }
+    if (!this.options.onDelete) {
+      this.setStatus(providerText('managerDeleteUnavailable'), 'info');
+      return;
+    }
+    this.mode = { kind: 'confirm-delete', provider };
+    this.status = undefined;
+    this.requestRender();
+  }
+
+  private async deleteConfirmed(provider: McodeProviderView): Promise<void> {
+    const onDelete = this.options.onDelete;
+    this.mode = { kind: 'list' };
+    if (!onDelete) return;
+    const count = provider.models.length;
+    let deleted = false;
+    await this.perform(
+      async () => {
+        await onDelete(provider.providerId);
+        deleted = true;
+      },
+      {
+        summary: providerText('managerDeleteFailedSummary', { name: provider.name }),
+        nextStep: providerText('managerDeleteFailedNextStep'),
+      },
+    );
+    if (!deleted || this.disposed) return;
+    // A failed reload must not claim the deletion failed: the credentials and
+    // models are already gone, only the list is stale.
+    await this.perform(
+      () =>
+        this.refresh(
+          providerText(count === 1 ? 'managerDeletedOne' : 'managerDeletedMany', {
+            name: provider.name,
+            count,
+          }),
+        ),
+      {
+        summary: providerText('managerDeletedListFailed', { name: provider.name }),
+        nextStep: providerText('managerReopenProvider'),
+      },
+    );
   }
 
   private closeEditor(): void {

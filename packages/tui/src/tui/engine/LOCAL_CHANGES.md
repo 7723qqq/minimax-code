@@ -229,3 +229,20 @@ Remove `L024` when the selected Pi baseline natively matches legacy-terminal `Ct
 - User impact: none intended. A start failure, a non-zero exit, empty output, an unreadable stream and an aborted signal all still yield no candidates; an abort now resolves the pending completion right after killing the child instead of waiting for its close event.
 - Evidence: `bun run typecheck`; `tui-engine-local-deltas.test.ts` and `tui-shell-block.test.ts` pass. No published test launches `fd` through this path, so the spawn and abort branches are verified by inspection rather than by a test.
 - Removal condition: re-apply the delta when this file is resynced from the selected Pi baseline.
+
+## L049: Disable autowrap inside each regular-mode render frame
+
+- Product contract: differential rendering moves the cursor by logical rows, so a rendered line must never occupy two physical rows. Terminals can draw a cluster wider than visibleWidth() measures (e.g. xterm.js in VS Code draws ZWJ emoji as separate glyphs); with autowrap on, a full-width padded line then soft-wraps and every later frame lands one row lower.
+- Minimal difference: `tui-main-screen.ts` wraps each regular-mode frame in `\x1b[?2026h\x1b[?7l` … `\x1b[?7h\x1b[?2026l` (`BEGIN_RENDER_FRAME`/`END_RENDER_FRAME`), disabling autowrap only inside the frame, as the fullscreen renderer already does, so the terminal returns to its default state between frames and after exit.
+- User impact: an over-wide row is truncated at its rightmost column instead of wrapping, so differential redraws no longer drift down a row per frame; terminals that measure clusters as visibleWidth() does see no change.
+- Evidence: `tui-engine-local-deltas.test.ts` keeps an Editor row containing a ZWJ emoji (drawn wider than measured) in place across repeated renders on a recording virtual terminal and asserts each frame ends with `\x1b[?7h\x1b[?2026l`. Real VS Code/xterm.js was not verified.
+- Removal condition: the selected Pi baseline frames regular-mode differential output with autowrap disabled.
+
+## L050: Read queued stdin before the sequence timeout fires
+
+- Product contract: a terminal report (notably a fullscreen SGR mouse report) never becomes composer text and is never split into a lone Escape, whether or not the TUI is busy. Escape while a task runs stops that task, so a misread fragment is destructive.
+- Cause: Node runs due timers before stdin reads within one event-loop turn. When a render blocks past the sequence timeout (50ms, 10ms for a lone ESC) and a report arrives split by the pty with its tail already queued, the timeout callback emitted the head as a complete sequence and the tail then reached the editor character by character. Fullscreen enables all-motion mouse reporting (`?1003h`), so moving the mouse keeps producing reports and a tab switch that triggers a redraw lands in that window.
+- Minimal difference: `stdin-buffer.ts` splits the sequence timeout into `timeout - 1` and 1ms; the second timer is created inside the first callback, so Node runs it in a later turn after queued stdin has been read. `process()` still cancels that timer when the follow-up data arrives. Total timeout length, sequence parsing, paste handling and the public API are unchanged; tests that only fake `setTimeout` still apply.
+- Tradeoff: only covers misreads caused by a blocked event loop. A terminal that genuinely sends the tail later than the timeout keeps the existing behavior; no content-guessing swallow rule is added.
+- Evidence: `tui-stdin-buffer-blocked-loop.test.ts` queues the tail of a report over a real socket while the event loop is blocked and asserts a complete mouse sequence with no lone Escape, both cases failing before the change; it also confirms genuinely late input still yields Escape plus text. Real Warp was not verified.
+- Removal condition: the selected Pi baseline drains queued input before running the sequence timeout, or MCode stops blocking the event loop synchronously while reading input.

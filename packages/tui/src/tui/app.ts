@@ -1,3 +1,5 @@
+import { readConversationStopConfig } from '@mavis/config';
+
 import { disposeComponents } from './rendering/component.js';
 import {
   checkTuiApplicationUpdate,
@@ -282,6 +284,7 @@ export function createTuiApp(options: CreateTuiAppOptions): TuiApp {
     stopTurn: () => {
       void abortLiveTurn();
     },
+    keybindings: options.keybindings,
   });
   const featureFlow = new TuiFeatureFlow({
     runtime: options.runtime,
@@ -399,6 +402,13 @@ export function createTuiApp(options: CreateTuiAppOptions): TuiApp {
       if (!stopped) tui.requestRender();
     },
     append: appendLocalCell,
+    // getConfigPath() in this process: the embedded Runtime pins it to the TUI data
+    // directory when it starts, and its own stop cascade reads the same file with
+    // the same function. Esc and the Runtime must decide from one file, or Esc
+    // could stop subagents whose cancellation notices the Runtime does not silence.
+    readStopPolicy: () => readConversationStopConfig(),
+    activeDelegatedAgentCount: () => delegationFlow.agentCounts().active,
+    observability: options.observability,
     onLiveTurnAborted: ({ turnId }) => {
       // Return the aborted prompt to the composer only when the turn produced
       // no user-visible output: any assistant text, tool call, or steer

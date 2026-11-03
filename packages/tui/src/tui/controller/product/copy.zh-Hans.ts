@@ -45,8 +45,6 @@ export const ZH_HANS_CONTROLLER_PRODUCT_COPY = {
   'feature.modelSwitchFailed': '无法切换模型。',
   'feature.modelUnchanged': '仍在使用上一个模型。',
   'feature.deleteProviderSwitchModel': '请先切换到其他模型，再删除该 Provider',
-  'feature.providerDeletedOne': '已删除 Provider：{providerName} · 已移除 1 个模型。',
-  'feature.providerDeletedMany': '已删除 Provider：{providerName} · 已移除 {count} 个模型。',
   'feature.loadingProviderCatalog': '正在加载 Provider 目录…',
   'feature.providerCatalogWarning': '已知 Provider 暂不可用；仍可使用自定义配置。',
   'feature.savedConnectionsLoadFailed': '无法加载已保存的连接。',

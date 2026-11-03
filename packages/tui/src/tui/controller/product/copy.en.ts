@@ -48,8 +48,6 @@ export const EN_CONTROLLER_PRODUCT_COPY = {
   'feature.modelSwitchFailed': "Couldn't switch models.",
   'feature.modelUnchanged': 'The previous model is still selected.',
   'feature.deleteProviderSwitchModel': 'Switch to another model before deleting this provider',
-  'feature.providerDeletedOne': 'Provider deleted: {providerName} · 1 model removed.',
-  'feature.providerDeletedMany': 'Provider deleted: {providerName} · {count} models removed.',
   'feature.loadingProviderCatalog': 'Loading provider catalog…',
   'feature.providerCatalogWarning': 'Known providers unavailable; Custom remains available.',
   'feature.savedConnectionsLoadFailed': "Couldn't load saved connections.",

@@ -17,6 +17,9 @@ export const ZH_HANS_CONTROLLER_COPY = {
   'common.sendMessageFailed': '无法发送这条消息。',
   'common.prepareMessageFailed': '无法准备这条消息。',
   'run.abort.delegatedStopFailed': '无法停止委派的 Agent。',
+  'run.abort.delegatedKeepRunning':
+    '委派的 Agent 会在后台继续运行。要用 Esc 一并停止，请在 config.yaml 设置 conversation.stopSubAgent: true。',
+  'run.abort.runningElsewhere': '该会话正在另一个 MCode 进程中运行，此处为只读。请从该进程停止。',
   'run.abort.delegatedNotStopped': '部分委派的 Agent 未正常停止：{sessions}',
   'run.abort.runtimeNotConfirmed': 'Runtime 未确认当前回复已停止。',
   'run.abort.stopFailed': '无法停止当前回复。',
@@ -65,6 +68,10 @@ export const ZH_HANS_CONTROLLER_COPY = {
     'Provider 正在限流请求。{diagnostics}{code}\n请稍等片刻，然后重新发送消息。你的提示词已保留。',
   'runtime.error.usageLimit':
     '已达到用量上限。{diagnostics}{code}\n请查看 /usage 或切换 Provider，然后重新发送消息。你的提示词已保留。',
+  'runtime.error.outputLimitExhaustedRetryable':
+    '模型在思考过程中耗尽了输出空间，多次自动重试后仍未完成。{provider}{code}\n请降低 effort 级别，然后运行 /retry 重新发送上一条消息。你的提示词已保留。',
+  'runtime.error.outputLimitExhaustedFinal':
+    '模型在思考过程中耗尽了输出空间，多次自动重试后仍未完成。{provider}{code}\n请在发送消息前降低 effort 级别。你的提示词已保留。',
   'runtime.error.providerUnavailableRetryable':
     'Provider 暂时不可用。{diagnostics}{code}\n请运行 /retry 重新发送上一条消息。你的提示词已保留。',
   'runtime.error.providerUnavailableFinal':

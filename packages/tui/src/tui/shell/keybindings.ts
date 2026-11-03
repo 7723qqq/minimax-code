@@ -28,6 +28,7 @@ export type TuiShellKeyAction =
   | 'cycle-permission'
   | 'scroll-up'
   | 'scroll-down'
+  | 'view-plan'
   | 'restore-draft'
   | 'clear'
   | 'interrupt'
@@ -453,6 +454,14 @@ const DEFAULT_TUI_KEYBINDINGS: readonly TuiKeybindingDefinition[] = [
     descriptionKey: 'keybinding.interaction.scroll-up.description',
     helpOrder: 81,
     helpGroup: 'interaction.navigation',
+  },
+  {
+    id: 'interaction.view-plan',
+    key: 'ctrl+o',
+    action: 'view-plan',
+    when: 'interaction',
+    descriptionKey: 'keybinding.interaction.view-plan.description',
+    helpOrder: 82,
   },
 ];
 

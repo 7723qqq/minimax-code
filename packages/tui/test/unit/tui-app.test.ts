@@ -262,7 +262,10 @@ function createRuntime(): TuiRuntime {
           },
     ),
     getMessages: mock(async () => []),
-    listMessagePage: mock(async () => ({ messages: [], hasMore: false })),
+    listMessagePage: mock(async (sessionId: string, input?: { limit?: number }) => ({
+      messages: await runtime.getMessages(sessionId, input?.limit),
+      hasMore: false,
+    })),
     getSessionForkOptions: mock(async () => ({
       canFork: true,
       worktreeVisible: false,
@@ -7933,7 +7936,7 @@ describe("createTuiApp", () => {
     expect(editingFrame).toContain("Older prompt");
     expect(editingFrame).not.toContain("Latest response");
 
-    const historyRefreshCount = mocked(runtime.getMessages).mock.calls
+    const historyRefreshCount = mocked(runtime.listMessagePage).mock.calls
       .length;
     app.editor.setText("Edited latest prompt");
     app.editor.handleInput("\r");
@@ -7941,7 +7944,7 @@ describe("createTuiApp", () => {
       expect(runtime.editSessionMessage).toHaveBeenCalledTimes(1),
     );
     await waitFor(() =>
-      expect(mocked(runtime.getMessages).mock.calls.length).toBeGreaterThan(
+      expect(mocked(runtime.listMessagePage).mock.calls.length).toBeGreaterThan(
         historyRefreshCount,
       ),
     );
@@ -12424,6 +12427,10 @@ describe("createTuiApp", () => {
         mocked(runtime.getMessages).mockResolvedValue([
           { ...originalMessage, id: "msg-user-edited", content: "Edited query" },
         ]);
+        mocked(runtime.listMessagePage).mockResolvedValue({
+          messages: [{ ...originalMessage, id: "msg-user-edited", content: "Edited query" }],
+          hasMore: false,
+        });
         if (action === "early-rewind") {
           busEvents.push(
             runtimeEvent({
@@ -14490,10 +14497,7 @@ describe("createTuiApp", () => {
       ),
     );
     const historyProjectionCalls = mocked(runtime.getMessages)
-      .mock.calls.filter(
-        ([sessionId, limit]) =>
-          sessionId === "session-existing" && limit === undefined,
-      );
+      .mock.calls.filter(([sessionId]) => sessionId === "session-existing");
     expect(historyProjectionCalls).toHaveLength(2);
     await app.stop();
   });

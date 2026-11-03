@@ -100,8 +100,9 @@ export const ZH_HANS_INTERACTION_COPY = {
 
   'planReview.title': '计划审阅',
   'planReview.title.feedback': '补充说明',
+  'planReview.title.pendingView': '计划 · 待审阅',
   'planReview.heading': '计划已完成，接下来怎么做？',
-  'planReview.meta': '完整计划在上方 · 冻结快照',
+  'planReview.meta': '冻结快照',
   'planReview.option.approve': '同意并开始实施',
   'planReview.option.skip': '暂时跳过',
   'planReview.option.feedback': '补充说明以修改',
@@ -109,12 +110,17 @@ export const ZH_HANS_INTERACTION_COPY = {
   'planReview.status.skip': '正在跳过审阅…',
   'planReview.status.start': '正在开始实施…',
   'planReview.feedback.hint': '告诉 MiniMax Code 需要调整什么，然后按 Enter。',
-  'planReview.footer': '↑/↓ 选择 · Enter 确认 · Esc 跳过',
-  'planReview.footer.feedback': 'Enter 发送 · Esc 返回',
+  'planReview.footer': '↑/↓ 选择 · Enter 确认{viewFull} · Esc 跳过',
+  'planReview.footer.feedback': 'Enter 发送{viewFull} · Esc 返回',
+  'planReview.footer.fullViewSuffix': ' · {shortcut} 查看完整计划',
+  'planReview.fullView.hint': '{shortcut} 查看完整计划',
+  'planReview.fullView.footer': '{shortcutPrefix}Esc 返回审阅',
 
   'planViewer.title': '最新计划',
   'planViewer.navigation': '第 {a}-{b} 行，共 {n} 行 · PgUp/PgDn 滚动',
   'planViewer.footer': 'Esc 关闭',
+
+  'planPath.resolvedDetail': '{detail}\n计划：{path} · /plan view',
 
   'questionnaire.title': '提问',
   'questionnaire.status.sending': '正在发送答案…',

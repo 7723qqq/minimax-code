@@ -22,6 +22,10 @@ export const EN_CONTROLLER_COPY = {
   'common.sendMessageFailed': "Couldn't send this message.",
   'common.prepareMessageFailed': "Couldn't prepare this message.",
   'run.abort.delegatedStopFailed': "Couldn't stop delegated agents.",
+  'run.abort.delegatedKeepRunning':
+    'Delegated agents keep running in the background. To stop them with Esc, set conversation.stopSubAgent: true in config.yaml.',
+  'run.abort.runningElsewhere':
+    'This Session is running in another MCode process and is read-only here. Stop it from that process.',
   'run.abort.delegatedNotStopped': 'Some delegated agents did not stop cleanly: {sessions}',
   'run.abort.runtimeNotConfirmed':
     'Runtime did not confirm that the active response stopped.',
@@ -72,6 +76,10 @@ export const EN_CONTROLLER_COPY = {
     'The model provider is rate limiting requests.{diagnostics}{code}\nWait a moment, then resend the message. Your prompt is preserved.',
   'runtime.error.usageLimit':
     'Usage limit reached.{diagnostics}{code}\nCheck /usage or switch provider, then resend the message. Your prompt is preserved.',
+  'runtime.error.outputLimitExhaustedRetryable':
+    'The model ran out of output space while still thinking and did not finish after several automatic retries.{provider}{code}\nLower the effort level, then run /retry to resend your last message. Your prompt is preserved.',
+  'runtime.error.outputLimitExhaustedFinal':
+    'The model ran out of output space while still thinking and did not finish after several automatic retries.{provider}{code}\nLower the effort level before sending the message again. Your prompt is preserved.',
   'runtime.error.providerUnavailableRetryable':
     'The model provider is temporarily unavailable.{diagnostics}{code}\nRun /retry to resend your last message. Your prompt is preserved.',
   'runtime.error.providerUnavailableFinal':
