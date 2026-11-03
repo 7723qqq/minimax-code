@@ -27,6 +27,7 @@ import type { TuiRuntimeStateCoordinator } from './runtime-state-coordinator.js'
 import type { TuiSessionFlow } from '../session-flow.js';
 import type { TuiDelegationFlow } from '../delegation-flow.js';
 import type { TuiGoalFlow } from '../product/goal-flow.js';
+import type { TuiPromptSuggestionStore } from '../../features/composer/prompt-suggestion.js';
 import { delayWithAbort } from '../support.js';
 import {
   captureTuiIncidentBestEffort,
@@ -67,10 +68,7 @@ export interface TuiRuntimeEventFlowOptions {
   readonly effectRunner: TuiEffectRunner;
   readonly stateCoordinator: TuiRuntimeStateCoordinator;
   readonly sessionFlow: Pick<TuiSessionFlow, 'reconcileRuntimeEvent'>;
-  readonly delegationFlow: Pick<
-    TuiDelegationFlow,
-    'handleRuntimeEvent' | 'handleSettledRuntimeEvent' | 'refresh'
-  >;
+  readonly delegationFlow: Pick<TuiDelegationFlow, 'handleRuntimeEvent' | 'refresh'>;
   readonly activeRunFlow: TuiActiveRunFlow;
   readonly interactionFlow: TuiInteractionFlow;
   readonly runProjection: TuiRunProjection;
@@ -82,6 +80,8 @@ export interface TuiRuntimeEventFlowOptions {
   readonly onLlmRetryChanged?: (event: TuiLlmRetryEvent | undefined) => void;
   readonly onRetryAvailabilityChanged?: (sessionId: string, retryable: boolean) => void;
   readonly goalFlow?: Pick<TuiGoalFlow, 'project' | 'refresh'>;
+  /** Next-message suggestions; re-render only when the visible Session's one changes. */
+  readonly promptSuggestions?: Pick<TuiPromptSuggestionStore, 'observe'>;
   readonly updateFollowUpPanel: () => void;
   readonly onChanged: () => void;
   readonly append: AppendLocalCell;
@@ -520,6 +520,16 @@ export class TuiRuntimeEventFlow {
   }
 
   private async handle(event: TuiRuntimeEvent): Promise<void> {
+    if (event.type === 'turn.prompt_suggestion.generated') {
+      if (
+        this.options.promptSuggestions?.observe(event) &&
+        event.sessionId === this.options.controller.snapshot().session?.sessionId
+      ) {
+        this.options.onChanged();
+      }
+      return;
+    }
+    this.options.promptSuggestions?.observe(event);
     await this.options.delegationFlow.handleRuntimeEvent(event);
     if (isSessionCatalogEvent(event) || event.type === 'rotation.completed') {
       await this.options.sessionFlow.reconcileRuntimeEvent(event);
@@ -596,13 +606,12 @@ export class TuiRuntimeEventFlow {
       event.type === 'session.error' ||
       event.type === 'session.abort'
     ) {
-      const terminalSettled = await this.handleRuntimeTurnFinished(
+      await this.handleRuntimeTurnFinished(
         event,
         currentSessionId,
         liveTurnDurationMs,
         interactionHandled,
       );
-      if (terminalSettled) this.options.delegationFlow.handleSettledRuntimeEvent(event);
       await this.notifyTerminalEvent(event, currentSessionId);
     }
   }

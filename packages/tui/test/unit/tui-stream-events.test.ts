@@ -1,8 +1,16 @@
+import { stripVTControlCharacters } from 'node:util';
+
 import { describe, expect, it } from 'bun:test';
 import {
   normalizeTuiMessage,
   projectTuiSessionStreamFrame,
 } from "../../src/runtime/stream-events.js";
+import { hydrateTuiHistory } from '../../src/tui/controller/projection/turn-history-projection.js';
+import { TuiTodoProjection } from '../../src/tui/controller/projection/turn-todo-projection.js';
+import { TuiToolProjection } from '../../src/tui/controller/projection/turn-tool-projection.js';
+import { TuiUserProjection } from '../../src/tui/controller/projection/turn-user-projection.js';
+import { TranscriptStore } from '../../src/tui/transcript/store.js';
+import { TranscriptView } from '../../src/tui/transcript/view.js';
 
 describe("Minimax Code stream event projection", () => {
   it("projects generated Session SSE frames without a Runtime-private event contract", () => {
@@ -156,6 +164,64 @@ describe("Minimax Code stream event projection", () => {
     for (const missingOrBroken of [undefined, '{"tool_calls": [', '"text"', '{}']) {
       expect(parents(historyView(missingOrBroken))).toEqual([undefined, undefined, 'run-own']);
     }
+  });
+
+  it('groups reopened PTC child calls under run_code when only the rawJson has their parent', () => {
+    // CliService history: the Tool Call view has no parent slot, the rawJson does.
+    const message = normalizeTuiMessage({
+      msgId: 'message-1',
+      turnId: 'turn-1',
+      role: 'assistant',
+      toolCalls: [
+        {
+          toolName: 'run_code',
+          toolCallId: 'run-1',
+          toolCallStatus: 3,
+          toolCallArgs: JSON.stringify({ code: 'x', description: 'Scan the repo' }),
+          toolCallError: 'Run interrupted before completion',
+        },
+        {
+          toolName: 'read',
+          toolCallId: 'child-1',
+          toolCallStatus: 2,
+          toolCallArgs: JSON.stringify({ path: 'src/a.ts' }),
+        },
+        {
+          toolName: 'read',
+          toolCallId: 'child-2',
+          toolCallStatus: 1,
+          toolCallArgs: JSON.stringify({ path: 'src/b.ts' }),
+        },
+      ],
+      rawJson: JSON.stringify({
+        tool_calls: [
+          { tool_name: 'run_code', tool_call_id: 'run-1' },
+          { tool_name: 'read', tool_call_id: 'child-1', parent_tool_call_id: 'run-1' },
+          { tool_name: 'read', tool_call_id: 'child-2', parent_tool_call_id: 'run-1' },
+        ],
+      }),
+    });
+    const transcript = new TranscriptStore();
+    hydrateTuiHistory({
+      messages: [message],
+      transcript,
+      toolProjection: new TuiToolProjection(transcript),
+      todoProjection: new TuiTodoProjection(() => undefined),
+      userProjection: new TuiUserProjection(transcript),
+      now: () => 100,
+    });
+
+    expect(transcript.snapshot().map((cell) => cell.parentToolCallId)).toEqual([
+      undefined,
+      'run-1',
+      'run-1',
+    ]);
+    const rendered = stripVTControlCharacters(
+      new TranscriptView(transcript).render(100).join('\n'),
+    );
+    expect(rendered).toContain('Code failed · Scan the repo · 2 calls · 1 interrupted');
+    expect(rendered).toContain('⊘ Reading src/b.ts · interrupted');
+    expect(rendered).not.toContain('Read 2 files');
   });
 
   it("decodes generated Session Tool Call payloads while normalizing durable history", () => {

@@ -565,7 +565,6 @@ export interface TuiDelegatedAgent {
   agentName?: string;
   task?: string;
   status: TuiDelegatedAgentStatus;
-  backgroundTaskId?: string;
   createdAtMs?: number;
   updatedAtMs?: number;
   errorMessage?: string;

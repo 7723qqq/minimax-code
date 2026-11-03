@@ -94,6 +94,10 @@ export const ZH_HANS_TRANSCRIPT_COPY = {
   'tool.action.calling': '调用中',
   'tool.action.called': '已调用',
   'tool.action.callFailed': '调用失败',
+  'tool.action.runningCode': '正在运行代码',
+  'tool.action.ranCode': '已运行代码',
+  'tool.action.codeFailed': '代码运行失败',
+  'tool.action.codeInterrupted': '代码已中断',
 
   // Status visualization
   'status.needsAttention': '! 需要处理',
@@ -245,4 +249,15 @@ export const ZH_HANS_TRANSCRIPT_COPY = {
   'view.group.progress.searching': '搜索中',
   'view.group.progress.listing': '列出中',
   'view.group.progress.reading': '读取中',
+
+  // PTC (run_code) group
+  'view.ptc.callCount.one': ' · {count} 次调用',
+  'view.ptc.callCount.many': ' · {count} 次调用',
+  'view.ptc.interruptedCount': ' · {count} 次中断',
+  'view.ptc.childInterruptedSuffix': ' · 已中断',
+  'view.ptc.earlierCallsFolded.one': '… 折叠了 {count} 次更早的调用',
+  'view.ptc.earlierCallsFolded.many': '… 折叠了 {count} 次更早的调用',
+  'view.ptc.earlierCalls.one': '… {count} 次更早的调用',
+  'view.ptc.earlierCalls.many': '… {count} 次更早的调用',
+  'view.ptc.more': '… 还有 {count} 条',
 } as const satisfies Readonly<Record<TranscriptCopyKey, string>>;

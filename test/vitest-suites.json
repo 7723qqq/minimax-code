@@ -139,6 +139,7 @@
       "packages/tui/test/unit/tui-thinking-preview.test.ts",
       "packages/tui/test/unit/tui-transcript-presentation.test.ts",
       "packages/tui/test/unit/tui-transcript-view.test.ts",
+      "packages/tui/test/unit/tui/transcript/streaming-presentation.test.ts",
       "packages/tui/test/unit/tui/transcript/panel-literal-user-text.test.ts",
       "packages/tui/test/unit/tui/transcript/presentation/literal-text.test.ts",
       "packages/tui/test/unit/tui-workspace-status-line.test.ts",

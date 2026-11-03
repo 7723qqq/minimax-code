@@ -228,6 +228,27 @@ export const EN_CONTROLLER_PRODUCT_COPY = {
   'sessionMutation.loadTargetFailed':
     'The selected committed user message could not be loaded.',
   'sessionMutation.forkRequestFailed': 'Runtime fork request failed.',
+  'command.suggestionsUnavailable': 'Next-message suggestions are unavailable in this host.',
+  'command.suggestionsUsage': 'Usage: /suggestions [on | off]',
+  'command.suggestionsSaveFailedSummary': "Couldn't save the next-message suggestion setting.",
+  'command.suggestionsReadFailedSummary': "Couldn't read the next-message suggestion setting.",
+  'command.suggestionsFailedNextStep': 'Check config.yaml syntax and permissions, then retry.',
+  'command.suggestionsOn':
+    'Next-message suggestions on · shown after each turn · /suggestions off to stop',
+  'command.suggestionsOff': 'Next-message suggestions off · /suggestions on to resume',
+  'settings.switch.suggestions.label': 'Next-message suggestions',
+  'settings.switch.suggestions.description':
+    'Suggest a next message after each Turn; Tab accepts it.',
+  'settings.switch.ptc.label': 'Programmatic Tool Calling',
+  'settings.switch.ptc.description':
+    'The Agent composes tool calls in run_code programs. Shared with Desktop.',
+  'settings.switch.ptc.noteOverride': 'Saved off; --ptc keeps PTC on in this process anyway.',
+  'settings.switch.ptc.noteApplies':
+    'Applies to new Sessions and after /compact; this Session keeps its mode.',
+  'command.settingsReadFailed': "Couldn't read this setting. Check config.yaml, then retry.",
+  'command.settingsSaveFailed': "Couldn't save this setting. Check config.yaml, then retry.",
+  'command.ptcReadFailed': "Couldn't read beta.ptc. Check config.yaml, then retry.",
+  'command.ptcSaveFailed': "Couldn't save beta.ptc. Check config.yaml, then retry.",
 } as const;
 
 /** Every key the TUI product controller catalog defines. */

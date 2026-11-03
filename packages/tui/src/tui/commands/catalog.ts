@@ -379,6 +379,18 @@ const COMMAND_SOURCES: readonly TuiCommandSource[] = [
     category: 'Application',
   },
   {
+    name: 'suggestions',
+    description: controllerText('command.description.suggestions'),
+    category: 'Application',
+    // Kept for scripts and habit; /settings is the discoverable home for switches.
+    discoverability: 'search-only',
+    argumentHint: '[on | off]',
+    getArgumentCompletions: argumentCompleter([
+      ['on', controllerText('command.argument.suggestions.on')],
+      ['off', controllerText('command.argument.suggestions.off')],
+    ]),
+  },
+  {
     name: 'statusline',
     description: controllerText('command.description.statusline'),
     category: 'Application',

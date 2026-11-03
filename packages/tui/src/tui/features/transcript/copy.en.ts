@@ -93,6 +93,10 @@ export const EN_TRANSCRIPT_COPY = {
   'tool.action.calling': 'Calling',
   'tool.action.called': 'Called',
   'tool.action.callFailed': 'Call failed',
+  'tool.action.runningCode': 'Running code',
+  'tool.action.ranCode': 'Ran code',
+  'tool.action.codeFailed': 'Code failed',
+  'tool.action.codeInterrupted': 'Code interrupted',
 
   // Status visualization
   'status.needsAttention': '! Needs attention',
@@ -244,6 +248,17 @@ export const EN_TRANSCRIPT_COPY = {
   'view.group.progress.searching': 'searching',
   'view.group.progress.listing': 'listing',
   'view.group.progress.reading': 'reading',
+
+  // PTC (run_code) group
+  'view.ptc.callCount.one': ' · {count} call',
+  'view.ptc.callCount.many': ' · {count} calls',
+  'view.ptc.interruptedCount': ' · {count} interrupted',
+  'view.ptc.childInterruptedSuffix': ' · interrupted',
+  'view.ptc.earlierCallsFolded.one': '… {count} earlier call folded',
+  'view.ptc.earlierCallsFolded.many': '… {count} earlier calls folded',
+  'view.ptc.earlierCalls.one': '… {count} earlier call',
+  'view.ptc.earlierCalls.many': '… {count} earlier calls',
+  'view.ptc.more': '… {count} more',
 } as const;
 
 /** Every key the transcript panels catalog defines. */

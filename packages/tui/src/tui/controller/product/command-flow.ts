@@ -16,6 +16,8 @@ import {
   TuiSettingsPicker,
   tuiLanguageFromLocale,
   tuiLanguageHint,
+  type TuiSettingsSwitch,
+  type TuiSettingsSwitchState,
 } from '../../features/settings/picker.js';
 import { TuiHotkeysPicker } from '../../features/settings/hotkeys-picker.js';
 import { submittedEditorContent, submittedEditorTransport, type Editor } from '../../widgets/editor/editor.js';
@@ -55,7 +57,7 @@ import {
 import { rebuildSessionMutationTransport } from '../../features/session-mutation/transport.js';
 import { toTuiTranscriptAttachments } from '../../features/composer/attachments.js';
 import { resolveTuiRuntimeFailure } from '../runtime/runtime-error-presentation.js';
-import type { TuiEditMessageAttachment, TuiSession } from '../../../runtime/port.js';
+import type { TuiEditMessageAttachment, TuiPtcSetting, TuiSession } from '../../../runtime/port.js';
 import type { TuiAttachment, TuiTransportAttachment } from '../../../types/invocation.js';
 import { sessionMutationText } from '../../features/session-mutation/copy.js';
 import { parseTuiBashInput } from '../../commands/bash-input.js';
@@ -85,6 +87,22 @@ export interface TuiCommandFlowOptions {
   readonly goalFlow?: Pick<TuiGoalFlow, 'execute' | 'resumeBlocked'>;
   readonly planModeFlow?: TuiPlanModeFlow;
   readonly permissionModeFlow?: TuiPermissionModeFlow;
+  /**
+   * Global next-message suggestion switch; absent, or resolving undefined, when
+   * the Runtime cannot read or persist it.
+   */
+  readonly promptSuggestionSetting?: {
+    read(): Promise<boolean | undefined>;
+    write(enabled: boolean): Promise<boolean | undefined>;
+  };
+  /**
+   * Programmatic Tool Calling switch (`beta.ptc`, shared with Desktop); absent,
+   * or resolving undefined, when the Runtime cannot read or persist it.
+   */
+  readonly ptcSetting?: {
+    read(): Promise<TuiPtcSetting | undefined>;
+    write(enabled: boolean): Promise<TuiPtcSetting | undefined>;
+  };
   readonly auth?: McodeAuthPort;
   readonly openExternalTarget?: TuiExternalTargetOpener;
   readonly interactionFlow: TuiInteractionFlow;
@@ -1271,6 +1289,45 @@ export class TuiCommandFlow {
         }
         await this.options.permissionModeFlow.set(mode);
       },
+      suggestions: async ({ args }) => {
+        const setting = this.options.promptSuggestionSetting;
+        const reportUnavailable = () =>
+          this.options.append(controllerProductText('command.suggestionsUnavailable'), 'warning');
+        if (!setting) {
+          reportUnavailable();
+          return;
+        }
+        const action = args.trim().toLocaleLowerCase();
+        if (action && action !== 'on' && action !== 'off') {
+          this.options.append(controllerProductText('command.suggestionsUsage'), 'warning');
+          return 'retained';
+        }
+        let enabled: boolean | undefined;
+        try {
+          enabled = action ? await setting.write(action === 'on') : await setting.read();
+        } catch (error) {
+          this.options.append(
+            formatTuiActionFailure(error, {
+              summary: controllerProductText(
+                action
+                  ? 'command.suggestionsSaveFailedSummary'
+                  : 'command.suggestionsReadFailedSummary',
+              ),
+              nextStep: controllerProductText('command.suggestionsFailedNextStep'),
+            }),
+            'error',
+          );
+          return 'retained';
+        }
+        if (enabled === undefined) {
+          reportUnavailable();
+          return;
+        }
+        this.options.setHint(
+          controllerProductText(enabled ? 'command.suggestionsOn' : 'command.suggestionsOff'),
+        );
+        this.options.onChanged();
+      },
       login: () => {
         this.pendingLoginContinuation = undefined;
         this.showLoginRegionPicker();
@@ -1669,9 +1726,51 @@ export class TuiCommandFlow {
         this.options.surface.close(picker);
         if (this.settingsPicker === picker) this.settingsPicker = undefined;
       },
+      {
+        switches: this.settingsSwitches(),
+        onChanged: () => this.options.onChanged(),
+        onClosedFailure: (message) => this.options.append(message, 'warning'),
+      },
     );
     this.settingsPicker = picker;
     this.options.surface.show(picker);
+  }
+
+  /** On/off preferences owned by the Runtime; a host without one leaves its row out. */
+  private settingsSwitches(): TuiSettingsSwitch[] {
+    const switches: TuiSettingsSwitch[] = [];
+    const suggestions = this.options.promptSuggestionSetting;
+    if (suggestions) {
+      const project = (enabled: boolean | undefined) =>
+        enabled === undefined ? undefined : { enabled };
+      switches.push({
+        id: 'prompt-suggestions',
+        label: controllerProductText('settings.switch.suggestions.label'),
+        description: controllerProductText('settings.switch.suggestions.description'),
+        read: async () => project(await suggestions.read()),
+        write: async (enabled) => project(await suggestions.write(enabled)),
+        describeFailure: (action) =>
+          controllerProductText(
+            action === 'read' ? 'command.settingsReadFailed' : 'command.settingsSaveFailed',
+          ),
+      });
+    }
+    const ptc = this.options.ptcSetting;
+    if (ptc) {
+      switches.push({
+        id: 'ptc',
+        label: controllerProductText('settings.switch.ptc.label'),
+        tag: 'Beta',
+        description: controllerProductText('settings.switch.ptc.description'),
+        read: async () => projectPtcSwitch(await ptc.read()),
+        write: async (enabled) => projectPtcSwitch(await ptc.write(enabled)),
+        describeFailure: (action) =>
+          controllerProductText(
+            action === 'read' ? 'command.ptcReadFailed' : 'command.ptcSaveFailed',
+          ),
+      });
+    }
+    return switches;
   }
 
   private showHotkeysPicker(): void {
@@ -1939,4 +2038,21 @@ function isBareSlashCommand(input: string): boolean {
 function isAvailableWhileStopping(input: string, catalog: TuiCommandCatalog): boolean {
   const command = catalog.resolve(input)?.name;
   return command === 'help' || command === 'quit' || command === 'stop';
+}
+
+/**
+ * A Session keeps the tool call mode it was created (or last compacted) with,
+ * so the switch always says where a change applies instead of implying it is live.
+ */
+export function projectPtcSwitch(
+  setting: TuiPtcSetting | undefined,
+): TuiSettingsSwitchState | undefined {
+  if (!setting) return undefined;
+  // The switch shows and flips the saved choice; --ptc only adds a note.
+  return {
+    enabled: setting.saved,
+    note: setting.launchOverride && !setting.saved
+      ? controllerProductText('settings.switch.ptc.noteOverride')
+      : controllerProductText('settings.switch.ptc.noteApplies'),
+  };
 }

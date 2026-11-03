@@ -52,6 +52,8 @@ export interface ResolveTuiVisiblePresentationInput {
   readonly sideConversation?: TuiSideConversationPresentation;
   /** Earliest observed start of a Turn, kept across Session projection switches. */
   readonly turnStartedAtMs?: (turnId: string) => number | undefined;
+  /** Next-message suggestion for the visible Session, offered only on an idle, empty composer. */
+  readonly promptSuggestion?: string;
 }
 
 export interface TuiVisiblePresentation {
@@ -276,9 +278,11 @@ function resolveVisibleComposer(input: ResolveTuiVisiblePresentationInput): TuiC
             keybinding: formatTuiKeybinding('tui.input.submit', input.keybindings),
           })
         : undefined);
+  const promptSuggestion = resolveVisiblePromptSuggestion(input, mode, hint);
   return {
     surface: input.surface,
     mode,
+    ...(promptSuggestion ? { placeholder: promptSuggestion, promptSuggestion } : {}),
     ...(input.sideConversation
       ? {
           ...(input.sideConversation.view === 'side'
@@ -306,6 +310,31 @@ function resolveVisibleComposer(input: ResolveTuiVisiblePresentationInput): TuiC
       : { draftCharacterCount: input.draftCharacterCount }),
     ...(input.draftLineCount === undefined ? {} : { draftLineCount: input.draftLineCount }),
   };
+}
+
+/**
+ * A suggestion only replaces the placeholder of an idle main conversation with
+ * an empty draft: a run, a blocked prompt, a hint, a goal draft, attachments or
+ * a side conversation each own the composer instead.
+ */
+function resolveVisiblePromptSuggestion(
+  input: ResolveTuiVisiblePresentationInput,
+  mode: TuiComposerState['mode'],
+  hint: string | undefined,
+): string | undefined {
+  const suggestion = input.promptSuggestion?.trim();
+  if (
+    !suggestion ||
+    mode !== 'message' ||
+    input.surface !== 'conversation' ||
+    input.sideConversation ||
+    input.compacting ||
+    hint?.trim() ||
+    input.attachmentCount > 0 ||
+    (input.draftCharacterCount ?? 0) > 0
+  )
+    return undefined;
+  return suggestion;
 }
 
 function resolvePlanTransitionHint(planMode: TuiPlanModeSnapshot | undefined): string | undefined {
