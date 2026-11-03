@@ -3733,6 +3733,7 @@
     "scripts/lib/local-runtime-assets.mjs",
     "scripts/lib/mcode-tools-artifact.mjs",
     "scripts/lib/package-exports.mjs",
+    "scripts/lib/public-text-policy.mjs",
     "scripts/lib/release-metadata.mjs",
     "scripts/lib/retired-sources.mjs",
     "scripts/lib/source-archive.mjs",
