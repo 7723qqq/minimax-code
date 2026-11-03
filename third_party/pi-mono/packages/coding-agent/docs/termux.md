@@ -14,10 +14,10 @@ Pi runs on Android via [Termux](https://termux.dev/), a terminal emulator and Li
 pkg update && pkg upgrade
 
 # Install dependencies
-pkg install bun termux-api git
+pkg install nodejs termux-api git
 
 # Install pi
-bun install --global --ignore-scripts @earendil-works/pi-coding-agent
+npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 
 # Create config directory
 mkdir -p ~/.pi/agent
@@ -119,9 +119,9 @@ Run once to grant storage permissions:
 termux-setup-storage
 ```
 
-### Runtime installation issues
+### Node.js installation issues
 
-If `bun install` fails, try clearing the cache:
+If npm fails, try clearing the cache:
 ```bash
-bun pm cache rm
+npm cache clean --force
 ```

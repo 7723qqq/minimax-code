@@ -10,7 +10,7 @@
  *
  * Usage:
  *   # First install dependencies
- *   cd packages/coding-agent/examples/extensions/custom-provider && bun install
+ *   cd packages/coding-agent/examples/extensions/custom-provider && npm install
  *
  *   # With OAuth (run /login custom-anthropic first)
  *   pi -e ./packages/coding-agent/examples/extensions/custom-provider

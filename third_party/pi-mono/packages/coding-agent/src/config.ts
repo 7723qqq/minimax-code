@@ -337,7 +337,7 @@ export function getUpdateInstruction(packageName: string): string {
 /**
  * Get the base directory for resolving package assets (themes, package.json, README.md, CHANGELOG.md).
  * - For Bun binary: returns the directory containing the executable
- * - For a dist/ install: returns __dirname (the dist/ directory)
+ * - For Node.js (dist/): returns __dirname (the dist/ directory)
  * - For tsx (src/): returns parent directory (the package root)
  */
 export function getPackageDir(): string {
@@ -351,7 +351,7 @@ export function getPackageDir(): string {
 		// Bun binary: process.execPath points to the compiled executable
 		return dirname(process.execPath);
 	}
-	// dist/ install: walk up from __dirname until we find package.json
+	// Node.js: walk up from __dirname until we find package.json
 	let dir = __dirname;
 	while (dir !== dirname(dir)) {
 		if (existsSync(join(dir, "package.json"))) {
@@ -366,7 +366,7 @@ export function getPackageDir(): string {
 /**
  * Get path to built-in themes directory (shipped with package)
  * - For Bun binary: theme/ next to executable
- * - For a dist/ install: dist/modes/interactive/theme/
+ * - For Node.js (dist/): dist/modes/interactive/theme/
  * - For tsx (src/): src/modes/interactive/theme/
  */
 export function getThemesDir(): string {
@@ -382,7 +382,7 @@ export function getThemesDir(): string {
 /**
  * Get path to HTML export template directory (shipped with package)
  * - For Bun binary: export-html/ next to executable
- * - For a dist/ install: dist/core/export-html/
+ * - For Node.js (dist/): dist/core/export-html/
  * - For tsx (src/): src/core/export-html/
  */
 export function getExportTemplateDir(): string {
@@ -422,7 +422,7 @@ export function getChangelogPath(): string {
 /**
  * Get path to built-in interactive assets directory.
  * - For Bun binary: assets/ next to executable
- * - For a dist/ install: dist/modes/interactive/assets/
+ * - For Node.js (dist/): dist/modes/interactive/assets/
  * - For tsx (src/): src/modes/interactive/assets/
  */
 export function getInteractiveAssetsDir(): string {

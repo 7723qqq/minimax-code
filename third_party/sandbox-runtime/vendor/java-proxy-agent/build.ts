@@ -5,12 +5,12 @@
  * vendor/java-proxy-agent/srt-proxy-agent.jar.
  *
  * Same model as the seccomp / srt-win helpers: only the source is in git,
- * the artifact is built by the release workflow and shipped in the registry
+ * the artifact is built by the release workflow and shipped in the npm
  * package, and consumers that bundle srt point at their own copy via the
  * `javaAgentJarPath` config key. The jar is reproducible: `jar --date`
  * pins entry timestamps, and STORED entries in a fixed order.
  *
- *   bun run build:java-agent        (needs a JDK >= 17 on PATH or JAVA_HOME)
+ *   npm run build:java-agent        (needs a JDK >= 17 on PATH or JAVA_HOME)
  */
 import { spawnSync } from 'node:child_process'
 import {

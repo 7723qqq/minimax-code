@@ -2,7 +2,7 @@
   "files": [
     {
       "path": "vendor/java-proxy-agent/build.ts",
-      "sha256": "18ab59d485b6da4463195face66cef81d0b11141df0404fd09532929675c5316"
+      "sha256": "7aed46c496a20422a51ed331c260f0f580dfee016c2f717a55e9ba361d286348"
     },
     {
       "path": "vendor/java-proxy-agent/srt-proxy-agent.jar",

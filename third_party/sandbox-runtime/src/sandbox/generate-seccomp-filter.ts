@@ -70,7 +70,7 @@ export function getGlobalNpmPaths(): string[] {
 }
 
 /**
- * Map process.arch to our vendor directory architecture names
+ * Map Node.js process.arch to our vendor directory architecture names
  * Returns null for unsupported architectures
  */
 function getVendorArchitecture(): string | null {

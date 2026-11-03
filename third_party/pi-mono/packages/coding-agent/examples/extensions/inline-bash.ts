@@ -7,7 +7,7 @@
  * Then type prompts with inline bash:
  *   What's in !{pwd}?
  *   The current branch is !{git branch --show-current} and status: !{git status --short}
- *   My bun version is !{bun --version}
+ *   My node version is !{node --version}
  *
  * The !{command} patterns are executed and replaced with their output before
  * the prompt is sent to the agent.

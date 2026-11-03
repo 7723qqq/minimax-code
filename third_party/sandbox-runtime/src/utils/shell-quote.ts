@@ -3,7 +3,7 @@
  * by a POSIX shell (`sh -c`, `bash -c`, `zsh -c`), yields exactly the
  * original argument list.
  *
- * This intentionally replaces the `shell-quote` registry package. Its quote()
+ * This intentionally replaces the npm `shell-quote` package. Its quote()
  * switches to a double-quote + backslash strategy whenever an argument
  * contains a single quote, and in that mode it backslash-escapes `!` — a
  * guard against history expansion that only applies to *interactive*

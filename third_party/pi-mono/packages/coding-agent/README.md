@@ -68,10 +68,10 @@ I regularly publish my own `pi-mono` work sessions here:
 ## Quick Start
 
 ```bash
-bun install --global --ignore-scripts @earendil-works/pi-coding-agent
+npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 ```
 
-`--ignore-scripts` disables dependency lifecycle scripts during install. Pi does not require install scripts for normal installs.
+`--ignore-scripts` disables dependency lifecycle scripts during install. Pi does not require install scripts for normal npm installs.
 
 Installer alternative:
 
@@ -474,7 +474,7 @@ See [docs/sdk.md](docs/sdk.md) and [examples/sdk/](examples/sdk/).
 
 ### RPC Mode
 
-For integrations outside the TypeScript API, use RPC mode over stdin/stdout:
+For non-Node.js integrations, use RPC mode over stdin/stdout:
 
 ```bash
 pi --mode rpc

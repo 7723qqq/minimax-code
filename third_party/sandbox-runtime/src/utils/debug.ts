@@ -7,7 +7,7 @@ export function logForDebugging(
 ): void {
   // Only log if SRT_DEBUG environment variable is set
   // Using SRT_DEBUG instead of DEBUG to avoid conflicts with other tools
-  // (DEBUG is commonly used by debug libraries and VS Code)
+  // (DEBUG is commonly used by Node.js debug libraries and VS Code)
   if (!process.env.SRT_DEBUG) {
     return;
   }

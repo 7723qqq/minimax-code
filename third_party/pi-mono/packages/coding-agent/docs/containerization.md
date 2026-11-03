@@ -60,7 +60,7 @@ Setup:
 ```bash
 cp -R packages/coding-agent/examples/extensions/gondolin ~/.pi/agent/extensions/gondolin
 cd ~/.pi/agent/extensions/gondolin
-bun install --ignore-scripts
+npm install --ignore-scripts
 ```
 
 Run from the project you want mounted:
@@ -74,7 +74,7 @@ The extension mounts the host cwd at `/workspace` in the VM and overrides `read`
 User `!` commands are routed into the VM, as well.
 File changes under `/workspace` write through to the host.
 
-Requirements: `@earendil-works/gondolin`, plus QEMU (requires installation through your package manager).
+Requirements: Node.js >= 23.6.0 for `@earendil-works/gondolin`, plus QEMU (requires installation through your package manager).
 
 ## Plain Docker
 
@@ -88,7 +88,7 @@ FROM node:24-bookworm-slim
 RUN apt-get update \
   && apt-get install -y --no-install-recommends bash ca-certificates git ripgrep \
   && rm -rf /var/lib/apt/lists/*
-RUN bun install --global --ignore-scripts @earendil-works/pi-coding-agent
+RUN npm install -g --ignore-scripts @earendil-works/pi-coding-agent
 
 WORKDIR /workspace
 ENTRYPOINT ["pi"]

@@ -5,7 +5,7 @@ Stateful agent with tool execution and event streaming. Built on `@earendil-work
 ## Installation
 
 ```bash
-bun install @earendil-works/pi-agent-core
+npm install @earendil-works/pi-agent-core
 ```
 
 ## Quick Start
