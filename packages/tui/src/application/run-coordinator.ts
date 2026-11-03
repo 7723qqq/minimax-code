@@ -72,6 +72,12 @@ export interface TuiRunResult {
   status: TuiRunStatus;
   outcome: TuiTurnRunOutcome;
   error?: string;
+  /**
+   * Settles after every observer call for this run has finished. Present only
+   * when `releaseObserverOnStop` is enabled, because the run may then return
+   * before a blocked observer completes.
+   */
+  observations?: Promise<void>;
 }
 
 export type TuiRunObserver = (event: TuiStreamEvent) => void | Promise<void>;
@@ -96,6 +102,13 @@ export interface TuiRunCoordinatorOptions {
   onAnswerSelection?: (event: Readonly<Record<string, unknown>>) => void;
   cancellationSettlementTimeoutMs?: number;
   nowMs?: () => number;
+  /**
+   * Stop waiting for the observer once the run is stopping (timeout, limit or
+   * abort). Observer calls still run in event order in the background. Headless
+   * Exec enables this because a stdout reader that stops reading must not keep
+   * a stopped run from settling.
+   */
+  releaseObserverOnStop?: boolean;
 }
 
 export const DEFAULT_CANCELLATION_SETTLEMENT_TIMEOUT_MS = 1_000;
@@ -196,6 +209,14 @@ export class TuiRunCoordinator {
     const usageResponses: TuiTurnResponseUsage[] = [];
     let usageIncomplete = false;
     let questionnaireRequested = false;
+    const releaseObserverOnStop = this.options.releaseObserverOnStop === true;
+    let observations: Promise<void> = Promise.resolve();
+    const observeEvent = (event: TuiStreamEvent): Promise<void> => {
+      if (!releaseObserverOnStop) return observeBestEffort(observe, event);
+      // Chain observer calls so output order never depends on whether we wait.
+      observations = observations.then(() => observeBestEffort(observe, event));
+      return untilSettledOrAborted(observations, activeRun.controller.signal);
+    };
 
     try {
       session = await waitForSession(request.session, activeRun.controller.signal);
@@ -236,7 +257,7 @@ export class TuiRunCoordinator {
           if (continuation) {
             status = 'awaiting-user-continuation';
             failure = continuation;
-            await observeBestEffort(observe, event);
+            await observeEvent(event);
             break;
           }
           if (isTurnResponseEvent(event)) {
@@ -288,7 +309,7 @@ export class TuiRunCoordinator {
             status = eventFailure.status;
             failure = eventFailure.error;
           }
-          await observeBestEffort(observe, event);
+          await observeEvent(event);
         }
       } finally {
         await source.return?.(undefined);
@@ -378,6 +399,7 @@ export class TuiRunCoordinator {
       status,
       outcome,
       ...(failure?.message ? { error: failure.message } : {}),
+      ...(releaseObserverOnStop ? { observations } : {}),
     };
   }
 
@@ -609,6 +631,19 @@ async function observeBestEffort(observe: TuiRunObserver, event: TuiStreamEvent)
   } catch {
     // Display output cannot replace the Runtime-owned turn outcome.
   }
+}
+
+/** Resolves when `work` settles or `signal` aborts, whichever happens first. */
+function untilSettledOrAborted(work: Promise<void>, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    const release = () => {
+      signal.removeEventListener('abort', release);
+      resolve();
+    };
+    signal.addEventListener('abort', release, { once: true });
+    void work.then(release, release);
+  });
 }
 
 function createActiveRun(turnId: string): ActiveRun {

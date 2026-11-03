@@ -19,6 +19,8 @@ export const EN_HEADLESS_COPY = {
   'headless.error.cancelled': 'The run was cancelled.',
   'headless.error.configuration':
     'The run could not start with the current configuration{reason}. Open MCode and run /doctor.',
+  'headless.error.outputLimitExhausted':
+    'The model ran out of output space while still thinking and did not finish after several automatic retries. Lower the effort level, then retry.',
   'headless.contract.outputEmpty': 'Structured output was empty.',
   'headless.contract.outputInvalidJson': 'Structured output was not valid JSON.',
   'headless.contract.outputSchemaMismatch':

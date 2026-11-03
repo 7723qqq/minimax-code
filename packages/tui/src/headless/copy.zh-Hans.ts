@@ -18,6 +18,8 @@ export const ZH_HANS_HEADLESS_COPY = {
   'headless.error.cancelled': '本次运行已取消。',
   'headless.error.configuration':
     '当前配置无法启动本次运行{reason}。请打开 MCode 并运行 /doctor。',
+  'headless.error.outputLimitExhausted':
+    '模型在思考过程中耗尽了输出空间，多次自动重试后仍未完成。请降低 effort 级别后重试。',
   'headless.contract.outputEmpty': '结构化输出为空。',
   'headless.contract.outputInvalidJson': '结构化输出不是合法的 JSON。',
   'headless.contract.outputSchemaMismatch': '结构化输出与 --output-schema 不匹配：{errors}',

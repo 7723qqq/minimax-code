@@ -39,6 +39,18 @@ export function formatTuiActionFailure(error: unknown, options: PresentTuiFailur
     .join(' ');
 }
 
+/**
+ * Failure marker the runtime reports when a response kept hitting the output
+ * limit before any visible reply, after its automatic retries. The matching
+ * guidance copy lives in the headless/controller catalogs (fork i18n bridge);
+ * upstream's inline OUTPUT_LIMIT_EXHAUSTED_SUMMARY constant is not taken.
+ */
+const OUTPUT_LIMIT_EXHAUSTED_MARKER = 'output_limit_exhausted';
+
+export function isOutputLimitExhaustedFailure(message: string | undefined): boolean {
+  return message?.trim() === OUTPUT_LIMIT_EXHAUSTED_MARKER;
+}
+
 export function tuiErrorDiagnostic(error: unknown): string {
   if (error === undefined || error === null) return '';
   const message = error instanceof Error ? error.message : String(error);

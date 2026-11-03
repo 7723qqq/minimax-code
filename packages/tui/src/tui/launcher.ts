@@ -92,6 +92,8 @@ export interface LaunchTuiOptions {
   externalEditorCommand?: string;
   resumeDraftAfterLogin?: boolean;
   contextMode?: McodeContextMode;
+  /** `--ptc`: Programmatic Tool Calling for new Sessions in this process only. */
+  ptc?: boolean;
   lane?: string;
   systemPromptOverrides?: SystemPromptOverrides;
 }
@@ -114,6 +116,7 @@ interface RuntimeLifecycleModule {
       workspaceDir: string;
       version: string;
       surface: 'tui';
+      ptcLaunchOverride?: boolean;
       observability: TuiObservability;
       contextMode?: McodeContextMode;
       lane?: string;
@@ -368,6 +371,7 @@ export async function launchTui(
           workspaceDir,
           version: options.version,
           surface: 'tui',
+          ...(options.ptc ? { ptcLaunchOverride: true } : {}),
           observability,
           ...(options.contextMode ? { contextMode: options.contextMode } : {}),
           ...(bedrockLane ? { lane: bedrockLane } : {}),

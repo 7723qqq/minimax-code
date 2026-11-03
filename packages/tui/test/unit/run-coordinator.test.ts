@@ -3,6 +3,7 @@ import { describe, expect, it, jest, mock } from 'bun:test';
 
 import { TuiRunCoordinator, type TuiRunRuntime } from '../../src/application/run-coordinator.js';
 import { TuiFailure } from '../../src/failure.js';
+import type { TuiStreamEvent } from '../../src/runtime/stream-events.js';
 
 describe('TuiRunCoordinator', () => {
   it.each([
@@ -236,6 +237,51 @@ describe('TuiRunCoordinator', () => {
     expect(limitRuntime.abortSession).toHaveBeenCalledWith(
       expect.objectContaining({ reason: 'max_steps' }),
     );
+  });
+
+  it('settles a timed-out run past a blocked observer and still delivers events in order', async () => {
+    jest.useFakeTimers();
+    try {
+      const runtime = createRuntime(async function* (_req, signal) {
+        yield { type: 'delta', role: 'assistant', content: 'first' } as const;
+        yield { type: 'delta', role: 'assistant', content: 'second' } as const;
+        if (!signal?.aborted) {
+          await new Promise<void>((resolve) =>
+            signal?.addEventListener('abort', () => resolve(), { once: true }),
+          );
+        }
+      });
+      const delivered: string[] = [];
+      let unblockReader = () => undefined;
+      const observe = mock(async (event: TuiStreamEvent) => {
+        if (event.type !== 'delta' || typeof event.content !== 'string') return;
+        delivered.push(event.content);
+        // A downstream reader that stops reading after the first line.
+        if (delivered.length === 1) {
+          await new Promise<void>((resolve) => {
+            unblockReader = resolve;
+          });
+        }
+      });
+
+      const running = new TuiRunCoordinator(runtime, { releaseObserverOnStop: true }).execute(
+        { ...request('turn-blocked-observer'), policy: { timeoutMs: 20 } },
+        observe,
+      );
+      await advanceTimersByTimeAsync(20);
+      const result = await running;
+
+      expect(result.status).toBe('timeout');
+      expect(runtime.abortSession).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: 'timeout' }),
+      );
+      expect(delivered).toEqual(['first']);
+      unblockReader();
+      await result.observations;
+      expect(delivered).toEqual(['first', 'second']);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('fires timeouts above the Node timer limit only at the requested deadline', async () => {

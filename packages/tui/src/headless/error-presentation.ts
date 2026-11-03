@@ -1,4 +1,4 @@
-import { tuiErrorDiagnostic } from '../user-facing-failure.js';
+import { isOutputLimitExhaustedFailure, tuiErrorDiagnostic } from '../user-facing-failure.js';
 import { headlessText } from './copy.js';
 import type { ExecResult } from './contract.js';
 import { TuiExecError } from './exit-policy.js';
@@ -13,6 +13,9 @@ export function formatTuiExecFailure(error: TuiExecError): string {
     return tuiErrorDiagnostic(error);
   }
   if (error.kind === 'runtime') {
+    if (isOutputLimitExhaustedFailure(error.message)) {
+      return headlessText('headless.error.outputLimitExhausted');
+    }
     return headlessText('headless.error.runFailed', { reason: tuiErrorDiagnostic(error) });
   }
   return headlessText('headless.error.internalError', { reason: tuiErrorDiagnostic(error) });
@@ -33,6 +36,9 @@ export function formatTuiExecResultFailure(result: ExecResult): string {
   if (result.error?.category === 'internal') {
     const reason = result.error.message ? `: ${tuiErrorDiagnostic(result.error.message)}` : '';
     return headlessText('headless.error.internalErrorWithReason', { reason });
+  }
+  if (isOutputLimitExhaustedFailure(result.error?.message)) {
+    return headlessText('headless.error.outputLimitExhausted');
   }
   const reason = result.error?.message ? `: ${tuiErrorDiagnostic(result.error.message)}` : '';
   return headlessText('headless.error.runFailedWithReason', { reason });

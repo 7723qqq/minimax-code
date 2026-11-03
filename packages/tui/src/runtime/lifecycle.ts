@@ -80,6 +80,11 @@ export interface CreateTuiRuntimeOptions {
   promptMode?: CreateLocalRuntimeHostOptions['promptMode'];
   systemPromptOverrides?: CreateLocalRuntimeHostOptions['systemPromptOverrides'];
   surface?: TuiObservabilitySurface;
+  /**
+   * `--ptc`: new Sessions in this process use PTC regardless of `beta.ptc`.
+   * Held in memory only; config.yaml is never rewritten by the flag.
+   */
+  ptcLaunchOverride?: boolean;
   observability?: TuiObservability;
   permissionMode?: NonNullable<LocalRuntimeConfig['permissionMode']>;
   contextMode?: McodeContextMode;
@@ -392,6 +397,7 @@ export async function createTuiRuntime(
         beta: {
           ...config.beta,
           mcodeTools: effectiveMcodeTools,
+          ...(options.ptcLaunchOverride ? { ptc: true } : {}),
         },
       };
     },
