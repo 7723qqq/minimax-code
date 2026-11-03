@@ -89,6 +89,17 @@ Bun does not honor `--import` from `NODE_OPTIONS`. A test that injects a guard t
 
 The general form of the rule: when a test's evidence is "nothing happened", add a probe showing the thing that would have noticed. This is **enforced by convention** today; consider a gate if the class recurs.
 
+### Persistent PATH writes
+
+**Binding by decision (2026-11-03): never write a temporary directory into a persistent PATH location.** Persistent locations are the Windows user/machine `Path` registry values and POSIX shell rc files (`~/.bashrc`, `~/.zshrc`, `~/.zprofile`) — anything a future process inherits. Temporary directories (`os.tmpdir()` trees, `mkdtemp` fixtures, `.cache`/`dist`/`tmp` output) get deleted, so every persisted entry becomes a dead entry that keeps accumulating; this repository's own suites once left hundreds of `stop-cascade-*` / `minimax-code-smoke-*` bin entries in the Windows user `Path`.
+
+Sanctioned shapes:
+
+- Scope the entry to one process tree: pass `env` to the single child that needs it (as `test/source-sync.test.mjs` does), or mutate `process.env.PATH` in-process like `ensureBinInProcessPath` — both die with the process.
+- Persist only durable product directories: upstream 0.7.2 removed `ensurePathIntegration`, which wrote only `<dataDir>/bin` and refused any directory under `os.tmpdir()`; any future reintroduction of PATH persistence must keep that durable-directory-only shape.
+
+Temporary artifacts themselves live in the system temp directory or outside the repository — not under the repo, where the source inventory would scan them.
+
 ## Single sources of truth
 
 Each concern has exactly one owner. Edit the owner, then run its generator or check; never edit a consumer by hand.

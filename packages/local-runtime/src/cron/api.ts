@@ -28,7 +28,6 @@ import {
   Role as AgentMessageRole,
 } from '@mavis/agent-core/protocol/agent-message';
 import { Cron } from 'croner';
-import { KeyedOperationLane } from '@mavis/shared/keyed-operation-lane';
 
 import type { LocalApiAgentRoutes } from '../api/routes/agents.js';
 import { json, isValidLocalAgentName, notFound, readJsonBody } from '../api/host-helpers.js';
@@ -744,7 +743,7 @@ function buildLocalCronAgentSpawner(options: LocalCronRuntimeOptions): AgentSpaw
 }
 
 class LocalCronMessageQueue implements MessageQueuePort {
-  private readonly lanes = new KeyedOperationLane<string>();
+  private readonly buckets = new Map<string, Promise<unknown>>();
 
   async enqueue<T>(
     _lane: string,
@@ -752,7 +751,14 @@ class LocalCronMessageQueue implements MessageQueuePort {
     task: () => Promise<T>,
     _opts?: { timeoutMs?: number },
   ): Promise<T> {
-    return this.lanes.run(bucketKey, task);
+    const previous = this.buckets.get(bucketKey) ?? Promise.resolve();
+    const next = previous.catch(() => undefined).then(task);
+    this.buckets.set(bucketKey, next);
+    try {
+      return await next;
+    } finally {
+      if (this.buckets.get(bucketKey) === next) this.buckets.delete(bucketKey);
+    }
   }
 }
 
