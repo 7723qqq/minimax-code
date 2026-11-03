@@ -1,16 +1,14 @@
-import { spawnSync } from "../../../../../scripts/lib/exec.mjs";
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { expect, it } from 'bun:test';
+import { expect, it } from 'vitest';
 
 it('rejects unterminated TOML comments without blocking agent import', () => {
   const serviceUrl = new URL('../../../src/service/agent/application/agent-import.ts', import.meta.url);
   const root = fileURLToPath(new URL('../../../../../', import.meta.url));
-  // A synchronous parser loop cannot be interrupted by a test timeout.
+  // A synchronous parser loop cannot be interrupted by a Vitest timeout.
   // Run the real import service in a directly owned, killable child process.
-  // `bun test` runs this file, so `process.execPath` is Bun, which loads
-  // TypeScript natively; the previous tsx loader is no longer needed.
   const result = spawnSync(process.execPath, [
-    '--tsconfig-override', 'tsconfig.standalone.json',
+    '--tsconfig-override', fileURLToPath(new URL('../../../../../tsconfig.standalone.json', import.meta.url)),
     '--input-type=module', '--eval', `
       import assert from 'node:assert/strict';
       import { AgentImportService } from ${JSON.stringify(serviceUrl.href)};

@@ -1,5 +1,4 @@
-import { waitFor } from '../../../../../test/bun-test-setup.js';
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, vi } from "vitest";
 
 import type { LocalRuntimeApplication } from "./process-local-application-contract.js";
 import { createProcessLocalApplication } from "./process-local-application.js";
@@ -7,7 +6,7 @@ import { createProcessLocalApplication } from "./process-local-application.js";
 describe("createProcessLocalApplication account and usage", () => {
   it("uses the recovered model route for account login checks while preserving live token presence", async () => {
     const application = createProcessLocalApplication({
-      eventBus: { subscribe: mock(() => () => undefined) },
+      eventBus: { subscribe: vi.fn(() => () => undefined) },
       skills: {} as never,
       plugins: {} as never,
       workspace: {} as never,
@@ -39,8 +38,8 @@ describe("createProcessLocalApplication account and usage", () => {
           ],
         } as never,
         providers: { getMinimaxModelSource: () => "token_plan" } as never,
-        listProviderPresets: mock(async () => []),
-        oauth: { getStatus: mock(), startLogin: mock() } as never,
+        listProviderPresets: vi.fn(async () => []),
+        oauth: { getStatus: vi.fn(), startLogin: vi.fn() } as never,
       },
     });
     await expect(
@@ -54,10 +53,10 @@ describe("createProcessLocalApplication account and usage", () => {
   });
   it("projects committed usage notifications through the process-local boundary", async () => {
     let notify: ((sessionId: string) => void) | undefined;
-    const unsubscribe = mock();
+    const unsubscribe = vi.fn();
     const abortController = new AbortController();
     const application = createProcessLocalApplication({
-      eventBus: { subscribe: mock(() => () => undefined) },
+      eventBus: { subscribe: vi.fn(() => () => undefined) },
       usageCommits: {
         subscribe: (listener) => {
           notify = listener;
@@ -68,16 +67,16 @@ describe("createProcessLocalApplication account and usage", () => {
       plugins: {} as never,
       workspace: {} as never,
       plan: {} as never,
-      peripherals: { account: { getStatus: mock() } } as never,
+      peripherals: { account: { getStatus: vi.fn() } } as never,
       modelProvider: {
         application: {} as never,
-        providers: { getMinimaxModelSource: mock() } as never,
+        providers: { getMinimaxModelSource: vi.fn() } as never,
       } as never,
     });
 
     const iterator = application.usage?.watchCommits(abortController.signal);
     const next = iterator?.next();
-    await waitFor(() => expect(notify).toBeTypeOf("function"));
+    await vi.waitFor(() => expect(notify).toBeTypeOf("function"));
     notify?.("session-1");
 
     await expect(next).resolves.toEqual({ done: false, value: "session-1" });
@@ -87,14 +86,14 @@ describe("createProcessLocalApplication account and usage", () => {
   });
 
   it("reports the builtin MiniMax API-key route as BYOK account access", async () => {
-    const getStatus = mock(async () => ({
+    const getStatus = vi.fn(async () => ({
       selection: { providerId: "minimax", modelId: "MiniMax-M3" },
       provider: { id: "minimax", authMode: "managed-login" },
       auth: { tokenPresent: false },
     }));
-    const getMinimaxModelSource = mock(() => "minimax_api_key" as const);
+    const getMinimaxModelSource = vi.fn(() => "minimax_api_key" as const);
     const application = createProcessLocalApplication({
-      eventBus: { subscribe: mock(() => () => undefined) },
+      eventBus: { subscribe: vi.fn(() => () => undefined) },
       skills: {} as never,
       plugins: {} as never,
       workspace: {} as never,
@@ -103,8 +102,8 @@ describe("createProcessLocalApplication account and usage", () => {
       modelProvider: {
         application: {} as never,
         providers: { getMinimaxModelSource } as never,
-        listProviderPresets: mock(async () => []),
-        oauth: { getStatus: mock(), startLogin: mock() } as never,
+        listProviderPresets: vi.fn(async () => []),
+        oauth: { getStatus: vi.fn(), startLogin: vi.fn() } as never,
       },
     });
 
@@ -122,60 +121,60 @@ describe("createProcessLocalApplication account and usage", () => {
 
 describe("createProcessLocalApplication capabilities", () => {
   it("projects the V2 model owner with the other process-local capabilities", async () => {
-    const skills = { listSkills: mock(), listRuntimeSkills: mock() };
-    const workspace = { git: { getMetadata: mock() } };
+    const skills = { listSkills: vi.fn(), listRuntimeSkills: vi.fn() };
+    const workspace = { git: { getMetadata: vi.fn() } };
     const plugins = {
-      refresh: mock(),
-      listMarketplacePlugins: mock(),
-      listInstalledPlugins: mock(),
-      installPlugin: mock(),
-      uninstallPlugin: mock(),
-      enablePlugin: mock(),
-      disablePlugin: mock(),
+      refresh: vi.fn(),
+      listMarketplacePlugins: vi.fn(),
+      listInstalledPlugins: vi.fn(),
+      installPlugin: vi.fn(),
+      uninstallPlugin: vi.fn(),
+      enablePlugin: vi.fn(),
+      disablePlugin: vi.fn(),
     };
     const peripherals = {
-      mcp: { listLocalMcpServers: mock(), listMcpCapabilities: mock() },
+      mcp: { listLocalMcpServers: vi.fn(), listMcpCapabilities: vi.fn() },
       goals: {
-        isEnabled: mock(),
-        get: mock(),
-        create: mock(),
-        patch: mock(),
-        clear: mock(),
+        isEnabled: vi.fn(),
+        get: vi.fn(),
+        create: vi.fn(),
+        patch: vi.fn(),
+        clear: vi.fn(),
       },
-      questionnaires: { getPending: mock(), reply: mock(), dismiss: mock() },
-      permissions: { listPending: mock(), reply: mock() },
-      account: { getStatus: mock() },
-      diagnostics: { getRuntimeSnapshot: mock() },
-      configuration: { getPermissionMode: mock(), setPermissionMode: mock() },
+      questionnaires: { getPending: vi.fn(), reply: vi.fn(), dismiss: vi.fn() },
+      permissions: { listPending: vi.fn(), reply: vi.fn() },
+      account: { getStatus: vi.fn() },
+      diagnostics: { getRuntimeSnapshot: vi.fn() },
+      configuration: { getPermissionMode: vi.fn(), setPermissionMode: vi.fn() },
     };
     const modelApplication = {
-      list: mock(async () => []),
-      select: mock(async () => true),
+      list: vi.fn(async () => []),
+      select: vi.fn(async () => true),
     };
     const modelProviders = {
-      listUserProviders: mock(() => []),
-      getMinimaxApiKeyStatus: mock(() => ({ hasApiKey: false })),
-      getMinimaxModelSource: mock(() => "token_plan" as const),
-      setMinimaxModelSource: mock(async () => "minimax_api_key" as const),
-      upsertMinimaxApiKey: mock(),
-      createUserProvider: mock(),
-      discoverUserModelsCandidate: mock(async () => [{ modelId: "latest" }]),
-      saveUserModelProviderCandidate: mock(async () => ({
+      listUserProviders: vi.fn(() => []),
+      getMinimaxApiKeyStatus: vi.fn(() => ({ hasApiKey: false })),
+      getMinimaxModelSource: vi.fn(() => "token_plan" as const),
+      setMinimaxModelSource: vi.fn(async () => "minimax_api_key" as const),
+      upsertMinimaxApiKey: vi.fn(),
+      createUserProvider: vi.fn(),
+      discoverUserModelsCandidate: vi.fn(async () => [{ modelId: "latest" }]),
+      saveUserModelProviderCandidate: vi.fn(async () => ({
         ok: true,
         provider: { providerId: "custom_provider:openai" },
       })),
-      updateUserProvider: mock(),
-      deleteUserProvider: mock(),
-      testProvider: mock(async () => ({
+      updateUserProvider: vi.fn(),
+      deleteUserProvider: vi.fn(),
+      testProvider: vi.fn(async () => ({
         ok: true,
         status: { state: "available" },
       })),
-      testModel: mock(async () => ({
+      testModel: vi.fn(async () => ({
         ok: true,
         status: { state: "available" },
       })),
     };
-    const listProviderPresets = mock(async () => [
+    const listProviderPresets = vi.fn(async () => [
       {
         providerId: "openai",
         name: "OpenAI",
@@ -185,15 +184,15 @@ describe("createProcessLocalApplication capabilities", () => {
       },
     ]);
     const oauth = {
-      cancelLogin: mock(() => ({
+      cancelLogin: vi.fn(() => ({
         state: "disconnected" as const,
         providerId: "openai-codex" as const,
       })),
-      getStatus: mock(() => ({
+      getStatus: vi.fn(() => ({
         state: "disconnected" as const,
         providerId: "openai-codex" as const,
       })),
-      startLogin: mock(async () => ({
+      startLogin: vi.fn(async () => ({
         state: "pending" as const,
         providerId: "openai-codex" as const,
         authUrl: "https://auth.example",
@@ -201,11 +200,11 @@ describe("createProcessLocalApplication capabilities", () => {
     };
 
     const application = createProcessLocalApplication({
-      eventBus: { subscribe: mock(() => () => undefined) },
+      eventBus: { subscribe: vi.fn(() => () => undefined) },
       skills: skills as LocalRuntimeApplication["skills"],
       plugins,
       workspace,
-      plan: { isEntryEnabled: mock(() => true) },
+      plan: { isEntryEnabled: vi.fn(() => true) },
       peripherals: peripherals as never,
       modelProvider: {
         application: modelApplication as never,

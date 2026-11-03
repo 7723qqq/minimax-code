@@ -1,7 +1,7 @@
-import { afterEach, beforeEach, describe, expect, it, mock, spyOn } from 'bun:test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
   LocalByokConfigDraft,
@@ -26,7 +26,7 @@ interface Harness {
   service: LocalModelProviderService;
   config: LocalRuntimeConfig;
   cache: LocalModelCache;
-  selectModel: ReturnType<typeof mock>;
+  selectModel: ReturnType<typeof vi.fn>;
   testCalls: Array<{ key: string; target: ModelConnectionTestTarget }>;
   discoverCalls: ModelDiscoveryTarget[];
   setTestResult(result: ModelConnectionTestResult): void;
@@ -70,7 +70,7 @@ function makeHarness(
   const testCalls: Array<{ key: string; target: ModelConnectionTestTarget }> = [];
   const discoverCalls: ModelDiscoveryTarget[] = [];
   let configUpdateTail = Promise.resolve();
-  const selectModel = mock(async (modelKey: string) => {
+  const selectModel = vi.fn(async (modelKey: string) => {
     config.defaultModel = modelKey;
   });
   const cache = new LocalModelCache(() => dataDir);
@@ -1688,7 +1688,7 @@ describe('custom provider candidate rollback', () => {
         },
       },
     });
-    spyOn(h.cache, 'replaceModelStatus').mockRejectedValueOnce(new Error('cache disk full'));
+    vi.spyOn(h.cache, 'replaceModelStatus').mockRejectedValueOnce(new Error('cache disk full'));
 
     await expect(
       h.service.updateUserModelParameters({

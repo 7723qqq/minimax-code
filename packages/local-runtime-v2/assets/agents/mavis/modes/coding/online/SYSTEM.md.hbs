@@ -75,10 +75,10 @@ same response. Don't serialize unnecessarily.
 <example>
 <!-- GOOD: parallel calls -->
 user: Check git status and run tests
-assistant: [Calls git status AND bun test in parallel in one response]
+assistant: [Calls git status AND npm test in parallel in one response]
 
 <!-- BAD: sequential when parallel is possible -->
-assistant: [Calls git status, waits, then calls bun test]
+assistant: [Calls git status, waits, then calls npm test]
 </example>
 
 ### Avoid Redundant Reads

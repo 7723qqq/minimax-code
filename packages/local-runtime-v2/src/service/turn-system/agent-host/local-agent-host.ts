@@ -2,7 +2,6 @@ import type { TurnAssemblyCtx, TurnEndHandler, TurnStartHandler } from '@mavis/a
 import { pluginHookEffort } from '@mavis/plugin-hooks';
 
 import type { SessionRecord } from '../../session-system/index.js';
-import { v2TurnSystemText } from '../copy.js';
 import type { AgentHost, AgentHostDependencies, AgentHostRunInput } from './contracts.js';
 import type { AgentCompactionInput, CompactionOutcome } from './compaction/contracts.js';
 import type { AgentEventContext } from './events/contracts.js';
@@ -26,6 +25,7 @@ import {
   ContextCompactionAttemptFactory,
   createAutomaticContextCompactionHook,
 } from './compaction/context-compaction.js';
+import { resolveCheckpointRequestShape } from './compaction/checkpoint-request-shape.js';
 import {
   assertAgentHostCapabilityAvailable,
   assertAgentHostCompactionDependenciesReady,
@@ -53,6 +53,7 @@ import type {
   AgentHostTurnRuntimeToolBinding,
 } from './assembly/turn-capability-lifecycle.js';
 import { localPluginHookCoordinator } from './assembly/local-turn-plugin-hooks.js';
+import { v2TurnSystemText } from '../copy.js';
 
 export class AgentEventIdentityError extends Error {
   override readonly name = 'AgentEventIdentityError';
@@ -154,6 +155,15 @@ export class LocalAgentHost<
     this.preflight = new TurnPreflight(dependencies);
   }
 
+  private notifyTurnStarted(context: AgentEventContext): void {
+    try {
+      // A new Turn supersedes any suggestion still generating for this Session.
+      this.dependencies.promptSuggestion?.turnStarted(context.sessionId);
+    } catch {
+      /* An optional suggestion can never fail a Turn. */
+    }
+  }
+
   async run(input: AgentHostRunInput): Promise<AgentHostTurnOutcome> {
     const lease = captureAcceptedTurnLease(readUnknownProperty(input, 'lease'));
     const control = scopeTurnControl(this.dependencies, lease);
@@ -176,6 +186,7 @@ export class LocalAgentHost<
         });
         context = createAgentEventContext(acceptedInput);
         assertAgentHostDependenciesReady(this.dependencies);
+        this.notifyTurnStarted(context);
         setupLogContext.executionMode = acceptedInput.request.executionMode ?? 'activate';
         const turnCapabilities = this.dependencies.turnCapabilities;
         capabilityLease = turnCapabilities
@@ -490,7 +501,18 @@ export class LocalAgentHost<
       });
     }
     await this.commitBackgroundTaskReads(context, outcome);
+    // Only now is the Turn durable: fire optional post-commit work without
+    // awaiting it, so a suggestion can never delay or fail this Turn.
+    this.afterSuccessfulCommit(outcome);
     return outcome;
+  }
+
+  private afterSuccessfulCommit(outcome: AgentHostTurnOutcome): void {
+    try {
+      this.dependencies.executor.afterSuccessfulCommit?.(outcome);
+    } catch {
+      /* An optional post-commit observer can never fail a committed Turn. */
+    }
   }
 
   private async commitBackgroundTaskReads(
@@ -597,6 +619,10 @@ export class LocalAgentHost<
       input.lease.leaseId,
       {
         maxSerializedInputBytes: preflight.preparation.llm.maxRequestBodyBytes,
+        checkpointRequestShape: resolveCheckpointRequestShape(
+          preflight.preparation.llm,
+          this.dependencies.compaction.checkpointSharedPrefixEnabled,
+        ),
         attempts: this.compactionAttempts,
         logger: this.dependencies.logger,
         ...(pluginHooks.length

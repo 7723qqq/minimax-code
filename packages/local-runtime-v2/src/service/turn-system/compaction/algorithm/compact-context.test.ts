@@ -1,5 +1,5 @@
-import { describe, expect, it, mock } from 'bun:test';
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { CheckpointAttemptMetadata } from '../../agent-host/contracts.js';
 import { readCompactionCompatibility } from '../compat.js';
@@ -49,7 +49,7 @@ describe('compactContext method policy', () => {
       const order: string[] = [];
       const input = policyInput(h0, {
         instructions,
-        measurePair: mock(async (pair) => {
+        measurePair: vi.fn(async (pair) => {
           order.push(
             pair.afterMessages[0]?.role === 'compactionSummary' ? 'checkpoint-fit' : 'trim',
           );
@@ -57,7 +57,7 @@ describe('compactContext method policy', () => {
             ? footprint(1_000, 300)
             : footprint(1_000, 301);
         }),
-        generate: mock(async (request) => {
+        generate: vi.fn(async (request) => {
           order.push('checkpoint');
           expect(request.messages).toBe(h0);
           expect(request).not.toHaveProperty('instructions');
@@ -75,11 +75,11 @@ describe('compactContext method policy', () => {
 
   it('skips direct trim measurement for nonempty instructions and checkpoints full H0 first', async () => {
     const h0 = threeRounds();
-    const measurePair = mock(async (pair) => {
+    const measurePair = vi.fn(async (pair) => {
       expect(pair.afterMessages[0]?.role).toBe('compactionSummary');
       return footprint(1_000, 300);
     });
-    const generate = mock<CheckpointSession['generate']>(async () => generation());
+    const generate = vi.fn<CheckpointSession['generate']>(async () => generation());
 
     await compactContext(
       policyInput(h0, { instructions: '  Preserve exact paths.  ', measurePair, generate }),
@@ -94,9 +94,9 @@ describe('compactContext method policy', () => {
 
   it('commits an admitted complete tool trim without calling the checkpoint Provider', async () => {
     const h0 = threeRounds();
-    const generate = mock();
-    const captureSubagents = mock(async () => subagentSnapshot());
-    const measurePair = mock(async () => footprint(1_000, 300));
+    const generate = vi.fn();
+    const captureSubagents = vi.fn(async () => subagentSnapshot());
+    const measurePair = vi.fn(async () => footprint(1_000, 300));
 
     const decision = await compactContext(
       policyInput(h0, { measurePair, generate, captureSubagents }),
@@ -123,7 +123,7 @@ describe('compactContext method policy', () => {
       archivedResultCount: 2,
       actualSavingsBytes: 20_000,
     };
-    const generate = mock();
+    const generate = vi.fn();
 
     await expect(
       compactContext({
@@ -149,7 +149,7 @@ describe('compactContext method policy', () => {
         ? { ...message, content: [{ type: 'text' as const, text: '[unavailable]' }] }
         : message,
     );
-    const generate = mock();
+    const generate = vi.fn();
 
     await expect(
       compactContext({
@@ -174,7 +174,7 @@ describe('compactContext method policy', () => {
 
   it('sends original complete H0 on the first checkpoint when direct trim is rejected', async () => {
     const h0 = threeRounds();
-    const generate = mock<CheckpointSession['generate']>(async () => generation());
+    const generate = vi.fn<CheckpointSession['generate']>(async () => generation());
 
     await compactContext(
       policyInput(h0, {
@@ -191,8 +191,8 @@ describe('compactContext method policy', () => {
   });
 
   it('opens the checkpoint session lazily only after direct trim is rejected', async () => {
-    const generate = mock(async () => generation());
-    const open = mock(async () => ({ maxOutputTokens: 100, fits: () => true, generate }));
+    const generate = vi.fn(async () => generation());
+    const open = vi.fn(async () => ({ maxOutputTokens: 100, fits: () => true, generate }));
 
     await compactContext(
       policyInput(threeRounds(), {
@@ -223,8 +223,8 @@ describe('compactContext method policy', () => {
   });
 
   it('maps malformed ToolRound History before measurement or Provider work', async () => {
-    const measurePair = mock();
-    const generate = mock();
+    const measurePair = vi.fn();
+    const generate = vi.fn();
     const orphan: AgentMessage = {
       role: 'toolResult',
       toolCallId: 'orphan',
@@ -250,8 +250,9 @@ describe('compactContext overflow recovery', () => {
         ? { ...message, content: [{ type: 'text' as const, text: '[archived receipt]' }] }
         : message,
     );
-    const generate = mock<CheckpointSession['generate']>(async () => generation());
-    const fits = mock<CheckpointSession['fits']>()
+    const generate = vi.fn<CheckpointSession['generate']>(async () => generation());
+    const fits = vi
+      .fn<CheckpointSession['fits']>()
       .mockReturnValueOnce(false)
       .mockReturnValueOnce(true);
 
@@ -283,8 +284,9 @@ describe('compactContext overflow recovery', () => {
         ? { ...message, content: [{ type: 'text' as const, text: '[unavailable]' }] }
         : message,
     );
-    const generate = mock<CheckpointSession['generate']>(async () => generation());
-    const fits = mock<CheckpointSession['fits']>()
+    const generate = vi.fn<CheckpointSession['generate']>(async () => generation());
+    const fits = vi
+      .fn<CheckpointSession['fits']>()
       .mockReturnValueOnce(false)
       .mockReturnValueOnce(true);
 
@@ -324,10 +326,10 @@ describe('compactContext overflow recovery', () => {
         Object.assign(user('display wrapper', 11), { genuineUserQueryText: 'latest query' }),
       ];
       const attempts: CheckpointAttemptMetadata[] = [];
-      const generate = mock<CheckpointSession['generate']>(async () => generation());
+      const generate = vi.fn<CheckpointSession['generate']>(async () => generation());
       const fittedRequests: Array<Parameters<CheckpointSession['fits']>[0]> = [];
       let fitCalls = 0;
-      const fits = mock<CheckpointSession['fits']>((request) => {
+      const fits = vi.fn<CheckpointSession['fits']>((request) => {
         fittedRequests.push(request);
         fitCalls += 1;
         return fitCalls === fitCall;
@@ -363,10 +365,12 @@ describe('compactContext overflow recovery', () => {
     const h0 = threeRounds();
     const originalH0 = structuredClone(h0);
     const attempts: CheckpointAttemptMetadata[] = [];
-    const generate = mock<CheckpointSession['generate']>()
+    const generate = vi
+      .fn<CheckpointSession['generate']>()
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('Htrim overflow'))
       .mockResolvedValueOnce(generation());
-    const fits = mock<CheckpointSession['fits']>()
+    const fits = vi
+      .fn<CheckpointSession['fits']>()
       .mockReturnValueOnce(false)
       .mockReturnValueOnce(true)
       .mockReturnValueOnce(true);
@@ -414,7 +418,8 @@ describe('compactContext overflow recovery', () => {
   it('clears every settled tool result body after H0 and Htrim overflow', async () => {
     const h0 = mixedRounds();
     const originalH0 = structuredClone(h0);
-    const generate = mock<CheckpointSession['generate']>()
+    const generate = vi
+      .fn<CheckpointSession['generate']>()
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('full H0 overflow'))
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('Htrim overflow'))
       .mockResolvedValueOnce(generation());
@@ -451,7 +456,8 @@ describe('compactContext historical video recovery', () => {
       Object.assign(user('display wrapper', 1), { genuineUserQueryText: 'latest query' }),
     ];
     const attempts: CheckpointAttemptMetadata[] = [];
-    const generate = mock<CheckpointSession['generate']>()
+    const generate = vi
+      .fn<CheckpointSession['generate']>()
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('H0 overflow'))
       .mockResolvedValueOnce(generation());
     const input = policyInput(h0, { generate, fits: () => true });
@@ -476,12 +482,13 @@ describe('compactContext historical video recovery', () => {
       genuineUserQueryText: 'latest query',
     });
     const h0 = [historicalVideo, ...threeRounds(), latestQuery];
-    const generate = mock<CheckpointSession['generate']>()
+    const generate = vi
+      .fn<CheckpointSession['generate']>()
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('H0 overflow'))
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('Htrim overflow'))
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('Hall overflow'))
       .mockResolvedValueOnce(generation());
-    const fits = mock((request: { readonly messages: readonly AgentMessage[] }) => {
+    const fits = vi.fn((request: { readonly messages: readonly AgentMessage[] }) => {
       if (JSON.stringify(request.messages).includes('secret-video-base64')) return true;
       expect(request.messages).toHaveLength(h0.length);
       expect(request.messages[0]).toEqual({
@@ -512,12 +519,13 @@ describe('compactContext historical video recovery', () => {
       ...threeRounds(),
       Object.assign(user('display wrapper', 7), { genuineUserQueryText: 'latest query' }),
     ];
-    const generate = mock<CheckpointSession['generate']>()
+    const generate = vi
+      .fn<CheckpointSession['generate']>()
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('H0 overflow'))
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('Htrim overflow'))
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('Hall overflow'))
       .mockResolvedValueOnce(generation());
-    const fits = mock((request: { readonly messages: readonly AgentMessage[] }) => {
+    const fits = vi.fn((request: { readonly messages: readonly AgentMessage[] }) => {
       const serialized = JSON.stringify(request.messages);
       if (serialized.includes('secret-video-base64')) return true;
       expect(serialized).not.toContain('secret-video-base64');
@@ -554,13 +562,14 @@ describe('compactContext historical video recovery', () => {
       ...threeRounds(),
       Object.assign(user('display wrapper', 7), { genuineUserQueryText: 'latest query' }),
     ];
-    const generate = mock<CheckpointSession['generate']>()
+    const generate = vi
+      .fn<CheckpointSession['generate']>()
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('H0 overflow'))
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('Htrim overflow'))
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('Hall overflow'))
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('Hvideo overflow'))
       .mockResolvedValueOnce(generation());
-    const fits = mock(() => true);
+    const fits = vi.fn(() => true);
     const attempts: CheckpointAttemptMetadata[] = [];
     const input = policyInput(h0, {
       measurePair: async () => footprint(1_000, 301),
@@ -612,12 +621,12 @@ describe('compactContext historical video recovery', () => {
     ];
     const controller = new AbortController();
     let calls = 0;
-    const generate = mock<CheckpointSession['generate']>(async () => {
+    const generate = vi.fn<CheckpointSession['generate']>(async () => {
       calls += 1;
       if (calls === 3) controller.abort();
       throw new CheckpointCandidateTooLargeError('overflow');
     });
-    const fits = mock(() => true);
+    const fits = vi.fn(() => true);
 
     await expect(
       compactContext(
@@ -634,27 +643,92 @@ describe('compactContext historical video recovery', () => {
   });
 });
 
-describe('compactContext provider image-limit recovery (#425)', () => {
-  function userWithImage(text: string, data: string, timestamp: number): AgentMessage {
-    return {
-      role: 'user',
-      content: [
-        { type: 'text', text },
-        { type: 'image', data, mimeType: 'image/png' },
-      ],
-      timestamp,
-    };
-  }
+describe('compactContext checkpoint images', () => {
+  it('sends every image as a line naming its file, saving the ones without one once', async () => {
+    const shot = { type: 'image' as const, data: 'secret-image-1', mimeType: 'image/png' };
+    const h0: AgentMessage[] = [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: '<attachment path="/a/cat.png" kind="image" inline="true">' },
+          { type: 'image', data: 'secret-image-0', mimeType: 'image/png' },
+        ],
+        timestamp: 0,
+      },
+      {
+        role: 'assistant',
+        content: [{ type: 'toolCall', id: 'shot-1', name: 'screenshot', arguments: {} }],
+        stopReason: 'toolUse',
+        timestamp: 1,
+      } as unknown as AgentMessage,
+      { ...toolResultNamed('shot-1', 'screenshot', 2), content: [shot] } as AgentMessage,
+      Object.assign(user('display wrapper', 3), { genuineUserQueryText: 'latest query' }),
+    ];
+    const generate = vi.fn<CheckpointSession['generate']>().mockResolvedValue(generation());
+    const writeImageFile = vi.fn(async () => '/artifacts/shot-1.png');
 
+    await compactContext({
+      ...policyInput(h0, { generate, fits: () => true }),
+      writeImageFile,
+    });
+
+    const sent = JSON.stringify(generate.mock.calls[0]?.[0]?.messages);
+    expect(sent).not.toMatch(/secret-image-|"type":"image"/u);
+    expect(sent).toContain('File: /a/cat.png');
+    expect(sent).toContain('File: /artifacts/shot-1.png');
+    expect(writeImageFile).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(h0)).toContain('secret-image-1');
+  });
+});
+
+describe('compactContext earlier files', () => {
+  const h0 = () => [
+    user('first', 0),
+    assistantText('done', 1),
+    Object.assign(user('display wrapper', 2), { genuineUserQueryText: 'latest query' }),
+  ];
+
+  it('names the earlier-file directories after the checkpoint summary', async () => {
+    const generate = vi.fn<CheckpointSession['generate']>().mockResolvedValue(generation());
+
+    const decision = await compactContext({
+      ...policyInput(h0(), { generate, fits: () => true }),
+      resolveEarlierFiles: async () => ({ snapshots: '/s/snapshots', toolOutputs: '/s/tools' }),
+    });
+
+    const summary = String(Reflect.get(decision.replacementMessages[0] ?? {}, 'summary'));
+    expect(summary).toContain('/s/snapshots');
+    expect(summary).toContain('/s/tools');
+  });
+
+  it('keeps the checkpoint when the directories cannot be resolved', async () => {
+    const generate = vi.fn<CheckpointSession['generate']>().mockResolvedValue(generation());
+
+    const decision = await compactContext({
+      ...policyInput(h0(), { generate, fits: () => true }),
+      resolveEarlierFiles: async () => {
+        throw new Error('Session not found');
+      },
+    });
+
+    expect(decision.method).toBe('llm_checkpoint');
+    expect(String(Reflect.get(decision.replacementMessages[0] ?? {}, 'summary'))).not.toContain(
+      'Files from before this compaction',
+    );
+  });
+});
+
+describe('compactContext provider image-limit recovery (#425)', () => {
   it('falls back to the attachment-free candidate when the Provider rejects too many images', async () => {
     const h0 = [
-      userWithImage('screenshot one', 'secret-image-1', 0),
+      userWithVideo('screenshot one', 'secret-video-1', 0),
       assistantText('seen one', 1),
-      userWithImage('screenshot two', 'secret-image-2', 2),
+      userWithVideo('screenshot two', 'secret-video-2', 2),
       assistantText('seen two', 3),
       Object.assign(user('display wrapper', 4), { genuineUserQueryText: 'latest query' }),
     ];
-    const generate = mock<CheckpointSession['generate']>()
+    const generate = vi
+      .fn<CheckpointSession['generate']>()
       .mockRejectedValueOnce(
         new CheckpointCandidateMediaRejectedError(
           new Error('400 Upstream [invalid_request_error] Too many images in request: 31 > 30'),
@@ -672,7 +746,7 @@ describe('compactContext provider image-limit recovery (#425)', () => {
     expect(decision).toMatchObject({ method: 'llm_checkpoint', generationAttempts: 2 });
     expect(generate).toHaveBeenCalledTimes(2);
     const fallback = JSON.stringify(generate.mock.calls[1]?.[0]?.messages);
-    expect(fallback).not.toContain('secret-image-');
+    expect(fallback).not.toContain('secret-video-');
     expect(fallback).not.toMatch(/"type":"image"/);
     expect(fallback).toContain('screenshot one');
     expect(attempts.map(({ candidate, attemptNumber, outcome }) => `${candidate}:${attemptNumber}:${outcome}`)).toEqual([
@@ -680,16 +754,17 @@ describe('compactContext provider image-limit recovery (#425)', () => {
       'hvideo:2:generated',
     ]);
     // Canonical history is never rewritten.
-    expect(JSON.stringify(h0)).toContain('secret-image-1');
+    expect(JSON.stringify(h0)).toContain('secret-video-1');
   });
 
   it('continues down the attachment-free ladder when the image-free candidate overflows', async () => {
     const h0 = [
-      userWithImage('old query', 'secret-image-1', 0),
+      userWithVideo('old query', 'secret-video-1', 0),
       ...threeRounds(),
       Object.assign(user('display wrapper', 7), { genuineUserQueryText: 'latest query' }),
     ];
-    const generate = mock<CheckpointSession['generate']>()
+    const generate = vi
+      .fn<CheckpointSession['generate']>()
       .mockRejectedValueOnce(new CheckpointCandidateMediaRejectedError(new Error('Too many images')))
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('Hvideo overflow'))
       .mockResolvedValueOnce(generation());
@@ -707,18 +782,19 @@ describe('compactContext provider image-limit recovery (#425)', () => {
 
     expect(decision).toMatchObject({ method: 'llm_checkpoint' });
     const last = JSON.stringify(generate.mock.calls.at(-1)?.[0]?.messages);
-    expect(last).not.toContain('secret-image-1');
+    expect(last).not.toContain('secret-video-1');
     // Hall clears the tool bodies, so its attachment-free form is a new, smaller request.
     expect(attempts.map(({ candidate }) => candidate)).toEqual(['h0', 'hvideo', 'hvideo']);
   });
 
   it('does not resend an identical attachment-free history after it overflows', async () => {
     const h0 = [
-      userWithImage('old query', 'secret-image-1', 0),
+      userWithVideo('old query', 'secret-video-1', 0),
       assistantText('answer', 1),
       Object.assign(user('display wrapper', 2), { genuineUserQueryText: 'latest query' }),
     ];
-    const generate = mock<CheckpointSession['generate']>()
+    const generate = vi
+      .fn<CheckpointSession['generate']>()
       .mockRejectedValueOnce(new CheckpointCandidateMediaRejectedError(new Error('Too many images')))
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('Hvideo overflow'))
       .mockResolvedValue(generation());
@@ -739,7 +815,8 @@ describe('compactContext provider image-limit recovery (#425)', () => {
       assistantText('answer', 1),
       Object.assign(user('display wrapper', 2), { genuineUserQueryText: 'latest query' }),
     ];
-    const generate = mock<CheckpointSession['generate']>()
+    const generate = vi
+      .fn<CheckpointSession['generate']>()
       .mockRejectedValue(new CheckpointCandidateMediaRejectedError(new Error('Too many images')));
 
     await expect(compactContext(policyInput(h0, { generate, fits: () => true }))).rejects.toMatchObject({
@@ -751,10 +828,11 @@ describe('compactContext provider image-limit recovery (#425)', () => {
 
   it('fails as a Provider failure when the image-free candidate is rejected again', async () => {
     const h0 = [
-      userWithImage('old query', 'secret-image-1', 0),
+      userWithVideo('old query', 'secret-video-1', 0),
       Object.assign(user('display wrapper', 1), { genuineUserQueryText: 'latest query' }),
     ];
-    const generate = mock<CheckpointSession['generate']>()
+    const generate = vi
+      .fn<CheckpointSession['generate']>()
       .mockRejectedValue(new CheckpointCandidateMediaRejectedError(new Error('Too many images')));
 
     await expect(compactContext(policyInput(h0, { generate, fits: () => true }))).rejects.toMatchObject({
@@ -773,7 +851,8 @@ describe('compactContext output exhaustion', () => {
     ];
     const exhausted = (label: string) =>
       new CheckpointCandidateTooLargeError(label, 'output_exhausted');
-    const generate = mock<CheckpointSession['generate']>()
+    const generate = vi
+      .fn<CheckpointSession['generate']>()
       .mockRejectedValueOnce(exhausted('H0 reasoning spent the budget'))
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('Htrim overflow'))
       .mockRejectedValueOnce(exhausted('Hall reasoning spent the budget'))
@@ -783,7 +862,7 @@ describe('compactContext output exhaustion', () => {
     const input = policyInput(h0, {
       measurePair: async () => footprint(1_000, 301),
       generate,
-      fits: mock(() => true),
+      fits: vi.fn(() => true),
     });
 
     const decision = await compactContext({
@@ -817,14 +896,14 @@ describe('compactContext output exhaustion', () => {
       ...threeRounds(),
       Object.assign(user('display wrapper', 7), { genuineUserQueryText: 'latest query' }),
     ];
-    const generate = mock<CheckpointSession['generate']>(async () => {
+    const generate = vi.fn<CheckpointSession['generate']>(async () => {
       throw new CheckpointCandidateTooLargeError('reasoning spent the budget', 'output_exhausted');
     });
     const attempts: CheckpointAttemptMetadata[] = [];
     const input = policyInput(h0, {
       measurePair: async () => footprint(1_000, 301),
       generate,
-      fits: mock(() => true),
+      fits: vi.fn(() => true),
     });
 
     await expect(
@@ -846,130 +925,6 @@ describe('compactContext output exhaustion', () => {
   });
 });
 
-describe('compactContext media reduction recovery', () => {
-  function userWithImages(text: string, count: number, timestamp: number): AgentMessage {
-    return {
-      role: 'user',
-      content: [
-        { type: 'text', text },
-        ...Array.from({ length: count }, (_, index) => ({
-          type: 'image' as const,
-          data: `image-${timestamp}-${index}`,
-          mimeType: 'image/png',
-        })),
-      ],
-      timestamp,
-    } as AgentMessage;
-  }
-
-  function mediaRequest(timestamp: number) {
-    return [
-      userWithImages('old screenshots', 4, timestamp),
-      assistantText('seen', timestamp + 1),
-      Object.assign(user('latest query', timestamp + 2), { genuineUserQueryText: 'latest query' }),
-    ];
-  }
-
-  it('retries with the newest images before dropping every attachment', async () => {
-    const generate = mock<CheckpointSession['generate']>()
-      .mockRejectedValueOnce(
-        new CheckpointCandidateMediaRejectedError(new Error('Too many images in request: 31 > 30')),
-      )
-      .mockResolvedValueOnce(generation());
-    const attempts: CheckpointAttemptMetadata[] = [];
-    const input = policyInput(mediaRequest(0), {
-      generate,
-      recoveryDivisor: 2,
-      fits: () => true,
-    });
-    const decision = await compactContext({
-      ...input,
-      checkpoint: { ...input.checkpoint, onAttemptSettled: (metadata) => attempts.push(metadata) },
-    });
-
-    expect(decision).toMatchObject({ method: 'llm_checkpoint', generationAttempts: 2 });
-    expect(attempts.map(({ candidate, attemptNumber, outcome }) => `${candidate}:${attemptNumber}:${outcome}`)).toEqual([
-      'h0:1:failed',
-      'hmedia:2:generated',
-    ]);
-    const reduced = JSON.stringify(generate.mock.calls[1]?.[0]?.messages);
-    expect(reduced.match(/"type":"image"/g)).toHaveLength(2);
-    expect(reduced).toContain('[Earlier media omitted to fit the request size limit.]');
-  });
-
-  it('falls back to the attachment-free candidate when the reduced request is still rejected', async () => {
-    const generate = mock<CheckpointSession['generate']>()
-      .mockRejectedValueOnce(
-        new CheckpointCandidateMediaRejectedError(new Error('Too many images in request: 31 > 30')),
-      )
-      .mockRejectedValueOnce(new CheckpointCandidateMediaRejectedError(new Error('Too many images')))
-      .mockResolvedValueOnce(generation());
-    const attempts: CheckpointAttemptMetadata[] = [];
-    const input = policyInput(mediaRequest(10), {
-      generate,
-      recoveryDivisor: 2,
-      fits: () => true,
-    });
-    const decision = await compactContext({
-      ...input,
-      checkpoint: { ...input.checkpoint, onAttemptSettled: (metadata) => attempts.push(metadata) },
-    });
-
-    expect(decision).toMatchObject({ method: 'llm_checkpoint', generationAttempts: 3 });
-    expect(attempts.map(({ candidate, attemptNumber, outcome }) => `${candidate}:${attemptNumber}:${outcome}`)).toEqual([
-      'h0:1:failed',
-      'hmedia:2:failed',
-      'hvideo:3:generated',
-    ]);
-    expect(JSON.stringify(generate.mock.calls[2]?.[0]?.messages)).not.toMatch(/"type":"image"/);
-  });
-});
-
-describe('compactContext earlier-file references', () => {
-  it('appends snapshot and tool-output paths to the checkpoint summary', async () => {
-    let summary = '';
-    const input = policyInput(threeRounds(), {
-      instructions: 'Preserve exact paths.',
-      earlierFiles: async () => ({
-        snapshots: '/data/sessions/s/history/snapshots',
-        toolOutputs: '/data/sessions/s/reports',
-      }),
-      measurePair: async (pair) => {
-        const message = pair.afterMessages[0];
-        if (message?.role === 'compactionSummary') summary = message.summary;
-        return footprint(1_000, 300);
-      },
-    });
-
-    await expect(compactContext(input)).resolves.toMatchObject({ method: 'llm_checkpoint' });
-    expect(summary).toContain('Files from before this compaction:');
-    expect(summary).toContain(
-      'Full conversation history before each compaction, one JSONL file per compaction',
-    );
-    expect(summary).toContain('/data/sessions/s/history/snapshots');
-    expect(summary).toContain('Tool images and oversized tool outputs');
-    expect(summary).toContain('/data/sessions/s/reports');
-    expect(summary).toContain(
-      'Read them when you need exact details that the summary above leaves out.',
-    );
-  });
-
-  it('omits the section when no earlier-file paths are available', async () => {
-    let summary = '';
-    const input = policyInput(threeRounds(), {
-      instructions: 'Preserve exact paths.',
-      measurePair: async (pair) => {
-        const message = pair.afterMessages[0];
-        if (message?.role === 'compactionSummary') summary = message.summary;
-        return footprint(1_000, 300);
-      },
-    });
-
-    await compactContext(input);
-    expect(summary).not.toContain('Files from before this compaction:');
-  });
-});
-
 describe('compactContext final Hmin recovery', () => {
   it('uses one minimal genuine-query request after the only Hmid request overflows', async () => {
     const h0 = [
@@ -981,10 +936,11 @@ describe('compactContext final Hmin recovery', () => {
     ];
     const before = structuredClone(h0);
     const attempts: CheckpointAttemptMetadata[] = [];
-    const generate = mock<CheckpointSession['generate']>()
+    const generate = vi
+      .fn<CheckpointSession['generate']>()
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('first Hmid overflow'))
       .mockResolvedValueOnce(generation());
-    const fits = mock<CheckpointSession['fits']>((request) => request.messages.length <= 8);
+    const fits = vi.fn<CheckpointSession['fits']>((request) => request.messages.length <= 8);
     const tokenUsage = {
       inputTokens: 28,
       outputTokens: 5,
@@ -1049,10 +1005,10 @@ describe('compactContext final Hmin recovery', () => {
     ];
     const before = structuredClone(h0);
     const attempts: CheckpointAttemptMetadata[] = [];
-    const generate = mock<CheckpointSession['generate']>(async () => {
+    const generate = vi.fn<CheckpointSession['generate']>(async () => {
       throw new CheckpointCandidateTooLargeError('overflow');
     });
-    const fits = mock<CheckpointSession['fits']>((request) => {
+    const fits = vi.fn<CheckpointSession['fits']>((request) => {
       return !(
         request.messages.length === 1 &&
         request.messages[0]?.role === 'user' &&
@@ -1081,7 +1037,8 @@ describe('compactContext final Hmin recovery', () => {
       Object.assign(user('display wrapper', 1), { genuineUserQueryText: 'latest query' }),
     ];
     const attempts: CheckpointAttemptMetadata[] = [];
-    const generate = mock<CheckpointSession['generate']>()
+    const generate = vi
+      .fn<CheckpointSession['generate']>()
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('H0 overflow'))
       .mockResolvedValueOnce(generation());
     const input = policyInput(h0, { fits: () => true, generate });
@@ -1117,7 +1074,8 @@ describe('compactContext final Hmin recovery', () => {
       Object.assign(user('display wrapper', 3), { genuineUserQueryText: 'latest query' }),
     ];
     const before = structuredClone(h0);
-    const generate = mock<CheckpointSession['generate']>()
+    const generate = vi
+      .fn<CheckpointSession['generate']>()
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('H0 overflow'))
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('Hmid overflow'))
       .mockRejectedValueOnce(hminError);
@@ -1136,7 +1094,8 @@ describe('compactContext final Hmin recovery', () => {
       assistantText('b', 2),
       Object.assign(user('display wrapper', 3), { genuineUserQueryText: 'latest query' }),
     ];
-    const generate = mock<CheckpointSession['generate']>()
+    const generate = vi
+      .fn<CheckpointSession['generate']>()
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('H0 overflow'))
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('Hmid overflow'))
       .mockResolvedValueOnce(generation({ text: ' ' }));
@@ -1155,7 +1114,8 @@ describe('compactContext final Hmin recovery', () => {
       Object.assign(user('display wrapper', 3), { genuineUserQueryText: 'latest query' }),
     ];
     const before = structuredClone(h0);
-    const generate = mock<CheckpointSession['generate']>()
+    const generate = vi
+      .fn<CheckpointSession['generate']>()
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('H0 overflow'))
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('Hmid overflow'))
       .mockResolvedValueOnce(generation());
@@ -1183,8 +1143,8 @@ describe('compactContext local-rejection Hmin recovery', () => {
     ];
     const before = structuredClone(h0);
     const attempts: CheckpointAttemptMetadata[] = [];
-    const generate = mock<CheckpointSession['generate']>(async () => generation());
-    const fits = mock<CheckpointSession['fits']>(
+    const generate = vi.fn<CheckpointSession['generate']>(async () => generation());
+    const fits = vi.fn<CheckpointSession['fits']>(
       (request) =>
         request.messages.length === 1 &&
         request.messages[0]?.role === 'user' &&
@@ -1222,8 +1182,8 @@ describe('compactContext local-rejection Hmin recovery', () => {
       ...threeRounds(),
       Object.assign(user('display wrapper', 9), { genuineUserQueryText: 'latest query' }),
     ];
-    const generate = mock<CheckpointSession['generate']>(async () => generation());
-    const measure = mock<NonNullable<CheckpointSession['measure']>>(() => ({
+    const generate = vi.fn<CheckpointSession['generate']>(async () => generation());
+    const measure = vi.fn<NonNullable<CheckpointSession['measure']>>(() => ({
       inputTokens: 123_456,
       serializedBytes: 654_321,
     }));
@@ -1270,8 +1230,8 @@ describe('compactContext final Hmin boundaries', () => {
       user('trigger', 9),
     ];
     const attempts: CheckpointAttemptMetadata[] = [];
-    const fits = mock<CheckpointSession['fits']>((request) => request.messages.length <= 3);
-    const generate = mock<CheckpointSession['generate']>(async () => generation());
+    const fits = vi.fn<CheckpointSession['fits']>((request) => request.messages.length <= 3);
+    const generate = vi.fn<CheckpointSession['generate']>(async () => generation());
     const input = policyInput(h0, { fits, generate });
 
     const decision = await compactContext({
@@ -1309,7 +1269,7 @@ describe('compactContext final Hmin boundaries', () => {
       assistantText('c', 3),
       user('trigger', 4),
     ];
-    const generate = mock<CheckpointSession['generate']>(async () => {
+    const generate = vi.fn<CheckpointSession['generate']>(async () => {
       throw error;
     });
 
@@ -1330,7 +1290,7 @@ describe('compactContext final Hmin boundaries', () => {
       assistantText('a', 1),
       Object.assign(user('display wrapper', 2), { genuineUserQueryText: 'latest query' }),
     ];
-    const generate = mock<CheckpointSession['generate']>(async () => generation({ text: ' ' }));
+    const generate = vi.fn<CheckpointSession['generate']>(async () => generation({ text: ' ' }));
 
     await expect(
       compactContext(
@@ -1354,7 +1314,7 @@ describe('compactContext final Hmin boundaries', () => {
     ];
     const before = structuredClone(h0);
     const attempts: CheckpointAttemptMetadata[] = [];
-    const generate = mock<CheckpointSession['generate']>(async () => {
+    const generate = vi.fn<CheckpointSession['generate']>(async () => {
       throw new CheckpointCandidateTooLargeError('Hmid overflow');
     });
     const input = policyInput(h0, {
@@ -1396,13 +1356,13 @@ describe('compactContext middle deletion compatibility', () => {
     ];
     const originalH0 = structuredClone(h0);
     const measuredCandidates: (readonly AgentMessage[])[] = [];
-    const fits = mock((request: { readonly messages: readonly AgentMessage[] }) => {
+    const fits = vi.fn((request: { readonly messages: readonly AgentMessage[] }) => {
       measuredCandidates.push(request.messages);
       return !request.messages.some(
         (message) => message.role === 'assistant' && readAssistantText(message) === 'left',
       );
     });
-    const generate = mock<CheckpointSession['generate']>().mockResolvedValueOnce(generation());
+    const generate = vi.fn<CheckpointSession['generate']>().mockResolvedValueOnce(generation());
     const attempts: CheckpointAttemptMetadata[] = [];
     const input = policyInput(h0, {
       measurePair: async () => footprint(1_000, 300),
@@ -1446,7 +1406,8 @@ describe('compactContext middle deletion compatibility', () => {
 
   it('keeps custom instructions through H0, Htrim, Hall, and the single Hmid request', async () => {
     const h0 = mixedRounds();
-    const generate = mock<CheckpointSession['generate']>()
+    const generate = vi
+      .fn<CheckpointSession['generate']>()
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('H0 overflow'))
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('Htrim overflow'))
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('Hall overflow'))
@@ -1478,7 +1439,7 @@ describe('compactContext local selection failure', () => {
     ];
     const before = structuredClone(h0);
     const attempts: CheckpointAttemptMetadata[] = [];
-    const generate = mock<CheckpointSession['generate']>();
+    const generate = vi.fn<CheckpointSession['generate']>();
     const input = policyInput(h0, {
       measurePair: async () => footprint(1_000, 301),
       fits: () => false,
@@ -1513,7 +1474,7 @@ describe('compactContext overflow failure boundaries', () => {
       trigger,
     ];
     const before = structuredClone(h0);
-    const generate = mock<CheckpointSession['generate']>(async () => {
+    const generate = vi.fn<CheckpointSession['generate']>(async () => {
       throw new CheckpointCandidateTooLargeError('overflow');
     });
 
@@ -1540,7 +1501,8 @@ describe('compactContext overflow failure boundaries', () => {
       assistantText('middle work', 3),
       Object.assign(user('display wrapper', 4), { genuineUserQueryText: 'latest query' }),
     ];
-    const generate = mock<CheckpointSession['generate']>()
+    const generate = vi
+      .fn<CheckpointSession['generate']>()
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('H0 overflow'))
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('Hall overflow'))
       .mockResolvedValueOnce(generation());
@@ -1566,10 +1528,10 @@ describe('compactContext overflow failure boundaries', () => {
     } as unknown as AgentMessage;
     const h0 = [currentQuery];
     const before = structuredClone(h0);
-    const generate = mock<CheckpointSession['generate']>(async () => {
+    const generate = vi.fn<CheckpointSession['generate']>(async () => {
       throw new CheckpointCandidateTooLargeError('overflow');
     });
-    const fits = mock(() => true);
+    const fits = vi.fn(() => true);
 
     await expect(compactContext(policyInput(h0, { generate, fits }))).rejects.toMatchObject({
       code: 'COMPACTION_INPUT_TOO_LARGE',
@@ -1594,12 +1556,13 @@ describe('compactContext overflow failure boundaries', () => {
       Object.assign(user('display wrapper', 7), { genuineUserQueryText: 'latest query' }),
     ];
     const error = new Error('auth failed');
-    const generate = mock<CheckpointSession['generate']>()
+    const generate = vi
+      .fn<CheckpointSession['generate']>()
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('H0 overflow'))
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('Htrim overflow'))
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('Hall overflow'))
       .mockRejectedValueOnce(error);
-    const fits = mock(() => true);
+    const fits = vi.fn(() => true);
     const attempts: CheckpointAttemptMetadata[] = [];
     const input = policyInput(h0, {
       measurePair: async () => footprint(1_000, 301),
@@ -1654,12 +1617,12 @@ describe('compactContext overflow failure boundaries', () => {
     async (failureCall) => {
       const error = new Error('auth failed');
       let calls = 0;
-      const generate = mock(async () => {
+      const generate = vi.fn(async () => {
         calls += 1;
         if (calls < failureCall) throw new CheckpointCandidateTooLargeError('overflow');
         throw error;
       });
-      const fits = mock(() => true);
+      const fits = vi.fn(() => true);
 
       await expect(
         compactContext(
@@ -1678,7 +1641,7 @@ describe('compactContext overflow failure boundaries', () => {
 
 describe('compactContext checkpoint admission', () => {
   it('omits an empty subagent snapshot from the committed appendix', async () => {
-    const captureSubagents = mock(async () => ({
+    const captureSubagents = vi.fn(async () => ({
       ...subagentSnapshot(),
       total: 0,
       counts: { ...subagentSnapshot().counts, running: 0 },
@@ -1696,7 +1659,7 @@ describe('compactContext checkpoint admission', () => {
   });
 
   it('keeps checkpoint admission fail-open when subagent capture throws', async () => {
-    const onSubagentCaptureFailure = mock();
+    const onSubagentCaptureFailure = vi.fn();
     const decision = await compactContext(
       policyInput([user('no tool rounds', 1)], {
         captureSubagents: async () => {
@@ -1714,11 +1677,12 @@ describe('compactContext checkpoint admission', () => {
   });
 
   it('captures subagents once after generation retry and drops only that section on overflow', async () => {
-    const generate = mock<CheckpointSession['generate']>()
+    const generate = vi
+      .fn<CheckpointSession['generate']>()
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('full H0 overflow'))
       .mockResolvedValueOnce(generation());
-    const captureSubagents = mock(async () => subagentSnapshot());
-    const measurePair = mock(async (pair) => {
+    const captureSubagents = vi.fn(async () => subagentSnapshot());
+    const measurePair = vi.fn(async (pair) => {
       const hasSubagents = Boolean(readCompactionCompatibility(pair.afterMessages[0])?.subagents);
       return footprint(1_000, hasSubagents ? 801 : 300);
     });
@@ -1752,7 +1716,7 @@ describe('compactContext checkpoint admission', () => {
   it('uses a non-empty length-limited checkpoint as the replacement without another generation', async () => {
     const h0 = [user('no tool rounds', 1)];
     const text = '## Goal\nContinue the task.\n\n## Current State\nWork is';
-    const generate = mock<CheckpointSession['generate']>(async () =>
+    const generate = vi.fn<CheckpointSession['generate']>(async () =>
       generation({ text, stopReason: 'length', outputTokens: 100 }),
     );
 
@@ -1773,8 +1737,8 @@ describe('compactContext checkpoint admission', () => {
     ['length with empty text', generation({ stopReason: 'length', text: '' })],
   ])('rejects %s before building or measuring a replacement', async (_case, output) => {
     const h0 = [user('no tool rounds', 1)];
-    const measurePair = mock();
-    const captureSubagents = mock(async () => subagentSnapshot());
+    const measurePair = vi.fn();
+    const captureSubagents = vi.fn(async () => subagentSnapshot());
 
     await expect(
       compactContext(
@@ -1847,8 +1811,8 @@ describe('compactContext checkpoint admission', () => {
   it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1])(
     'rejects invalid explicit byte cap %s before policy work',
     async (maxSerializedInputBytes) => {
-      const measurePair = mock();
-      const generate = mock();
+      const measurePair = vi.fn();
+      const generate = vi.fn();
 
       await expect(
         compactContext(
@@ -1894,7 +1858,8 @@ describe('compactContext Provider generation outcomes', () => {
 
   it('retries a Provider-failed checkpoint once and uses the second generation', async () => {
     const attempts: CheckpointAttemptMetadata[] = [];
-    const generate = mock<CheckpointSession['generate']>()
+    const generate = vi
+      .fn<CheckpointSession['generate']>()
       .mockResolvedValueOnce(
         generation({ text: '', stopReason: 'error', outputTokens: 0, responseContentKinds: [] }),
       )
@@ -1920,7 +1885,8 @@ describe('compactContext Provider generation outcomes', () => {
   it('retries the failing candidate in place without re-sending earlier overflowed candidates', async () => {
     const h0 = mixedRounds();
     const attempts: CheckpointAttemptMetadata[] = [];
-    const generate = mock<CheckpointSession['generate']>()
+    const generate = vi
+      .fn<CheckpointSession['generate']>()
       .mockRejectedValueOnce(new CheckpointCandidateTooLargeError('full H0 overflow'))
       .mockResolvedValueOnce(
         generation({ text: '', stopReason: 'error', outputTokens: 0, responseContentKinds: [] }),
@@ -1955,8 +1921,8 @@ describe('compactContext Provider generation outcomes', () => {
 
   it('gives up with CHECKPOINT_PROVIDER_FAILED after one Provider retry', async () => {
     const attempts: CheckpointAttemptMetadata[] = [];
-    const measurePair = mock();
-    const generate = mock<CheckpointSession['generate']>(async () =>
+    const measurePair = vi.fn();
+    const generate = vi.fn<CheckpointSession['generate']>(async () =>
       generation({ text: '', stopReason: 'error', outputTokens: 0, responseContentKinds: [] }),
     );
     const input = policyInput([user('no tool rounds', 1)], { generate, measurePair });

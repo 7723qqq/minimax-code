@@ -1,5 +1,3 @@
-import { mocked } from '../../../../../../test/bun-test-setup.js';
-import { afterEach, describe, expect, it, jest, mock, spyOn } from 'bun:test';
 import { cp, mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -10,6 +8,7 @@ import type {
   PromptReadSnapshot,
   PromptSnapshotSource,
 } from "@mavis/agent-runtime";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   BuiltinAgentCatalog,
@@ -39,7 +38,7 @@ function extractCitationSection(prompt: string): string {
 }
 
 afterEach(async () => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
   await Promise.all(
     fixtureDirectories
       .splice(0)
@@ -72,9 +71,9 @@ function promptFiles(version: string): Readonly<Record<string, string>> {
 
 function promptReader(
   byDirectory: Readonly<Record<string, Readonly<Record<string, string>>>>,
-): PromptFileReader & { readonly read: ReturnType<typeof mock> } {
+): PromptFileReader & { readonly read: ReturnType<typeof vi.fn> } {
   return {
-    read: mock(
+    read: vi.fn(
       async (context: PromptReadContext, relativePath: string) =>
         byDirectory[context.directory]?.[relativePath],
     ),
@@ -92,14 +91,14 @@ describe("BuiltinAgentCatalog", () => {
     await writeFile(join(root, "worker", "PERSONA.md"), "Static identity only");
     const snapshot = {} as PromptReadSnapshot;
     const source: PromptSnapshotSource = {
-      capture: mock(async () => snapshot),
-      captureBuiltin: mock(async () => snapshot),
-      read: mock(async (_snapshot, key) => ({
+      capture: vi.fn(async () => snapshot),
+      captureBuiltin: vi.fn(async () => snapshot),
+      read: vi.fn(async (_snapshot, key) => ({
         kind: "found" as const,
         content: key,
       })),
     };
-    spyOn(process, "platform", "get").mockReturnValue("win32");
+    vi.spyOn(process, "platform", "get").mockReturnValue("win32");
 
     await new BuiltinAgentCatalog({ assetsDir: root }).render({
       agentName: "worker",
@@ -111,7 +110,7 @@ describe("BuiltinAgentCatalog", () => {
       promptReadContext: { source, snapshot },
     });
 
-    const keys = mocked(source.read).mock.calls.map(([, key]) => key);
+    const keys = vi.mocked(source.read).mock.calls.map(([, key]) => key);
     expect(keys).toContain("_default/prompt-base-windows.md.hbs");
     expect(keys).toContain("worker/features/delegation.md.hbs");
     expect(keys.every((key) => !key.includes("\\"))).toBe(true);
@@ -127,9 +126,9 @@ describe("BuiltinAgentCatalog", () => {
     await writeFile(join(root, "worker", "PERSONA.md"), "static metadata");
     const snapshot = {} as PromptReadSnapshot;
     const source: PromptSnapshotSource = {
-      capture: mock(async () => snapshot),
-      captureBuiltin: mock(async () => snapshot),
-      read: mock(async (_snapshot, key) => {
+      capture: vi.fn(async () => snapshot),
+      captureBuiltin: vi.fn(async () => snapshot),
+      read: vi.fn(async (_snapshot, key) => {
         if (key === "worker/PERSONA-en.md") return { kind: "missing" as const };
         if (key === "worker/PERSONA.md")
           return { kind: "found" as const, content: "remote persona" };
@@ -370,7 +369,7 @@ describe("BuiltinAgentCatalog composition", () => {
     );
 
     const catalog = new BuiltinAgentCatalog({ assetsDir: root });
-    spyOn(process, "platform", "get").mockReturnValue("win32");
+    vi.spyOn(process, "platform", "get").mockReturnValue("win32");
     const common = {
       surface: "interactive" as const,
       appMode: "coding" as const,
@@ -417,7 +416,7 @@ describe("BuiltinAgentCatalog composition", () => {
     );
     await writeFile(join(root, "_default", "prompt-base-windows.md.hbs"), "");
 
-    spyOn(process, "platform", "get").mockReturnValue("win32");
+    vi.spyOn(process, "platform", "get").mockReturnValue("win32");
     const catalog = new BuiltinAgentCatalog({ assetsDir: root });
     const common = {
       agentName: "worker",
@@ -1171,7 +1170,7 @@ describe("BuiltinAgentCatalog TUI prompt profile", () => {
       join(customDir, "prompt-session-branch.md"),
       "Custom child briefing",
     );
-    spyOn(process, "platform", "get").mockReturnValue("win32");
+    vi.spyOn(process, "platform", "get").mockReturnValue("win32");
     const catalog = new BuiltinAgentCatalog();
     const input = {
       agentName: "worker",
@@ -1495,6 +1494,150 @@ describe("BuiltinAgentCatalog prompt modes", () => {
     await expect(catalog.render(input)).rejects.toThrow(
       "_v2/work/SYSTEM.md.hbs",
     );
+  });
+});
+
+describe('BuiltinAgentCatalog PTC section', () => {
+  const POINTER = '- Tool selection for this turn is described in "Tool calls in this turn".';
+  const CONFLICTING = [
+    'Prefer dedicated tools over `bash`',
+    'Independent tool calls can run in parallel in one response.',
+    'search the workspace with `grep` or `glob` first',
+  ];
+  const tui = {
+    agentName: 'mavis', surface: 'cli' as const, promptProfile: 'tui' as const,
+    appMode: 'coding' as const, locale: 'en', promptChannel: 'online' as const,
+    capabilities: resolveAgentCapabilities(),
+  };
+  const modes = [
+    { name: 'tui', input: tui },
+    { name: 'desktop coding', input: { ...tui, surface: 'interactive' as const, promptProfile: 'desktop' as const } },
+    { name: 'desktop work', input: { ...tui, surface: 'interactive' as const, promptProfile: 'desktop' as const, appMode: 'work' as const } },
+  ];
+
+  it('lists only the enabled built-in tools and keeps the wall-clock hint', async () => {
+    const catalog = new BuiltinAgentCatalog();
+    expect(await catalog.renderPtcSection(tui)).toBe(
+      [
+        '# Tool calls in this turn (PTC)',
+        "Only `run_code` and the visible control tools are top-level in this turn. The tools listed at the start of `run_code`'s description are called only inside `run_code` as `await tools.<name>(args)`; calling them directly is rejected.",
+        '- `tools.grep` for file-content search, not `grep` or `rg` in `tools.bash`.',
+        '- `tools.glob` for file-name or path search, not `find` or `ls -R` in `tools.bash`.',
+        '- `tools.read` to read files, not `cat`, `head` or `sed -n` in `tools.bash`; use `r.data.content` for the raw text.',
+        '- `tools.edit` for targeted changes.',
+        '- `tools.write` for new files or rewrites.',
+        '- `tools.bash` only for builds, tests, git and other shell work.',
+        '- Gather context in as few `run_code` calls as possible: put every independent read and search you already know you need into one `Promise.all`; reads and searches run at the same time. Shell commands run one at a time, so reads and searches through `tools.bash` do not run in parallel.',
+        '- A `run_code` program stops after 120 seconds by default. For a longer program, pass `timeout_ms` to `run_code` itself, next to `code` and `description`, e.g. `{ code, description, timeout_ms: 600000 }` for 10 minutes (at most 3,600,000). `timeout_ms` is not a `tools.bash` argument. A `tools.bash` timeout (in seconds) longer than the time left extends the program to fit it, within the same 3,600,000 ms limit. Or use `run_in_background: true`.',
+      ].join('\n'),
+    );
+    // Without bash every half sentence that names tools.bash stays out: the
+    // dedicated-tool lines fall back to their plain wording, with no blank
+    // line or trailing space left by the inline blocks.
+    expect(
+      await catalog.renderPtcSection({
+        ...tui,
+        capabilities: resolveAgentCapabilities({ tools: ['read', 'grep', 'glob', 'edit', 'write'] }),
+      }),
+    ).toBe(
+      [
+        '# Tool calls in this turn (PTC)',
+        "Only `run_code` and the visible control tools are top-level in this turn. The tools listed at the start of `run_code`'s description are called only inside `run_code` as `await tools.<name>(args)`; calling them directly is rejected.",
+        '- `tools.grep` for file-content search.',
+        '- `tools.glob` for file-name or path search.',
+        '- `tools.read` to read files; use `r.data.content` for the raw text.',
+        '- `tools.edit` for targeted changes.',
+        '- `tools.write` for new files or rewrites.',
+        '- Gather context in as few `run_code` calls as possible: put every independent read and search you already know you need into one `Promise.all`; reads and searches run at the same time.',
+        '- A `run_code` program stops after 120 seconds by default. For a longer program, pass `timeout_ms` to `run_code` itself, next to `code` and `description`, e.g. `{ code, description, timeout_ms: 600000 }` for 10 minutes (at most 3,600,000).',
+      ].join('\n'),
+    );
+    const readOnly = await catalog.renderPtcSection({
+      ...tui,
+      capabilities: resolveAgentCapabilities({ tools: ['read', 'grep'] }),
+    });
+    expect(readOnly).toContain('- `tools.grep` for file-content search.');
+    expect(readOnly).toContain('- `tools.read` to read files');
+    for (const absent of ['tools.glob', 'tools.edit', 'tools.write', 'tools.bash', 'run_in_background'])
+      expect(readOnly).not.toContain(absent);
+    // Without bash the hint ends after the run_code example; the tools.bash sentences stay out.
+    expect(
+      readOnly.endsWith(
+        '- A `run_code` program stops after 120 seconds by default. For a longer program, pass `timeout_ms` to `run_code` itself, next to `code` and `description`, e.g. `{ code, description, timeout_ms: 600000 }` for 10 minutes (at most 3,600,000).',
+      ),
+    ).toBe(true);
+  });
+
+  it('fails loudly when the bundled section is missing', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'local-runtime-v2-agent-ptc-missing-'));
+    fixtureDirectories.push(root);
+    await writeFile(join(root, 'builtin-agents.json'), '["mavis"]');
+    await expect(new BuiltinAgentCatalog({ assetsDir: root }).renderPtcSection(tui)).rejects.toThrow(
+      '_v2/PTC_TOOL_CALLS.md.hbs',
+    );
+  });
+
+  it.each(modes)(
+    'puts the section before # Harness of the $name agent.md seed and swaps the conflicting lines',
+    async ({ input }) => {
+      const catalog = new BuiltinAgentCatalog();
+      const section = await catalog.renderPtcSection(input);
+      const off = await catalog.render(input);
+      const on = await catalog.render({ ...input, ptc: { section } });
+
+      expect(on.corePrompt).toContain(`${section}\n\n# Harness\n`);
+      expect(on.corePrompt.indexOf('# Tool calls in this turn (PTC)')).toBeLessThan(
+        on.corePrompt.indexOf('# Harness'),
+      );
+      expect(on.corePrompt.match(/# Tool calls in this turn \(PTC\)/gu)).toHaveLength(1);
+      expect(on.corePrompt).toContain(POINTER);
+      expect(on.corePrompt).toContain(
+        '- For unfamiliar project-specific concepts, search the workspace first with `tools.grep` or `tools.glob` inside `run_code`.',
+      );
+      for (const line of CONFLICTING) {
+        expect(on.corePrompt).not.toContain(line);
+        expect(off.corePrompt).toContain(line);
+      }
+      for (const text of ['Tool calls in this turn', 'timeout_ms', 'tools.grep', 'run_code'])
+        expect(off.corePrompt).not.toContain(text);
+      // Only the PTC section and the swapped Harness lines differ.
+      expect(on.surfacePrompt).toBe(off.surfacePrompt);
+    },
+  );
+
+  it('keeps the authoritative-data guidance in the Work PTC branch', async () => {
+    const catalog = new BuiltinAgentCatalog();
+    const input = modes[2]!.input;
+    const on = await catalog.render({
+      ...input,
+      ptc: { section: await catalog.renderPtcSection(input) },
+    });
+    // Own line: the source policy inserts the file-reference rule right after the pointer line.
+    expect(on.corePrompt).toContain(
+      `${POINTER}\n- When specialized tools overlap in responsibility, prefer the one backed by the most authoritative data source.`,
+    );
+    expect(on.corePrompt).not.toContain('Prefer dedicated tools over `bash` or `web_search`');
+  });
+
+  it.each([
+    { name: 'tui', input: { ...tui, agentName: 'custom-agent' } },
+    { name: 'desktop', input: { ...tui, agentName: 'custom-agent', surface: 'interactive' as const, promptProfile: 'desktop' as const } },
+  ])('applies the same swap to the $name shared base of a Custom Agent', async ({ input }) => {
+    const catalog = new BuiltinAgentCatalog();
+    const section = await catalog.renderPtcSection(input);
+    const off = await catalog.renderSharedBasePrompt(input, 'worker');
+    const on = await catalog.renderSharedBasePrompt({ ...input, ptc: { section } }, 'worker');
+    expect(on.startsWith(`${section}\n\n# Harness\n`)).toBe(true);
+    expect(on).toContain(POINTER);
+    for (const line of CONFLICTING) {
+      expect(on).not.toContain(line);
+    }
+    for (const line of CONFLICTING.slice(0, 2)) expect(off).toContain(line);
+    expect(off).not.toContain('Tool calls in this turn');
+    // The root layer of the same file carries no PTC text.
+    expect(
+      await catalog.renderSurfacePrompt({ ...input, ptc: { section } }),
+    ).toBe(await catalog.renderSurfacePrompt(input));
   });
 });
 

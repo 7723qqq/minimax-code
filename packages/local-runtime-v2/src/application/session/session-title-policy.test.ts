@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it, mock } from 'bun:test';
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DatabaseClient } from "../../infra/db/client.js";
 import { initializeDatabase } from "../../infra/db/initialize.js";
@@ -40,19 +40,17 @@ const config: LocalRuntimeConfig = {
 };
 function fixture(
   options: {
-    runtimeOwnerKind?: string;
     config?: LocalRuntimeConfig;
     definition?: SessionAgentDefinition;
   } = {},
 ) {
   // Signed-out managed gateway. The BYOK path must never send the title here.
-  const review = mock(async (): Promise<SafetyCheckResult> => ({
+  const review = vi.fn(async (): Promise<SafetyCheckResult> => ({
     pass: false,
     errorKind: "auth_error",
   }));
-  const readDefinition = mock(async () => options.definition);
+  const readDefinition = vi.fn(async () => options.definition);
   const policy = createSessionTitlePolicy({
-    runtimeOwnerKind: options.runtimeOwnerKind ?? "tui",
     config: () => options.config ?? config,
     safety: new ContentSafetyService({ review }),
     readDefinition,
@@ -65,7 +63,7 @@ afterEach(async () => {
   for (const close of cleanup.splice(0).reverse()) await close();
 });
 
-describe("CLI session title review", () => {
+describe("session title review", () => {
   it("persists a signed-out BYOK rename through the real record service and SQLite", async () => {
     const dataDir = await mkdtemp(join(tmpdir(), "session-title-review-"));
     cleanup.push(() => rm(dataDir, { recursive: true, force: true }));
@@ -84,7 +82,7 @@ describe("CLI session title review", () => {
       agents: { getDefaults: async () => undefined },
       runLocation: { resolve: async () => undefined },
       titlePolicy: policy,
-      facts: { handle: mock() },
+      facts: { handle: vi.fn() },
     });
     await records.mutateSession(session.sessionId, {
       title: "Renamed locally",
@@ -106,20 +104,17 @@ describe("CLI session title review", () => {
     expect(review).toHaveBeenCalledWith("Must not persist", 205);
   });
 
-  it.each(["tui", "cli"])(
-    "uses the Session selection ahead of the runtime default in %s",
-    async (runtimeOwnerKind) => {
-      const { policy, review } = fixture({ runtimeOwnerKind });
-      await expect(policy.blocks("BYOK title", session)).resolves.toBe(false);
-      expect(review).not.toHaveBeenCalled();
-      await expect(
-        policy.blocks("Managed title", {
-          ...session,
-          effectiveModel: "minimax/MiniMax-M3",
-        }),
-      ).resolves.toBe(true);
-    },
-  );
+  it("uses the Session selection ahead of the runtime default", async () => {
+    const { policy, review } = fixture();
+    await expect(policy.blocks("BYOK title", session)).resolves.toBe(false);
+    expect(review).not.toHaveBeenCalled();
+    await expect(
+      policy.blocks("Managed title", {
+        ...session,
+        effectiveModel: "minimax/MiniMax-M3",
+      }),
+    ).resolves.toBe(true);
+  });
 
   it("reads the current default for an unselected Session without caching the route", async () => {
     const current = {
@@ -273,16 +268,30 @@ describe("CLI session title review", () => {
     );
   });
 
-  it("preserves non-CLI policy and skips blank titles before any lookup", async () => {
-    const { policy, review, readDefinition } = fixture({
-      runtimeOwnerKind: "electron",
-    });
-    await expect(policy.blocks("Local title", session)).resolves.toBe(true);
-    review.mockClear();
+  it("skips blank titles before any lookup", async () => {
+    const { policy, review, readDefinition } = fixture();
     await expect(
       policy.blocks("   ", { ...session, sessionKind: "task" }),
     ).resolves.toBe(false);
     expect(review).not.toHaveBeenCalled();
     expect(readDefinition).not.toHaveBeenCalled();
+  });
+});
+
+describe("channel session title review", () => {
+  it("retains review for a channel Session whose model follows its bound Agent", async () => {
+    // The global default is BYOK, but a channel Session actually uses its bound Agent's
+    // model, which this policy cannot read, so the title still goes to review.
+    const { policy, review } = fixture({
+      config: { ...config, defaultModel: "custom_provider:byok/test-model" },
+    });
+    await expect(
+      policy.blocks("Channel title", {
+        ...session,
+        sessionKind: "channel",
+        effectiveModel: null,
+      }),
+    ).resolves.toBe(true);
+    expect(review).toHaveBeenCalledWith("Channel title", 205);
   });
 });

@@ -2,9 +2,8 @@ import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-import { CONTROL_IN_APP_BROWSER_SKILL_NAME } from '@mavis/agent-tools/desktop';
-import { resolveBundledAsset } from '@mavis/shared/bundled-assets';
 import yaml from 'yaml';
+import { CONTROL_IN_APP_BROWSER_SKILL_NAME } from '@mavis/agent-tools/desktop';
 
 import type { BrowserUseBuiltinSkillDescriptor } from './contracts.js';
 
@@ -37,18 +36,6 @@ function loadBrowserUseBuiltinSkillAsset(): BrowserUseBuiltinSkillDescriptor {
 
 function resolveBrowserUseSkillAssetPath(): string {
   const relative = join('mavis', 'skills', CONTROL_IN_APP_BROWSER_SKILL_NAME, 'SKILL.md');
-  // A packaged executable keeps the asset inside its image under this key; the
-  // filesystem candidates below cannot reach it.
-  const relativeKey = relative.split(String.fromCharCode(92)).join('/');
-  const embedded = resolveBundledAsset('', `assets/agents/${relativeKey}`);
-  if (embedded !== undefined) {
-    try {
-      readFileSync(embedded);
-      return embedded;
-    } catch {
-      // Fall through to the on-disk layouts.
-    }
-  }
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [
     resolve(here, '../../../assets/agents', relative),

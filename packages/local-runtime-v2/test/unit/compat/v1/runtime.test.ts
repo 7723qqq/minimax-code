@@ -5,56 +5,55 @@ import {
 import { DeferredRuntimeConversation } from "@mavis/conversation-contract";
 import type { ThreadGoalState, ThreadGoalStore } from "@mavis/goal";
 import type { AgentReferenceResolver } from "@mavis/shared";
-import { afterAll, beforeEach, describe, expect, it, mock } from "bun:test";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   cleanupFailedV1Startup,
   createDeferredAgentRuntimeTelemetry,
   createV1RuntimeCompatibility,
-  withAgentStorageLock,
+  withAgentStorageScope,
 } from "../../../../src/compat/v1/runtime.js";
 
 type ThreadGoalIntegration = CreatedLocalRuntimeHost["apiHost"]["threadGoal"];
 
-// `bun test` runs every file of a suite in one process, and `mock.module()`
-// replaces the module for that whole process. Snapshot the real modules before
-// replacing them and put them back in `afterAll`, so a replacement never leaks
-// into the files that run after this one.
-const actualLocalRuntime = { ...(await import("@mavis/local-runtime")) };
-const actualV1Cron = {
-  ...(await import("../../../../src/compat/v1/cron.js")),
-};
-const actualV1AgentHost = {
+// Bun semantics: Bun 1.4.4 has no vi.importActual, and its mock.module mutates
+// the shared process-wide namespace in place, so the originals are snapshotted
+// before registration and restored in afterAll.
+const realLocalRuntime = { ...(await import("@mavis/local-runtime")) };
+const realV1Cron = { ...(await import("../../../../src/compat/v1/cron.js")) };
+const realV1AgentHost = {
   ...(await import("../../../../src/compat/v1/agent-host.js")),
 };
-const actualV1Session = {
+const realV1Session = {
   ...(await import("../../../../src/compat/v1/session.js")),
 };
 
-// `mock.module()` evaluates its factory lazily, so this plain `const` is picked
-// up as-is.
-const mocked = {
+const mocked = vi.hoisted(() => ({
   adapter: { marker: "adapter" },
   agentHost: { marker: "agent-host-capabilities" },
   attachmentRegistration: { marker: "attachment-registration" },
   channel: { marker: "channel-capabilities" },
   bindCalls: [] as unknown[],
   cleanupBindCalls: [] as unknown[],
-  deleteAgentCronTasks: mock(async () => undefined),
+  deleteAgentCronTasks: vi.fn(async () => undefined),
   sessionCompatibility: { marker: "session-v2" },
   sessionCompatibilityHosts: [] as unknown[],
   agentResolver: {
     marker: "agent-resolver",
   } as unknown as AgentReferenceResolver,
-  closeAgentDb: mock(),
-  inspectCollision: mock(),
-  applyCollision: mock(),
-};
+  closeAgentDb: vi.fn(),
+  inspectCollision: vi.fn(),
+  applyCollision: vi.fn(),
+  suppressedDeliveryTaskIds: new Set<string>(),
+}));
 
-mock.module("@mavis/local-runtime", () => ({
-  ...actualLocalRuntime,
+vi.mock("@mavis/local-runtime", () => ({
+  ...realLocalRuntime,
   closeAgentDb: mocked.closeAgentDb,
-  withAgentNameConflictMigrationLock: async (
+  scanWorkspace: mocked.scanWorkspace,
+  isTaskDeliverySuppressed: (_host: unknown, taskId: string) =>
+    mocked.suppressedDeliveryTaskIds.has(taskId),
+  withAgentNameConflictMigrationScope: async (
     _dataDir: string,
     operation: (scope: {
       inspectCollision: () => unknown;
@@ -67,8 +66,7 @@ mock.module("@mavis/local-runtime", () => ({
     }),
 }));
 
-mock.module("../../../../src/compat/v1/cron.js", () => ({
-  ...actualV1Cron,
+vi.mock("../../../../src/compat/v1/cron.js", () => ({
   createV1MavisCronAdapterBridge: () => ({
     adapter: mocked.adapter,
     bindHandleRequest: (handleRequest: unknown) =>
@@ -80,15 +78,13 @@ mock.module("../../../../src/compat/v1/cron.js", () => ({
   }),
 }));
 
-mock.module("../../../../src/compat/v1/agent-host.js", () => ({
-  ...actualV1AgentHost,
+vi.mock("../../../../src/compat/v1/agent-host.js", () => ({
   createV1AttachmentRegistration: () => mocked.attachmentRegistration,
   createV1AgentHostProductCapabilities: () => mocked.agentHost,
   createV1ChannelProductCapabilities: () => mocked.channel,
 }));
 
-mock.module("../../../../src/compat/v1/session.js", () => ({
-  ...actualV1Session,
+vi.mock("../../../../src/compat/v1/session.js", () => ({
   createV1SessionCompatibility: (host: unknown) => {
     mocked.sessionCompatibilityHosts.push(host);
     return mocked.sessionCompatibility;
@@ -96,10 +92,12 @@ mock.module("../../../../src/compat/v1/session.js", () => ({
 }));
 
 afterAll(() => {
-  mock.module("@mavis/local-runtime", () => actualLocalRuntime);
-  mock.module("../../../../src/compat/v1/cron.js", () => actualV1Cron);
-  mock.module("../../../../src/compat/v1/agent-host.js", () => actualV1AgentHost);
-  mock.module("../../../../src/compat/v1/session.js", () => actualV1Session);
+  vi.mock("@mavis/local-runtime", () => ({ ...realLocalRuntime }));
+  vi.mock("../../../../src/compat/v1/cron.js", () => ({ ...realV1Cron }));
+  vi.mock("../../../../src/compat/v1/agent-host.js", () => ({
+    ...realV1AgentHost,
+  }));
+  vi.mock("../../../../src/compat/v1/session.js", () => ({ ...realV1Session }));
 });
 
 function resetRuntimeCompatibilityMocks(): void {
@@ -138,7 +136,7 @@ describe("v1 runtime compatibility", () => {
     });
     let escaped: (() => unknown) | undefined;
 
-    await withAgentStorageLock("/tmp/runtime", async (scope) => {
+    await withAgentStorageScope("/tmp/runtime", async (scope) => {
       escaped = scope.applyLegacyAgentStorage;
     });
     const escapedCallback = escaped;
@@ -175,7 +173,7 @@ describe("v1 runtime compatibility", () => {
       mappings: [],
     });
 
-    await withAgentStorageLock("/tmp/runtime", async (scope) => {
+    await withAgentStorageScope("/tmp/runtime", async (scope) => {
       expect(scope.inspectLegacyAgentStorage()).toBe(inspection);
       expect(scope.applyLegacyAgentStorage()).toEqual({
         status: "completed",
@@ -194,7 +192,7 @@ describe("v1 runtime compatibility", () => {
     });
 
     await expect(
-      withAgentStorageLock("/tmp/runtime", async (scope) =>
+      withAgentStorageScope("/tmp/runtime", async (scope) =>
         scope.applyLegacyAgentStorage(),
       ),
     ).rejects.toThrow("rewrite failed");
@@ -218,7 +216,7 @@ describe("v1 runtime compatibility", () => {
 
     let error: unknown;
     try {
-      await withAgentStorageLock("/tmp/runtime", async (scope) =>
+      await withAgentStorageScope("/tmp/runtime", async (scope) =>
         scope.applyLegacyAgentStorage(),
       );
     } catch (caught) {
@@ -248,7 +246,7 @@ describe("v1 runtime compatibility", () => {
 
     let error: unknown;
     try {
-      await withAgentStorageLock("/tmp/runtime", async (scope) =>
+      await withAgentStorageScope("/tmp/runtime", async (scope) =>
         scope.applyLegacyAgentStorage(),
       );
     } catch (caught) {
@@ -263,12 +261,37 @@ describe("v1 runtime compatibility", () => {
   });
 });
 
-describe("v1 Agent reference compatibility", () => {
-  function resolver(
-    overrides: Partial<AgentReferenceResolver> = {},
-  ): AgentReferenceResolver {
+describe("v1 prompt suggestion setting compatibility", () => {
+  beforeEach(resetRuntimeCompatibilityMocks);
+
+  it("persists the next-message suggestion switch through the validated config writer", async () => {
+    let config: { promptSuggestion?: { enabled: boolean } } = {
+      promptSuggestion: { enabled: true },
+    };
+    const updateConfig = vi.fn(async (body: { field: string; set: boolean }) => {
+      config = { promptSuggestion: { enabled: body.set } };
+      return { config };
+    });
+    const configuration = createCompatibility().createServiceCompatibility(
+      createdHost({ configGetter: () => config, updateConfig }),
+      { dataDir: "/tmp/runtime" } as CreateLocalRuntimeHostOptions,
+    ).peripherals.configuration;
+    if (!configuration?.setPromptSuggestionEnabled || !configuration.getPromptSuggestionEnabled) {
+      throw new Error("Prompt suggestion setting is unavailable");
+    }
+
+    await expect(configuration.getPromptSuggestionEnabled()).resolves.toBe(true);
+    await expect(configuration.setPromptSuggestionEnabled({ enabled: false })).resolves.toBe(false);
+    expect(updateConfig).toHaveBeenCalledWith({ field: "promptSuggestion.enabled", set: false });
+    await expect(configuration.getPromptSuggestionEnabled()).resolves.toBe(false);
+  });
+});
+
+
+describe('v1 Agent reference compatibility', () => {
+  function resolver(overrides: Partial<AgentReferenceResolver> = {}): AgentReferenceResolver {
     return {
-      resolveAgentReadScope: mock(async (requestedName: string) => ({
+      resolveAgentReadScope: vi.fn(async (requestedName: string) => ({
         requestedName,
         canonicalName: "coder",
         primaryName: "mavis",
@@ -277,9 +300,9 @@ describe("v1 Agent reference compatibility", () => {
         source: "explicit_agent" as const,
         exactOwnerName: "coder",
       })),
-      resolveAgentWriteTarget: mock(async () => "coder"),
-      requireExactAgentKey: mock(async () => "coder"),
-      resolveAgentExecutionTarget: mock(async () => "coder"),
+      resolveAgentWriteTarget: vi.fn(async () => "coder"),
+      requireExactAgentKey: vi.fn(async () => "coder"),
+      resolveAgentExecutionTarget: vi.fn(async () => "coder"),
       ...overrides,
     };
   }
@@ -316,7 +339,7 @@ describe("v1 Agent reference compatibility", () => {
 
   it("rejects the canonical primary/self target before Task resolution", async () => {
     const targetResolver = resolver({
-      resolveAgentReadScope: mock(async (requestedName: string) => ({
+      resolveAgentReadScope: vi.fn(async (requestedName: string) => ({
         requestedName,
         canonicalName: "mavis",
         primaryName: "mavis",
@@ -337,7 +360,7 @@ describe("v1 Agent reference compatibility", () => {
 
   it("fails closed when the trusted roster resolver cannot resolve a target", async () => {
     const targetResolver = resolver({
-      resolveAgentReadScope: mock(async () => {
+      resolveAgentReadScope: vi.fn(async () => {
         throw Object.assign(new Error("missing"), { code: "AGENT_NOT_FOUND" });
       }),
     });
@@ -358,8 +381,8 @@ describe("v1 runtime compatibility Task recovery", () => {
   });
 
   it("binds task ownership and forwards exact recovered Turn evidence to the Task service", async () => {
-    const bindRuntimeOwner = mock();
-    const reconcileStartupLostTasks = mock(async () => []);
+    const bindRuntimeOwner = vi.fn();
+    const reconcileStartupLostTasks = vi.fn(async () => []);
     const compatibility = createCompatibility();
     const host = createdHost({
       backgroundTaskService: {
@@ -463,13 +486,157 @@ describe("v1 runtime compatibility host composition", () => {
     const services = compatibility.createServiceCompatibility(createdHost({}), {
       dataDir: "/tmp/runtime",
     } as CreateLocalRuntimeHostOptions);
-    const cron = { deleteDefinitionsByAgent: mock() };
+    const cron = { deleteDefinitionsByAgent: vi.fn() };
 
     services.cron.bindAgentCleanup(cron);
     await configured.deleteAgentCronTasks?.("coder");
 
     expect(mocked.cleanupBindCalls).toEqual([cron]);
     expect(mocked.deleteAgentCronTasks).toHaveBeenCalledWith("coder");
+  });
+});
+
+describe("v1 background Task notification projection", () => {
+  beforeEach(resetRuntimeCompatibilityMocks);
+
+  it("settles a terminal Task as soon as its notification is bound to a still-running Turn", async () => {
+    const tasks = [
+      {
+        taskId: "bg-done",
+        kind: "subagent" as const,
+        status: "succeeded" as const,
+        ownerSessionId: "session-1",
+        createdAt: 100,
+        updatedAt: 200,
+      },
+      {
+        taskId: "bg-running",
+        kind: "bash" as const,
+        status: "running" as const,
+        ownerSessionId: "session-1",
+        createdAt: 100,
+        updatedAt: 200,
+      },
+    ];
+    const services = createCompatibility().createServiceCompatibility(
+      createdHost({
+        backgroundTaskService: { list: async () => ({ items: tasks }) },
+      }),
+      { dataDir: "/tmp/runtime", runtimeOwnerKind: "tui" },
+    );
+    const findClientRequestBindings = vi.fn(async () => [
+      {
+        clientRequestId: "background-task-notification:bg-done",
+        turnId: "turn-delivery",
+      },
+    ]);
+    services.backgroundTasks.bindNotificationReceipts({
+      findClientRequestBindings,
+    });
+
+    await expect(
+      services.peripherals.backgroundTasks.list({
+        ownerSessionId: "session-1",
+      }),
+    ).resolves.toEqual(tasks);
+    expect(findClientRequestBindings).not.toHaveBeenCalled();
+
+    await expect(
+      services.peripherals.backgroundTasks.list({
+        ownerSessionId: "session-1",
+        includeNotification: true,
+      }),
+    ).resolves.toEqual([
+      {
+        ...tasks[0],
+        notification: { state: "settled", turnId: "turn-delivery" },
+      },
+      tasks[1],
+    ]);
+    expect(findClientRequestBindings).toHaveBeenCalledWith({
+      sessionId: "session-1",
+      clientRequestIds: ["background-task-notification:bg-done"],
+    });
+  });
+
+  it("settles an unbound notification from a completed read or a user stop", async () => {
+    mocked.suppressedDeliveryTaskIds.clear();
+    mocked.suppressedDeliveryTaskIds.add("stopped");
+    const task = (taskId: string, overrides: Record<string, unknown> = {}) => ({
+      taskId,
+      kind: "bash" as const,
+      status: "succeeded" as const,
+      ownerSessionId: "session-1",
+      createdAt: 100,
+      updatedAt: 200,
+      ...overrides,
+    });
+    const tasks = [
+      task("read", { deliveredAt: 300 }),
+      task("stopped", { status: "canceled" }),
+      task("pending", { status: "failed" }),
+    ];
+    const services = createCompatibility().createServiceCompatibility(
+      createdHost({
+        backgroundTaskService: { list: async () => ({ items: tasks }) },
+      }),
+      { dataDir: "/tmp/runtime", runtimeOwnerKind: "tui" },
+    );
+    const query = { ownerSessionId: "session-1", includeNotification: true };
+
+    await expect(
+      services.peripherals.backgroundTasks.list(query),
+    ).resolves.toEqual(tasks);
+
+    services.backgroundTasks.bindNotificationReceipts({
+      findClientRequestBindings: async () => [],
+    });
+    const annotated = await services.peripherals.backgroundTasks.list(query);
+
+    expect(
+      annotated.map((entry) => [entry.taskId, entry.notification]),
+    ).toEqual([
+      ["read", { state: "settled" }],
+      ["stopped", { state: "settled" }],
+      ["pending", { state: "pending" }],
+    ]);
+  });
+
+  it("lists Tasks with an unknown notification state when the Turn ledger cannot be read", async () => {
+    const tasks = [
+      {
+        taskId: "bg-done",
+        kind: "bash" as const,
+        status: "succeeded" as const,
+        ownerSessionId: "session-1",
+        createdAt: 100,
+        updatedAt: 200,
+      },
+    ];
+    const warn = vi.fn();
+    const services = createCompatibility().createServiceCompatibility(
+      createdHost({
+        backgroundTaskService: { list: async () => ({ items: tasks }) },
+        matrixLogger: { info: vi.fn(), warn },
+      }),
+      { dataDir: "/tmp/runtime", runtimeOwnerKind: "tui" },
+    );
+    services.backgroundTasks.bindNotificationReceipts({
+      findClientRequestBindings: async () => {
+        throw new Error("database is locked");
+      },
+    });
+
+    await expect(
+      services.peripherals.backgroundTasks.list({
+        ownerSessionId: "session-1",
+        includeNotification: true,
+      }),
+    ).resolves.toEqual(tasks);
+    expect(warn).toHaveBeenCalledWith(
+      { sessionId: "session-1", turnId: "background-task-notification" },
+      expect.stringContaining("database is locked"),
+    );
   });
 });
 
@@ -490,7 +657,7 @@ describe("v1 runtime compatibility seams", () => {
     );
     const serviceCompatibility = compatibility.createServiceCompatibility(
       createdHost({
-        subscribeGlobalEvents: mock(() => () => undefined),
+        subscribeGlobalEvents: vi.fn(() => () => undefined),
       }),
       { dataDir: "/tmp/runtime" } as CreateLocalRuntimeHostOptions,
     );
@@ -498,9 +665,9 @@ describe("v1 runtime compatibility seams", () => {
       configured.runtimeConversation?.query.getSession("session-1");
     const provider = {
       query: {
-        getSession: mock(async () => undefined),
-        listSessions: mock(async () => []),
-        listMessages: mock(async () => ({ messages: [], hasMore: false })),
+        getSession: vi.fn(async () => undefined),
+        listSessions: vi.fn(async () => []),
+        listMessages: vi.fn(async () => ({ messages: [], hasMore: false })),
       },
       lifecycle: {},
       ingress: {},
@@ -526,20 +693,20 @@ describe("v1 runtime compatibility seams", () => {
       preparedPorts(),
     );
     const recovery = deferred();
-    const recoverThreadGoalKickoffs = mock(async () => recovery.promise);
+    const recoverThreadGoalKickoffs = vi.fn(async () => recovery.promise);
     const serviceCompatibility = compatibility.createServiceCompatibility(
       createdHost({
-        subscribeGlobalEvents: mock(() => () => undefined),
+        subscribeGlobalEvents: vi.fn(() => () => undefined),
         recoverThreadGoalKickoffs,
       }),
       { dataDir: "/tmp/runtime" } as CreateLocalRuntimeHostOptions,
     );
-    const getSession = mock(async () => undefined);
+    const getSession = vi.fn(async () => undefined);
     const provider = {
       query: {
         getSession,
-        listSessions: mock(async () => []),
-        listMessages: mock(async () => ({ messages: [], hasMore: false })),
+        listSessions: vi.fn(async () => []),
+        listMessages: vi.fn(async () => ({ messages: [], hasMore: false })),
       },
       lifecycle: {},
       ingress: {},
@@ -583,9 +750,9 @@ describe("v1 runtime compatibility adapters and cleanup", () => {
       mocked.agentResolver,
       preparedPorts(),
     );
-    const apiHost = { subscribeGlobalEvents: mock(() => () => undefined) };
+    const apiHost = { subscribeGlobalEvents: vi.fn(() => () => undefined) };
     const host = createdHost(apiHost);
-    const publish = mock();
+    const publish = vi.fn();
     const event = {
       type: "session.deleted" as const,
       payload: { sessionId: "session-1" },
@@ -611,7 +778,7 @@ describe("v1 runtime compatibility adapters and cleanup", () => {
 describe("v1 safety compatibility", () => {
   it("keeps the concrete content-safety transport in the v1 compatibility seam", () => {
     const compatibility = createCompatibility();
-    const contentSafetyChecker = mock(async () => ({ pass: true as const }));
+    const contentSafetyChecker = vi.fn(async () => ({ pass: true as const }));
     const services = compatibility.createServiceCompatibility(
       createdHost({ contentSafetyChecker }),
       { dataDir: "/tmp/runtime" } as CreateLocalRuntimeHostOptions,
@@ -679,10 +846,10 @@ describe("v1 runtime cleanup", () => {
 
 describe("v1 Agent telemetry compatibility", () => {
   it("bridges Agent facts to v1 telemetry and remains fail-open", () => {
-    const counter = mock();
-    const gauge = mock();
-    const histogram = mock();
-    const emitBusEvent = mock();
+    const counter = vi.fn();
+    const gauge = vi.fn();
+    const histogram = vi.fn();
+    const emitBusEvent = vi.fn();
     const telemetry = createDeferredAgentRuntimeTelemetry();
     telemetry.bind({
       metricsClient: { counter, gauge, histogram },
@@ -794,38 +961,38 @@ const goal: ThreadGoalState = {
 };
 
 function createThreadGoalFixture() {
-  const isReadOnlyLegacySession = mock(async () => false);
+  const isReadOnlyLegacySession = vi.fn(async () => false);
   const store = {
-    create: mock(
+    create: vi.fn(
       async (_input: Parameters<ThreadGoalStore["create"]>[0]) => goal,
     ),
-    getBySession: mock(async () => goal),
-    patch: mock(async (_goalId: string, patch: Partial<ThreadGoalState>) => ({
+    getBySession: vi.fn(async () => goal),
+    patch: vi.fn(async (_goalId: string, patch: Partial<ThreadGoalState>) => ({
       ...goal,
       ...patch,
     })),
-    delete: mock(async () => undefined),
+    delete: vi.fn(async () => undefined),
   };
   const integration = {
-    isEnabled: mock(() => true),
+    isEnabled: vi.fn(() => true),
     store,
-    getGoalForResponse: mock<ThreadGoalIntegration["getGoalForResponse"]>(
+    getGoalForResponse: vi.fn<ThreadGoalIntegration["getGoalForResponse"]>(
       async () => goal,
     ),
-    createGoal: mock(
+    createGoal: vi.fn(
       async (
         input: Parameters<ThreadGoalStore["create"]>[0],
         _options?: { readonly requireKickoffAdmission?: boolean },
       ) => store.create(input),
     ),
-    patchGoal: mock<ThreadGoalIntegration["patchGoal"]>(
+    patchGoal: vi.fn<ThreadGoalIntegration["patchGoal"]>(
       async (_sessionId: string, patch: Partial<ThreadGoalState>) => ({
         ...goal,
         ...patch,
       }),
     ),
-    deleteGoal: mock(async (_sessionId: string) => true),
-    handleChanged: mock(),
+    deleteGoal: vi.fn(async (_sessionId: string) => true),
+    handleChanged: vi.fn(),
   };
   const application = createCompatibility().createServiceCompatibility(
     createdHost(
@@ -1073,15 +1240,15 @@ function createCompatibility() {
 function preparedPorts() {
   return {
     skillEnabledState: {
-      getDisabledLocationUris: mock(async () => new Set<string>()),
-      setEnabled: mock(async () => undefined),
-      forget: mock(async () => undefined),
+      getDisabledLocationUris: vi.fn(async () => new Set<string>()),
+      setEnabled: vi.fn(async () => undefined),
+      forget: vi.fn(async () => undefined),
     },
-    runLegacyImCredentialMigration: mock(async (action: () => Promise<void>) =>
+    runLegacyImCredentialMigration: vi.fn(async (action: () => Promise<void>) =>
       action(),
     ),
     cliSunsetNotice: {
-      evaluate: mock(async () => undefined),
+      evaluate: vi.fn(async () => undefined),
     },
   };
 }
@@ -1095,17 +1262,17 @@ function createdHost(
     apiHost: {
       configGetter: () => ({ promptConfig: { autoUpdate: false } }),
       recoverThreadGoalKickoffs: async () => undefined,
-      contentSafetyChecker: mock(async () => ({ pass: true })),
-      bindQuestionnaireOwnedActionHandler: mock(),
+      contentSafetyChecker: vi.fn(async () => ({ pass: true })),
+      bindQuestionnaireOwnedActionHandler: vi.fn(),
       questionnaireServiceDeps: () => ({
         store: {},
         nowMs: Date.now,
         primaryAgentName: "mavis",
         configGetter: () => ({}),
-        getSessionById: mock(),
-        startUserMessageTurn: mock(),
-        emitBusEvent: mock(),
-        publishGlobalEvent: mock(),
+        getSessionById: vi.fn(),
+        startUserMessageTurn: vi.fn(),
+        emitBusEvent: vi.fn(),
+        publishGlobalEvent: vi.fn(),
       }),
       ...apiHost,
     },

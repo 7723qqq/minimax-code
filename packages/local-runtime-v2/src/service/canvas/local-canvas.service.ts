@@ -164,11 +164,10 @@ export class LocalCanvasService implements CanvasService {
         cause: errorMessage(error),
       });
     }
-    const sessionDigest = new Bun.CryptoHasher('sha256').update(sessionId).digest('hex').slice(0, 24);
     return {
       sessionId,
       workspaceDir,
-      canvasId: `canvas_${sessionDigest}`,
+      canvasId: `canvas_${new Bun.CryptoHasher('sha256').update(sessionId).digest('hex').slice(0, 24)}`,
     };
   }
 

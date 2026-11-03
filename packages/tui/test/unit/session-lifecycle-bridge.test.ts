@@ -30,7 +30,7 @@ const hooks = {
   ),
 };
 
-mock.module('@mavis/local-runtime-v2/plugin-hook-session', () => hooks);
+mock.module('@mavis/local-runtime-v2/turn-system', () => hooks);
 
 const { createTuiSessionLifecycleBridge } = await import(
   '../../src/tui/controller/session-lifecycle-bridge.js'

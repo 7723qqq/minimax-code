@@ -2,36 +2,28 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { gzipSync } from 'node:zlib';
-import { afterAll, afterEach, describe, expect, it, mock } from 'bun:test';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 
-import { mocked, waitFor } from '../../../../../../../test/bun-test-setup.js';
+import { mocked } from '../../../../../../../test/bun-test-setup.js';
+
 import { providerCompletionUrl, providerModelsUrls } from '../../connectivity/provider-request.js';
 import { ProviderPresetCatalog } from './provider-presets.service.js';
 import { readProviderPresetSnapshotCandidates } from './provider-presets.repository.js';
 import { modelsFromInputs } from '../../management/service-input.js';
 import { buildModelEntry } from '../list-models.js';
 
-// `bun test` runs every file of a suite in one process, and `mock.module()`
-// replaces the module for that whole process. Snapshot the real module before
-// replacing it and put it back in `afterAll`, so the replacement never leaks
-// into the files that run after this one.
-const actualProviderPresetsRepository = {
-  ...(await import('./provider-presets.repository.js')),
-};
-
-// `mock.module()` evaluates its factory lazily, so the plain `const` is picked
-// up as-is.
-const readProviderPresetSnapshotCandidatesMock = mock(
-  actualProviderPresetsRepository.readProviderPresetSnapshotCandidates,
-);
-
-mock.module('./provider-presets.repository.js', () => ({
-  ...actualProviderPresetsRepository,
-  readProviderPresetSnapshotCandidates: readProviderPresetSnapshotCandidatesMock,
+// Bun semantics: Bun 1.4.4 gives mock factories no importOriginal, and its
+// mock.module mutates the shared process-wide namespace in place, so the
+// original is snapshotted before registration and restored in afterAll.
+const realRepository = { ...(await import('./provider-presets.repository.js')) };
+vi.mock('./provider-presets.repository.js', () => ({
+  ...realRepository,
+  readProviderPresetSnapshotCandidates: vi.fn(
+    realRepository.readProviderPresetSnapshotCandidates as never,
+  ),
 }));
-
 afterAll(() => {
-  mock.module('./provider-presets.repository.js', () => actualProviderPresetsRepository);
+  vi.mock('./provider-presets.repository.js', () => ({ ...realRepository }));
 });
 
 const temporaryDirectories: string[] = [];
@@ -79,7 +71,7 @@ async function catalogPaths() {
 }
 
 function unavailableCommonConfig() {
-  return mock(async () => {
+  return vi.fn(async () => {
     throw new Error('offline');
   }) as typeof fetch;
 }
@@ -89,12 +81,12 @@ function redirectResponse() {
 }
 
 function gatewayRedirectFetch() {
-  return mock(async () => redirectResponse()) as typeof fetch;
+  return vi.fn(async () => redirectResponse()) as typeof fetch;
 }
 
 function mirroredCatalogRedirectFetch() {
   let requests = 0;
-  return mock(async () => {
+  return vi.fn(async () => {
     requests += 1;
     if (requests === 1) {
       return new Response(
@@ -146,7 +138,7 @@ async function orderingCatalog(
   );
   return new ProviderPresetCatalog({
     ...paths,
-    modelsDevFetch: mock(() => new Promise<Response>(() => undefined)) as unknown as typeof fetch,
+    modelsDevFetch: vi.fn(() => new Promise<Response>(() => undefined)) as unknown as typeof fetch,
     commonConfigFetch: options.commonConfigFetch,
     commonConfigOriginGetter: () => 'https://gateway.example',
     commonConfigTimeoutMs: options.commonConfigTimeoutMs,
@@ -164,7 +156,7 @@ function commonConfigResponse(value: unknown) {
 
 async function waitForRepositoryRead(index: number): Promise<void> {
   const readCandidates = mocked(readProviderPresetSnapshotCandidates);
-  await waitFor(() => expect(readCandidates).toHaveBeenCalledTimes(index + 1));
+  await vi.waitFor(() => expect(readCandidates).toHaveBeenCalledTimes(index + 1));
   const result = readCandidates.mock.results[index];
   if (!result) throw new Error(`Expected repository read ${index}`);
   await result.value;
@@ -187,8 +179,8 @@ async function parsePresetsForTest(catalog: Record<string, unknown>, iconBaseUrl
   );
   return new ProviderPresetCatalog({
     ...paths,
-    modelsDevFetch: mock(() => new Promise<Response>(() => undefined)) as unknown as typeof fetch,
-    commonConfigFetch: mock(async () => commonConfigResponse([])) as typeof fetch,
+    modelsDevFetch: vi.fn(() => new Promise<Response>(() => undefined)) as unknown as typeof fetch,
+    commonConfigFetch: vi.fn(async () => commonConfigResponse([])) as typeof fetch,
     regionGetter: () => 'cn',
   }).listProviderPresets();
 }
@@ -550,7 +542,7 @@ describe('models.dev Provider Preset snapshots', () => {
       gzipSync(JSON.stringify(snapshot(20, 'bundled-new'))),
     );
     await writeFile(paths.localCatalogPath, JSON.stringify(snapshot(10, 'local-old')));
-    const neverFetches = mock(
+    const neverFetches = vi.fn(
       () => new Promise<Response>(() => undefined),
     ) as unknown as typeof fetch;
     const catalog = new ProviderPresetCatalog({
@@ -577,12 +569,12 @@ describe('models.dev Provider Preset snapshots', () => {
   });
 
   it.each([
-    ['gateway 503', () => mock(async () => new Response(null, { status: 503 })) as typeof fetch],
+    ['gateway 503', () => vi.fn(async () => new Response(null, { status: 503 })) as typeof fetch],
     ['gateway redirect', gatewayRedirectFetch],
     [
       'gateway timeout',
       () =>
-        mock(
+        vi.fn(
           (_url: string | URL | Request, init?: RequestInit) =>
             new Promise<Response>((_resolve, reject) => {
               init?.signal?.addEventListener('abort', () => reject(init.signal?.reason));
@@ -593,7 +585,7 @@ describe('models.dev Provider Preset snapshots', () => {
       'mirrored catalog failure',
       () => {
         let requests = 0;
-        return mock(async () => {
+        return vi.fn(async () => {
           requests += 1;
           if (requests === 1) {
             return new Response(
@@ -611,7 +603,7 @@ describe('models.dev Provider Preset snapshots', () => {
     [
       'invalid gateway descriptor',
       () =>
-        mock(
+        vi.fn(
           async () =>
             new Response(
               JSON.stringify({
@@ -640,7 +632,7 @@ describe('models.dev Provider Preset snapshots', () => {
       await expect(catalog.listProviderPresets()).resolves.toMatchObject([
         { models: [{ modelId: 'local' }] },
       ]);
-      await waitFor(() => expect(modelsDevFetch).toHaveBeenCalled());
+      await vi.waitFor(() => expect(modelsDevFetch).toHaveBeenCalled());
     },
   );
 
@@ -652,7 +644,7 @@ describe('models.dev Provider Preset snapshots', () => {
     );
     let finishFetch: (response: Response) => void = () => undefined;
     let modelsDevRequestInit: RequestInit | undefined;
-    const modelsDevFetch = mock((_input: string | URL | Request, init?: RequestInit) => {
+    const modelsDevFetch = vi.fn((_input: string | URL | Request, init?: RequestInit) => {
       modelsDevRequestInit = init;
       return new Promise<Response>((resolve) => {
         finishFetch = resolve;
@@ -669,7 +661,7 @@ describe('models.dev Provider Preset snapshots', () => {
     await expect(catalog.listProviderPresets()).resolves.toMatchObject([
       { models: [{ modelId: 'bundled' }] },
     ]);
-    await waitFor(() => expect(modelsDevRequestInit).toBeDefined());
+    await vi.waitFor(() => expect(modelsDevRequestInit).toBeDefined());
     expect(new Headers(modelsDevRequestInit?.headers).get('if-none-match')).toBeNull();
 
     finishFetch(
@@ -678,7 +670,7 @@ describe('models.dev Provider Preset snapshots', () => {
         headers: { etag: 'new-etag' },
       }),
     );
-    await waitFor(async () => {
+    await vi.waitFor(async () => {
       expect(JSON.parse(await readFile(paths.localCatalogPath, 'utf8'))).toEqual(
         snapshot(30, 'network-new', 'new-etag', 'https://models.dev/logos/'),
       );
@@ -698,12 +690,12 @@ describe('models.dev Provider Preset snapshots', () => {
     await writeFile(paths.bundledCatalogPath, gzipSync(JSON.stringify(snapshot(20, 'stable'))));
     const catalog = new ProviderPresetCatalog({
       ...paths,
-      modelsDevFetch: mock(async () => responseFactory()) as typeof fetch,
+      modelsDevFetch: vi.fn(async () => responseFactory()) as typeof fetch,
       commonConfigFetch: unavailableCommonConfig(),
       regionGetter: () => 'en',
     });
 
-    await waitFor(() =>
+    await vi.waitFor(() =>
       expect(catalog.listProviderPresets()).resolves.toMatchObject([
         { models: [{ modelId: 'stable' }] },
       ]),
@@ -715,7 +707,7 @@ describe('models.dev Provider Preset snapshots', () => {
     const paths = await catalogPaths();
     await writeFile(paths.bundledCatalogPath, gzipSync(JSON.stringify(snapshot(20, 'stable'))));
     let requestSignal: AbortSignal | undefined;
-    const modelsDevFetch = mock(
+    const modelsDevFetch = vi.fn(
       (_url: string | URL | Request, init?: RequestInit) =>
         new Promise<Response>((_resolve, reject) => {
           requestSignal = init?.signal ?? undefined;
@@ -730,7 +722,7 @@ describe('models.dev Provider Preset snapshots', () => {
       regionGetter: () => 'cn',
     });
 
-    await waitFor(() => expect(requestSignal?.aborted).toBe(true));
+    await vi.waitFor(() => expect(requestSignal?.aborted).toBe(true));
     await expect(catalog.listProviderPresets()).resolves.toMatchObject([
       { models: [{ modelId: 'stable' }] },
     ]);
@@ -788,7 +780,7 @@ describe('Provider Preset ordering', () => {
     readCandidates.mockClear();
     let commonConfigRequest: string | URL | Request | undefined;
     let finishFetch: (response: Response) => void = () => undefined;
-    const commonConfigFetch = mock((input: string | URL | Request) => {
+    const commonConfigFetch = vi.fn((input: string | URL | Request) => {
       commonConfigRequest = input;
       return new Promise<Response>((resolve) => {
         finishFetch = resolve;
@@ -825,7 +817,7 @@ describe('Provider Preset ordering', () => {
     const readCandidates = mocked(readProviderPresetSnapshotCandidates);
     readCandidates.mockClear();
     let finishFetch: (response: Response) => void = () => undefined;
-    const commonConfigFetch = mock(
+    const commonConfigFetch = vi.fn(
       () =>
         new Promise<Response>((resolve) => {
           finishFetch = resolve;
@@ -861,7 +853,7 @@ describe('Provider Preset ordering', () => {
   ])('falls back to the CN defaults for %s Apollo data', async (_label, value) => {
     const catalog = await orderingCatalog(['zhipuai', 'openai', 'deepseek', 'anthropic'], {
       region: 'cn',
-      commonConfigFetch: mock(async () => commonConfigResponse(value)) as typeof fetch,
+      commonConfigFetch: vi.fn(async () => commonConfigResponse(value)) as typeof fetch,
     });
 
     await expect(
@@ -878,7 +870,7 @@ describe('Provider Preset ordering', () => {
   ])('falls back to region defaults for a %s business error', async (_label, body) => {
     const catalog = await orderingCatalog(['zhipuai', 'openai', 'deepseek', 'anthropic'], {
       region: 'cn',
-      commonConfigFetch: mock(
+      commonConfigFetch: vi.fn(
         async () => new Response(JSON.stringify(body), { status: 200 }),
       ) as typeof fetch,
     });
@@ -890,7 +882,7 @@ describe('Provider Preset ordering', () => {
 
   it('aborts a timed out Apollo request and keeps the region defaults', async () => {
     let requestSignal: AbortSignal | undefined;
-    const commonConfigFetch = mock(
+    const commonConfigFetch = vi.fn(
       (_url: string | URL | Request, init?: RequestInit) =>
         new Promise<Response>((_resolve, reject) => {
           requestSignal = init?.signal ?? undefined;
@@ -911,7 +903,7 @@ describe('Provider Preset ordering', () => {
 
   it('retries Apollo ordering on the next list after a transient failure', async () => {
     let requestCount = 0;
-    const commonConfigFetch = mock(async () => {
+    const commonConfigFetch = vi.fn(async () => {
       requestCount += 1;
       if (requestCount === 1) throw new Error('offline');
       return commonConfigResponse(['tencent-tokenhub', 'openai']);

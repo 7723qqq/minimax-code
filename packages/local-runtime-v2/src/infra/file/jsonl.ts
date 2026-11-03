@@ -435,7 +435,7 @@ async function openExistingAppendTarget(
 /**
  * Publishes a fully durable initial payload without ever exposing an empty target.
  * Hard-link creation is atomic and fails with EEXIST instead of replacing a racing target.
- * The `node:` surface has no cross-platform unlink-by-handle or rename-no-replace API, so macOS/Windows
+ * Node has no cross-platform unlink-by-handle or rename-no-replace API, so macOS/Windows
  * filesystems that reject hard links fail conservatively before the authoritative path exists.
  */
 async function publishInitialJsonl(filePath: string, payload: Buffer): Promise<boolean> {

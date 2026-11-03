@@ -1,7 +1,6 @@
-import { advanceTimersByTimeAsync, waitFor } from '../../../../../test/bun-test-setup.js';
-import { afterEach, describe, expect, it, jest, mock, spyOn } from 'bun:test';
 import { join } from "node:path";
 import { AuthStorage } from '@earendil-works/pi-coding-agent/auth-storage';
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type {
   LocalByokConfigDraft,
@@ -19,7 +18,7 @@ function createConfig(enabled: boolean): LocalRuntimeConfig {
 }
 
 function createUpdater(target: LocalRuntimeConfig) {
-  return mock(
+  return vi.fn(
     async (
       mutate: (
         draft: LocalByokConfigDraft,
@@ -52,13 +51,13 @@ function deferred() {
 describe("CodexOAuthManager", () => {
   it("keeps the capability hidden and rejects login while disabled", async () => {
     const config = createConfig(false);
-    const login = mock();
+    const login = vi.fn();
     const manager = new CodexOAuthManager({
       configGetter: () => config,
       authStorageFactory: () => ({
         getCredentials: async () => undefined,
         hasOAuth: () => false,
-        removeOAuth: mock(),
+        removeOAuth: vi.fn(),
         login,
       }),
       catalogGetter: async () => codexCatalog(),
@@ -78,14 +77,14 @@ describe("CodexOAuthManager", () => {
   it("projects existing OAuth credentials into Provider management state", async () => {
     const config = createConfig(true);
     const update = createUpdater(config);
-    const login = mock();
+    const login = vi.fn();
     const manager = new CodexOAuthManager({
       configGetter: () => config,
       updateByokConfig: update,
       authStorageFactory: () => ({
         getCredentials: async () => undefined,
         hasOAuth: () => true,
-        removeOAuth: mock(),
+        removeOAuth: vi.fn(),
         login,
       }),
       catalogGetter: async () => codexCatalog(),
@@ -115,8 +114,8 @@ describe("CodexOAuthManager", () => {
       authStorageFactory: () => ({
         getCredentials: async () => undefined,
         hasOAuth: () => true,
-        removeOAuth: mock(),
-        login: mock(),
+        removeOAuth: vi.fn(),
+        login: vi.fn(),
       }),
       catalogGetter: async () => codexCatalog(),
     });
@@ -146,8 +145,8 @@ describe("CodexOAuthManager", () => {
       authStorageFactory: () => ({
         getCredentials: async () => undefined,
         hasOAuth: () => true,
-        removeOAuth: mock(),
-        login: mock(),
+        removeOAuth: vi.fn(),
+        login: vi.fn(),
       }),
       catalogGetter: async () => codexCatalog(),
     });
@@ -164,8 +163,8 @@ describe("CodexOAuthManager", () => {
     const completion = deferred();
     let connected = false;
     let loginCallbacks: Parameters<AuthStorage["login"]>[1] | undefined;
-    const fetchImpl = mock<typeof fetch>();
-    const login = mock(
+    const fetchImpl = vi.fn<typeof fetch>();
+    const login = vi.fn(
       async (
         _provider: string,
         callbacks: Parameters<AuthStorage["login"]>[1],
@@ -183,7 +182,7 @@ describe("CodexOAuthManager", () => {
       authStorageFactory: () => ({
         getCredentials: async () => undefined,
         hasOAuth: () => connected,
-        removeOAuth: mock(),
+        removeOAuth: vi.fn(),
         login,
       }),
       catalogGetter: async () => codexCatalog(),
@@ -207,7 +206,7 @@ describe("CodexOAuthManager", () => {
     ).resolves.toBe("browser");
 
     completion.resolve();
-    await waitFor(() =>
+    await vi.waitFor(() =>
       expect(manager.getStatus()).toMatchObject({ state: "connected" }),
     );
     expect(config.custom_provider?.["openai-codex"]?.kind).toBe("oauth");
@@ -220,7 +219,7 @@ describe("CodexOAuthManager login edge cases", () => {
     const completion = deferred();
     let callbacks: Parameters<AuthStorage["login"]>[1] | undefined;
     let connected = false;
-    const login = mock(
+    const login = vi.fn(
       async (
         _provider: string,
         nextCallbacks: Parameters<AuthStorage["login"]>[1],
@@ -236,14 +235,14 @@ describe("CodexOAuthManager login edge cases", () => {
       authStorageFactory: () => ({
         getCredentials: async () => undefined,
         hasOAuth: () => connected,
-        removeOAuth: mock(),
+        removeOAuth: vi.fn(),
         login,
       }),
       catalogGetter: async () => codexCatalog(),
     });
 
     const first = manager.startLogin();
-    await waitFor(() => expect(callbacks).toBeDefined());
+    await vi.waitFor(() => expect(callbacks).toBeDefined());
     const second = manager.startLogin();
     callbacks?.onAuth({ url: " https://auth.openai.test/authorize " });
     callbacks?.onAuth({ url: "https://auth.openai.test/ignored" });
@@ -267,7 +266,7 @@ describe("CodexOAuthManager login edge cases", () => {
     expect(login).toHaveBeenCalledTimes(1);
 
     completion.resolve();
-    await waitFor(() =>
+    await vi.waitFor(() =>
       expect(manager.getStatus()).toMatchObject({ state: "connected" }),
     );
   });
@@ -277,7 +276,7 @@ describe("CodexOAuthManager login edge cases", () => {
     ["invalid device-code details", "device", "OAUTH_START_FAILED"],
   ])("rejects an unsupported %s", async (_name, callbackKind, code) => {
     const config = createConfig(true);
-    const login = mock(
+    const login = vi.fn(
       async (
         _provider: string,
         callbacks: Parameters<AuthStorage["login"]>[1],
@@ -296,7 +295,7 @@ describe("CodexOAuthManager login edge cases", () => {
       authStorageFactory: () => ({
         getCredentials: async () => undefined,
         hasOAuth: () => false,
-        removeOAuth: mock(),
+        removeOAuth: vi.fn(),
         login,
       }),
       catalogGetter: async () => codexCatalog(),
@@ -321,8 +320,8 @@ describe("CodexOAuthManager login edge cases", () => {
       authStorageFactory: () => ({
         getCredentials: async () => undefined,
         hasOAuth: () => false,
-        removeOAuth: mock(),
-        login: mock(async () => Promise.reject(new Error(message))),
+        removeOAuth: vi.fn(),
+        login: vi.fn(async () => Promise.reject(new Error(message))),
       }),
       catalogGetter: async () => codexCatalog(),
     });
@@ -345,15 +344,15 @@ describe("CodexOAuthManager reconciliation and credentials", () => {
     config.provider["openai-codex"] = { models: { legacy: {} } };
     const manager = new CodexOAuthManager({
       configGetter: () => config,
-      updateByokConfig: mock(async () =>
+      updateByokConfig: vi.fn(async () =>
         Promise.reject(new Error("EADDRINUSE")),
       ),
-      removeLegacyProvider: mock(),
+      removeLegacyProvider: vi.fn(),
       authStorageFactory: () => ({
         getCredentials: async () => undefined,
         hasOAuth: () => true,
-        removeOAuth: mock(),
-        login: mock(),
+        removeOAuth: vi.fn(),
+        login: vi.fn(),
       }),
       catalogGetter: async () => codexCatalog(),
     });
@@ -385,7 +384,7 @@ describe("CodexOAuthManager reconciliation and credentials", () => {
       },
     };
     config.defaultModel = "openai-codex/existing";
-    const removeLegacyProvider = mock(async () => {
+    const removeLegacyProvider = vi.fn(async () => {
       delete config.provider["openai-codex"];
     });
     const manager = new CodexOAuthManager({
@@ -395,8 +394,8 @@ describe("CodexOAuthManager reconciliation and credentials", () => {
       authStorageFactory: () => ({
         getCredentials: async () => undefined,
         hasOAuth: () => true,
-        removeOAuth: mock(),
-        login: mock(),
+        removeOAuth: vi.fn(),
+        login: vi.fn(),
       }),
       catalogGetter: async () => codexCatalog(),
     });
@@ -425,14 +424,14 @@ describe("CodexOAuthManager reconciliation and credentials", () => {
 
   it("removes only supported credentials", () => {
     const config = createConfig(true);
-    const removeOAuth = mock();
+    const removeOAuth = vi.fn();
     const manager = new CodexOAuthManager({
       configGetter: () => config,
       authStorageFactory: () => ({
         getCredentials: async () => undefined,
         hasOAuth: () => false,
         removeOAuth,
-        login: mock(),
+        login: vi.fn(),
       }),
       catalogGetter: async () => codexCatalog(),
     });
@@ -467,13 +466,13 @@ function codexCatalog(): LocalCustomProviderConfig & {
 }
 
 afterEach(() => {
-  jest.restoreAllMocks();
-  jest.useRealTimers();
+  vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 function connectedManager(
   config: LocalRuntimeConfig,
-  catalogGetter = mock(async () => codexCatalog()),
+  catalogGetter = vi.fn(async () => codexCatalog()),
 ) {
   const manager = new CodexOAuthManager({
     configGetter: () => config,
@@ -481,8 +480,8 @@ function connectedManager(
     authStorageFactory: () => ({
       getCredentials: async () => undefined,
       hasOAuth: () => true,
-      removeOAuth: mock(),
-      login: mock(),
+      removeOAuth: vi.fn(),
+      login: vi.fn(),
     }),
     catalogGetter,
   });
@@ -517,7 +516,7 @@ describe("Codex OAuth catalog refresh", () => {
     };
     const { manager } = connectedManager(
       config,
-      mock(async () => catalog),
+      vi.fn(async () => catalog),
     );
     await manager.refreshModels();
     const provider = config.custom_provider["openai-codex"];
@@ -550,7 +549,7 @@ describe("Codex OAuth catalog refresh", () => {
     const completion = deferred();
     const { manager } = connectedManager(
       config,
-      mock(async () => {
+      vi.fn(async () => {
         await completion.promise;
         return codexCatalog();
       }),
@@ -602,7 +601,7 @@ describe("Codex OAuth catalog refresh", () => {
     const before = structuredClone(config.custom_provider);
     const { manager, catalogGetter } = connectedManager(
       config,
-      mock(async () => {
+      vi.fn(async () => {
         throw new Error("secret-token");
       }),
     );
@@ -631,7 +630,7 @@ describe("Codex OAuth catalog refresh", () => {
     const completion = deferred();
     const { manager } = connectedManager(
       config,
-      mock(async () => {
+      vi.fn(async () => {
         await completion.promise;
         return codexCatalog();
       }),
@@ -652,7 +651,8 @@ describe("Codex OAuth catalog credential lifecycle", () => {
       config.custom_provider = { "openai-codex": codexCatalog() };
       const oldRequest = deferred();
       const newRequest = deferred();
-      const catalogGetter = mock()
+      const catalogGetter = vi
+        .fn()
         .mockImplementationOnce(async () => {
           await oldRequest.promise;
           if (fails) throw new Error("old account failed");
@@ -690,7 +690,7 @@ describe("Codex OAuth catalog credential lifecycle", () => {
     const completion = deferred();
     const { manager } = connectedManager(
       config,
-      mock(async () => {
+      vi.fn(async () => {
         await completion.promise;
         return codexCatalog();
       }),
@@ -707,7 +707,7 @@ describe("Codex OAuth catalog credential lifecycle", () => {
     const completion = deferred();
     const { manager, catalogGetter } = connectedManager(
       config,
-      mock(async () => {
+      vi.fn(async () => {
         await completion.promise;
         return codexCatalog();
       }),
@@ -723,7 +723,7 @@ describe("Codex OAuth catalog credential lifecycle", () => {
     const config = createConfig(true);
     const { manager, catalogGetter } = connectedManager(
       config,
-      mock(async () => {
+      vi.fn(async () => {
         throw new Error("failed");
       }),
     );
@@ -750,9 +750,11 @@ describe("Codex OAuth profile credentials", () => {
         accountId: "account-old",
       },
     });
-    const createStorage = spyOn(AuthStorage, "create")
+    const createStorage = vi
+      .spyOn(AuthStorage, "create")
       .mockReturnValue(storage);
-    const getKey = spyOn(storage, "getApiKey")
+    const getKey = vi
+      .spyOn(storage, "getApiKey")
       .mockImplementation(async () => {
         storage.set("openai-codex", {
           type: "oauth",
@@ -763,7 +765,7 @@ describe("Codex OAuth profile credentials", () => {
         });
         return "fresh";
       });
-    const fetchImpl = mock<typeof fetch>().mockResolvedValue(
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(
         JSON.stringify({
           models: [
@@ -821,9 +823,9 @@ describe("Codex OAuth profile credentials", () => {
         accountId: "account",
       },
     });
-    spyOn(AuthStorage, "create").mockReturnValue(storage);
-    spyOn(storage, "getApiKey").mockResolvedValue(undefined);
-    const fetchImpl = mock<typeof fetch>();
+    vi.spyOn(AuthStorage, "create").mockReturnValue(storage);
+    vi.spyOn(storage, "getApiKey").mockResolvedValue(undefined);
+    const fetchImpl = vi.fn<typeof fetch>();
     const manager = new CodexOAuthManager({
       configGetter: () => config,
       fetchImpl,
@@ -840,12 +842,12 @@ describe("Codex device-code login", () => {
   function deviceHarness() {
     const config = createConfig(true);
     const storage = AuthStorage.inMemory();
-    spyOn(AuthStorage, "create").mockReturnValue(storage);
+    vi.spyOn(AuthStorage, "create").mockReturnValue(storage);
     let authorize!: (response: Response) => void;
     const authorization = new Promise<Response>((resolve) => {
       authorize = resolve;
     });
-    const fetchImpl = mock<typeof fetch>(async (input) => {
+    const fetchImpl = vi.fn<typeof fetch>(async (input) => {
       const url = String(input);
       if (url.endsWith("/deviceauth/usercode")) {
         return Response.json({
@@ -883,21 +885,16 @@ describe("Codex device-code login", () => {
   it("uses Pi device auth with the host fetch, saves credentials and configures models after approval", async () => {
     const h = deviceHarness();
     const start = await h.manager.startLogin({ method: "device_code" });
-    // `toMatchObject` writes the matcher instance into the value it asserts
-    // on, and the start value is compared again below, so the fields are read
-    // before the structural match.
-    const loginId = start.loginId;
-    const expiresAt = start.deviceCode.expiresAt;
     expect(start).toMatchObject({
       state: "pending",
       method: "device_code",
+      loginId: expect.any(String),
       deviceCode: {
         userCode: "ABCD-EFGH",
         verificationUri: "https://auth.openai.com/codex/device",
+        expiresAt: expect.any(Number),
       },
     });
-    expect(typeof loginId).toBe("string");
-    expect(typeof expiresAt).toBe("number");
     expect(h.manager.getStatus()).toEqual(start);
     await expect(
       h.manager.startLogin({ method: "device_code" }),
@@ -914,7 +911,7 @@ describe("Codex device-code login", () => {
         code_verifier: "test-verifier",
       }),
     );
-    await waitFor(() =>
+    await vi.waitFor(() =>
       expect(h.manager.getStatus().state).toBe("connected"),
     );
     expect(h.storage.getAll()["openai-codex"]).toMatchObject({
@@ -944,9 +941,9 @@ describe("Codex device-code login", () => {
 
   it("cancels a pending request and prevents a late response from persisting credentials or configuring models", async () => {
     const h = deviceHarness();
-    const piLogin = spyOn(AuthStorage.prototype, "login");
+    const piLogin = vi.spyOn(AuthStorage.prototype, "login");
     const start = await h.manager.startLogin({ method: "device_code" });
-    await waitFor(() => expect(h.fetchImpl).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(h.fetchImpl).toHaveBeenCalledTimes(2));
     const pollSignal = h.fetchImpl.mock.calls[1]![1]?.signal;
     expect(h.manager.cancelLogin(start.loginId!)).toMatchObject({
       state: "disconnected",
@@ -984,9 +981,9 @@ describe("Codex device-code login", () => {
   });
 
   it("aborts expired device codes, clears pending details and allows retry", async () => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     const config = createConfig(true);
-    const login = mock(
+    const login = vi.fn(
       async (
         _provider: string,
         callbacks: Parameters<AuthStorage["login"]>[1],
@@ -1012,12 +1009,12 @@ describe("Codex device-code login", () => {
       authStorageFactory: () => ({
         getCredentials: async () => undefined,
         hasOAuth: () => false,
-        removeOAuth: mock(),
+        removeOAuth: vi.fn(),
         login,
       }),
     });
     await manager.startLogin({ method: "device_code" });
-    await advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(1000);
     expect(manager.getStatus()).toMatchObject({
       state: "failed",
       error: "Codex sign-in timed out. Start login again.",
@@ -1025,6 +1022,6 @@ describe("Codex device-code login", () => {
     expect(manager.getStatus().deviceCode).toBeUndefined();
     const retry = await manager.startLogin({ method: "device_code" });
     manager.cancelLogin(retry.loginId!);
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 });

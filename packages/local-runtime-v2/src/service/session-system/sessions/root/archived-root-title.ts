@@ -1,8 +1,4 @@
-import {
-  isChineseLocale,
-  resolveLocale as resolveHostLocale,
-  translateRuntimeText,
-} from '@mavis/shared/i18n';
+import { resolveLocale as resolveHostLocale } from '@mavis/shared/i18n';
 
 const DEFAULT_ROOT_TITLE = 'Main';
 
@@ -33,17 +29,8 @@ export function buildArchivedRootTitle(input: {
   return `${archivedRootPrefix(input.locale)}${label}`;
 }
 
-/**
- * Session-title prefix for archived root sessions.
- *
- * Read from the shared runtime catalog because local-runtime composes the same
- * title for its synchronous fallback; a package-local copy let the two drift.
- * The Chinese form uses a full-width colon and no trailing space while the
- * English form uses an ASCII colon and one space, so the separator is part of
- * the value rather than something a caller appends.
- */
 export function archivedRootPrefix(locale: string | undefined): string {
-  return translateRuntimeText(locale, 'archiveTitle.prefix');
+  return locale?.split('-')[0]?.toLowerCase() === 'zh' ? '记忆归档：' : 'Memory archive: ';
 }
 
 export function resolveArchiveTitleLocale(): string {
@@ -55,16 +42,17 @@ export function buildArchiveTitlePrompts(
   transcript: string,
   systemPrompt?: string,
 ): { readonly systemPrompt: string; readonly userPrompt: string } {
+  const isZh = locale.split('-')[0]?.toLowerCase() === 'zh';
   return {
     systemPrompt: systemPrompt ?? archiveTitleSystemPrompt(locale),
-    userPrompt: isChineseLocale(locale)
+    userPrompt: isZh
       ? `以下是一段对话片段，请概括核心主题。\n\n<对话片段>\n${transcript}\n</对话片段>`
       : `Summarize the core topic of this excerpt.\n\n<excerpt>\n${transcript}\n</excerpt>`,
   };
 }
 
 export function archiveTitleSystemPrompt(locale: string): string {
-  return isChineseLocale(locale)
+  return locale.split('-')[0]?.toLowerCase() === 'zh'
     ? ARCHIVE_TITLE_SYSTEM_PROMPT_ZH
     : ARCHIVE_TITLE_SYSTEM_PROMPT_EN;
 }

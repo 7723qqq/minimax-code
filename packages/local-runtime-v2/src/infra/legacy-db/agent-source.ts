@@ -3,7 +3,6 @@ import { join } from 'node:path';
 
 import { logger } from '../logging/index.js';
 import { FinalizingSqliteDatabase } from '@mavis/shared';
-import { Database } from 'bun:sqlite';
 
 const AGENT_COLUMNS = [
   'agent_name',

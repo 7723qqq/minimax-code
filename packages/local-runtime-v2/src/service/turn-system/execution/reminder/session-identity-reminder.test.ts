@@ -1,7 +1,7 @@
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import type { Api, Model } from '@earendil-works/pi-ai';
 import type { PiBeforeLlmCallHookInput } from '@mavis/agent-core/pi-turn-runner';
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'vitest';
 
 import { validateCanonicalHistoryMessages } from '../../agent-host/history/canonical-history-validation.js';
 import { ContextUsageAnchorState } from '../../compaction/execution/usage-anchor.js';
@@ -67,10 +67,10 @@ describe('Session identity reminder hook', () => {
   it('restores the ID before the current user when initial compaction summarized it away', async () => {
     const decision = await hook(hookInput([checkpoint, currentUserWithoutId], 'initial'));
 
-    // `toMatchObject` writes the matcher instance into the value it asserts
-    // on, so the message content is read before the structural match replaces
-    // it.
-    const content = decision?.type === 'appendMessage' ? decision.message.content : undefined;
+    if (decision?.type !== 'appendMessage') throw new Error('Expected an append decision');
+    // Bun's asymmetric matchers mutate the matched message, so validate the
+    // production value before applying expect.stringContaining.
+    expect(() => validateCanonicalHistoryMessages([decision.message])).not.toThrow();
     expect(decision).toMatchObject({
       type: 'appendMessage',
       reason: 'session_identity_reminder',
@@ -79,11 +79,9 @@ describe('Session identity reminder hook', () => {
         role: 'custom',
         customType: 'session_identity_reminder',
         display: false,
+        content: expect.stringContaining(`YOUR SESSION ID: ${SESSION_ID}`),
       },
     });
-    expect(content).toContain(`YOUR SESSION ID: ${SESSION_ID}`);
-    if (decision?.type !== 'appendMessage') throw new Error('Expected an append decision');
-    expect(() => validateCanonicalHistoryMessages([decision.message])).not.toThrow();
   });
 
   it('appends at the tail mid-turn and does not repeat once the marker is in context', async () => {

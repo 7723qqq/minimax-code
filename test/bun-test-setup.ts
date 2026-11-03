@@ -22,7 +22,7 @@
 // replacement is `mock.module()` from `bun:test`.
 //
 // Load it with `bun test --preload ./test/bun-test-setup.ts`.
-import { expect, jest, mock, vi } from 'bun:test';
+import { describe, expect, jest, mock, vi } from 'bun:test';
 
 export type MockedFunction<T> = T extends (...args: never[]) => unknown ? T : never;
 
@@ -122,6 +122,9 @@ viSurface.unstubAllGlobals ??= unstubAllGlobals;
 // only read inside mock factories' closures, which run after module evaluation.
 viSurface.hoisted ??= <T>(factory: () => T): T => factory();
 viSurface.waitFor ??= waitFor;
+viSurface.mocked ??= mocked;
+const describeSurface = describe as unknown as Record<string, unknown>;
+describeSurface.runIf ??= (condition: boolean) => (condition ? describe : describe.skip);
 
 // Vitest's `vi.mock` factory receives an `importOriginal` callback; Bun's
 // `mock.module` passes nothing and its registry canonicalizes a specifier and
@@ -173,6 +176,7 @@ export async function advanceTimersByTimeAsync(milliseconds: number): Promise<vo
   }
   for (let index = 0; index < 10; index += 1) await Promise.resolve();
 }
+viSurface.advanceTimersByTimeAsync ??= advanceTimersByTimeAsync;
 
 interface MockCallState {
   readonly mock?: {

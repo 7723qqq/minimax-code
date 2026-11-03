@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'vitest';
 
 import {
   firstBuiltinModel,
@@ -224,18 +224,20 @@ describe('BYOK config helpers', () => {
     expect(firstBuiltinModel({ empty: {} })).toBeUndefined();
   });
 
-  // `[]` is one of the cases under test, and Bun expands each row with
-  // `apply`-style spread. A single-parameter callback therefore receives no
-  // argument for that row and is treated as a done-callback test, which then
-  // waits until the timeout. Collecting the row with a rest parameter keeps the
-  // callback arity non-zero so every row runs immediately; the value under test
-  // is the first element, which is `undefined` for the empty row.
-  it.each([undefined, null, [], 'invalid', {}, { Invalid: 1 }])(
-    'rejects a non-string header record %j',
-    (...row: unknown[]) => {
-      expect(readStringRecord(row[0])).toBeUndefined();
-    },
-  );
+  // Explicit cases instead of it.each: Bun never executes an it.each('%j')
+  // row whose value is an empty array.
+  for (const [label, value] of [
+    ['undefined', undefined],
+    ['null', null],
+    ['an empty array', []],
+    ['a plain string', 'invalid'],
+    ['an empty object', {}],
+    ['a numeric header value', { Invalid: 1 }],
+  ] as const) {
+    it(`rejects a non-string header record: ${label}`, () => {
+      expect(readStringRecord(value)).toBeUndefined();
+    });
+  }
 
   it('keeps only string header values', () => {
     expect(readStringRecord({ Keep: 'yes', Drop: 1 })).toEqual({ Keep: 'yes' });

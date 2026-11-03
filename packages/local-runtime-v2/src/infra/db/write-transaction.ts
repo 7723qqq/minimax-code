@@ -35,9 +35,7 @@ export async function runWithWriteLock<T>(
     if (hasContended) throwIfWaitAborted(options.signal);
     const remaining = deadline - performance.now();
     if (remaining <= 0) throw lastBusy;
-    // `all()` keeps the column-name shape; `get()` on a pragma row returns the
-    // bare value under Bun, which would drop the `timeout` field.
-    const previous = db.all<{ timeout: number }>(sql`PRAGMA busy_timeout`)[0]?.timeout ?? 0;
+    const previous = db.get<{ timeout: number }>(sql`PRAGMA busy_timeout`).timeout;
     let entered = false;
     try {
       const nativeWaitMs = options.signal?.aborted

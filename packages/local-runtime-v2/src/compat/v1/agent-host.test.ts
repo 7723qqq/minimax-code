@@ -1,5 +1,4 @@
-import { describe, expect, it, mock } from 'bun:test';
-
+import { describe, expect, it, vi } from "vitest";
 import {
   RuntimeEventStatus,
   RuntimeEventType,
@@ -14,9 +13,9 @@ import {
 
 describe("createV1AttachmentRegistration", () => {
   it("exposes durable asset registration and source resolution to v2", () => {
-    const register = mock();
-    const discard = mock();
-    const resolveSource = mock();
+    const register = vi.fn();
+    const discard = vi.fn();
+    const resolveSource = vi.fn();
     const registration = createV1AttachmentRegistration({
       createHostedAgentCapabilities: () => ({
         attachments: { register, discard, resolveSource },
@@ -30,14 +29,14 @@ describe("createV1AttachmentRegistration", () => {
 
 describe("createV1AgentHostProductCapabilities", () => {
   it("maps the hosted checkpoint snapshot into the product capability", async () => {
-    const captureSubagents = mock(async () => undefined);
+    const captureSubagents = vi.fn(async () => undefined);
     const hosted = buildHostedCapabilities({
-      buildUserPromptPrefix: mock(),
-      beforeLlmCall: mock(),
-      afterLlmCall: mock(),
-      beforeToolCall: mock(),
-      projectRuntimeEvent: mock((_identity, event) => event),
-      endTurn: mock(),
+      buildUserPromptPrefix: vi.fn(),
+      beforeLlmCall: vi.fn(),
+      afterLlmCall: vi.fn(),
+      beforeToolCall: vi.fn(),
+      projectRuntimeEvent: vi.fn((_identity, event) => event),
+      endTurn: vi.fn(),
     });
     hosted.checkpointState = { captureSubagents };
     const product = createV1AgentHostProductCapabilities({
@@ -52,58 +51,58 @@ describe("createV1AgentHostProductCapabilities", () => {
   it("injects raw v1 product capabilities into the native v2 composition shape", async () => {
     const websiteDeploy = createWebsiteDeployCapabilities();
     const turnRuntimeFacts = {
-      snapshot: mock(() => ({ cuModeActive: true })),
+      snapshot: vi.fn(() => ({ cuModeActive: true })),
     };
-    const toolSources = { resolve: mock() };
+    const toolSources = { resolve: vi.fn() };
     const hosted = {
-      config: mock(() => ({ dataDir: "/data", provider: {} })),
-      authContextGetter: mock(),
-      providerAuthGetter: mock(),
-      fetchImpl: mock<typeof fetch>(),
+      config: vi.fn(() => ({ dataDir: "/data", provider: {} })),
+      authContextGetter: vi.fn(),
+      providerAuthGetter: vi.fn(),
+      fetchImpl: vi.fn<typeof fetch>(),
       skills: {
-        listRuntimeSkills: mock(),
-        renderCatalog: mock(),
+        listRuntimeSkills: vi.fn(),
+        renderCatalog: vi.fn(),
       },
-      memory: { collectReminderMemory: mock(), getDaily: mock() },
+      memory: { collectReminderMemory: vi.fn(), getDaily: vi.fn() },
       turnRuntimeFacts,
       toolSources,
       reminders: {
-        buildBackground: mock(),
-        buildSystem: mock(),
-        confirmBackgroundTaskReads: mock(),
+        buildBackground: vi.fn(),
+        buildSystem: vi.fn(),
+        confirmBackgroundTaskReads: vi.fn(),
       },
-      attachments: { materialize: mock() },
+      attachments: { materialize: vi.fn() },
       websiteDeploy,
-      permissions: { decisions: { check: mock() } },
-      hooks: { beforeToolCall: mock(), afterToolCall: mock() },
+      permissions: { decisions: { check: vi.fn() } },
+      hooks: { beforeToolCall: vi.fn(), afterToolCall: vi.fn() },
       review: {
-        buildUserPromptPrefix: mock(),
-        beforeLlmCall: mock(),
-        afterLlmCall: mock(),
-        beforeToolCall: mock(),
-        projectRuntimeEvent: mock((_identity, event) => event),
-        endTurn: mock(),
+        buildUserPromptPrefix: vi.fn(),
+        beforeLlmCall: vi.fn(),
+        afterLlmCall: vi.fn(),
+        beforeToolCall: vi.fn(),
+        projectRuntimeEvent: vi.fn((_identity, event) => event),
+        endTurn: vi.fn(),
       },
-      reviewContent: mock(),
-      fileChanges: { begin: mock(), finalize: mock(), markFailed: mock() },
+      reviewContent: vi.fn(),
+      fileChanges: { begin: vi.fn(), finalize: vi.fn(), markFailed: vi.fn() },
       turnLifecycle: {
-        started: mock(),
-        checkBudget: mock(async () => ({ decision: "allow" as const })),
-        classifyFailure: mock(() => "unknown" as const),
-        settled: mock(),
+        started: vi.fn(),
+        checkBudget: vi.fn(async () => ({ decision: "allow" as const })),
+        classifyFailure: vi.fn(() => "unknown" as const),
+        settled: vi.fn(),
       },
-      terminalMemory: { record: mock() },
-      contextUsage: { isEnabled: mock(), prepareAttempt: mock() },
-      runnerLogger: { error: mock() },
-      llmRequestFailureHook: mock(),
-      reportFailure: mock(),
+      terminalMemory: { record: vi.fn() },
+      contextUsage: { isEnabled: vi.fn(), prepareAttempt: vi.fn() },
+      runnerLogger: { error: vi.fn() },
+      llmRequestFailureHook: vi.fn(),
+      reportFailure: vi.fn(),
       metricsClient: undefined,
     };
     const evalReporterFactory = {
-      canReport: mock(() => true),
-      getReporter: mock(),
-      releaseReporter: mock(),
-      flush: mock(),
+      canReport: vi.fn(() => true),
+      getReporter: vi.fn(),
+      releaseReporter: vi.fn(),
+      flush: vi.fn(),
     };
     const product = createV1AgentHostProductCapabilities(
       { createHostedAgentCapabilities: () => hosted } as never,
@@ -173,24 +172,24 @@ describe("createV1AgentHostProductCapabilities", () => {
 
 describe("createV1AgentHostProductCapabilities website projection", () => {
   it("keeps website projection state in the v2 event and extension owners", async () => {
-    const projectRuntimeEvent = mock((event: unknown) => event);
-    const afterToolCallHook = mock();
-    const afterLlmCallHook = mock();
-    const createTurnProjection = mock(() => ({
+    const projectRuntimeEvent = vi.fn((event: unknown) => event);
+    const afterToolCallHook = vi.fn();
+    const afterLlmCallHook = vi.fn();
+    const createTurnProjection = vi.fn(() => ({
       projectRuntimeEvent,
       afterToolCallHook,
       afterLlmCallHook,
     }));
     const hosted = buildHostedCapabilities({
-      buildUserPromptPrefix: mock(),
-      beforeLlmCall: mock(),
-      afterLlmCall: mock(),
-      beforeToolCall: mock(),
-      projectRuntimeEvent: mock((_identity, event) => event),
-      endTurn: mock(),
+      buildUserPromptPrefix: vi.fn(),
+      beforeLlmCall: vi.fn(),
+      afterLlmCall: vi.fn(),
+      beforeToolCall: vi.fn(),
+      projectRuntimeEvent: vi.fn((_identity, event) => event),
+      endTurn: vi.fn(),
     });
     hosted.websiteDeploy = {
-      materializeSources: mock(
+      materializeSources: vi.fn(
         async ({ content }: { content: string }) => content,
       ),
       createTurnProjection,
@@ -252,7 +251,8 @@ describe("createV1AgentHostProductCapabilities website projection", () => {
 
 describe("createV1AgentHostProductCapabilities Goal budget guard", () => {
   it("allows unbound tools and injects the tool-free budget steering only once", async () => {
-    const checkBudget = mock<() => Promise<ThreadGoalBudgetCheckResult>>(async () => ({
+    const checkBudget = vi
+      .fn<() => Promise<ThreadGoalBudgetCheckResult>>(async () => ({
         decision: "steer" as const,
         message:
           "GOAL_BUDGET_EXHAUSTED(token): The Goal budget is exhausted. Do not call another tool; respond now with a concise final summary.",
@@ -607,8 +607,8 @@ describe("createV1AgentHostProductCapabilities lifecycle release", () => {
 
 describe("createV1ChannelProductCapabilities", () => {
   it("injects v1 Channel transport into the independent v2 ChannelSystem port", async () => {
-    const finalReplies = { deliver: mock() };
-    const typing = { start: mock(), end: mock() };
+    const finalReplies = { deliver: vi.fn() };
+    const typing = { start: vi.fn(), end: vi.fn() };
     const product = createV1ChannelProductCapabilities({
       createHostedChannelCapabilities: () => ({ finalReplies, typing }),
     } as never);
@@ -637,12 +637,12 @@ describe("createV1ChannelProductCapabilities", () => {
 describe("createV1AgentHostProductCapabilities system reminders", () => {
   it("forwards the prepared model to the v1 system reminder service", async () => {
     const hosted = buildHostedCapabilities({
-      buildUserPromptPrefix: mock(),
-      beforeLlmCall: mock(),
-      afterLlmCall: mock(),
-      beforeToolCall: mock(),
-      projectRuntimeEvent: mock((_identity, event) => event),
-      endTurn: mock(),
+      buildUserPromptPrefix: vi.fn(),
+      beforeLlmCall: vi.fn(),
+      afterLlmCall: vi.fn(),
+      beforeToolCall: vi.fn(),
+      projectRuntimeEvent: vi.fn((_identity, event) => event),
+      endTurn: vi.fn(),
     });
     const product = createHostProduct(hosted);
 
@@ -701,12 +701,12 @@ describe("local code review extension lifecycle", () => {
   it("keeps after-LLM validation step-scoped and cleanup turn-terminal", async () => {
     const handlers = new Map<string, (...args: never[]) => unknown>();
     const review = {
-      buildUserPromptPrefix: mock(),
-      beforeLlmCall: mock(),
-      afterLlmCall: mock(),
-      beforeToolCall: mock(),
-      projectRuntimeEvent: mock((_identity, event) => event),
-      endTurn: mock(),
+      buildUserPromptPrefix: vi.fn(),
+      beforeLlmCall: vi.fn(),
+      afterLlmCall: vi.fn(),
+      beforeToolCall: vi.fn(),
+      projectRuntimeEvent: vi.fn((_identity, event) => event),
+      endTurn: vi.fn(),
     };
     const hosted = buildHostedCapabilities(review);
     const product = createHostProduct(hosted);
@@ -716,7 +716,7 @@ describe("local code review extension lifecycle", () => {
     if (!extension) throw new Error("expected local-code-review extension");
     extension.init({
       params: {},
-      contributeUserPromptPrefix: mock(),
+      contributeUserPromptPrefix: vi.fn(),
       on: (event: string, handler: (...args: never[]) => unknown) => {
         handlers.set(event, handler);
       },
@@ -747,34 +747,34 @@ describe("local code review extension lifecycle", () => {
 
 function buildHostedCapabilities(review: Record<string, unknown>) {
   return {
-    config: mock(() => ({ dataDir: "/data", provider: {} })),
-    authContextGetter: mock(),
-    providerAuthGetter: mock(),
-    skills: { listRuntimeSkills: mock(), renderCatalog: mock() },
-    memory: { collectReminderMemory: mock(), getDaily: mock() },
-    turnRuntimeFacts: { snapshot: mock(() => ({ cuModeActive: false })) },
-    toolSources: { resolve: mock() },
-    checkpointState: { captureSubagents: mock(async () => undefined) },
+    config: vi.fn(() => ({ dataDir: "/data", provider: {} })),
+    authContextGetter: vi.fn(),
+    providerAuthGetter: vi.fn(),
+    skills: { listRuntimeSkills: vi.fn(), renderCatalog: vi.fn() },
+    memory: { collectReminderMemory: vi.fn(), getDaily: vi.fn() },
+    turnRuntimeFacts: { snapshot: vi.fn(() => ({ cuModeActive: false })) },
+    toolSources: { resolve: vi.fn() },
+    checkpointState: { captureSubagents: vi.fn(async () => undefined) },
     reminders: {
-      buildBackground: mock(),
-      buildSystem: mock(),
-      confirmBackgroundTaskReads: mock(),
+      buildBackground: vi.fn(),
+      buildSystem: vi.fn(),
+      confirmBackgroundTaskReads: vi.fn(),
     },
-    attachments: { materialize: mock() },
+    attachments: { materialize: vi.fn() },
     websiteDeploy: createWebsiteDeployCapabilities(),
-    permissions: { decisions: { check: mock() } },
-    hooks: { beforeToolCall: mock(), afterToolCall: mock() },
+    permissions: { decisions: { check: vi.fn() } },
+    hooks: { beforeToolCall: vi.fn(), afterToolCall: vi.fn() },
     review,
-    reviewContent: mock(),
-    fileChanges: { begin: mock(), finalize: mock(), markFailed: mock() },
+    reviewContent: vi.fn(),
+    fileChanges: { begin: vi.fn(), finalize: vi.fn(), markFailed: vi.fn() },
     turnLifecycle: {
-      started: mock(),
-      checkBudget: mock<() => Promise<ThreadGoalBudgetCheckResult>>(
+      started: vi.fn(),
+      checkBudget: vi.fn<() => Promise<ThreadGoalBudgetCheckResult>>(
         async () => ({
           decision: "allow",
         }),
       ),
-      classifyFailure: mock(({ code }: { code?: number | string }) => {
+      classifyFailure: vi.fn(({ code }: { code?: number | string }) => {
         const classes = new Map<number, string>([
           [50_110, "provider_quota"],
           [50_111, "rate_limit"],
@@ -788,13 +788,13 @@ function buildHostedCapabilities(review: Record<string, unknown>) {
           | "safety"
           | "unknown";
       }),
-      settled: mock(),
-      abandoned: mock(),
+      settled: vi.fn(),
+      abandoned: vi.fn(),
     },
-    terminalMemory: { record: mock() },
-    contextUsage: { isEnabled: mock(), prepareAttempt: mock() },
-    runnerLogger: { error: mock() },
-    reportFailure: mock(),
+    terminalMemory: { record: vi.fn() },
+    contextUsage: { isEnabled: vi.fn(), prepareAttempt: vi.fn() },
+    runnerLogger: { error: vi.fn() },
+    reportFailure: vi.fn(),
     metricsClient: undefined,
   };
 }
@@ -848,13 +848,13 @@ async function commitAssistantMessage(
 
 function createWebsiteDeployCapabilities() {
   return {
-    materializeSources: mock(
+    materializeSources: vi.fn(
       async ({ content }: { content: string }) => content,
     ),
-    createTurnProjection: mock(() => ({
-      projectRuntimeEvent: mock((event: unknown) => event),
-      afterToolCallHook: mock(),
-      afterLlmCallHook: mock(),
+    createTurnProjection: vi.fn(() => ({
+      projectRuntimeEvent: vi.fn((event: unknown) => event),
+      afterToolCallHook: vi.fn(),
+      afterLlmCallHook: vi.fn(),
     })),
   };
 }

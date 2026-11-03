@@ -1,3 +1,4 @@
+
 const UTF8_CHUNK_CODE_UNITS = 8 * 1_024;
 
 /** Native SHA-256 with bounded batching and independent UTF-8 update boundaries. */

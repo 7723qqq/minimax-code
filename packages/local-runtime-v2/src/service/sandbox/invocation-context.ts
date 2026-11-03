@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
 import { constants, type Dirent } from 'node:fs';
 import {
   access,
@@ -481,7 +481,7 @@ export class SandboxSessionTempManager {
   async sessionDir(sessionId: string): Promise<string> {
     if (!sessionId || sessionId.includes('\0')) throw workspaceError('Invalid session identity');
     const instance = this.instanceDir;
-    const hash = new Bun.CryptoHasher('sha256', this.#sessionKey)
+    const hash = createHmac('sha256', this.#sessionKey)
       .update(sessionId)
       .digest('hex')
       .slice(0, 32);

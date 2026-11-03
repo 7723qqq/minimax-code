@@ -1,6 +1,12 @@
 import { isSameResolvedPath } from '@mavis/permission';
 import { KeyedOperationLane } from '@mavis/shared/keyed-operation-lane';
-import { translateRuntimeText, type RuntimeTranslationKey } from '@mavis/shared/i18n';
+import { translateRuntimeText, type RuntimeTranslationKey } from '@mavis/shared/runtime-i18n';
+// The Plan review copy lives in the wider runtime catalog (the runtime-i18n
+// split carries only the plan.entry keys).
+import {
+  translateRuntimeText as translateSharedRuntimeText,
+  type RuntimeTranslationKey as SharedRuntimeTranslationKey,
+} from '@mavis/shared/i18n';
 import { createInternalTurnId } from '@mavis/shared/turn-identity';
 
 import type {
@@ -253,30 +259,6 @@ function planEntryToolInput(locale: string): PlanQuestionnaireInput['toolInput']
   };
 }
 
-function planReviewToolInput(
-  locale: string,
-  truncated: boolean,
-): PlanQuestionnaireInput['toolInput'] {
-  const t = (key: RuntimeTranslationKey): string => translateRuntimeText(locale, key);
-  return {
-    title: t('plan.review.title'),
-    steps: [
-      {
-        id: 'plan-review',
-        question: t('plan.review.question'),
-        ...(truncated ? { description: t('plan.review.truncatedDescription') } : {}),
-        options: [
-          {
-            id: 'approve',
-            label: t('plan.review.approve.label'),
-            description: t('plan.review.approve.description'),
-          },
-        ],
-      },
-    ],
-  };
-}
-
 async function exitFromAgent(
   options: PlanApplicationOptions,
   input: Parameters<PlanApplication['exitFromAgent']>[0],
@@ -314,6 +296,30 @@ async function exitFromAgent(
     toolInput: planReviewToolInput(options.questionnaires.resolveLocale(), snapshot.truncated),
   });
   return { requestId: result.requestId, planPath: snapshot.canonicalPath };
+}
+
+function planReviewToolInput(
+  locale: string,
+  truncated: boolean,
+): PlanQuestionnaireInput['toolInput'] {
+  const t = (key: SharedRuntimeTranslationKey): string => translateSharedRuntimeText(locale, key);
+  return {
+    title: t('plan.review.title'),
+    steps: [
+      {
+        id: 'plan-review',
+        question: t('plan.review.question'),
+        ...(truncated ? { description: t('plan.review.truncatedDescription') } : {}),
+        options: [
+          {
+            id: 'approve',
+            label: t('plan.review.approve.label'),
+            description: t('plan.review.approve.description'),
+          },
+        ],
+      },
+    ],
+  };
 }
 
 async function confirmEntry(

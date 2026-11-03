@@ -1,4 +1,3 @@
-import { afterEach, describe, expect, it, jest, spyOn } from 'bun:test';
 import {
   mkdtemp,
   mkdir,
@@ -11,6 +10,8 @@ import {
 } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   configureLocalRuntimeLogging,
@@ -40,7 +41,7 @@ const DATA_DIR_SOURCE_ENV = "__MAVIS_RUNTIME_DATA_DIR_SOURCE";
 const ORIGINAL_DATA_DIR_SOURCE = process.env[DATA_DIR_SOURCE_ENV];
 
 afterEach(async () => {
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
   for (const dispose of cleanup.splice(0).reverse()) await dispose();
   if (ORIGINAL_DATA_DIR_SOURCE === undefined)
     delete process.env[DATA_DIR_SOURCE_ENV];
@@ -184,6 +185,17 @@ function registerCanonicalConfigParsingTests(): void {
     },
   );
 
+  it.each(['custom_provider:x/acc-loomy/qwen-3.8-max', 'openrouter/qwen/qwen3'])(
+    'keeps a model id containing a slash (%s) through serialization',
+    (model) => {
+      const markdown = serializeCanonicalAgentConfig({
+        config: { name: 'researcher', description: 'Evidence first.', model, systemPrompt: '' },
+      });
+      expect(markdown).toContain(`model: ${model}\n`);
+      expect(parseCanonicalAgentMarkdown(markdown, 'researcher').model).toBe(model);
+    },
+  );
+
   it.each([
     ["missing description", "---\nname: researcher\n---\n", "description"],
     [
@@ -204,6 +216,21 @@ function registerCanonicalConfigParsingTests(): void {
     [
       "invalid model shape",
       "---\nname: researcher\ndescription: desc\nmodel: MiniMax-M3\n---\n",
+      "model",
+    ],
+    [
+      "model without provider",
+      "---\nname: researcher\ndescription: desc\nmodel: /model\n---\n",
+      "model",
+    ],
+    [
+      "model without model id",
+      "---\nname: researcher\ndescription: desc\nmodel: provider/\n---\n",
+      "model",
+    ],
+    [
+      "model with whitespace",
+      "---\nname: researcher\ndescription: desc\nmodel: provider/model id\n---\n",
       "model",
     ],
     [
@@ -909,7 +936,7 @@ describe("canonical Agent directory safety", () => {
       () => rm(parentDir, { recursive: true, force: true }),
     );
     const markdown = "---\nname: researcher\ndescription: desc\n---\nPrompt\n";
-    const warnSpy = spyOn(logger, "warn");
+    const warnSpy = vi.spyOn(logger, "warn");
 
     const minimaxRoot = join(parentDir, ".minimax-profile");
     const mavisRoot = join(parentDir, ".mavis-profile");
@@ -1110,7 +1137,7 @@ describe("canonical Agent directory safety", () => {
       "---\nname: researcher\ndescription: desc\n---\nPrompt\n",
     );
     await symlink(targetDir, join(dataDir, "agents"));
-    const warnSpy = spyOn(logger, "warn");
+    const warnSpy = vi.spyOn(logger, "warn");
     const input = {
       agentDir: join(dataDir, "agents", "researcher"),
       routeName: "researcher",
@@ -1216,7 +1243,7 @@ describe("canonical Agent directory safety", () => {
       () => rm(nonDirectoryRoot, { recursive: true, force: true }),
       () => rm(dataDir, { recursive: true, force: true }),
     );
-    const warnSpy = spyOn(logger, "warn");
+    const warnSpy = vi.spyOn(logger, "warn");
 
     await mkdir(join(dataDir, "agents"), { recursive: true });
     const missingTarget = join(dataDir, "missing-target");

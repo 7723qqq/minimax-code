@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'bun:test';
+import { describe, expect, it } from 'vitest';
 
 import type { LocalRuntimeConfig } from '../contracts.js';
 import { listLocalRuntimeModels, resolveLocalRuntimeModelKey } from './catalog.js';

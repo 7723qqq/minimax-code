@@ -1,11 +1,10 @@
-import { stubGlobal, unstubAllGlobals } from '../../../../../../test/bun-test-setup.js';
-import { describe, expect, it, mock } from 'bun:test';
 import {
   ThinkingLevel,
   ThinkingMode,
   type IAgentConfig,
   type IModelCapabilities,
 } from '@mavis/protocol';
+import { describe, expect, it, vi } from 'vitest';
 
 import { streamSimple } from '@earendil-works/pi-ai';
 
@@ -80,7 +79,7 @@ describe('LocalModelResolver', () => {
   );
 
   it('resolves API-key providers with normalized limits and runtime identity headers', async () => {
-    const fetchImpl = mock<typeof fetch>();
+    const fetchImpl = vi.fn<typeof fetch>();
     const resolver = new LocalModelResolver({
       defaultApi: 'openai-completions',
       fetchImpl,
@@ -180,7 +179,7 @@ describe('LocalModelResolver dynamic output strategy', () => {
 
 describe('LocalModelResolver', () => {
   it('uses current managed auth facts for a recognized managed endpoint', async () => {
-    const authContextGetter = mock(() => ({
+    const authContextGetter = vi.fn(() => ({
       accessToken: 'managed-token',
       realUserID: 'user-managed',
     }));
@@ -234,21 +233,21 @@ describe('LocalModelResolver', () => {
     };
     let acceptedVersion = 1;
     const seenAuthorization: Array<string | null> = [];
-    const fetchImpl = mock<typeof fetch>(async (_input, init) => {
+    const fetchImpl = vi.fn<typeof fetch>(async (_input, init) => {
       const authorization = new Headers(init?.headers).get('Authorization');
       seenAuthorization.push(authorization);
       return new Response(null, {
         status: authorization === `Bearer managed-token-v${acceptedVersion}` ? 200 : 401,
       });
     });
-    const authContextInvalidator = mock(async () => {
+    const authContextInvalidator = vi.fn(async () => {
       authContext = {
         accessToken: `managed-token-v${acceptedVersion}`,
         loginEpoch: 'login-A',
         realUserID: 'user-managed',
       };
     });
-    stubGlobal('fetch', fetchImpl);
+    vi.stubGlobal('fetch', fetchImpl);
     try {
       const resolver = new LocalModelResolver({
         authContextGetter: () => authContext,
@@ -298,7 +297,7 @@ describe('LocalModelResolver', () => {
       expect(seenAuthorization).toEqual(expectedAuthorization);
       expect(resolved.headers?.Authorization).toBe('Bearer managed-token-v1');
     } finally {
-      unstubAllGlobals();
+      vi.unstubAllGlobals();
     }
   });
 });
@@ -311,7 +310,7 @@ describe('LocalModelResolver managed auth continuity', () => {
         accessToken: 'managed-token-v1',
         loginEpoch: 'login-A',
       };
-      const fetchImpl = mock<typeof fetch>(async () => new Response(null, { status: 200 }));
+      const fetchImpl = vi.fn<typeof fetch>(async () => new Response(null, { status: 200 }));
       const resolver = new LocalModelResolver({
         fetchImpl,
         authContextGetter: () => authContext,
@@ -458,14 +457,14 @@ describe('LocalModelResolver request-body byte authority', () => {
     );
 
     expect(resolved.map((model) => model.maxRequestBodyBytes)).toEqual([
-      128, 256, 67_108_864, 67_108_864, 67_108_864, 67_108_864, 67_108_864, 67_108_864, 67_108_864,
+      128, 256, 18_874_368, 18_874_368, 18_874_368, 18_874_368, 18_874_368, 18_874_368, 18_874_368,
     ]);
   });
 });
 
 describe('LocalModelResolver BYOK routing and fallback', () => {
   it('honors the MiniMax BYOK source switch and the injected stream implementation', async () => {
-    const streamFn = mock();
+    const streamFn = vi.fn();
     const resolver = new LocalModelResolver({
       streamFn: streamFn as never,
       providerConfig: {
@@ -649,7 +648,7 @@ describe('LocalModelResolver custom-provider endpoint normalization', () => {
 
 describe('LocalModelResolver BYOK fallback', () => {
   it('falls back from dangling BYOK references to the first managed model', async () => {
-    const warn = mock();
+    const warn = vi.fn();
     const resolver = new LocalModelResolver({
       providerConfig: {
         minimax: {
@@ -679,7 +678,7 @@ describe('LocalModelResolver BYOK fallback', () => {
           },
         },
       }),
-      logger: { info: mock(), warn },
+      logger: { info: vi.fn(), warn },
     });
 
     const staleCapabilities = capabilitiesFromModelConfig({
@@ -983,10 +982,10 @@ describe('LocalModelResolver BYOK thinking', () => {
 describe('LocalModelResolver credentials and thinking', () => {
   it('uses OAuth credentials only for the openai-codex provider', async () => {
     const logicalCaps: Array<number | undefined> = [];
-    const providerAuthGetter = mock(async (provider: string) =>
+    const providerAuthGetter = vi.fn(async (provider: string) =>
       provider === 'openai-codex' ? 'codex-token' : undefined,
     );
-    const logger = { info: mock(), warn: mock() };
+    const logger = { info: vi.fn(), warn: vi.fn() };
     const resolver = new LocalModelResolver({
       providerAuthGetter,
       providerConfig: {
@@ -1197,7 +1196,7 @@ describe('Codex OAuth discovered models', () => {
   it.each(['high', 'xhigh', 'max', 'ultra'])(
     'resolves an unregistered model with user limits and effort %s',
     async (effort) => {
-      const providerAuthGetter = mock(async () => 'codex-token');
+      const providerAuthGetter = vi.fn(async () => 'codex-token');
       const modelConfig: LocalModelConfig = {
         name: 'GPT-6 Astra',
         limit: { context: 800_000, output: 60_000 },
@@ -1613,47 +1612,111 @@ describe('LocalModelResolver custom provider session affinity', () => {
 });
 
 describe('LocalModelResolver request image ceiling (#425)', () => {
-  const resolveWith = async (modelConfig: LocalModelConfig, baseURL = 'https://gateway.example/v1') => {
+  const resolveModelWith = async (
+    modelConfig: LocalModelConfig,
+    baseURL = 'https://gateway.example/v1',
+    { api = 'openai-completions', modelId = 'vision' } = {},
+  ) => {
     const resolver = new LocalModelResolver({
       byokConfigGetter: () => ({
         custom_provider: {
           gateway: {
-            api: 'openai-completions',
+            api,
             options: { apiKey: 'gateway-key', baseURL },
-            models: { vision: modelConfig },
+            models: { [modelId]: modelConfig },
           },
         },
       }),
     });
-    const resolved = await resolver.resolveModel({
+    return resolver.resolveModel({
       sessionId: 'session-image-ceiling',
       turnId: 'turn-image-ceiling',
       agentConfig: {
         ...AGENT_CONFIG,
-        model: modelRefForModel('custom_provider:gateway', 'vision', modelConfig),
+        model: modelRefForModel('custom_provider:gateway', modelId, modelConfig),
       },
     });
-    return (resolved.model as { maxImagesPerRequest?: number }).maxImagesPerRequest;
   };
+  const resolveWith = async (
+    modelConfig: LocalModelConfig,
+    baseURL?: string,
+    options?: { readonly modelId?: string },
+  ) =>
+    (
+      (await resolveModelWith(modelConfig, baseURL, options)).model as {
+        maxImagesPerRequest?: number;
+      }
+    ).maxImagesPerRequest;
 
   it('carries a configured max_images_per_request onto the executor model', async () => {
-    expect(await resolveWith({ capabilities: { support_image: true, max_images_per_request: 6 } })).toBe(6);
-    expect(await resolveWith({ capabilities: { support_image: true, max_images_per_request: '12' } })).toBe(12);
+    expect(
+      await resolveWith({ capabilities: { support_image: true, max_images_per_request: 6 } }),
+    ).toBe(6);
+    expect(
+      await resolveWith({ capabilities: { support_image: true, max_images_per_request: '12' } }),
+    ).toBe(12);
   });
 
-  it('leaves the shared default in charge when nothing is declared or the value is invalid', async () => {
-    expect(await resolveWith({ capabilities: { support_image: true } })).toBeUndefined();
-    expect(await resolveWith({ capabilities: { support_image: true, max_images_per_request: 0 } })).toBeUndefined();
+  it('allows 100 images when nothing valid is declared, and 20 for MiniMax M3 models', async () => {
+    expect(await resolveWith({ capabilities: { support_image: true } })).toBe(100);
+    expect(
+      await resolveWith({ capabilities: { support_image: true, max_images_per_request: 0 } }),
+    ).toBe(100);
+    expect(
+      await resolveWith({ capabilities: { support_image: true } }, undefined, {
+        modelId: 'MiniMax-M3',
+      }),
+    ).toBe(20);
+    expect(
+      await resolveWith({ capabilities: { support_image: true } }, undefined, {
+        modelId: 'MiniMax-M3.1-Flash-Preview',
+      }),
+    ).toBe(20);
+    expect(
+      await resolveWith({ capabilities: { support_image: true } }, undefined, {
+        modelId: 'MiniMax-M30',
+      }),
+    ).toBe(100);
+  });
+
+  it('budgets the request body of known first-party hosts unless the model declares one', async () => {
+    const bodyBytes = async (
+      baseURL: string,
+      api: string,
+      capabilities: LocalModelConfig['capabilities'] = { support_image: true },
+    ) => (await resolveModelWith({ capabilities }, baseURL, { api })).maxRequestBodyBytes;
+    const mib = 1_024 * 1_024;
+
+    expect(await bodyBytes('https://gateway.example/v1', 'anthropic-messages')).toBe(18 * mib);
+    expect(await bodyBytes('https://api.anthropic.com', 'anthropic-messages')).toBe(28 * mib);
+    expect(
+      await bodyBytes('https://us-east5-aiplatform.googleapis.com/v1', 'anthropic-messages'),
+    ).toBe(26 * mib);
+    expect(await bodyBytes('https://api.openai.com/v1', 'openai-responses')).toBe(64 * mib);
+    expect(
+      await bodyBytes('https://api.anthropic.com', 'anthropic-messages', {
+        support_image: true,
+        max_request_body_bytes: 10 * mib,
+      }),
+    ).toBe(10 * mib);
   });
 
   it('applies the documented Mistral API limit by exact host unless the model overrides it', async () => {
-    expect(await resolveWith({ capabilities: { support_image: true } }, 'https://api.mistral.ai/v1')).toBe(8);
     expect(
-      await resolveWith({ capabilities: { support_image: true, max_images_per_request: 4 } }, 'https://api.mistral.ai/v1'),
+      await resolveWith({ capabilities: { support_image: true } }, 'https://api.mistral.ai/v1'),
+    ).toBe(8);
+    expect(
+      await resolveWith(
+        { capabilities: { support_image: true, max_images_per_request: 4 } },
+        'https://api.mistral.ai/v1',
+      ),
     ).toBe(4);
     expect(
-      await resolveWith({ capabilities: { support_image: true } }, 'https://gateway.example/api.mistral.ai/v1'),
-    ).toBeUndefined();
+      await resolveWith(
+        { capabilities: { support_image: true } },
+        'https://gateway.example/api.mistral.ai/v1',
+      ),
+    ).toBe(100);
   });
 });
 

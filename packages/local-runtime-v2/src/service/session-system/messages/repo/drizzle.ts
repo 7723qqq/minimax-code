@@ -575,11 +575,9 @@ class DrizzleMessageRepository implements MessageRepository {
    *
    * The marker row is written once per Session and never removed while the
    * Session exists, so a positive answer is monotonic and safe to remember.
-   * Without this, every read path (`get`, `list`, `listTurn`, …) issued the
-   * same unprepared point lookup first — seven call sites on the hottest path in
-   * the turn pipeline. A negative answer is never cached: it triggers the
-   * backfill transaction immediately afterwards. `deleteSessionData` drops the
-   * marker row, so it also forgets the id here.
+   * A negative answer is never cached: it triggers the backfill transaction
+   * immediately afterwards. `deleteSessionData` drops the marker row, so it
+   * also forgets the id here.
    */
   private readonly readySessions = new Set<string>();
 

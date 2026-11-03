@@ -1,5 +1,4 @@
-import { stubEnv, unstubAllEnvs } from '../../../../../../test/bun-test-setup.js';
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   readLocalModelOverride,
@@ -76,10 +75,10 @@ it.each(['minimax', 'custom_provider:work'])(
 
 describe('legacy MiniMax compatibility', () => {
   beforeEach(() => {
-    stubEnv('MAVIS_REGION', 'cn');
-    stubEnv('MAVIS_BUILD_ENV', 'prod');
+    vi.stubEnv('MAVIS_REGION', 'cn');
+    vi.stubEnv('MAVIS_BUILD_ENV', 'prod');
   });
-  afterEach(() => unstubAllEnvs());
+  afterEach(() => vi.unstubAllEnvs());
 
   it.each(['minimax-legacy', 'minimax-legacy-2'])(
     'recovers %s from an old official endpoint while preserving its configuration',

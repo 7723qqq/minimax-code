@@ -1,5 +1,5 @@
 import { Buffer } from 'node:buffer';
-import { statSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import { FinalizingSqliteDatabase } from '@mavis/shared';
@@ -85,7 +85,7 @@ class SqliteLegacyOpencodeReadonlySource {
     pageSize: number,
     maxPageBytes: number = DEFAULT_MESSAGE_PAGE_BYTES,
   ): AsyncGenerator<readonly LegacyOpencodeDisplayMessage[], void, void> {
-    if (!pathExists(this.daemonPath)) return;
+    if (!existsSync(this.daemonPath)) return;
     const db = new FinalizingSqliteDatabase(this.daemonPath, {
       readonly: true,
       fileMustExist: true,
@@ -151,7 +151,7 @@ class SqliteLegacyOpencodeReadonlySource {
     session: LegacyOpencodeSessionRecord,
   ): Promise<LegacyOpenCodeNativeReadResult | undefined> {
     for (const candidateInput of resolveLegacyNativeCandidateInputs(this.options)) {
-      if (!pathExists(candidateInput.dbPath)) continue;
+      if (!existsSync(candidateInput.dbPath)) continue;
       const candidate = inspectNativeCandidate(candidateInput);
       const result = this.withDatabase(candidate.dbPath, (db) =>
         readNative(db, candidate, session.legacyFrameworkSessionId ?? session.sessionId),
@@ -189,29 +189,29 @@ class SqliteLegacyOpencodeReadonlySource {
     const base: LegacyOpencodeSourceManifest = {
       sourceDataDir: this.options.sourceDataDir,
       sourceSqlitePath: this.daemonPath,
-      sourceSqliteExists: pathExists(this.daemonPath),
+      sourceSqliteExists: existsSync(this.daemonPath),
       ...size('sourceSqliteSizeBytes', this.daemonPath),
       sourceSqliteWalPath: walPath,
-      sourceSqliteWalExists: pathExists(walPath),
+      sourceSqliteWalExists: existsSync(walPath),
       ...size('sourceSqliteWalSizeBytes', walPath),
       sourceSqliteShmPath: shmPath,
-      sourceSqliteShmExists: pathExists(shmPath),
+      sourceSqliteShmExists: existsSync(shmPath),
       ...size('sourceSqliteShmSizeBytes', shmPath),
       sourceOpenCodeDataPath,
-      sourceOpenCodeDataExists: pathExists(sourceOpenCodeDataPath),
+      sourceOpenCodeDataExists: existsSync(sourceOpenCodeDataPath),
       sourceOpenCodeStatePath,
-      sourceOpenCodeStateExists: pathExists(sourceOpenCodeStatePath),
+      sourceOpenCodeStateExists: existsSync(sourceOpenCodeStatePath),
       sourceOpenCodeXdgDataPath,
       sourceOpenCodeXdgDataExists: Boolean(
-        sourceOpenCodeXdgDataPath && pathExists(sourceOpenCodeXdgDataPath),
+        sourceOpenCodeXdgDataPath && existsSync(sourceOpenCodeXdgDataPath),
       ),
       sourceOpenCodeXdgStatePath,
       sourceOpenCodeXdgStateExists: Boolean(
-        sourceOpenCodeXdgStatePath && pathExists(sourceOpenCodeXdgStatePath),
+        sourceOpenCodeXdgStatePath && existsSync(sourceOpenCodeXdgStatePath),
       ),
       opencodeNative: { candidates },
     };
-    if (!pathExists(this.daemonPath)) return base;
+    if (!existsSync(this.daemonPath)) return base;
     try {
       const details = this.withDatabase(this.daemonPath, (db) => {
         const schema = inspectSchema(db);
@@ -227,7 +227,7 @@ class SqliteLegacyOpencodeReadonlySource {
   }
 
   private withDaemon<T>(operation: (db: ReadonlyDatabase) => T): T | undefined {
-    if (!pathExists(this.daemonPath)) return undefined;
+    if (!existsSync(this.daemonPath)) return undefined;
     return this.withDatabase(this.daemonPath, operation);
   }
   private decodeSession(row: unknown): LegacyOpencodeSessionRecord {
@@ -420,9 +420,9 @@ function inspectNativeCandidate(
   const base = {
     kind: input.kind,
     path: dirname(input.dbPath),
-    exists: pathExists(dirname(input.dbPath)),
+    exists: existsSync(dirname(input.dbPath)),
     dbPath: input.dbPath,
-    dbExists: pathExists(input.dbPath),
+    dbExists: existsSync(input.dbPath),
     ...size('dbSizeBytes', input.dbPath),
   };
   if (!base.dbExists) return base;
@@ -795,7 +795,7 @@ function digest(value: string) {
   return new Bun.CryptoHasher('sha256').update(value).digest('hex');
 }
 function size<Key extends string>(key: Key, path: string) {
-  return pathExists(path) ? ({ [key]: statSync(path).size } as Record<Key, number>) : {};
+  return existsSync(path) ? ({ [key]: statSync(path).size } as Record<Key, number>) : {};
 }
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -820,23 +820,4 @@ function readNumber(value: unknown, key: string) {
     throw new LegacyOpencodeSourceCorruptionError(key);
   }
   return found;
-}
-
-/**
- * Whether `target` exists.
- *
- * A `statSync` inside a `try` gives the same answer as `existsSync` for a file, a
- * directory, a missing entry and an unreadable path, without paying for the
- * second syscall: `existsSync` is the `node:` compatibility surface and measures
- * roughly an order of magnitude slower per call in this runtime, while
- * `statSync` already reports what the call sites here then inspect. The module is
- * synchronous, so `Bun.file()` does not apply.
- */
-function pathExists(target: string): boolean {
-  try {
-    statSync(target);
-    return true;
-  } catch {
-    return false;
-  }
 }
