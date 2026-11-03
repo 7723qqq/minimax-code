@@ -21,7 +21,7 @@ const MAX_LOG_ENTRY_CHARS = 4_000;
 export const BROWSER_SCRIPT_MAX_LOG_ENTRIES = 200;
 export const BROWSER_SCRIPT_MAX_LOG_BYTES = 16 * 1024;
 
-const CONTEXT_BOOTSTRAP = String.raw`(function (hostCall, hostLog, scriptFilename) {
+const CONTEXT_BOOTSTRAP = String.raw`(function (hostCall, hostLog, scriptFilename, hostLineBias) {
   'use strict';
   const toJson = (value) => JSON.stringify(value === undefined ? null : value);
   const call = async (op, args) => {
@@ -41,11 +41,14 @@ const CONTEXT_BOOTSTRAP = String.raw`(function (hostCall, hostLog, scriptFilenam
   const callSite = () => {
     const stack = String(new Error().stack || '').split('\n');
     const marker = scriptFilename + ':';
+    // See the worker's lineBias: vm lineOffset is honored by V8 but not by
+    // Bun's JSC, and the bias shifts frames back onto the script's own lines.
+    const bias = typeof hostLineBias === 'function' ? hostLineBias() : 0;
     for (const frame of stack) {
       const index = frame.lastIndexOf(marker);
       if (index < 0) continue;
       const match = /:(\d+):(\d+)\)?\s*$/.exec(frame.slice(index + scriptFilename.length));
-      if (match) return { line: Number(match[1]), column: Number(match[2]) };
+      if (match) return { line: Math.max(1, Number(match[1]) - bias), column: Number(match[2]) };
     }
     return null;
   };
@@ -290,6 +293,24 @@ const hostLog = (level, text) => {
   logBytes += bytes;
   parentPort.postMessage({ t: 'log', level: String(level), text: entry });
 };
+// vm.Script lineOffset is honored by V8 but not by Bun's JSC, which leaves
+// user-script frames one line high. The probe below calibrates the bias once
+// per worker; adjustStack shifts the user file's frames back onto the script's
+// own lines so reported locations match the script text on both engines.
+let lineBias = 0;
+const adjustStack = (text) => {
+  if (!text || lineBias === 0) return text;
+  const marker = workerData.filename + ':';
+  return text.split('\n').map((line) => {
+    const index = line.lastIndexOf(marker);
+    if (index < 0) return line;
+    const head = line.slice(0, index + marker.length - 1);
+    const tail = line.slice(index + marker.length - 1);
+    // Only runtime frames (file:line:column) are biased; a compile-time
+    // syntax error header (file:line) already reports the script line.
+    return head + tail.replace(/^:(\d+)(:\d+)/, (whole, ln, col) => ':' + (Number(ln) - lineBias) + col);
+  }).join('\n');
+};
 const describe = (error) => {
   const read = (key) => {
     try {
@@ -305,7 +326,7 @@ const describe = (error) => {
   return {
     name: read('name') || 'Error',
     message: read('message') || '',
-    stack: read('stack'),
+    stack: adjustStack(read('stack')),
     code: read('code'),
   };
 };
@@ -316,21 +337,50 @@ const context = vm.createContext(Object.create(null), {
 });
 const factory = new vm.Script(workerData.bootstrap, { filename: workerData.runtimeFilename })
   .runInContext(context);
-const api = factory(hostCall, hostLog, workerData.filename);
-let userFunction;
-try {
-  userFunction = new vm.Script(
-    '(async function (page, assert, console) {\n' + workerData.code + '\n})',
-    { filename: workerData.filename, lineOffset: -1 },
-  ).runInContext(context);
-} catch (error) {
-  finish({ ok: false, phase: 'compile', error: describe(error) });
-}
-if (userFunction) {
+const api = factory(hostCall, hostLog, workerData.filename, () => lineBias);
+const runUserScript = () => {
+  let userFunction;
+  try {
+    userFunction = new vm.Script(
+      '(async function (page, assert, console) {\n' + workerData.code + '\n})',
+      { filename: workerData.filename, lineOffset: -1 },
+    ).runInContext(context);
+  } catch (error) {
+    finish({ ok: false, phase: 'compile', error: describe(error) });
+    return;
+  }
   api.run(userFunction).then(
     (value) => finish({ ok: true, value: value === undefined ? undefined : String(value) }),
     (error) => finish({ ok: false, phase: 'run', error: describe(error) }),
   );
+};
+let probeFunction;
+try {
+  probeFunction = new vm.Script(
+    '(async function (page, assert, console) {\nthrow new Error("line-probe")\n})',
+    { filename: workerData.filename, lineOffset: -1 },
+  ).runInContext(context);
+} catch {
+  probeFunction = undefined;
+}
+if (probeFunction === undefined) {
+  runUserScript();
+} else {
+  Promise.resolve()
+    .then(() => probeFunction())
+    .catch((probeError) => {
+      const stack = String((probeError && probeError.stack) || '');
+      for (const frame of stack.split('\n')) {
+        const index = frame.lastIndexOf(workerData.filename + ':');
+        if (index < 0) continue;
+        const match = /:(\d+):(\d+)\)?\s*$/.exec(frame.slice(index + workerData.filename.length));
+        if (match) {
+          lineBias = Math.max(0, Number(match[1]) - 1);
+          break;
+        }
+      }
+    })
+    .then(runUserScript, runUserScript);
 }
 `;
 

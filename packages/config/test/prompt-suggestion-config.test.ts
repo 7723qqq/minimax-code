@@ -9,9 +9,20 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 describe('prompt suggestion opt-in', () => {
-  it.each([undefined, null, [], 'true', { enabled: 'true' }, { enabled: 1 }])('keeps %j as unset', (value) => {
-    expect(resolveConfigFromRaw({ promptSuggestion: value }, '/tmp/suggestion-config').promptSuggestion.enabled).toBeUndefined();
-  });
+  // Explicit cases instead of it.each: Bun's runner never executes an
+  // it.each('%j') row whose value is an empty array.
+  for (const [label, value] of [
+    ['undefined', undefined],
+    ['null', null],
+    ['an empty array', []],
+    ["the string 'true'", 'true'],
+    ["enabled as a string", { enabled: 'true' }],
+    ['enabled as a number', { enabled: 1 }],
+  ] as const) {
+    it(`keeps ${label} as unset`, () => {
+      expect(resolveConfigFromRaw({ promptSuggestion: value }, '/tmp/suggestion-config').promptSuggestion.enabled).toBeUndefined();
+    });
+  }
   it.each([true, false])('keeps the explicit choice %s', (enabled) => {
     expect(resolveConfigFromRaw({ promptSuggestion: { enabled } }, '/tmp/suggestion-config').promptSuggestion.enabled).toBe(enabled);
   });
@@ -68,21 +79,23 @@ describe('prompt suggestion remote policy', () => {
       defaultEnabled: true,
     });
   });
-  it.each([
-    undefined,
-    null,
-    [],
-    'x',
-    { kill_switch: 'true' },
-    { sample_rate: -1 },
-    { sample_rate: 2 },
-    { sample_rate: '1' },
-    { sample_rate: Number.NaN },
-    { default_enabled: 'true' },
-    { default_enabled: 1 },
-  ])('treats %j as no override instead of throwing', (raw) => {
-    expect(parsePromptSuggestionRemotePolicy(raw)).toEqual({});
-  });
+  for (const [label, raw] of [
+    ['undefined', undefined],
+    ['null', null],
+    ['an empty array', []],
+    ['a plain string', 'x'],
+    ['a string kill_switch', { kill_switch: 'true' }],
+    ['a negative sample_rate', { sample_rate: -1 }],
+    ['an out-of-range sample_rate', { sample_rate: 2 }],
+    ['a string sample_rate', { sample_rate: '1' }],
+    ['a NaN sample_rate', { sample_rate: Number.NaN }],
+    ['a string default_enabled', { default_enabled: 'true' }],
+    ['a numeric default_enabled', { default_enabled: 1 }],
+  ] as const) {
+    it(`treats ${label} as no override instead of throwing`, () => {
+      expect(parsePromptSuggestionRemotePolicy(raw)).toEqual({});
+    });
+  }
   it('keeps the valid field when the other one is malformed', () => {
     expect(parsePromptSuggestionRemotePolicy({ kill_switch: false, sample_rate: 'all' })).toEqual({ killSwitch: false });
   });
