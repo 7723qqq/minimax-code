@@ -26,11 +26,24 @@ export function createTuiProcessStopObservation(
   cause: TuiProcessStopCause,
   options: CreateTuiProcessStopObservationOptions,
 ): TuiProcessStopObservation {
-  const asyncContext = options.asyncContext ?? {
-    executionAsyncId: executionAsyncId(),
-    triggerAsyncId: triggerAsyncId(),
-    resource: executionAsyncResource(),
-  };
+  const bunVersion =
+    typeof process.versions.bun === 'string' && process.versions.bun.length > 0
+      ? process.versions.bun
+      : undefined;
+  const asyncResource: TuiAsyncResourceObservation = options.asyncContext
+    ? observeAsyncResource(options.asyncContext, 'provided')
+    : bunVersion
+      ? // Bun's node:async_hooks reports 0 for both ids and a different resource;
+        // reporting them as real would misattribute every stop.
+        { source: 'unavailable' }
+      : observeAsyncResource(
+          {
+            executionAsyncId: executionAsyncId(),
+            triggerAsyncId: triggerAsyncId(),
+            resource: executionAsyncResource(),
+          },
+          'async_hooks',
+        );
   return {
     source: cause.source,
     terminalDead: cause.terminalDead,
@@ -38,27 +51,32 @@ export function createTuiProcessStopObservation(
     ...(cause.bytes === undefined ? {} : { bytes: cause.bytes }),
     ...(cause.error === undefined ? {} : { error: observeError(cause.error, options) }),
     runtime: {
-      nodeVersion: process.version,
+      kind: bunVersion ? 'bun' : 'node',
+      ...(bunVersion ? { bunVersion } : { nodeVersion: process.version }),
       ...(process.versions.uv ? { uvVersion: process.versions.uv } : {}),
       platform: process.platform,
       arch: process.arch,
       pid: process.pid,
     },
-    asyncResource: observeAsyncResource(asyncContext),
+    asyncResource,
     stdout: observeWritableStream(process.stdout),
     stderr: observeWritableStream(process.stderr),
   };
 }
 
-function observeAsyncResource(context: {
-  readonly executionAsyncId: number;
-  readonly triggerAsyncId: number;
-  readonly resource: unknown;
-}): TuiAsyncResourceObservation {
+function observeAsyncResource(
+  context: {
+    readonly executionAsyncId: number;
+    readonly triggerAsyncId: number;
+    readonly resource: unknown;
+  },
+  source: TuiAsyncResourceObservation['source'],
+): TuiAsyncResourceObservation {
   const owner = readFirstProperty(context.resource, ['owner', '_owner']);
   const stream = readFirstProperty(context.resource, ['stream', '_stream']);
   const handle = readFirstProperty(context.resource, ['handle', '_handle']);
   return {
+    source,
     executionAsyncId: context.executionAsyncId,
     triggerAsyncId: context.triggerAsyncId,
     resource: observeAsyncResourceTarget(context.resource),

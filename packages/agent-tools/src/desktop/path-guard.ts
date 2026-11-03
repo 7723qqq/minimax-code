@@ -2,9 +2,9 @@
  * Workspace path boundary (desktop local version). Local tools must pass this check before fs
  * access to prevent the LLM escaping the working directory with `..`, absolute paths, or symlinks.
  *
- * NOTE(shared-logic): Equivalent to `../cloud/path-guard.ts`. Each side currently keeps a copy to
- * preserve local / cloud tool directory isolation (AGENTS.md §1). This is a prime candidate for
- * future shared-logic extraction.
+ * NOTE(shared-logic): Mirrored by the cloud-side path-guard in the upstream monorepo. Each side
+ * currently keeps a copy to preserve local / cloud tool directory isolation (AGENTS.md §1). This
+ * is a prime candidate for future shared-logic extraction.
  */
 
 import { realpath } from 'node:fs/promises';

@@ -1,8 +1,4 @@
-import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
-import { promisify } from 'node:util';
-
-const execFileAsync = promisify(execFile);
 const PROBE_TIMEOUT_MS = 2_000;
 const LINUX_PROC_STAT_STARTTIME_INDEX = 19;
 const LINUX_BOOT_ID_PATH = '/proc/sys/kernel/random/boot_id';
@@ -78,10 +74,23 @@ async function readLinuxBootId(): Promise<string> {
 }
 
 async function readDarwinStartProbe(pid: number): Promise<ProcessStartProbe> {
-  const { stdout } = await execFileAsync('ps', ['-p', String(pid), '-o', 'lstart='], {
+  // `Bun.spawn` replaces `promisify(execFile)`, so the runtime's own subprocess
+  // surface is used. Two `execFile` behaviours are reproduced deliberately: a
+  // non-zero exit rejects (the caller maps it to `probe-failed:*`), and stdout
+  // is decoded as UTF-8 text rather than raw bytes.
+  const child = Bun.spawn({
+    cmd: ['ps', '-p', String(pid), '-o', 'lstart='],
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
     timeout: PROBE_TIMEOUT_MS,
     env: { ...process.env, TZ: 'UTC', LC_ALL: 'C' },
   });
+  const [stdout, code] = await Promise.all([
+    new Response(child.stdout).text(),
+    child.exited,
+  ]);
+  if (code !== 0) throw new Error(`ps exited with code ${code}`);
   const match = DARWIN_LSTART_PATTERN.exec(stdout.trim());
   if (!match) return { unavailable: 'unparsable-ps-lstart' };
   const month = MONTHS.indexOf(match[1] ?? '');

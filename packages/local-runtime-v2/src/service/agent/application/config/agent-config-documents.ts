@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 
 import { BuiltinAgentCatalog, canonicalBuiltinName } from '../../builtin/catalog.js';
 import { parseExplicitNameOrStable } from '../../domain/names.js';
@@ -459,7 +458,7 @@ async function buildBuiltinBaselineDocument(
   const config: CanonicalAgentConfig = { ...baseline, diagnostics: [] };
   return {
     content,
-    revision: createHash('sha256').update(content, 'utf8').digest('hex'),
+    revision: new Bun.CryptoHasher('sha256').update(content).digest('hex'),
     config,
   };
 }

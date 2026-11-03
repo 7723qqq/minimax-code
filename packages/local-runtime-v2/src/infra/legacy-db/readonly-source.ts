@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { Buffer } from 'node:buffer';
 import { statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -793,7 +792,7 @@ function safeIdentifier(value: string) {
   return value;
 }
 function digest(value: string) {
-  return createHash('sha256').update(value).digest('hex');
+  return new Bun.CryptoHasher('sha256').update(value).digest('hex');
 }
 function size<Key extends string>(key: Key, path: string) {
   return pathExists(path) ? ({ [key]: statSync(path).size } as Record<Key, number>) : {};
@@ -828,7 +827,7 @@ function readNumber(value: unknown, key: string) {
  *
  * A `statSync` inside a `try` gives the same answer as `existsSync` for a file, a
  * directory, a missing entry and an unreadable path, without paying for the
- * second syscall: `existsSync` is the Node compatibility surface and measures
+ * second syscall: `existsSync` is the `node:` compatibility surface and measures
  * roughly an order of magnitude slower per call in this runtime, while
  * `statSync` already reports what the call sites here then inspect. The module is
  * synchronous, so `Bun.file()` does not apply.

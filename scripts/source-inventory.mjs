@@ -1,8 +1,6 @@
 import { readdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { gunzipSync } from "node:zlib";
-import { createHash } from "node:crypto";
 import { inventoryPath, readExtraction } from "./lib/release-metadata.mjs";
 import { retiredSourceRoots } from "./lib/retired-sources.mjs";
 import { readSuites, suiteInventoryViolations } from "./lib/vitest-suites.mjs";
@@ -11,7 +9,7 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const skipped = new Set([
   ".git",
   "node_modules",
-  // Both are build outputs and both are Git-ignored: `dist` holds the npm
+  // Both are build outputs and both are Git-ignored: `dist` holds the registry
   // bundle, `dist-exe` holds the single-file executable packaged from it. The
   // executable embeds `dist/embedded/mcode-tools`, whose pinned public archive
   // contains resolved service hostnames, so scanning it here would report a
@@ -43,7 +41,7 @@ const violations = suiteInventoryViolations(files, readSuites(root));
 const rootLicenseSha256 =
   "28bb5c2948742f9f8d27ed84882844d09dff07cb5df64f20729875e8582a18ea";
 if (
-  createHash("sha256")
+  new Bun.CryptoHasher("sha256")
     .update(readFileSync(path.join(root, "LICENSE")))
     .digest("hex") !== rootLicenseSha256
 )
@@ -61,7 +59,9 @@ for (const file of files) {
     violations.push(`${file}: environment file`);
   if (file === "scripts/source-inventory.mjs") continue;
   let content = readFileSync(path.join(root, file));
-  if (file.endsWith(".gz")) content = gunzipSync(content);
+  // Bun.gunzipSync returns Uint8Array where node:zlib returned Buffer; wrap it so
+  // the `toString("utf8")` below keeps its Buffer semantics.
+  if (file.endsWith(".gz")) content = Buffer.from(Bun.gunzipSync(content));
   const text = content.toString("utf8");
   if (internalText.test(text))
     violations.push(`${file}: internal source reference`);
@@ -113,7 +113,7 @@ for (const entry of native.files) {
   const bytes = readFileSync(
     path.join(root, "third_party/sandbox-runtime", entry.path),
   );
-  if (createHash("sha256").update(bytes).digest("hex") !== entry.sha256)
+  if (new Bun.CryptoHasher("sha256").update(bytes).digest("hex") !== entry.sha256)
     violations.push(`${entry.path}: native helper integrity mismatch`);
 }
 

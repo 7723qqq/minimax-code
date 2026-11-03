@@ -69,7 +69,7 @@ python3 translate.py --in /tmp/extracted/ --terminology /tmp/extracted/terminolo
 cp templates/translate-preserve-layout/skeleton.html /tmp/translated/page.html
 # Fill in placeholders.
 # 5. Chromium print.
-node packages/local-runtime/assets/skills/pdf/scripts/render_html.cjs /tmp/translated/page.html /tmp/translated/out.pdf
+bun packages/local-runtime/assets/skills/pdf/scripts/render_html.cjs /tmp/translated/page.html /tmp/translated/out.pdf
 # 6. Verify image count.
 src_imgs=$(pdfimages -list source.pdf | tail -n +3 | wc -l)
 out_imgs=$(pdfimages -list /tmp/translated/out.pdf | tail -n +3 | wc -l)

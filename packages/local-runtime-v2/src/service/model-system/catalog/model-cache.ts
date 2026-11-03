@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import fs, { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
@@ -61,7 +61,7 @@ export function modelCacheStatusFor(
 
 export function modelConfigFingerprint(value: unknown): string {
   const canonical = JSON.stringify(sortForFingerprint(value));
-  return `sha256:${createHash('sha256').update(canonical).digest('hex')}`;
+  return `sha256:${new Bun.CryptoHasher('sha256').update(canonical).digest('hex')}`;
 }
 
 export class LocalModelCache implements LocalModelCacheLike {

@@ -214,7 +214,7 @@ function versionedReleaseLauncherContents(
 
     launchers.set(
       platformPath.join(releasePrefix, command.releaseLauncher),
-      `#!/bin/sh\nset -eu\nroot=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)\nnode=${quoteShell(runtimeExecutable)}\nif [ ! -x "$node" ]; then\n  printf "%s\\n" "MCode: Node runtime is missing: $node" "MCode: a system upgrade such as brew upgrade may have removed it." "MCode: re-run the MCode installer to repair this installation." >&2\n  exit 127\nfi\nexec "$node" "$root/${escapeDoubleQuoted(relativeEntry)}" "$@"\n`,
+      `#!/bin/sh\nset -eu\nroot=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)\nruntime=${quoteShell(runtimeExecutable)}\nif [ ! -x "$runtime" ]; then\n  printf "%s\\n" "MCode: runtime is missing: $runtime" "MCode: a system upgrade may have removed it." "MCode: re-run the MCode installer to repair this installation." >&2\n  exit 127\nfi\nexec "$runtime" "$root/${escapeDoubleQuoted(relativeEntry)}" "$@"\n`,
     );
   }
   return launchers;

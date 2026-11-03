@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { getDesktopMatrixEndpoint, isManagedMatrixBaseUrl } from './matrix-env.js';
 
 interface CloudSessionMetadata {
@@ -189,7 +188,8 @@ export class CloudSessionReader {
             ...routing,
             Authorization: `Bearer ${token}`,
             'x-timestamp': second,
-            'x-signature': createHash('md5').update(`${second}I*7Cf%WZ#S&%1RlZJ&C2`).digest('hex'),
+            // Bun.CryptoHasher produces the same MD5 hex digest as node:crypto.
+            'x-signature': new Bun.CryptoHasher('md5').update(`${second}I*7Cf%WZ#S&%1RlZJ&C2`).digest('hex'),
           },
         });
       } catch {

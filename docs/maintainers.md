@@ -56,7 +56,7 @@ Keep `perf:full` until merge when the performance rules require it, including fo
 4. Require a current independent approval, resolved review conversations, and successful `verification` and `source-history-artifact` checks. Dismiss stale approvals when the reviewed code changes. A billing outage, cancellation or absent check is not a pass.
 5. Squash or merge the reviewed public PR while preserving contributor attribution. Do not bypass checks to unblock a release. No maintainer may substitute a self-approval for independent review.
 
-When migrating older CI configurations, replace required individual OS/Node check names with the two aggregate contexts above before removing the old names. Documentation-only changes intentionally skip platform jobs, so those individual contexts must not be required. Read back both classic branch protection and effective rulesets; workflow changes do not update either setting.
+When migrating older CI configurations, replace required individual OS/toolchain check names with the two aggregate contexts above before removing the old names. Documentation-only changes intentionally skip platform jobs, so those individual contexts must not be required. Read back both classic branch protection and effective rulesets; workflow changes do not update either setting.
 
 CODEOWNERS requests reviewers; it does not enforce protection by itself. The intended administrative configuration is [`.github/branch-protection.json`](../.github/branch-protection.json). Applying it requires repository administration access. Read back the live settings after applying; committing this file does not activate it.
 
@@ -82,8 +82,8 @@ For the next sync, use the three-way process in [Source synchronization](source-
 
 ## Release handoff
 
-The release coordinator explicitly dispatches `Node compatibility` and `Source candidate` for the reviewed revision before a source release; normal PR/main checks do not produce a candidate. Changes to supported Node versions, native dependencies or compatibility-sensitive verification tooling need the compatibility run before merge, and candidate/export changes need a selected-branch candidate run once its manual entry is available.
+The release coordinator explicitly dispatches `Toolchain compatibility` and `Source candidate` for the reviewed revision before a source release; normal PR/main checks do not produce a candidate. Changes to native dependencies or compatibility-sensitive verification tooling need the compatibility run before merge, and candidate/export changes need a selected-branch candidate run once its manual entry is available.
 
-The release coordinator records the selected source commit and archive receipt, current verification results, [publication scope](publication-authorization.md), known limitations and the reviewer. Update [source status](open-source-status.md), [verification records](verification.md), and both README entry points when their shared content changes. Publish source previews separately from npm and installer releases, following [Releasing](releasing.md).
+The release coordinator records the selected source commit and archive receipt, current verification results, [publication scope](publication-authorization.md), known limitations and the reviewer. Update [source status](open-source-status.md), [verification records](verification.md), and both README entry points when their shared content changes. Publish source previews separately from registry and installer releases, following [Releasing](releasing.md).
 
 The release coordinator applies administrative settings only on the intended repository and reads back the result. Check current administrative readiness from the live repository before each release.

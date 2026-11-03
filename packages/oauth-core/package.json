@@ -20,7 +20,7 @@
     "oauth-core-build.json"
   ],
   "engines": {
-    "node": ">=20"
+    "bun": ">=1.4.4"
   },
   "scripts": {
     "build": "tsc --build",

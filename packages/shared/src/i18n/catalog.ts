@@ -3,7 +3,7 @@
  *
  * The English catalog is the only source of truth for key shape. Every other
  * catalog is typed as `Catalog<typeof EN>`, so a missing key is a compile error
- * in `pnpm typecheck` instead of a runtime `undefined` on a user's screen. This
+ * in `bun run typecheck` instead of a runtime `undefined` on a user's screen. This
  * replaces the previous arrangement, where two of the five catalogs asserted
  * completeness with `satisfies` and three relied on a hand-maintained key type
  * that could silently drift.

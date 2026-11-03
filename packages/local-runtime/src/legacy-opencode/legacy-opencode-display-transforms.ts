@@ -1,5 +1,3 @@
-import crypto from 'node:crypto';
-
 import { type AgentMessage } from '@mavis/agent-core/protocol/agent-message';
 import { sanitizeWireToolCallResultData } from '@mavis/agent-core/event-bridge';
 
@@ -15,7 +13,7 @@ import { sanitizeWireToolCallResultData } from '@mavis/agent-core/event-bridge';
  */
 
 export function checksumJson(value: unknown): string {
-  return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
+  return new Bun.CryptoHasher('sha256').update(JSON.stringify(value)).digest('hex');
 }
 
 export function mergeDisplayMessages(

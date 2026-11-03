@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, jest, spyOn } from 'bun:te
 import fs from "node:fs";
 import os from "node:os";
 import { join } from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawnSync } from "../../../scripts/lib/exec.mjs";
 
 import {
   getConfig,

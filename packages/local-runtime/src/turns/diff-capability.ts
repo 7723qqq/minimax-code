@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import path from 'node:path';
 
 import type { LocalTurnDiffRecord, LocalTurnDiffStore } from '../persistence/ports.js';
@@ -167,7 +166,7 @@ function samePath(left: string, right: string): boolean {
 }
 
 function forkChangeSetId(operationId: string, sourceChangeSetId: string): string {
-  const identity = createHash('sha256')
+  const identity = new Bun.CryptoHasher('sha256')
     .update(operationId)
     .update('\0')
     .update(sourceChangeSetId)

@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 import type { LocalRuntimeAuthContextSnapshot, MavisBuildEnv, MavisRegion } from '@mavis/config';
 
 import { tuiAuthText } from '../auth/copy.js';
@@ -765,7 +763,7 @@ function readNumberishString(
 }
 
 function md5(value: string): string {
-  return createHash('md5').update(value).digest('hex');
+  return new Bun.CryptoHasher('md5').update(value).digest('hex');
 }
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {

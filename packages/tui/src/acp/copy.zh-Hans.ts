@@ -4,7 +4,7 @@ import type { AcpCopyKey } from './copy.en.js';
  * Simplified Chinese copy for the ACP (Agent Client Protocol) surface.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  */
 export const ZH_HANS_ACP_COPY = {
   'acp.command.requiresNoArguments': '请使用 `/{command}`，不要带参数。',

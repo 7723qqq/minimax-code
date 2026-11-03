@@ -1,5 +1,3 @@
-import { createHash, type Hash } from 'node:crypto';
-
 import {
   appendJsonl,
   publishJsonlIfAbsent,
@@ -30,7 +28,7 @@ const ownedEnvelopeJson = new WeakMap<CanonicalHistoryEnvelope, string | undefin
 const ownedRecordArrays = new WeakSet<readonly CanonicalHistoryEnvelope[]>();
 const ownedRevisions = new WeakMap<readonly CanonicalHistoryEnvelope[], string>();
 // SHA state before the closing bracket; weak keys do not retain old histories.
-const ownedRevisionPrefixes = new WeakMap<readonly CanonicalHistoryEnvelope[], Hash>();
+const ownedRevisionPrefixes = new WeakMap<readonly CanonicalHistoryEnvelope[], Bun.CryptoHasher>();
 const ownedSequences = new WeakMap<
   readonly CanonicalHistoryEnvelope[],
   CanonicalHistorySequenceInspection
@@ -622,7 +620,7 @@ function revisionOfNormalized(records: readonly CanonicalHistoryEnvelope[]): str
   // serialized string of the entire history at once.
   let hash = ownedRevisionPrefixes.get(records);
   if (!hash) {
-    hash = createHash('sha256').update('[');
+    hash = new Bun.CryptoHasher('sha256').update('[');
     updateRevisionPrefix(hash, records, 0);
     if (ownedRecordArrays.has(records)) ownedRevisionPrefixes.set(records, hash);
   }
@@ -649,7 +647,7 @@ function rememberOwnedRecords(
 }
 
 function updateRevisionPrefix(
-  hash: Hash,
+  hash: Bun.CryptoHasher,
   records: readonly CanonicalHistoryEnvelope[],
   start: number,
 ): void {
@@ -661,7 +659,7 @@ function updateRevisionPrefix(
       serialized = canonicalJson(record);
       if (ownedEnvelopeJson.has(record)) ownedEnvelopeJson.set(record, serialized);
     }
-    hash.update(serialized, 'utf8');
+    hash.update(serialized);
   }
 }
 

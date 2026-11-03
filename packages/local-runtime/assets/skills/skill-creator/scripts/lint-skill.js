@@ -1,11 +1,11 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 // lint-skill.js — Mavis SKILL.md validator
 //
 // Usage: node lint-skill.js <path/to/skill-directory>
 // Exit codes: 0 = pass, 1 = errors found.
 //
 // See Step 5 in the adjacent SKILL.md for validation checks.
-// No third-party dependencies; uses only Node.js built-in fs + path.
+// No third-party dependencies; uses only Bun's bundled `node:fs` + `node:path`.
 
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, basename, resolve } from 'node:path';

@@ -7,7 +7,7 @@
 // The preload registers the few matchers and helpers that `bun:test` does not
 // ship. `--tsconfig-override` resolves workspace packages from source through
 // the `paths` table in `tsconfig.standalone.json`.
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from './lib/exec.mjs';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';

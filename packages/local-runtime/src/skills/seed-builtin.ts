@@ -49,12 +49,11 @@ export interface SeedBuiltinSkillsDeps {
  * combined fingerprint (over the per-skill aggregates of every enabled
  * skill) of the last fully successful seed. When the marker matches the
  * current combined value and every enabled skill dir exists, the whole seed
- * is skipped without a single write. On any mismatch the dest dir is wiped
- * and every enabled skill copied fresh; the marker is written last, only
- * after every skill copied, so a crash or partial failure replays the whole
- * seed on the next startup (self-healing). User files placed inside
- * `builtinSkillsDir` are cleared on every rewrite — an accepted rev3
- * trade-off for mechanism simplicity.
+ * is skipped without a single write. On any mismatch every enabled skill dir
+ * is replaced in place (other entries in the shared dir are left alone); the
+ * marker is written last, only after every skill copied, so a crash or partial
+ * failure replays the whole seed on the next startup (self-healing). Entries
+ * not owned by this seed (another host's skills, user files) are never removed.
  *
  * Must not import registry code. Fail-open everywhere: a broken skill or an
  * unreadable source never throws out of this function.
@@ -94,12 +93,17 @@ function seedFromEmbeddedSkills(
     filesBySkill.set(name, files);
   }
 
+  // Per-skill refresh, same contract as the disk seed: only dirs named after
+  // skills this seed owns are replaced, so the shared `.builtin-skills` keeps
+  // other hosts' skills and user files. Each failure is contained to its
+  // skill; the next startup retries the whole seed.
   let seeded = 0;
   for (const [name, files] of filesBySkill) {
     if (isSkillEnabled !== undefined && !isSkillEnabled(name)) continue;
     if (!files.includes(SKILL_FILE)) continue;
     const destination = join(builtinSkillsDir, name);
     try {
+      rmSync(destination, REMOVE_OPTIONS);
       for (const relative of files) {
         const embeddedPath = resolveBundledAsset('', `assets/skills/${name}/${relative}`);
         if (embeddedPath === undefined) continue;
@@ -228,21 +232,34 @@ export function seedBuiltinSkills(deps: SeedBuiltinSkillsDeps): void {
     if (allPresent) return;
   }
 
-  // Wipe + full reseed. rmSync never follows symlinks, so a user-planted link
-  // inside the dest tree is removed as a link and its target stays intact.
+  // Per-skill refresh: only dirs named after skills this seed owns are
+  // replaced. The dest dir is shared with other hosts (desktop app, CLI/ACP),
+  // so foreign skills and user files are never touched. rmSync never follows
+  // symlinks, so a user-planted link inside a replaced skill dir is removed as
+  // a link and its target stays intact. Each failure (EPERM, EBUSY, ...) is
+  // contained to its skill; the marker is withheld so the next startup retries.
   try {
-    rmSync(builtinSkillsDir, REMOVE_OPTIONS);
     mkdirSync(builtinSkillsDir, { recursive: true });
   } catch (err) {
     logger.error(
       { builtinSkillsDir, err: errorMessage(err) },
-      'Failed to reset built-in skills dir for seeding (kept existing content, local-runtime will continue)',
+      'Failed to create built-in skills dir for seeding (local-runtime will continue)',
     );
     return;
   }
 
   for (const [skillName, { src }] of enabledSkills) {
     const dest = join(builtinSkillsDir, skillName);
+    try {
+      rmSync(dest, REMOVE_OPTIONS);
+    } catch (err) {
+      allOk = false;
+      logger.error(
+        { skillName, err: errorMessage(err) },
+        'Failed to clear built-in skill for reseed (kept existing copy, local-runtime will continue)',
+      );
+      continue;
+    }
     try {
       copySkillDir(src, dest, true);
     } catch (err) {
@@ -403,7 +420,7 @@ function isSkillRuntimeRetiredFile(skillFilePath: string): boolean {
  * A `statSync` inside a `try` answers the same question as `existsSync` for a
  * file, a directory, a missing entry and an unreadable path. It also removes the
  * second syscall these call sites used to pay, since `statSync` already yields
- * what they then inspect. `existsSync` is the Node compatibility surface and
+ * what they then inspect. `existsSync` is the `node:` compatibility surface and
  * measures roughly an order of magnitude slower per call in this runtime. This
  * module is synchronous throughout, so `Bun.file()` does not apply.
  */

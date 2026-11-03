@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process';
+import { spawnSync } from "../../../../../scripts/lib/exec.mjs";
 import { fileURLToPath } from 'node:url';
 import { expect, it } from 'bun:test';
 
@@ -8,7 +8,7 @@ it('rejects unterminated TOML comments without blocking agent import', () => {
   // A synchronous parser loop cannot be interrupted by a test timeout.
   // Run the real import service in a directly owned, killable child process.
   // `bun test` runs this file, so `process.execPath` is Bun, which loads
-  // TypeScript natively; the previous Node + tsx loader is no longer needed.
+  // TypeScript natively; the previous tsx loader is no longer needed.
   const result = spawnSync(process.execPath, [
     '--tsconfig-override', 'tsconfig.standalone.json',
     '--input-type=module', '--eval', `

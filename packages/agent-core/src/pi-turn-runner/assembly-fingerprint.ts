@@ -1,5 +1,3 @@
-import { createHash } from 'node:crypto';
-
 const FINGERPRINT_LENGTH = 16;
 
 export interface AssemblyFingerprintContext {
@@ -36,7 +34,7 @@ export function fingerprintAssembly(context: AssemblyFingerprintContext): Assemb
 }
 
 function fingerprint(value: string): string {
-  return createHash('sha256').update(value, 'utf8').digest('hex').slice(0, FINGERPRINT_LENGTH);
+  return new Bun.CryptoHasher('sha256').update(value).digest('hex').slice(0, FINGERPRINT_LENGTH);
 }
 
 function canonicalStringify(value: unknown): string {

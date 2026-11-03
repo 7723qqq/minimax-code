@@ -1827,16 +1827,3 @@ export class LocalRuntimeApiHost {
     });
   }
 }
-
-function isChannelCapabilityRoute(parts: readonly string[]): boolean {
-  if (
-    parts[0] === "channel-bridge" ||
-    parts[0] === "im-bridge" ||
-    parts[0] === "channel-route" ||
-    (parts[0] === "channel" && parts[1] === "connections")
-  ) {
-    return true;
-  }
-  if (parts[0] === "lark" && parts[1] === "onboard") return true;
-  return parts[0] === "agent" && parts[2] === "im";
-}

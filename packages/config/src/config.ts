@@ -8,7 +8,6 @@ import fs from "node:fs";
 import { restrictConfigFileSync, writePrivateConfigFileSync } from "./private-config-file.js";
 import path from "node:path";
 import os from "node:os";
-import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import yaml from "js-yaml";
 import { parseTuiConfig, type TuiConfig } from "./tui-config.js";
@@ -67,6 +66,16 @@ import {
   type ToolResultCompactionSettings,
 } from "./tool-result-compaction-config.js";
 import {
+  REQUEST_MEDIA_DEFAULTS,
+  parseRequestMediaConfig,
+  type RequestMediaConfig,
+} from "./request-media-config.js";
+import {
+  CONVERSATION_STOP_CONFIG_DEFAULTS,
+  parseConversationStopConfig,
+  type ConversationStopConfig,
+} from "./conversation-stop-config.js";
+import {
   BROWSER_CONFIG_DEFAULTS,
   parseBrowserConfig,
   type BrowserConfig,
@@ -79,7 +88,7 @@ import {
 
 export type { TuiConfig, TuiCustomStatusLineConfig } from "./tui-config.js";
 
-/** Set to `true` by esbuild during `pnpm build:npm`; undefined in dev (tsx). */
+/** Set to `true` by the esbuild bundle (`bun run build`); undefined in dev. */
 declare const __IS_NPM_BUILD__: boolean | undefined;
 
 function isLegacyRuntimeEnvAllowed(): boolean {
@@ -158,11 +167,11 @@ export function getRuntimeBuildEnv(): MavisBuildEnv {
  *
  * Detection priority:
  *   1. Explicit __MAVIS_RUNTIME_MANAGED env var ('1'/'0') — for overrides
- *      - '1': force-enable (e.g. `__MAVIS_RUNTIME_MANAGED=1 pnpm dev` to test C-end locally)
+ *      - '1': force-enable (e.g. `__MAVIS_RUNTIME_MANAGED=1 bun run mcode` to test C-end locally)
  *      - '0': force-disable (used by internal/no-safety Electron builds to opt out)
  *   2. Auto-detect Electron (main process or ELECTRON_RUN_AS_NODE=1 helpers)
  *   3. Auto-detect production build (MAVIS_BUILD_ENV=prod)
- *   4. Default: false (pnpm dev / npm package)
+ *   4. Default: false (source build / registry package)
  *
  * C-end features (safety hooks, remote models, managed token injection,
  * remote skill hub) should ONLY activate when this returns true.
@@ -353,7 +362,7 @@ export interface BetaConfig {
    * `skillEvolve` so users with a source repo (dev installs) can still opt
    * out of MR-driven built-in evolution while keeping user/agent/project
    * skill evolution enabled. Its visibility ceiling is `test` because prod
-   * npm installs have no source repo to push to.
+   * Registry installs have no source repo to push to.
    */
   skillEvolveBuiltinMr: boolean;
   /**
@@ -906,7 +915,7 @@ export interface ContextManagementConfig {
  * All fields optional; unset fields fall back to the disclosure defaults
  * applied by the local-runtime resolver. When the whole block is absent the
  * value is `undefined` and the feature stays off (empty whitelist matches no
- * model). See `packages/local-runtime/src/mcp/disclosure-options.ts`.
+ * model). See `packages/agent-tools/src/mcp-disclosure/mcp-disclosure.ts`.
  */
 export interface McpToolSearchConfig {
   enabled?: boolean;
@@ -1013,6 +1022,10 @@ export interface Config {
   runawayGuard: RunawayGuardSettings;
   /** ToolResult archive/trim thresholds shared by TUI, CLI and managed Desktop. */
   toolResultCompaction: ToolResultCompactionSettings;
+  /** Image size and base64 limits applied to provider request media. */
+  requestMedia: RequestMediaConfig;
+  /** Whether an explicit user stop also cancels background subagents/bash. */
+  conversation: ConversationStopConfig;
   /** Runtime selection knobs (e.g. `defaultFramework` for new sessions). */
   agentRuntime: AgentRuntimeConfig;
   /**
@@ -1310,13 +1323,18 @@ function calcOffset(branchName: string): number {
 
 function runGit(args: string[], cwd?: string): string | null {
   try {
-    const result = spawnSync("git", args, {
-      encoding: "utf-8",
+    // Bun.spawnSync replaces the child_process wrapper so the runtime's own
+    // subprocess surface is used. A non-zero exit and a missing `git` both fall
+    // through to the surrounding catch, matching the old "no version string" result.
+    const result = Bun.spawnSync({
+      cmd: ["git", ...args],
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
       timeout: 3000,
-      stdio: ["ignore", "pipe", "pipe"],
       ...(cwd ? { cwd } : {}),
     });
-    if (result.status === 0 && result.stdout) return result.stdout.trim();
+    if (result.exitCode === 0 && result.stdout) return result.stdout.toString().trim();
     return null;
   } catch {
     return null;
@@ -1403,7 +1421,7 @@ export function detectGitPortInfo(): GitPortInfo {
     autoDetected: false,
   };
 
-  // npm build: skip git detection entirely — always use default port 5321.
+  // Registry build: skip git detection entirely — always use default port 5321.
   // esbuild constant-folds this to `true`, eliminating the git spawn code.
   if (typeof __IS_NPM_BUILD__ !== "undefined") {
     _gitCached = defaults;
@@ -1782,6 +1800,11 @@ const DEFAULTS: Omit<
   },
   runawayGuard: { enabled: true },
   toolResultCompaction: { ...TOOL_RESULT_COMPACTION_DEFAULTS },
+  requestMedia: {
+    ...REQUEST_MEDIA_DEFAULTS,
+    image: { ...REQUEST_MEDIA_DEFAULTS.image },
+  },
+  conversation: { ...CONVERSATION_STOP_CONFIG_DEFAULTS },
   agentRuntime: {
     // Single source of truth lives in `./agent-runtime-config.ts` so the
     // default and the union type cannot drift.
@@ -1810,7 +1833,7 @@ function ensureConfigFile(): void {
     return;
   }
 
-  // In non-managed runtime (pnpm dev / npm package), the UI onboarding flow
+  // In non-managed runtime (source build / registry package), the UI onboarding flow
   // owns config.yaml generation — it walks the user through getting an API
   // key and writes the file. Daemon must NOT pre-seed a placeholder here,
   // otherwise the UI flow has no way to know whether the user has actually
@@ -2077,6 +2100,8 @@ export function resolveConfigFromRaw(
     toolResultCompaction: parseToolResultCompactionConfig(
       raw.toolResultCompaction,
     ),
+    requestMedia: parseRequestMediaConfig(raw.requestMedia),
+    conversation: parseConversationStopConfig(raw.conversation),
     agentRuntime: parseAgentRuntimeConfig(raw.agentRuntime),
     logRetentionDays: parseLogRetentionDays(raw),
     contentReview: parseContentReviewConfig(raw),
@@ -2662,7 +2687,7 @@ export function getOpenCodePort(runtimePort = resolvePort()): number {
  *
  * A `statSync` inside a `try` answers the same question as `existsSync` for a
  * file, a directory, a missing entry and an unreadable path, at a fraction of the
- * per-call cost: `existsSync` is the Node compatibility surface and measures
+ * per-call cost: `existsSync` is the `node:` compatibility surface and measures
  * roughly an order of magnitude slower in this runtime. This module is
  * synchronous, so `Bun.file()` does not apply.
  */

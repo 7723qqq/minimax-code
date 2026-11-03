@@ -1334,18 +1334,6 @@ export class LocalApiAgentRoutes {
   }
 }
 
-function readOnlyLegacySessionResponse(): Response {
-  return json(
-    {
-      success: false,
-      error:
-        "Legacy opencode sessions are read-only in clean local-runtime mode.",
-      code: "read_only_legacy_session",
-    },
-    { status: 409 },
-  );
-}
-
 function isPiRootSession(
   session: LocalSessionRecord,
   agentName: string,

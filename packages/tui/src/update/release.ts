@@ -27,6 +27,7 @@ export interface McodeReleaseManifestV1 {
   channel: McodeUpdateChannel | string;
   version: string;
   publishedAt: string;
+  /** Wire field from the signed manifest; the CLI itself runs only on Bun. */
   minNodeVersion: string;
   registry: string;
   installArtifact: McodeReleaseArtifact;

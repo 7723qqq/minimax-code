@@ -1,5 +1,5 @@
 /**
- * mavis-trash.js — Node.js script that moves files to Windows Recycle Bin.
+ * mavis-trash.js — Bun script that moves files to Windows Recycle Bin.
  *
  * Seeded into `<dataDir>/bin/mavis-trash.js` on daemon startup (Windows only).
  * Companion to the POSIX bash `mavis-trash` script (macOS/Linux).
@@ -14,7 +14,7 @@
 /* eslint-disable no-useless-escape */
 
 /**
- * The Node.js script content. Runs standalone via `node mavis-trash.js [flags] file1 file2 ...`.
+ * The Bun script content. Runs standalone via `bun mavis-trash.js [flags] file1 file2 ...`.
  *
  * Matches the bash script's interface:
  * - Silently strips rm-style flags (-r, -f, -rf, --recursive, --force, -R, --)
@@ -28,10 +28,9 @@
  * - UIOption.OnlyErrorDialogs suppresses confirmation prompts
  * - RecycleOption.SendToRecycleBin sends to Recycle Bin instead of permanent delete
  */
-export const TRASH_SCRIPT_WIN_CONTENT = `#!/usr/bin/env node
+export const TRASH_SCRIPT_WIN_CONTENT = `#!/usr/bin/env bun
 'use strict';
 
-const { execFileSync } = require('child_process');
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
@@ -122,20 +121,27 @@ const POWERSHELL_UTF8_PREAMBLE =
   '[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding -ArgumentList $false; $OutputEncoding = [Console]::OutputEncoding; ';
 
 function runPowerShellScript(script) {
-  return execFileSync(
-    'powershell.exe',
-    [
+  // Bun.spawnSync replaces the child_process call. This script always runs on
+  // the CLI runtime: the .cmd launcher invokes it with process.execPath, and a
+  // non-zero exit throws as execFileSync did.
+  const result = Bun.spawnSync({
+    cmd: [
+      'powershell.exe',
       '-NoProfile',
       '-NonInteractive',
       '-EncodedCommand',
       toPowerShellEncodedCommand(POWERSHELL_UTF8_PREAMBLE + script),
     ],
-    {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true,
-      timeout: 30000,
-    },
-  );
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'pipe',
+    windowsHide: true,
+    timeout: 30000,
+  });
+  if (result.exitCode !== 0) {
+    throw new Error('powershell.exe exited with code ' + result.exitCode + ': ' + result.stderr.toString('utf8'));
+  }
+  return result.stdout;
 }
 
 function createPowerShellPayloadPath() {
@@ -618,14 +624,14 @@ process.exit(exitCode);
 
 /**
  * CMD launcher script so that `mavis-trash file.txt` works on Windows
- * without requiring a separately-installed `node` on PATH. The local runtime
- * executable is a bundled Node/Electron runtime; `ELECTRON_RUN_AS_NODE` is
- * ignored by node.exe and makes an Electron executable run the script as Node.
+ * without requiring a separately-installed runtime on PATH. The launcher runs
+ * the script with the seeding runtime — the Bun CLI (`process.execPath`), the
+ * only runtime the script supports: it calls `Bun.spawnSync` and cannot run
+ * under node or Electron.
  */
 export function buildTrashCmdLauncherContent(runtimeExecutable: string = process.execPath): string {
   const escapedExecutable = runtimeExecutable.replaceAll('%', '%%').replaceAll('"', '""');
   return `@echo off
-set "ELECTRON_RUN_AS_NODE=1"
 "${escapedExecutable}" "%~dp0mavis-trash.js" %*
 `;
 }

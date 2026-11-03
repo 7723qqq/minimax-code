@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { retryWindowsFileSystemOperation } from '@mavis/shared';
@@ -151,5 +150,5 @@ function writeCliAccountIdentity(
 }
 
 function fingerprintAccessToken(accessToken: string): string {
-  return `sha256:${createHash('sha256').update(accessToken.trim()).digest('hex')}`;
+  return `sha256:${new Bun.CryptoHasher('sha256').update(accessToken.trim()).digest('hex')}`;
 }

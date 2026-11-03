@@ -125,7 +125,7 @@ export function isLikelyBase64(input: string): boolean {
 /**
  * Return a deep-cloned `content` array with inline-binary blocks stripped.
  *
- * The clone uses `structuredClone` when available (Node 17+) and falls back
+ * The clone uses `structuredClone` when available and falls back
  * to a JSON round-trip otherwise. The fallback is safe because every
  * surviving block is plain JSON-serialisable data (text strings, mimeType,
  * small metadata).

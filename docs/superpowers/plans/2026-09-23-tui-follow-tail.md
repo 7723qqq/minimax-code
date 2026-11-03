@@ -6,11 +6,11 @@
 
 **Architecture:** Keep `ScrollView.isFollowingEnd` as the single follow-tail state. Make `TuiChatLayout.followBottom()` conditional on that state, expose `forceFollowBottom()` for explicit user/Session intent, and wire only submission and Session transitions to the force path.
 
-**Tech Stack:** TypeScript, Vitest, MiniMax Code TUI, `ScrollView`, `TuiChatLayout`, `TuiAltScreen`.
+**Tech Stack:** TypeScript, bun:test, MiniMax Code TUI, `ScrollView`, `TuiChatLayout`, `TuiAltScreen`.
 
 ## Global Constraints
 
-- Support Node.js `>=22.19 <23 || >=24.2 <27` and use the repository-pinned `pnpm@9.12.0` workflow.
+- Use the repository-pinned Bun toolchain (`bun run`, `bun test`).
 - Reuse `ScrollView.isFollowingEnd`; do not add a second follow-tail state.
 - Do not add a `followTail` configuration key or a "new output below" indicator.
 - Guard ordinary assistant, bash, tool, and interaction content updates.
@@ -107,7 +107,7 @@ Add the test beside the existing actual-chat-layout scrollbar test:
 Run:
 
 ```bash
-pnpm install --frozen-lockfile
+bun install --frozen-lockfile
 ```
 
 Expected: install exits successfully and creates `node_modules` in the worktree without changing the lockfile.
@@ -117,7 +117,7 @@ Expected: install exits successfully and creates `node_modules` in the worktree 
 Run:
 
 ```bash
-pnpm exec vitest run --config vitest.oss.config.mjs packages/tui/test/unit/tui-scrollbar-interaction.test.ts
+bun scripts/run-bun-tests.mjs packages/tui/test/unit/tui-scrollbar-interaction.test.ts
 ```
 
 Expected: FAIL because the current unconditional `followBottom()` moves the detached viewport to `line-60`; the new `forceFollowBottom()` method is not yet present.
@@ -143,7 +143,7 @@ Replace the current method with:
 Run:
 
 ```bash
-pnpm exec vitest run --config vitest.oss.config.mjs packages/tui/test/unit/tui-scrollbar-interaction.test.ts
+bun scripts/run-bun-tests.mjs packages/tui/test/unit/tui-scrollbar-interaction.test.ts
 ```
 
 Expected: PASS, including the existing mouse, wheel, scrollbar, and fullscreen-layout tests.
@@ -209,7 +209,7 @@ Add an application lifecycle test:
 Run:
 
 ```bash
-pnpm exec vitest run --config vitest.oss.config.mjs packages/tui/test/unit/tui-app.test.ts
+bun scripts/run-bun-tests.mjs packages/tui/test/unit/tui-app.test.ts
 ```
 
 Expected: FAIL because the application still calls `layout.followBottom()` for both explicit-intent paths.
@@ -251,7 +251,7 @@ This callback is used by both `startNewSession()` and `activateSessionById()`.
 Run:
 
 ```bash
-pnpm exec vitest run --config vitest.oss.config.mjs packages/tui/test/unit/tui-app.test.ts packages/tui/test/unit/tui-scrollbar-interaction.test.ts
+bun scripts/run-bun-tests.mjs packages/tui/test/unit/tui-app.test.ts packages/tui/test/unit/tui-scrollbar-interaction.test.ts
 ```
 
 Expected: PASS with no snapshot, lifecycle, submission, or scroll regression.
@@ -261,8 +261,8 @@ Expected: PASS with no snapshot, lifecycle, submission, or scroll regression.
 Run:
 
 ```bash
-pnpm typecheck
-pnpm check:source
+bun run typecheck
+bun run check:source
 git diff --check
 ```
 
@@ -290,7 +290,7 @@ git -c user.name='hetaoBackend' -c user.email='hetao7@pku.edu.cn' commit -m 'fix
 Run:
 
 ```bash
-pnpm check:source
+bun run check:source
 git status --short
 ```
 
@@ -301,7 +301,7 @@ Expected: the approved spec and implementation-plan paths are recorded; no untra
 Run:
 
 ```bash
-pnpm verify
+bun run verify
 ```
 
 Expected: PASS for every macOS-applicable gate. Report any intentional platform skips and any live-service or Windows boundary that was not exercised.
@@ -346,14 +346,14 @@ PR_BODY=$(cat <<'EOF'
 
 ## Validation
 
-- `pnpm exec vitest run --config vitest.oss.config.mjs packages/tui/test/unit/tui-app.test.ts packages/tui/test/unit/tui-scrollbar-interaction.test.ts`
-- `pnpm typecheck`
-- `pnpm check:source`
-- `pnpm verify`
+- `bun scripts/run-bun-tests.mjs packages/tui/test/unit/tui-app.test.ts packages/tui/test/unit/tui-scrollbar-interaction.test.ts`
+- `bun run typecheck`
+- `bun run check:source`
+- `bun run verify`
 
 ## Boundaries
 
-- report the exact `pnpm verify` result, including intentional skips
+- report the exact `bun run verify` result, including intentional skips
 - report that live Windows acceptance was not run unless it was actually run
 
 Closes #320

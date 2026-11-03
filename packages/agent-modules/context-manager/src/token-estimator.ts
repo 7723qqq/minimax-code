@@ -47,7 +47,6 @@
 
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import { Buffer } from 'node:buffer';
-import { createHash } from 'node:crypto';
 import { countTokens as countO200kBase } from 'gpt-tokenizer/model/gpt-4o';
 import type { ContextCompactionSummaryMessage } from './types.js';
 
@@ -232,7 +231,7 @@ export class BpeTokenEstimator implements TokenEstimator {
     const key =
       text.length <= MAX_INLINE_CACHE_KEY_UNITS
         ? `text:${text}`
-        : `sha256:${createHash('sha256').update(text, 'utf16le').digest('hex')}`;
+        : `sha256:${new Bun.CryptoHasher('sha256').update(Buffer.from(text, 'utf16le')).digest('hex')}`;
     const cached = this.textTokens.get(key);
     if (cached !== undefined) {
       this.textTokens.delete(key);

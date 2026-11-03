@@ -9,7 +9,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { createRequire } from "node:module";
-import { execFileSync } from 'node:child_process';
+import { execFileSync } from './lib/exec.mjs';
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { copyLocalRuntimeAssets } from "./lib/local-runtime-assets.mjs";
@@ -35,7 +35,7 @@ const outdir = path.join(root, "dist");
 rmSync(outdir, { recursive: true, force: true });
 mkdirSync(outdir, { recursive: true });
 
-// Bundle checked-in workspace sources and resolve npm dependencies from each importer.
+// Bundle checked-in workspace sources and resolve registry dependencies from each importer.
 // Native and optional platform integrations keep their installed module locations.
 const sourcePlugin = {
   name: "standalone-workspace-sources",

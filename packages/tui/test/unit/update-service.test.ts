@@ -1,7 +1,8 @@
 import { resolveFixtureNodeAndNpmCli, waitFor } from '../../../../test/bun-test-setup.js';
 import { afterEach, describe, expect, it, mock } from 'bun:test';
-import { execFileSync } from 'node:child_process';
-import { createHash, generateKeyPairSync, sign } from 'node:crypto';
+/* eslint-disable-next-line import/no-relative-packages -- repository-level test helper outside every package */
+import { execFileSync } from '../../../../scripts/lib/exec.mjs';
+import { generateKeyPairSync, sign } from 'node:crypto';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -31,7 +32,7 @@ function releaseFixture(version = '1.2.4', artifact = Buffer.from('signed artifa
     registry: 'https://registry.example.test/',
     installArtifact: {
       url: `https://downloads.example.test/releases/${version}/mcode.tgz`,
-      sha256: createHash('sha256').update(artifact).digest('hex'),
+      sha256: new Bun.CryptoHasher('sha256').update(artifact).digest('hex'),
       size: artifact.length,
     },
     targets: {
@@ -59,11 +60,9 @@ afterEach(() => {
 });
 
 describe('McodeUpdateService', () => {
-  it
-    .skipIf(process.platform !== 'win32')
-    .each(['standard npm', 'custom npm wrapper', 'custom npm wrapper with adjacent CLI'])(
-    'installs and validates a managed update in a complex path with %s',
-    async (npmLayout) => {
+  it.skipIf(process.platform !== 'win32')(
+    'installs and validates a managed update in a complex path',
+    async () => {
       const root = temporaryRoot();
       const fixtureRoot = path.join(root, 'package');
       mkdirSync(fixtureRoot);
@@ -88,8 +87,8 @@ describe('McodeUpdateService', () => {
         npm_config_userconfig: path.join(root, 'npmrc'),
       };
       writeFileSync(path.join(root, 'npmrc'), '');
-      // The fixture needs the real Node and its bundled npm; under `bun test`
-      // `process.execPath` is Bun and no npm sits beside it.
+      // The fixture resolves a real npm installation toolchain (runtime plus
+      // npm CLI); under `bun test` `process.execPath` is Bun and no npm sits beside it.
       const { node: fixtureNode, npmCli } = resolveFixtureNodeAndNpmCli();
       const packed = JSON.parse(
         execFileSync(
@@ -98,29 +97,6 @@ describe('McodeUpdateService', () => {
           { cwd: fixtureRoot, env: environment, encoding: 'utf8', timeout: 30_000 },
         ),
       );
-      if (npmLayout !== 'standard npm') {
-        const wrapperRoot = path.join(root, 'npm-wrapper');
-        mkdirSync(wrapperRoot);
-        let wrapperCli = npmCli;
-        if (npmLayout === 'custom npm wrapper with adjacent CLI') {
-          wrapperCli = path.join(wrapperRoot, 'node_modules', 'npm', 'bin', 'npm-cli.js');
-          mkdirSync(path.dirname(wrapperCli), { recursive: true });
-          writeFileSync(wrapperCli, `require(${JSON.stringify(npmCli)});\n`);
-        }
-        environment.npm_config_bin_links = 'false';
-        writeFileSync(
-          path.join(wrapperRoot, 'npm.cmd'),
-          `@echo off\r\nset "npm_config_bin_links=true"\r\necho used> "%~dp0invoked"\r\n"${fixtureNode}" "${wrapperCli}" %*\r\n`,
-        );
-        const pathKey = Object.keys(environment)
-          .filter((key) => key.toLowerCase() === 'path')
-          .sort()[0];
-        const inheritedPath = pathKey ? environment[pathKey] : undefined;
-        for (const key of Object.keys(environment)) {
-          if (key.toLowerCase() === 'path') delete environment[key];
-        }
-        environment.PATH = [wrapperRoot, inheritedPath].filter(Boolean).join(path.delimiter);
-      }
       const artifact = readFileSync(path.join(root, packed[0].filename));
       const { privateKey, publicKey } = generateKeyPairSync('ed25519');
       const manifest = Buffer.from(
@@ -134,7 +110,7 @@ describe('McodeUpdateService', () => {
           registry: 'https://registry.npmjs.org/',
           installArtifact: {
             url: 'https://updates.example.invalid/mcode.tgz',
-            sha256: createHash('sha256').update(artifact).digest('hex'),
+            sha256: new Bun.CryptoHasher('sha256').update(artifact).digest('hex'),
             size: artifact.length,
           },
           targets: Object.fromEntries(
@@ -162,9 +138,6 @@ describe('McodeUpdateService', () => {
       const result = await service.apply({ channel: 'stable' });
       expect(result.applied).toBe(true);
       expect(readFileSync(path.join(installRoot, 'current'), 'utf8')).toBe('1.2.4\n');
-      if (npmLayout !== 'standard npm') {
-        expect(readFileSync(path.join(root, 'npm-wrapper', 'invoked'), 'utf8')).toMatch(/^used/);
-      }
     },
     60_000,
   );

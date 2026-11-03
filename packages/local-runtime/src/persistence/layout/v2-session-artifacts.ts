@@ -838,7 +838,7 @@ function needsJsonlLineBoundarySync(filePath: string): boolean {
  * A `statSync` inside a `try` answers the same question as `existsSync` for a
  * file, a directory, a missing entry and an unreadable path. It also removes the
  * second syscall these call sites used to pay, since `statSync` already yields
- * what they then inspect. `existsSync` is the Node compatibility surface and
+ * what they then inspect. `existsSync` is the `node:` compatibility surface and
  * measures roughly an order of magnitude slower per call in this runtime. This
  * module is synchronous throughout, so `Bun.file()` does not apply.
  */

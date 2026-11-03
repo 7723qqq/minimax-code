@@ -185,7 +185,7 @@ expect.extend({
 
 export { mock };
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync } from "../scripts/lib/exec.mjs";
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 

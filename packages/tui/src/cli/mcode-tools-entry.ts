@@ -10,7 +10,7 @@ configureMcodeToolsChildEnvironment();
 /**
  * Location of the embedded mcode-tools CLI.
  *
- * Two layouts have to work. In a source or npm checkout the file sits beside this
+ * Two layouts have to work. In a source or registry install the file sits beside this
  * module, so `import.meta.url` resolves it directly. In a compiled executable
  * `import.meta.url` points inside the image (`B:/~BUN/root/...`), where no such
  * file exists, and the build places `embedded/` next to the executable instead —

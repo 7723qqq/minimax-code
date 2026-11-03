@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 
 import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import type { PiTurnRunnerLogger } from '@mavis/agent-core/pi-turn-runner';
@@ -610,7 +609,7 @@ function truncateUtf8(value: string, maxBytes: number): string {
 }
 
 function artifactMemoKey(sessionId: string, call: ToolCallIdentity, text: string): string {
-  return createHash('sha256')
+  return new Bun.CryptoHasher('sha256')
     .update(sessionId)
     .update('\0')
     .update(call.id)

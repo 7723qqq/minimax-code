@@ -684,8 +684,8 @@ export function findHeredocBodyRanges(input: string): HeredocBodyRange[] {
  * env-assignment segments are also dropped — they carry no command.
  *
  * @example
- * splitCommand('git add . && npm publish')
- * // => ['git add .', 'npm publish']
+ * splitCommand('git add . && bun publish')
+ * // => ['git add .', 'bun publish']
  *
  * splitCommand('echo "a && b"; ls')
  * // => ['echo "a && b"', 'ls']

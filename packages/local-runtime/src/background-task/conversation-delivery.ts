@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import {
   ConversationTurnRejectedError,
   type RuntimeConversation,
@@ -79,7 +78,7 @@ export function buildBackgroundTaskDeliveryInput(input: {
 
 function batchDeliveryIdentity(taskIds: readonly string[]): string {
   if (taskIds.length === 1 && taskIds[0]) return taskIds[0];
-  const digest = createHash('sha256')
+  const digest = new Bun.CryptoHasher('sha256')
     .update(JSON.stringify([...taskIds].sort()))
     .digest('hex');
   return `background-task-batch:${digest}`;

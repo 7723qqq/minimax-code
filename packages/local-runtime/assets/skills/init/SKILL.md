@@ -33,7 +33,7 @@ Detect the ecosystem by manifest file (first match wins). First-class support:
 
 | Ecosystem | Manifest | Install / Test / Build commands |
 |---|---|---|
-| Node.js | `package.json` | Read `scripts.{dev,build,test,lint,typecheck}`; package manager from `packageManager` field or `pnpm-lock.yaml` / `yarn.lock` / `package-lock.json` |
+| JavaScript / TypeScript | `package.json` | Read `scripts.{dev,build,test,lint,typecheck}`; package manager from `packageManager` field or `pnpm-lock.yaml` / `yarn.lock` / `package-lock.json` |
 | Python | `pyproject.toml` | Read `[tool.poetry.scripts]` / `[project.scripts]`; or fall back to `pytest`, `ruff`, `mypy` if those configs exist |
 | Rust | `Cargo.toml` | `cargo build`, `cargo test`, `cargo clippy`, `cargo fmt` |
 | Go | `go.mod` | `go build ./...`, `go test ./...`, `go vet ./...` |
@@ -73,12 +73,12 @@ Fill the placeholders below from step 2 detection. Trim sections that don't appl
 
 ## Setup commands
 
-- Install deps: `<pnpm install | npm install | poetry install | cargo build | go mod download>`
-- Start dev:    `<pnpm dev | npm run dev | uvicorn ... | cargo run | go run ./...>`
-- Build:        `<pnpm build | cargo build --release | go build ./...>`
-- Test:         `<pnpm test | pytest | cargo test | go test ./...>`
-- Lint:         `<pnpm lint | ruff check | cargo clippy | go vet ./...>`
-- Typecheck:    `<pnpm typecheck | mypy . | …>`           # omit if not applicable
+- Install deps: `<bun install | poetry install | cargo build | go mod download>`
+- Start dev:    `<bun run dev | uvicorn ... | cargo run | go run ./...>`
+- Build:        `<bun run build | cargo build --release | go build ./...>`
+- Test:         `<bun test | pytest | cargo test | go test ./...>`
+- Lint:         `<bun run lint | ruff check | cargo clippy | go vet ./...>`
+- Typecheck:    `<bun run typecheck | mypy . | …>`           # omit if not applicable
 
 ## Project layout
 

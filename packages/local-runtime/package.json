@@ -50,8 +50,7 @@
     "@types/node": "^20",
     "@types/pngjs": "^6.0.5",
     "@types/proper-lockfile": "^4",
-    "typescript": "^5",
-    "vitest": "^2"
+    "typescript": "^5"
   },
   "private": true,
   "license": "MIT"

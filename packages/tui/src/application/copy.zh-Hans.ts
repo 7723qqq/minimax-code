@@ -4,7 +4,7 @@ import type { ApplicationCopyKey } from './copy.en.js';
  * Simplified Chinese copy for the TUI application layer.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  */
 export const ZH_HANS_APPLICATION_COPY = {
   'application.run.noFinalResponse': 'Runtime 完成后没有最终的助手回复。',

@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { open } from 'node:fs/promises';
 
 import { getRuntimeRegion } from '@mavis/config';
@@ -380,7 +379,7 @@ function transportFailure(error: unknown): PluginSystemCloudTransportError {
 }
 
 function md5(value: string): string {
-  return createHash('md5').update(value).digest('hex');
+  return new Bun.CryptoHasher('md5').update(value).digest('hex');
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

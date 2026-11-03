@@ -1,7 +1,6 @@
 import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { createHash } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFileSync } from './lib/exec.mjs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -11,7 +10,7 @@ import { readExtraction, dependencyLicensesPath } from './lib/release-metadata.m
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const json = file => JSON.parse(readFileSync(file, 'utf8'));
-const digest = bytes => createHash('sha256').update(bytes).digest('hex');
+const digest = bytes => new Bun.CryptoHasher('sha256').update(bytes).digest('hex');
 
 function resolvePackage(name, importer) {
   const require = createRequire(path.join(importer, 'package.json'));
@@ -89,10 +88,10 @@ export async function packageCliRelease({ tag, out }) {
     writeFileSync(path.join(stage, 'README.md'), `# MiniMax Code ${version}
 
 Built from https://github.com/MiniMax-AI/minimax-code/tree/${revision}.
-Install this tar.gz with npm. Node.js must satisfy the package engines requirement.
+Install this tar.gz with bun. The CLI runtime is Bun 1.4.4+.
 Keep optional dependencies enabled and allow better-sqlite3 installation scripts.
-Update by installing a newer GitHub release archive; the built-in updater follows npm.
-The archive uses the same package name, mcode command and user data as the official npm CLI.
+Update by installing a newer GitHub release archive; the built-in updater follows the registry channel.
+The archive uses the same package name, mcode command and user data as the published CLI.
 See https://github.com/MiniMax-AI/minimax-code/blob/${revision}/docs/installation.md.
 `);
     mkdirSync(out, { recursive: true });

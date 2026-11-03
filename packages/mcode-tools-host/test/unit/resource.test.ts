@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { chmodSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -38,7 +37,7 @@ function fixture(): { dataDir: string; resourceDir: string } {
       nativePackages: [],
       resources: [{
         path: 'cli.mjs',
-        sha256: createHash('sha256').update(cli).digest('hex'),
+        sha256: new Bun.CryptoHasher('sha256').update(cli).digest('hex'),
       }],
     }, null, 2)}\n`,
   );

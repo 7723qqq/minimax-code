@@ -327,7 +327,7 @@ export class SqliteLocalMessageStore implements LocalRuntimeMessageStore {
   async setDisplayMessages(sessionId: string, messages: AgentMessage[]): Promise<void> {
     this.withDb((db) => {
       runInTransaction(db, () => {
-        replaceDisplayMessageRowsInTransaction(db, sessionId, cloneJson(messages));
+        replaceDisplayMessageRowsInTransaction(db, sessionId, messages);
         markDisplayMessageRowsBackfilled(db, sessionId);
         clearLegacyDisplayMessagesBlob(db, sessionId);
         rebuildSessionAssetsInTransaction(db, sessionId);
@@ -339,7 +339,7 @@ export class SqliteLocalMessageStore implements LocalRuntimeMessageStore {
     this.withDb((db) => {
       runInTransaction(db, () => {
         backfillDisplayMessageRowsIfNeededInTransaction(db, sessionId);
-        const normalized = upsertDisplayMessageRow(db, sessionId, cloneJson(message));
+        const normalized = upsertDisplayMessageRow(db, sessionId, message);
         indexDisplayMessageAssetsInTransaction(db, sessionId, {
           msgId: normalized.msgId,
           role: normalized.role,
@@ -435,7 +435,7 @@ export class SqliteLocalMessageStore implements LocalRuntimeMessageStore {
     this.withDb((db) => {
       runInTransaction(db, () => {
         backfillPiHistoryRowsIfNeededInTransaction(db, sessionId);
-        replacePiHistoryRowsInTransaction(db, sessionId, cloneJson(messages));
+        replacePiHistoryRowsInTransaction(db, sessionId, messages);
         markPiHistoryRowsBackfilled(db, sessionId);
         clearLegacyPiHistoryBlob(db, sessionId);
       });
@@ -447,7 +447,7 @@ export class SqliteLocalMessageStore implements LocalRuntimeMessageStore {
     this.withDb((db) => {
       runInTransaction(db, () => {
         backfillPiHistoryRowsIfNeededInTransaction(db, sessionId);
-        appendPiHistoryRows(db, sessionId, cloneJson(messages));
+        appendPiHistoryRows(db, sessionId, messages);
       });
     });
   }
@@ -471,7 +471,7 @@ export class SqliteLocalQueueStore implements LocalRuntimeQueueStore {
     this.withDb((db) => {
       runInTransaction(db, () => {
         backfillQueueRowsIfNeededInTransaction(db, sessionId);
-        replaceQueueRowsInTransaction(db, sessionId, cloneJson(items));
+        replaceQueueRowsInTransaction(db, sessionId, items);
         markQueueRowsBackfilled(db, sessionId);
       });
     });
@@ -768,8 +768,8 @@ export class SqliteLocalTurnDiffStore implements LocalTurnDiffStore {
           input.toolName,
           input.sessionId,
           input.turnId,
-          JSON.stringify(cloneJson(input.paths)),
-          JSON.stringify(cloneJson(input.before)),
+          JSON.stringify(input.paths),
+          JSON.stringify(input.before),
           input.ambiguityReason ?? null,
           Date.now(),
         ) as { changes?: number };
@@ -797,7 +797,7 @@ export class SqliteLocalTurnDiffStore implements LocalTurnDiffStore {
         `,
         )
         .run(
-          JSON.stringify(cloneJson(input.after)),
+          JSON.stringify(input.after),
           Date.now(),
           input.turnId,
           input.sessionId,
@@ -843,8 +843,8 @@ export class SqliteLocalTurnDiffStore implements LocalTurnDiffStore {
         input.toolName,
         input.sessionId,
         input.turnId,
-        JSON.stringify(cloneJson(input.paths ?? [])),
-        JSON.stringify(cloneJson(input.before ?? [])),
+        JSON.stringify(input.paths ?? []),
+        JSON.stringify(input.before ?? []),
         input.reason,
         now,
         now,
@@ -991,8 +991,8 @@ export class SqliteLocalTurnDiffStore implements LocalTurnDiffStore {
         record.capturedAtMs,
         updatedAtMs,
         record.status,
-        JSON.stringify(cloneJson(record.fileChanges)),
-        JSON.stringify(cloneJson(record.undo ?? [])),
+        JSON.stringify(record.fileChanges),
+        JSON.stringify(record.undo ?? []),
         record.undoable ? 1 : 0,
         record.rawDiff ?? null,
         record.revertedAt ?? null,
@@ -2213,8 +2213,4 @@ function normalizeScanLimit(value: number | undefined): number | undefined {
   if (value === undefined || !Number.isFinite(value)) return undefined;
   const normalized = Math.floor(value);
   return normalized > 0 ? normalized : undefined;
-}
-
-function cloneJson<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
 }

@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 
 import { eq, sql, type SQL } from 'drizzle-orm';
 
@@ -139,7 +138,7 @@ function normalizeSearchText(value: string): string {
 }
 
 function searchFingerprint(keyword: string, agentName?: string): string {
-  return createHash('sha256')
+  return new Bun.CryptoHasher('sha256')
     .update(keyword)
     .update('\u0000')
     .update(agentName ?? '')

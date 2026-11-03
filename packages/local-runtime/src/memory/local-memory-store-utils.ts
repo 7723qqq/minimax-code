@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { readdir, readFile, unlink } from 'node:fs/promises';
 
 import { LocalMemoryError, type LocalMemorySearchResult } from './types.js';
@@ -131,5 +130,5 @@ export async function deleteIfExists(filePath: string): Promise<boolean> {
 }
 
 export function sha256(content: string): string {
-  return createHash('sha256').update(content).digest('hex');
+  return new Bun.CryptoHasher('sha256').update(content).digest('hex');
 }

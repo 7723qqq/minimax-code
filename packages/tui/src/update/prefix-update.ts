@@ -1,4 +1,6 @@
-import { createHash, randomUUID } from 'node:crypto';
+// `randomUUID` stays on node:crypto (Bun has no UUIDv4 equivalent); hashing
+// runs on Bun.CryptoHasher below.
+import { randomUUID } from 'node:crypto';
 import {
   cpSync,
   mkdirSync,
@@ -10,7 +12,6 @@ import {
   writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
-import spawn from 'cross-spawn';
 import { resolveMcodeNpmPrefixInstall, type McodeNpmPackageName } from './install-source.js';
 
 const PENDING_UPDATE_FILE = '.mcode-update-pending.json';
@@ -195,20 +196,40 @@ function validateMcodePrefixEntry(
   outputIsValid: (output: string) => boolean,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn(runtimeExecutable, [...args], {
-      cwd: prefix,
-      env: process.env,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      windowsHide: true,
-      timeout: 30_000,
-      killSignal: 'SIGKILL',
-    });
-    const stdout: Buffer[] = [];
-    const stderr: Buffer[] = [];
-    child.stdout?.on('data', (chunk: Buffer) => stdout.push(chunk));
-    child.stderr?.on('data', (chunk: Buffer) => stderr.push(chunk));
-    child.once('error', reject);
-    child.once('close', (code, signal) => {
+    // Bun.spawn replaces the spawned child process: the pipes are web streams,
+    // so the data listeners become drains awaited before the verdict, and
+    // `exited` replaces the close event (a signalled child reports a
+    // signal-derived code together with `signalCode`).
+    let child: Bun.Subprocess<'ignore', 'pipe', 'pipe'>;
+    try {
+      child = Bun.spawn({
+        cmd: [runtimeExecutable, ...args],
+        cwd: prefix,
+        env: process.env,
+        stdin: 'ignore',
+        stdout: 'pipe',
+        stderr: 'pipe',
+        windowsHide: true,
+        timeout: 30_000,
+        killSignal: 'SIGKILL',
+      });
+    } catch (error) {
+      reject(error);
+      return;
+    }
+    const stdout: Uint8Array[] = [];
+    const stderr: Uint8Array[] = [];
+    const drains = [
+      (async () => {
+        for await (const chunk of child.stdout) stdout.push(chunk);
+      })(),
+      (async () => {
+        for await (const chunk of child.stderr) stderr.push(chunk);
+      })(),
+    ];
+    void child.exited.then(async (code) => {
+      await Promise.all(drains.map((pending) => pending.catch(() => undefined)));
+      const signal = child.signalCode;
       const output = Buffer.concat(stdout).toString('utf8').trim();
       if (code === 0 && outputIsValid(output)) return resolve();
       const details = Buffer.concat(stderr).toString('utf8').trim() || output;
@@ -252,27 +273,26 @@ export async function scheduleMcodePrefixUpdate(
   if (path.resolve(pendingFile) !== path.resolve(pending.activePrefix, PENDING_UPDATE_FILE)) {
     throw new Error(`MCode pending update file is outside its active prefix: ${pendingFile}`);
   }
-  const pendingDigest = createHash('sha256').update(pendingContents).digest('hex');
+  const pendingDigest = new Bun.CryptoHasher('sha256').update(pendingContents).digest('hex');
   const leaseFile = path.join(pending.activePrefix, ACTIVATOR_LEASE_FILE);
   if (!acquireMcodePrefixActivatorLease(leaseFile, pendingDigest)) return;
   const helperFile = path.join(pending.activePrefix, '.mcode-update-activator.cjs');
   try {
     writeMcodePrefixActivationStatus(pending.activePrefix, pendingDigest, 'scheduled');
     writeFileSync(helperFile, prefixActivatorSource(), { mode: 0o700 });
-    const child = spawn(
-      runtimeExecutable,
-      [helperFile, pendingFile, pendingDigest, String(parentPid), restartCwd, ...restartArgs],
-      {
-        cwd: pending.activePrefix,
-        env: environment,
-        detached: true,
-        stdio: restartArgs.length > 0 ? 'inherit' : 'ignore',
-        windowsHide: true,
-      },
-    );
-    await new Promise<void>((resolve, reject) => {
-      child.once('error', reject);
-      child.once('spawn', resolve);
+    // Bun.spawn replaces the spawned child process: a start failure throws
+    // instead of arriving through an error event, and the detached handle is
+    // unref'd as soon as it exists.
+    const stdio = restartArgs.length > 0 ? 'inherit' : 'ignore';
+    const child = Bun.spawn({
+      cmd: [runtimeExecutable, helperFile, pendingFile, pendingDigest, String(parentPid), restartCwd, ...restartArgs],
+      cwd: pending.activePrefix,
+      env: environment,
+      detached: true,
+      stdin: stdio,
+      stdout: stdio,
+      stderr: stdio,
+      windowsHide: true,
     });
     child.unref();
   } catch (error) {
@@ -719,15 +739,13 @@ function prefixActivatorSource(): string {
   return String.raw`'use strict';
 const fs = require('node:fs');
 const path = require('node:path');
-const cp = require('node:child_process');
-const crypto = require('node:crypto');
 const pendingFile = process.argv[2];
 const pendingDigest = process.argv[3];
 const parentPid = Number(process.argv[4]);
 const restartCwd = process.argv[5];
 const restartArgs = process.argv.slice(6);
 const pendingContents = fs.readFileSync(pendingFile, 'utf8');
-if (crypto.createHash('sha256').update(pendingContents).digest('hex') !== pendingDigest) throw new Error('MCode pending update journal changed after scheduling.');
+if (new Bun.CryptoHasher('sha256').update(pendingContents).digest('hex') !== pendingDigest) throw new Error('MCode pending update journal changed after scheduling.');
 const pending = JSON.parse(pendingContents);
 const leaseFile = path.join(pending.activePrefix, '.mcode-update-activator.json');
 const statusFile = path.join(pending.activePrefix, '.mcode-update-activation-status.json');
@@ -809,11 +827,16 @@ async function activate() {
   const alreadyActivated = await recoverInterrupted();
   const restart = (args) => new Promise((resolve, reject) => {
     if (args.length === 0) return resolve();
-    const child = cp.spawn(process.execPath, args, {
-      cwd: restartCwd, env: process.env, detached: true, stdio: 'inherit', windowsHide: false,
-    });
-    child.once('error', reject);
-    child.once('spawn', () => { child.unref(); resolve(); });
+    let child;
+    try {
+      child = Bun.spawn({
+        cmd: [process.execPath, ...args],
+        cwd: restartCwd, env: process.env, detached: true,
+        stdin: 'inherit', stdout: 'inherit', stderr: 'inherit', windowsHide: false,
+      });
+    } catch (error) { reject(error); return; }
+    child.unref();
+    resolve();
   });
   if (alreadyActivated) {
     await restart(restartArgs);
@@ -873,13 +896,14 @@ async function activate() {
  *
  * A `statSync` inside a `try` answers the same question as `existsSync` for a
  * file, a directory, a missing entry and an unreadable path, at a fraction of the
- * per-call cost: `existsSync` is the Node compatibility surface and measures
+ * per-call cost: `existsSync` is the `node:` compatibility surface and measures
  * roughly an order of magnitude slower in this runtime. This module runs inside
  * the synchronous activation path, so `Bun.file()` does not apply.
  *
- * The generated activator source (`prefixActivatorSource`) is deliberately not
- * changed: it is written to disk and executed by a separate process, and keeping
- * it on `node:fs` keeps that helper readable by a plain Node runtime.
+ * The generated activator source (`prefixActivatorSource`) runs on the same
+ * runtime as the CLI, because the scheduler launches it with `process.execPath`.
+ * It therefore uses Bun's own subprocess and hashing surfaces; `node:fs` and
+ * `node:path` stay as the sanctioned fallback where Bun has no synchronous API.
  */
 function pathExists(target: string): boolean {
   try {

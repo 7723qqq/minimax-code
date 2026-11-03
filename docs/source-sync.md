@@ -7,7 +7,7 @@
 Run the following from this repository. The source repository must contain both the recorded baseline and the target revision. The output directory must not exist and must be outside both repositories.
 
 ```bash
-node scripts/prepare-source-sync.mjs --source /path/to/source-repository \
+bun scripts/prepare-source-sync.mjs --source /path/to/source-repository \
   --ref <reviewed-upstream-commit> --out /path/to/new-private-review-directory
 ```
 

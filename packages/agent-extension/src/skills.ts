@@ -18,7 +18,7 @@
  *   => Reminder | null`, evaluate skill-match reminders per turn, equivalent to the host's existing
  *   `skillMatchReminderProvider`.
  *
- * The host defines the `skill` tool (`packages/local-runtime/src/tools/skill-tool.ts`) because it
+ * The host defines the `skill` tool (`packages/agent-tools/src/desktop/local-skill.ts`) because it
  * reads filesystem SKILL.md files. This extension registers no tool, only the declarative catalog +
  * reminder portions. A future host SPI migration will register the skill tool via
  * `pi.registerTool`, matching the §4.3 table's semantics.

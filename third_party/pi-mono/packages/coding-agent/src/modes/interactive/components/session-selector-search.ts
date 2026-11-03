@@ -57,7 +57,7 @@ export function parseSearchQuery(query: string): ParsedSearchQuery {
 	}
 
 	// Token mode with quote support.
-	// Example: foo "node cve" bar
+	// Example: foo "wrap ansi" bar
 	const tokens: { kind: "fuzzy" | "phrase"; value: string }[] = [];
 	let buf = "";
 	let inQuote = false;

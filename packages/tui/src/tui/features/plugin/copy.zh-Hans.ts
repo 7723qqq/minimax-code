@@ -4,7 +4,7 @@ import type { PluginCopyKey } from './copy.en.js';
  * Simplified Chinese copy for the plugin manager.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  */
 export const ZH_HANS_PLUGIN_COPY = {
   browsePlugins: '浏览 MiniMax 官方与本地插件 · 已安装 {installed} 个，共 {total} 个',

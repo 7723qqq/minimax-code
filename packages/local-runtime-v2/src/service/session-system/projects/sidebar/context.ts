@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { SidebarQueryError, type SidebarQuery } from './contracts.js';
 
 function stringSet(values: readonly string[] | undefined): string[] {
@@ -68,7 +67,7 @@ function queryTime(input: SidebarQuery, hash: string, nowMs: number): number {
 }
 export function normalizeSidebarQuery(input: SidebarQuery, nowMs: number, internalRootIds: readonly string[] = [], rootAgentNames?: readonly string[]) {
   const normalized = { ...normalizeInputs(input), internalRootIds: [...internalRootIds].sort(), ...(rootAgentNames ? { rootAgentNames: [...new Set(rootAgentNames)].sort() } : {}) };
-  const hash = createHash('sha256').update(JSON.stringify(normalized)).digest('hex');
+  const hash = new Bun.CryptoHasher('sha256').update(JSON.stringify(normalized)).digest('hex');
   const queryNowMs = queryTime(input, hash, nowMs);
   const context = encodeObject({ v: 1, hash, nowMs: queryNowMs });
   return { ...normalized, hash, context, nowMs: queryNowMs };

@@ -52,6 +52,12 @@ export {
   type TerminalResponseRecoveryExtensionOptions,
 } from './terminal-response-recovery.js';
 export {
+  requestMediaEncodingExtension,
+  type RequestMediaEncodeResult,
+  type RequestMediaEncodingExtensionOptions,
+  type RequestMediaImageEncoding,
+} from './request-media-encoding.js';
+export {
   appSourceAdapter,
   fileSourceAdapter,
   mcpSourceAdapter,

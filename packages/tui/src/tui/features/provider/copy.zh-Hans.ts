@@ -4,7 +4,7 @@ import type { ProviderCopyKey } from './copy.en.js';
  * Simplified Chinese copy for the provider panels.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  */
 export const ZH_HANS_PROVIDER_COPY = {
   valueReplacementEntered: '已输入新密钥',

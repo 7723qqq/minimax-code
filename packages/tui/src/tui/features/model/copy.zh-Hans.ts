@@ -4,7 +4,7 @@ import type { ModelCopyKey } from './copy.en.js';
  * Simplified Chinese copy for the model picker.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  */
 export const ZH_HANS_MODEL_COPY = {
   noMatchingModels: '没有匹配的模型',

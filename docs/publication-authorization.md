@@ -6,13 +6,13 @@ This repository publishes the reviewed MiniMax Code TUI, headless CLI, and ACP s
 
 - First-party source in the reviewed package roots, build and release scripts, tests, prompts, agents, skills, templates, examples, and documentation.
 - MiniMax names and the specific brand assets committed to this repository.
-- Vendored components and the model catalog under their existing terms. The repository also records pinned versions, integrity checks, and license metadata for the `mcode-tools` artifact and npm dependencies downloaded during installation or build.
+- Vendored components and the model catalog under their existing terms. The repository also records pinned versions, integrity checks, and license metadata for the `mcode-tools` artifact and registry dependencies downloaded during installation or build.
 
 The source inventory is the machine-readable boundary. Adding a path to that inventory does not replace review of its content, provenance, license, or user-data risk.
 
 ## Excluded material
 
-The published source does not include the Desktop application's source, internal Git history, private review material, account data, logs, sessions, credentials, or later unreviewed additions. Source publication does not publish an npm package or installer and does not grant access to paid services or third-party accounts.
+The published source does not include the Desktop application's source, internal Git history, private review material, account data, logs, sessions, credentials, or later unreviewed additions. Source publication does not publish a registry package or installer and does not grant access to paid services or third-party accounts.
 
 ## Release checks
 

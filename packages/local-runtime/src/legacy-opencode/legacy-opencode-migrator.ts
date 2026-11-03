@@ -1,6 +1,5 @@
 import type { AgentMessage as PiAgentMessage } from '@earendil-works/pi-agent-core';
 import { type AgentMessage } from '@mavis/agent-core/protocol/agent-message';
-import crypto from 'node:crypto';
 
 import type { LocalRuntimeAgentStore, LocalRuntimeMessageStore } from '../persistence/ports.js';
 import { registerLocalAsset } from '../assets/store.js';
@@ -871,7 +870,7 @@ export class LegacyOpencodeMigrator {
     const emittedMsgIds = new Set<string>();
 
     const attachmentStats = { missing: 0, copied: 0, dataUrl: 0 };
-    const displayHash = crypto.createHash('sha256');
+    const displayHash = new Bun.CryptoHasher('sha256');
     // `checksumJson(messages)` hashes `JSON.stringify(array)` — reproduce that
     // exactly by feeding the array's JSON delimiters (`[`, `,`, `]`) around
     // each element's JSON so a streamed hash equals the whole-array hash.

@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -33,7 +32,7 @@ beforeEach(() => {
     writeFileSync(path.join(root, name), name);
     manifest.resources.push({
       path: name,
-      sha256: createHash('sha256').update(name).digest('hex'),
+      sha256: new Bun.CryptoHasher('sha256').update(name).digest('hex'),
     });
   }
   writeFileSync(path.join(root, 'manifest.json'), JSON.stringify(manifest));

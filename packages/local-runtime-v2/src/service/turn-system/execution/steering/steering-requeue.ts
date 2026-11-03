@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { basename } from 'node:path';
 
 import { pausesQueueOnAbort } from '../queue-pause-on-abort.js';
@@ -478,7 +477,7 @@ function batchIdentity(
   batch: DiscardedSteeringBatch,
   messages: readonly AgentHostSteeringMessage[],
 ): string {
-  return `steer-batch:${createHash('sha256')
+  return `steer-batch:${new Bun.CryptoHasher('sha256')
     .update(
       JSON.stringify([
         batch.sessionId,

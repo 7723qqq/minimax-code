@@ -1,6 +1,5 @@
 import { describe, expect, it, mock, spyOn } from 'bun:test';
 import { SemanticReplayRegistry } from '../packages/local-runtime-v2/src/service/turn-system/agent-host/events/semantic-replay-registry.js';
-import { createHash } from 'node:crypto';
 import { createCanonicalHistoryScanner, scanCanonicalHistoryArtifacts } from '../packages/local-runtime-v2/src/service/session-system/messages/history/mutation/canonical-history-scanner.js';
 import {
   canonicalActiveHistoryRevision,
@@ -251,7 +250,7 @@ describe('native incremental semantic hashing', () => {
   it.each(inputs)('preserves UTF-8 hashing %#', (input) => {
     const hash = new IncrementalSha256();
     hash.update(input);
-    expect(hash.digestHex()).toBe(createHash('sha256').update(input).digest('hex'));
+    expect(hash.digestHex()).toBe(new Bun.CryptoHasher('sha256').update(input).digest('hex'));
     expect(() => hash.update('')).toThrow('finalized');
     expect(() => hash.digestHex()).toThrow('finalized');
   });
@@ -260,12 +259,12 @@ describe('native incremental semantic hashing', () => {
     hash.update('\ud83d');
     hash.update('\ude42');
     expect(hash.digestHex()).toBe(
-      createHash('sha256').update('\ud83d').update('\ude42').digest('hex'),
+      new Bun.CryptoHasher('sha256').update('\ud83d').update('\ude42').digest('hex'),
     );
   });
   it('matches native updates across repeated batches and split surrogate pairs', () => {
     const actual = new IncrementalSha256();
-    const expected = createHash('sha256');
+    const expected = new Bun.CryptoHasher('sha256');
     const parts = ['key', ':', '', '\ud83d', '\ude42', '中文🙂', 'x'.repeat(8191), '🙂tail'];
     for (let index = 0; index < 257; index += 1) {
       for (const part of parts) {
@@ -289,7 +288,7 @@ describe('streamed canonical history revisions', () => {
         metadata: { z: [null, true, -0], '10': 'ten', '2': 'two', a: { b: '"\\\n' } },
       },
     }));
-    const expected = `sha256:${createHash('sha256')
+    const expected = `sha256:${new Bun.CryptoHasher('sha256')
       .update(canonicalJson(records.map(decodeCanonicalHistoryEnvelope)), 'utf8')
       .digest('hex')}`;
     expect(canonicalHistoryRevision(records)).toBe(expected);
@@ -313,7 +312,7 @@ describe('streamed canonical history revisions', () => {
         },
       },
     ];
-    const expected = `sha256:${createHash('sha256')
+    const expected = `sha256:${new Bun.CryptoHasher('sha256')
       .update(canonicalJson(pending.map(decodeCanonicalHistoryEnvelope)), 'utf8')
       .digest('hex')}`;
     expect(canonicalActiveHistoryRevision(pending)).toBe(expected);
@@ -1148,7 +1147,7 @@ describe('owned decoded history rows', () => {
         const records = index % 2 === 0
           ? await reader.readActiveStrict()
           : (await reader.readActiveWithBytes()).records;
-        const revision = `sha256:${createHash('sha256')
+        const revision = `sha256:${new Bun.CryptoHasher('sha256')
           .update(canonicalJson(rows.map(decodeCanonicalHistoryEnvelope)), 'utf8')
           .digest('hex')}`;
         expect(canonicalActiveHistoryRevision(records)).toBe(revision);

@@ -1,13 +1,12 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { execFileSync } from './lib/exec.mjs';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { versionFromTag, cliReleaseTargets } from './lib/cli-release.mjs';
 
 export function validateReleaseReports({ archive, reports, version, revision }) {
-  const sha256 = createHash('sha256').update(readFileSync(archive)).digest('hex');
+  const sha256 = new Bun.CryptoHasher('sha256').update(readFileSync(archive)).digest('hex');
   assert.equal(readFileSync(`${archive}.sha256`, 'utf8'), `${sha256}  ${path.basename(archive)}\n`);
   for (const target of cliReleaseTargets) {
     const directory = path.join(reports, `cli-install-${target.os}-bun-${target.bun}`);
@@ -44,7 +43,7 @@ npm install --global ./minimax-code-${version}.tar.gz --registry=https://registr
 mcode --version
 \`\`\`
 
-Requires Bun 1.4.4+ (the CLI runs on the Bun runtime; \`bun:sqlite\` is a Bun builtin) and network access to public npm for runtime dependencies. Node.js 22.19+ remains required for the build toolchain only.
+Requires Bun 1.4.4+ (the CLI runs on the Bun runtime; \`bun:sqlite\` is a Bun builtin) and network access to the public registry for runtime dependencies.
 
 The same archive passed npm installation and offline CLI/BYOK tests on Linux and macOS under the pinned Bun runtime. Windows and live-service acceptance were not run. This package shares the official npm CLI's package name and user data. Install future GitHub archives explicitly; the built-in updater follows the npm registry channel.
 `);

@@ -8,8 +8,8 @@
 ```bash
 git clone https://github.com/MiniMax-AI/minimax-code.git
 cd minimax-code
-pnpm install
-pnpm verify --profile docs
+bun install --frozen-lockfile
+bun run verify --profile docs
 ```
 
 最后一条必须先通过。它验证的是本仓库自身的公开边界，能跑通说明你的环境是对的——
@@ -53,16 +53,16 @@ my-plugin/
 ## 3. 本地校验
 
 ```bash
-node tools/plugins/validate-plugin.mjs path/to/my-plugin
+bun tools/plugins/validate-plugin.mjs path/to/my-plugin
 ```
 
 或用仓库脚本：
 
 ```bash
-pnpm check:plugin path/to/my-plugin
+bun run check:plugin path/to/my-plugin
 ```
 
-这条校验与 `pnpm verify --profile docs` 内部执行的是**同一段代码**，所以本地通过
+这条校验与 `bun run verify --profile docs` 内部执行的是**同一段代码**，所以本地通过
 意味着 CI 也会通过。它会检查：
 
 - manifest 是否满足 `schemas/plugins/plugin-v1.schema.json`

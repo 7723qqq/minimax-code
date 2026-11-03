@@ -303,7 +303,7 @@ export type PermissionUpdate =
  * {
  *   "allow": ["bash(git:*)", "edit", "read"],
  *   "deny":  ["bash(rm -rf:*)"],
- *   "ask":   ["bash(npm publish:*)"],
+ *   "ask":   ["bash(bun publish:*)"],
  *   "defaultMode": "default"
  * }
  * ```

@@ -134,6 +134,8 @@ export interface LocalConversationRuntimeConfig extends LocalRuntimeConfig {
   readonly runawayGuard?: Config['runawayGuard'];
   /** ToolResult compaction values resolved from config.yaml. */
   readonly toolResultCompaction?: Config['toolResultCompaction'];
+  /** Request media image limits resolved from config.yaml. */
+  readonly requestMedia?: Config['requestMedia'];
   /** Context management values resolved from config.yaml. */
   readonly contextManagement?: Partial<Config['contextManagement']>;
   /**

@@ -1,6 +1,6 @@
 # Fix the clamp function
 
-This intentionally incorrect function is a small MiniMax Code coding exercise. Copy this directory to a temporary location before trying it. Running `node --test` on the original version produces two failing tests.
+This intentionally incorrect function is a small MiniMax Code coding exercise. Copy this directory to a temporary location before trying it. Running `bun test` on the original version produces two failing tests.
 
 Ask MiniMax Code to read the function and tests, reproduce the failure, fix the function, and run the tests again. Do not change the tests to make them pass.
 

@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { previewAgentModelSelection } from "../../../../src/service/model-system/index.js";
 import {
   mkdir,
@@ -915,7 +914,7 @@ function registerConfigDocumentPublicationTests(): void {
     cleanup.push(() => rm(dataDir, { recursive: true, force: true }));
     const legacyPath = join(dataDir, "sqlite.db");
     await writeFile(legacyPath, "legacy-db-sentinel");
-    const legacyHash = createHash("sha256")
+    const legacyHash = new Bun.CryptoHasher("sha256")
       .update(await readFile(legacyPath))
       .digest("hex");
     const database = new DatabaseClient({ dataDir });
@@ -999,7 +998,7 @@ function registerConfigDocumentPublicationTests(): void {
     await expect(repository.delete("worker")).resolves.toBe(true);
     await expect(repository.get("worker")).resolves.toBeUndefined();
     expect(
-      createHash("sha256")
+      new Bun.CryptoHasher("sha256")
         .update(await readFile(legacyPath))
         .digest("hex"),
     ).toBe(legacyHash);

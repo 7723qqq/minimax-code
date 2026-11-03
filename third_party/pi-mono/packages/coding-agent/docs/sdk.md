@@ -40,7 +40,7 @@ await session.prompt("What files are in the current directory?");
 ## Installation
 
 ```bash
-npm install @earendil-works/pi-coding-agent
+bun install @earendil-works/pi-coding-agent
 ```
 
 The SDK is included in the main package. No separate installation needed.
@@ -1082,7 +1082,7 @@ See [RPC documentation](rpc.md) for the JSON protocol.
 
 The SDK is preferred when:
 - You want type safety
-- You're in the same Node.js process
+- You're in the same runtime process
 - You need direct access to agent state
 - You want to customize tools/extensions programmatically
 

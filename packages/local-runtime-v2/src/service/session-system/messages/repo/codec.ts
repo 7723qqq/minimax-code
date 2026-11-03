@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 
 import type { messageRows } from '../../../../infra/db/schema/messages.js';
 import { MessageDataCorruptionError } from './contract.js';
@@ -127,7 +126,7 @@ function generatedMessageId(
   explicitTime: number | undefined,
   discriminator: string | undefined,
 ): string {
-  const suffix = createHash('sha256')
+  const suffix = new Bun.CryptoHasher('sha256')
     .update(JSON.stringify({ message, discriminator }))
     .digest('base64url')
     .slice(0, 20);

@@ -54,10 +54,10 @@ Use [testing-workflow](../testing-workflow/SKILL.md) to select declared tests.
 Build the standalone artifact before inspecting its actual help:
 
 ```bash
-pnpm build
-node dist/cli.js --help
-node dist/cli.js exec --help
-node dist/cli.js acp --help
+bun run build
+bun dist/cli.js --help
+bun dist/cli.js exec --help
+bun dist/cli.js acp --help
 ```
 
 Read current help before documenting flags. Use temporary data directories and

@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
@@ -23,7 +22,7 @@ if (
   throw new Error("Expected unpack/finalize, --archive and a full --revision");
 const archive = path.resolve(values.archive);
 const receipt = JSON.parse(readFileSync(`${archive}.json`, "utf8"));
-const digest = createHash("sha256").update(readFileSync(archive)).digest("hex");
+const digest = new Bun.CryptoHasher("sha256").update(readFileSync(archive)).digest("hex");
 if (
   receipt.schemaVersion !== 1 ||
   receipt.revision !== values.revision ||

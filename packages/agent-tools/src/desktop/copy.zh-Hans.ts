@@ -4,7 +4,7 @@ import type { WebsiteDeployCopyKey } from './copy.en.js';
  * Simplified Chinese copy for the website deploy tool's user-facing failures.
  *
  * The `satisfies` clause is the completeness check: a key present in the English
- * catalog but absent here fails `pnpm typecheck`.
+ * catalog but absent here fails `bun run typecheck`.
  *
  * Product names and identifiers stay in English: `website_deploy`, `index.html`,
  * `node_id`, `vite build`, `next export` are literal values the user types or

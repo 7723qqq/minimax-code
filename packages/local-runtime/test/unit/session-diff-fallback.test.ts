@@ -1,5 +1,5 @@
 import { stubEnv, unstubAllEnvs } from '../../../../test/bun-test-setup.js';
-import { execFileSync } from 'node:child_process';
+import { execFileSync } from "../../../../scripts/lib/exec.mjs";
 import { mkdtemp, mkdir, writeFile, appendFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';

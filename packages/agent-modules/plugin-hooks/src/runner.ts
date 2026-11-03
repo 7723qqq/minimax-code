@@ -1,4 +1,3 @@
-import { spawn, type ChildProcess } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
 import { resolve as resolvePath } from 'node:path';
 
@@ -40,7 +39,7 @@ const PROCESS_DRAIN_BUDGET_MS = 500;
 export class PluginHookRunner {
   private logger?: PluginHookLogger;
   private observer?: PluginHookObserver;
-  private readonly activeChildren = new Set<ChildProcess>();
+  private readonly activeChildren = new Set<HookChild>();
   private readonly disposalController = new AbortController();
   private disposed = false;
 
@@ -230,7 +229,7 @@ export class PluginHookRunner {
     if (!serialized) {
       return { diagnostic: runDiagnostic(handler, 'HOOK_INVALID_INPUT'), processKilled: false };
     }
-    let child: ChildProcess;
+    let child: HookChild;
     const pluginDataDir =
       handler.pluginDataDir ??
       resolvePath(handler.pluginRoot, '..', '.plugin-data', safePluginDataName(handler.pluginName));
@@ -259,13 +258,18 @@ export class PluginHookRunner {
         ...(handler.shell ? { shell: handler.shell } : {}),
         sourceFormat: handler.sourceFormat,
       });
-      child = spawn(invocation.command, invocation.args, {
+      // Shell-form commands arrive with the platform shell spelled out in the
+      // argv (see resolveHookCommandInvocation), so every invocation is a
+      // direct spawn and the unused `shell` field stays false.
+      child = Bun.spawn({
+        cmd: [invocation.command, ...invocation.args],
         cwd: input.cwd,
         env,
-        shell: invocation.shell,
         detached: process.platform !== 'win32',
         windowsHide: true,
-        stdio: ['pipe', 'pipe', 'pipe'],
+        stdin: 'pipe',
+        stdout: 'pipe',
+        stderr: 'pipe',
       });
     } catch {
       return { diagnostic: runDiagnostic(handler, 'HOOK_PROCESS_ERROR'), processKilled: false };
@@ -273,8 +277,21 @@ export class PluginHookRunner {
     this.activeChildren.add(child);
     const overflowController = new AbortController();
     const readOutput = collectOutput(child, () => overflowController.abort());
-    child.stdin?.on('error', () => undefined);
-    child.stdin?.end(serialized);
+    // Bun's stdin pipe (FileSink) returns `number | Promise<number>` from
+    // write/end, so a hook that exits without reading stdin rejects the
+    // pending write with EPIPE instead of throwing. Both the synchronous
+    // throw and the rejection are swallowed here; the write never blocks
+    // runCommand.
+    void (async () => {
+      try {
+        const stdin = child.stdin;
+        if (!stdin) return;
+        await stdin.write(serialized);
+        await stdin.end();
+      } catch {
+        // The hook command may already have exited (EPIPE).
+      }
+    })();
     try {
       const result = await waitForChild(
         child,
@@ -282,7 +299,7 @@ export class PluginHookRunner {
         [...(signal ? [signal] : []), this.disposalController.signal],
         overflowController.signal,
       );
-      const captured = readOutput();
+      const captured = await readOutput();
       if (result.reason === 'aborted') {
         return { diagnostic: runDiagnostic(handler, 'HOOK_ABORTED'), processKilled: result.killed };
       }
@@ -407,36 +424,54 @@ function observeEvent(
   }
 }
 
+/**
+ * Hook commands are piped children whose bounded output and termination are
+ * managed here. `Bun.spawn` replaces the child_process wrapper: it throws
+ * synchronously when the executable cannot start, which now reports
+ * `HOOK_PROCESS_ERROR` directly instead of surfacing later as a synthetic
+ * exit-1 from the old error event.
+ */
+type HookChild = Bun.Subprocess<'pipe', 'pipe', 'pipe'>;
+
 function collectOutput(
-  child: ChildProcess,
+  child: HookChild,
   onOverflow: () => void,
-): () => { stdout: string; stderr: string; overflow: boolean } {
-  let stdout = Buffer.alloc(0);
-  let stderr = Buffer.alloc(0);
+): () => Promise<{ stdout: string; stderr: string; overflow: boolean }> {
+  const targets = [
+    { stream: child.stdout, chunks: [] as Uint8Array[], length: 0 },
+    { stream: child.stderr, chunks: [] as Uint8Array[], length: 0 },
+  ];
   let overflow = false;
-  child.stdout?.on('data', (chunk: Buffer) => {
-    if (stdout.length + chunk.length > MAX_OUTPUT_BYTES && !overflow) {
-      overflow = true;
-      onOverflow();
+  // The Bun pipes are web streams, so draining replaces the data listeners.
+  // The same byte ceiling applies: past it, chunks are dropped and the overflow
+  // flag is raised exactly once.
+  const drain = async (target: (typeof targets)[number]): Promise<void> => {
+    if (!target.stream) return;
+    for await (const chunk of target.stream) {
+      if (target.length + chunk.length > MAX_OUTPUT_BYTES && !overflow) {
+        overflow = true;
+        onOverflow();
+      }
+      const room = MAX_OUTPUT_BYTES - target.length;
+      if (room <= 0) continue;
+      const kept = chunk.length > room ? chunk.subarray(0, room) : chunk;
+      target.chunks.push(kept);
+      target.length += kept.length;
     }
-    stdout = Buffer.concat([stdout, chunk]).subarray(0, MAX_OUTPUT_BYTES);
-  });
-  child.stderr?.on('data', (chunk: Buffer) => {
-    if (stderr.length + chunk.length > MAX_OUTPUT_BYTES && !overflow) {
-      overflow = true;
-      onOverflow();
-    }
-    stderr = Buffer.concat([stderr, chunk]).subarray(0, MAX_OUTPUT_BYTES);
-  });
-  return () => ({
-    stdout: stdout.toString('utf8'),
-    stderr: stderr.toString('utf8'),
-    overflow,
-  });
+  };
+  const drains = [drain(targets[0]), drain(targets[1])];
+  return async () => {
+    await Promise.all(drains.map((pending) => pending.catch(() => undefined)));
+    return {
+      stdout: Buffer.concat(targets[0].chunks).toString('utf8'),
+      stderr: Buffer.concat(targets[1].chunks).toString('utf8'),
+      overflow,
+    };
+  };
 }
 
 function waitForChild(
-  child: ChildProcess,
+  child: HookChild,
   timeoutMs: number,
   signals: readonly AbortSignal[],
   overflowSignal: AbortSignal,
@@ -469,8 +504,10 @@ function waitForChild(
     const abort = () => void stop('aborted');
     const overflow = () => void stop('overflow');
     timer = setTimeout(() => void stop('timeout'), timeoutMs);
-    child.once('error', () => finish({ reason: 'exit', code: 1, killed: false }));
-    child.once('close', (code) => {
+    // A failed start now throws at Bun.spawn and is reported before this runs.
+    // `exited` replaces the close event: it settles with the exit code, or a
+    // signal-derived code where the event carried null.
+    void child.exited.then((code) => {
       if (!stopping) finish({ reason: 'exit', code: code ?? 1, killed: false });
     });
     for (const signal of signals) signal.addEventListener('abort', abort, { once: true });
@@ -480,11 +517,11 @@ function waitForChild(
   });
 }
 
-async function terminateAndDrain(child: ChildProcess): Promise<void> {
-  const closed = new Promise<void>((resolve) => {
-    if (child.exitCode !== null || child.signalCode !== null) resolve();
-    else child.once('close', () => resolve());
-  });
+async function terminateAndDrain(child: HookChild): Promise<void> {
+  const closed =
+    child.exitCode !== null || child.signalCode !== null
+      ? Promise.resolve()
+      : child.exited.then(() => undefined);
   try {
     if (process.platform === 'win32' && child.pid) {
       const killed = await waitBounded(runTaskkill(child.pid), PROCESS_DRAIN_BUDGET_MS, false);
@@ -504,7 +541,7 @@ async function terminateAndDrain(child: ChildProcess): Promise<void> {
   await waitBounded(closed, PROCESS_DRAIN_BUDGET_MS, undefined);
 }
 
-async function terminateRemainingProcessGroup(child: ChildProcess): Promise<boolean> {
+async function terminateRemainingProcessGroup(child: HookChild): Promise<boolean> {
   if (!child.pid) return false;
   if (process.platform === 'win32') {
     return await waitBounded(runTaskkill(child.pid), PROCESS_DRAIN_BUDGET_MS, false);
@@ -518,14 +555,21 @@ async function terminateRemainingProcessGroup(child: ChildProcess): Promise<bool
 }
 
 async function runTaskkill(pid: number): Promise<boolean> {
-  return new Promise<boolean>((resolve) => {
-    const killer = spawn('taskkill', ['/pid', String(pid), '/T', '/F'], {
-      windowsHide: true,
-      stdio: 'ignore',
-    });
-    killer.once('error', () => resolve(false));
-    killer.once('close', (code) => resolve(code === 0));
-  });
+  // Bun.spawnSync replaces the one-shot taskkill child. A missing taskkill
+  // throws instead of emitting an error event, which resolves to the same false.
+  try {
+    return (
+      Bun.spawnSync({
+        cmd: ['taskkill', '/pid', String(pid), '/T', '/F'],
+        windowsHide: true,
+        stdin: 'ignore',
+        stdout: 'ignore',
+        stderr: 'ignore',
+      }).exitCode === 0
+    );
+  } catch {
+    return false;
+  }
 }
 
 async function waitBounded<T>(

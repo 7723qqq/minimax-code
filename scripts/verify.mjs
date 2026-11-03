@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawnSync } from "./lib/exec.mjs";
 import {
   appendFileSync,
   mkdirSync,
@@ -78,8 +78,8 @@ const steps = [
 ];
 
 function skipReason(step) {
-  if (profile === 'package' && !step.packageOnly) return 'validating an npm release archive';
-  if (profile !== 'package' && step.packageOnly) return 'requires an npm release archive';
+  if (profile === 'package' && !step.packageOnly) return 'validating a release archive';
+  if (profile !== 'package' && step.packageOnly) return 'requires a release archive';
   if (profile === "windows" && !step.windows) return "not part of Windows contract";
   if (profile === "docs" && !step.docs) return "documentation-only change";
   if (profile === "archive" && step.requiresGit)
@@ -110,7 +110,9 @@ function runScript(name) {
     });
   const command = execPath ?? "bun";
   const shell = process.platform === "win32";
-  return spawnSync(shell ? `"${command}"` : command, ["run", name], {
+  // The shared exec helper builds the platform-shell argv and quotes segments
+  // as needed, so the command is passed bare here.
+  return spawnSync(command, ["run", name], {
     stdio: "inherit",
     cwd: root,
     shell,

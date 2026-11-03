@@ -4,7 +4,7 @@ import type { ControllerProductCopyKey } from './copy.en.js';
  * Simplified Chinese copy for the TUI product surfaces.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  */
 export const ZH_HANS_CONTROLLER_PRODUCT_COPY = {
   'common.runtimeStopping': 'Runtime 仍在停止中，你的草稿已保留。',

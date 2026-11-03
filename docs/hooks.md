@@ -7,8 +7,8 @@ notice to the user without adding that text to model context:
 {"systemMessage":"Checks complete. The report is ready."}
 ```
 
-Write one JSON object to stdout and exit with code 0. For example, a Node.js
-script can use `console.log(JSON.stringify({ systemMessage: "Checks complete." }))`.
+Write one JSON object to stdout and exit with code 0. For example, a script run
+with `bun` can use `console.log(JSON.stringify({ systemMessage: "Checks complete." }))`.
 This is the script's output, not the Hook registration document.
 
 For a MiniMax-format Plugin, reference the Hook file in the manifest's `hooks`
@@ -21,7 +21,7 @@ an existing Plugin with a `scripts/notice.cjs` file looks like this:
     "Stop": [{
       "hooks": [{
         "type": "command",
-        "command": "node \"${PLUGIN_ROOT}/scripts/notice.cjs\"",
+        "command": "bun \"${PLUGIN_ROOT}/scripts/notice.cjs\"",
         "timeout": 5
       }]
     }]
@@ -29,7 +29,7 @@ an existing Plugin with a `scripts/notice.cjs` file looks like this:
 }
 ```
 
-The command requires Node.js on the Hook process's PATH. See [local Plugin
+The command requires `bun` on the Hook process's PATH. See [local Plugin
 management](examples.md#4-manage-plugins) for the active installation directory.
 
 ## Display and model context
@@ -71,7 +71,7 @@ format-specific limits are unchanged. Only synchronous command Hooks are covered
 
 ## Manual check from a source build
 
-Build with `pnpm build` in the repository. To select a test workspace, change the
+Build with `bun run build` in the repository. To select a test workspace, change the
 shell's working directory before launching the built CLI by its absolute path.
 The interactive TUI does not accept the headless `exec --cwd` option.
 

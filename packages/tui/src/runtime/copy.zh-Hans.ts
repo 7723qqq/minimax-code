@@ -4,7 +4,7 @@ import type { TuiRuntimeCopyKey } from './copy.en.js';
  * Simplified Chinese copy for the TUI runtime layer.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  */
 export const ZH_HANS_TUI_RUNTIME_COPY = {
   'runtime.preview.binaryOmitted': '二进制内容无法安全预览。',

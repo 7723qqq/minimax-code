@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import type { Dirent } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
@@ -256,7 +255,7 @@ function canonicalizeRecord(
 }
 
 function sha256(value: string): string {
-  return createHash('sha256').update(value).digest('hex');
+  return new Bun.CryptoHasher('sha256').update(value).digest('hex');
 }
 
 function hasCode(error: unknown, code: string): boolean {

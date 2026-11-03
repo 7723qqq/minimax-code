@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { lstatSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 
@@ -69,7 +68,7 @@ export function validateEmbeddedResourceFiles(rootDir, manifest) {
   }
   for (const resource of resources) {
     const bytes = readFileSync(path.join(rootDir, resource.path));
-    if (createHash('sha256').update(bytes).digest('hex') !== resource.sha256) {
+    if (new Bun.CryptoHasher('sha256').update(bytes).digest('hex') !== resource.sha256) {
       throw new Error(`mcode-tools ${resource.path} sha256 does not match its manifest`);
     }
   }

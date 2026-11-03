@@ -161,7 +161,7 @@ Rules:
    directly with standard ASCII quotes wrapping the string — `"Chinese text here"` is correct.
 2. **Never copy-paste text from user documents, PDFs, or web pages directly into JS string
    literals** without first checking for smart quotes and full-width punctuation.
-3. **Use the pre-compile lint** (see below) before every `node compile.js` invocation.
+3. **Use the pre-compile lint** (see below) before every `bun compile.js` invocation.
 
 ```javascript
 // WRONG — Chinese smart quotes break compilation
@@ -175,12 +175,12 @@ slide.addText('"\u667a\u80fd\u52a9\u624b"\u7684\u6838\u5fc3\u4ef7\u503c', { ... 
 
 ## Pre-Compile Lint
 
-**Run this before every `node compile.js`.**  It catches non-ASCII quote issues before they
+**Run this before every `bun compile.js`.**  It catches non-ASCII quote issues before they
 cascade into 10+ fix attempts.
 
 ```bash
 # One-liner: scan all slide JS files for non-ASCII quotes and full-width punctuation
-node -e "
+bun -e "
 const fs = require('fs');
 const files = fs.readdirSync('./slides').filter(f => f.endsWith('.js'));
 let ok = true;

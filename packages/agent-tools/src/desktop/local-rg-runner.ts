@@ -119,7 +119,7 @@ export interface GrepTarget {
  *
  * The entry type comes from one `statSync` inside a `try`. That is the same
  * answer the previous `existsSync` plus `statSync` pair produced, but without
- * the second syscall: `existsSync` is the Node compatibility surface and
+ * the second syscall: `existsSync` is the `node:` compatibility surface and
  * measures roughly an order of magnitude slower per call here, while `statSync`
  * already yields the type this function needs. Staying synchronous also keeps
  * `Bun.file().stat()` out of the call, since its promise overhead is larger than

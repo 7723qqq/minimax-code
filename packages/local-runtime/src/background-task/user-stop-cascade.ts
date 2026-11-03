@@ -50,6 +50,16 @@ export interface UserStopCascadeDependencies {
    * through its "background work" gate and start a fresh Turn immediately.
    */
   readonly pauseActiveGoal?: (sessionId: string) => Promise<void>;
+  /**
+   * `conversation.stopSubAgent` / `stopAsyncBash`, read per accepted stop. A
+   * missing or throwing getter keeps both cascades enabled.
+   */
+  readonly readConversationStopConfig?: () =>
+    | {
+        readonly stopSubAgent?: boolean;
+        readonly stopAsyncBash?: boolean;
+      }
+    | undefined;
 }
 
 /**
@@ -200,8 +210,18 @@ function createCascadeHandle(
   };
 }
 
-async function pauseGoal(deps: UserStopCascadeDependencies, sessionId: string): Promise<void> {
-  if (!deps.pauseActiveGoal) return;
+function readConversationStopPolicy(deps: UserStopCascadeDependencies): {
+  readonly stopSubAgent?: boolean;
+  readonly stopAsyncBash?: boolean;
+} {
+  try {
+    return deps.readConversationStopConfig?.() ?? {};
+  } catch {
+    return {};
+  }
+}
+
+async function pauseGoal(deps: UserStopCascadeDependencies, sessionId: string): Promise<void> {  if (!deps.pauseActiveGoal) return;
   try {
     await deps.pauseActiveGoal(sessionId);
     log('user_stop_cascade_goal_paused', { sessionId });
@@ -226,12 +246,19 @@ async function completeCascade(
     ...(result.turnId ? { turnId: result.turnId } : {}),
   });
   try {
+    const stopPolicy = readConversationStopPolicy(deps);
     targets = await withTimeout(
       stopSessionBackgroundWork({
         host: deps.host,
         sessionId,
         reason: 'owner_abort',
         boundaryMs,
+        ...(stopPolicy.stopSubAgent === undefined
+          ? {}
+          : { stopSubAgent: stopPolicy.stopSubAgent }),
+        ...(stopPolicy.stopAsyncBash === undefined
+          ? {}
+          : { stopAsyncBash: stopPolicy.stopAsyncBash }),
         ctx: {
           depth: 0,
           visited: new Set<string>(),

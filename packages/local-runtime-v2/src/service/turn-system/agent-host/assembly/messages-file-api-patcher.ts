@@ -5,7 +5,6 @@
  */
 
 import { Buffer } from 'node:buffer';
-import { createHash } from 'node:crypto';
 
 import type { Api, Model } from '@earendil-works/pi-ai';
 
@@ -426,7 +425,7 @@ function filenameForMediaType(mediaType: string): string {
 }
 
 function hashMediaIdentity(target: MediaTarget): string {
-  return createHash('sha256')
+  return new Bun.CryptoHasher('sha256')
     .update(target.purpose)
     .update('\0')
     .update(target.source.media_type.trim().toLowerCase())
@@ -465,7 +464,7 @@ function errorType(error: unknown): string {
 }
 
 function sha256(value: string): string {
-  return createHash('sha256').update(value).digest('hex');
+  return new Bun.CryptoHasher('sha256').update(value).digest('hex');
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

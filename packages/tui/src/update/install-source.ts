@@ -1,5 +1,4 @@
 import { accessSync, constants, readFileSync, realpathSync, statSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { parseMcodeVersion } from './release.js';
 import { tuiUpdateText } from './copy.js';
@@ -8,7 +7,7 @@ import type { McodeUpdateOperationOptions } from './progress.js';
 /**
  * Whether `target` exists.
  *
- * `existsSync` is the Node compatibility surface and measured roughly an order
+ * `existsSync` is the `node:` compatibility surface and measured roughly an order
  * of magnitude slower per call in this runtime; a `statSync` inside a `try`
  * answers the same question for files, directories, missing entries and
  * unreadable paths at a fraction of the cost.
@@ -27,11 +26,10 @@ export function pathExists(target: string): boolean {
  * runtime.
  *
  * Spawning an npm shim (`npm.cmd` on Windows) is not portable across runtimes:
- * Node refuses `.cmd` without a shell, and Bun cannot execute `.cmd` shims
- * reliably. The npm CLI is plain JavaScript, and the running runtime (Bun in a
- * packaged CLI, Node in development) executes it directly, so every fallback
- * npm invocation in the update flows goes through
- * `[runtime, npmCli, …]` instead of a shim.
+ * a `.cmd` shim cannot be spawned without a shell, and Bun cannot execute
+ * `.cmd` shims reliably. The npm CLI is plain JavaScript, and the current
+ * runtime executes it directly, so every fallback npm invocation in the update
+ * flows goes through `[runtime, npmCli, …]` instead of a shim.
  */
 export function resolveNpmCliInvocation(): { runtime: string; npmCli: string } {
   const besideRuntime = path.join(
@@ -44,7 +42,17 @@ export function resolveNpmCliInvocation(): { runtime: string; npmCli: string } {
   if (pathExists(besideRuntime)) return { runtime: process.execPath, npmCli: besideRuntime };
   const finder = process.platform === 'win32' ? 'where' : 'which';
   const shimName = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const shim = execFileSync(finder, [shimName], { encoding: 'utf8' }).trim().split(/\r?\n/u)[0];
+  // Bun.spawnSync replaces the child_process wrapper so the runtime's own
+  // subprocess surface is used for these lookups too. A non-zero exit throws,
+  // as the old sync helper did, so the caller's failure path is unchanged.
+  const finderResult = Bun.spawnSync({
+    cmd: [finder, shimName],
+    stdin: 'ignore',
+    stdout: 'pipe',
+    stderr: 'ignore',
+  });
+  if (finderResult.exitCode !== 0) throw new Error(`${finder} ${shimName} exited with code ${finderResult.exitCode}`);
+  const shim = finderResult.stdout.toString('utf8').trim().split(/\r?\n/u)[0];
   if (shim) {
     const besideShim = path.join(
       path.dirname(realpathSync(shim)),
@@ -93,7 +101,7 @@ export interface McodeNpmPrefixInstall {
   readonly prefix: string;
   readonly registry: string;
   /**
-   * Node executable pinned by the install receipt. `process.execPath` resolves
+   * Runtime executable pinned by the install receipt. `process.execPath` resolves
    * Homebrew's stable bin/node symlink into a versioned Cellar path that
    * `brew upgrade` removes, so updates reuse the recorded path when present.
    */
@@ -425,7 +433,7 @@ function resolvePnpmNpmShim(npmExecutable: string): string | undefined {
     const npmDirectory = path.dirname(npmExecutable);
     const versionRoot = path.join(npmDirectory, ...target.split('/').slice(0, 2));
     const cli = realpathSync(path.join(npmDirectory, target));
-    // Reject symlinks that redirect the target outside this pnpm Node version.
+    // Reject symlinks that redirect the target outside this pinned runtime.
     if (!isResolvedPathInside(versionRoot, cli, path) || !statSync(cli).isFile()) return undefined;
     return cli;
   } catch {
@@ -440,8 +448,8 @@ export function createMcodeNpmRuntimeEnvironment(
 ): NodeJS.ProcessEnv {
   const platformPath = platform === 'win32' ? path.win32 : path.posix;
   const result = { ...environment };
-  // Windows environment keys are case-insensitive. Keep only one PATH key so Node and
-  // cross-spawn cannot choose a different inherited spelling.
+  // Windows environment keys are case-insensitive. Keep only one PATH key so
+  // spawned runtimes cannot choose a different inherited spelling.
   const pathKeys = Object.keys(result)
     .filter((key) => (platform === 'win32' ? key.toLowerCase() === 'path' : key === 'PATH'))
     .sort();
@@ -571,7 +579,7 @@ function resolveMcodePackageIdentity(
 ): { packageName: McodeNpmPackageName; packageRoot: string; version?: string } | undefined {
   if (!entryFile) return undefined;
   // A test runner executes each test file as the process entry, so under
-  // `bun test` (and `node --test`) `process.argv[1]` is the test file itself.
+  // `bun test` `process.argv[1]` is the test file itself.
   // Walking up from there would adopt the nearest manifest — inside this
   // checkout that is `packages/tui/package.json`, which carries the internal
   // package name — and flip update routing to the internal registry. A test
@@ -812,7 +820,7 @@ function normalizeResolvedPath(value: string, platform: NodeJS.Platform): string
  *
  * The CLI runs on the Bun runtime, and Bun's `node:child_process` compatibility
  * layer proved unreliable on Windows for these npm invocations — spawned
- * Node/npm children intermittently resolved with empty output or surfaced
+ * `npm-cli.js` processes intermittently resolved with empty output or surfaced
  * ENOENT for absolute executable paths. `Bun.spawn` is the runtime's native
  * path (the same doctrine as `packages/local-runtime/src/review/git-exec.ts`)
  * and reads both pipes to EOF before reporting the exit code, so a writer can

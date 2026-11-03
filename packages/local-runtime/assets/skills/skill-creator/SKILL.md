@@ -107,7 +107,7 @@ For script bundling rules, see `references/when-to-bundle-scripts.md`.
 
 6. Lint before eval.
 
-First locate the skill-creator install directory: call `skill({ name: "skill-creator" })` and take the directory of the returned `Location:` path. Then use the `run-lint` recipe from the selected platform command reference to run `node scripts/lint-skill.js` against the new skill path.
+First locate the skill-creator install directory: call `skill({ name: "skill-creator" })` and take the directory of the returned `Location:` path. Then use the `run-lint` recipe from the selected platform command reference to run `bun scripts/lint-skill.js` against the new skill path.
 
 Check for complete frontmatter, matching kebab-case names, a useful description, main-file size,
 forbidden files, and valid `references/` links.

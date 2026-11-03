@@ -4,7 +4,7 @@ import type { HeadlessCopyKey } from './copy.en.js';
  * Simplified Chinese copy for the headless `mcode exec` surface.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  */
 export const ZH_HANS_HEADLESS_COPY = {
   'headless.error.runFailed': '本次运行失败：{reason}。请在连接恢复后重试。',

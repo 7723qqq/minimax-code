@@ -50,7 +50,7 @@ export const LLM_STREAM_IDLE_TIMEOUT_ENV = 'MCODE_LLM_STREAM_IDLE_TIMEOUT_MS';
 
 export const defaultMessageIdAllocator: PiMessageIdAllocator = {
   async allocateAssistantMessageId() {
-    // crypto.randomUUID is available in Node >=18 and modern runtimes.
+    // crypto.randomUUID is available in Bun and modern runtimes.
     return (
       globalThis.crypto?.randomUUID?.() ??
       `msg-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`

@@ -1,4 +1,4 @@
-import { createCipheriv, createHash, hkdfSync, randomBytes, randomUUID } from 'node:crypto';
+import { createCipheriv, hkdfSync, randomBytes, randomUUID } from 'node:crypto';
 import {
   chmodSync,
   mkdirSync,
@@ -83,6 +83,7 @@ export interface CreateTuiIncidentReporterOptions {
   readonly platform?: NodeJS.Platform;
   readonly architecture?: string;
   readonly nodeVersion?: string;
+  readonly bunVersion?: string;
   readonly osVersion?: string;
   readonly terminal?: string;
   readonly tuiMode?: string;
@@ -283,6 +284,12 @@ class LocalTuiIncidentReporter implements TuiIncidentReporter {
       else this.nonFatalIncidentCount += 1;
 
       const incidentId = randomUUID();
+      const bunVersion =
+        typeof this.options.bunVersion === 'string' && this.options.bunVersion.length > 0
+          ? this.options.bunVersion
+          : typeof process.versions.bun === 'string' && process.versions.bun.length > 0
+            ? process.versions.bun
+            : undefined;
       const eventLog = minimizeEventLog(
         {
           incidentId,
@@ -298,7 +305,11 @@ class LocalTuiIncidentReporter implements TuiIncidentReporter {
             appVersion: this.options.appVersion,
             platform: this.options.platform ?? platform(),
             arch: this.options.architecture ?? arch(),
+            // `nodeVersion` stays numeric for the gateway schema. Under Bun it
+            // carries the compatibility value; `bunVersion`/`runtime` are
+            // additive fields in the same encrypted context.
             nodeVersion: this.options.nodeVersion ?? process.versions.node,
+            ...(bunVersion ? { bunVersion, runtime: 'bun' as const } : { runtime: 'node' as const }),
           },
           breadcrumbs: this.breadcrumbs,
         },
@@ -633,7 +644,7 @@ function numericVersion(value: unknown): string | undefined {
 }
 
 function incidentFingerprint(eventType: string, error: TuiIncidentErrorSnapshot): string {
-  return createHash('sha256')
+  return new Bun.CryptoHasher('sha256')
     .update(JSON.stringify([eventType, error]))
     .digest('hex')
     .slice(0, 24);
@@ -707,6 +718,8 @@ function minimizeEventLog(value: unknown, eventType: string): string {
         's390x',
       ]),
       nodeVersion: numericVersion(context.nodeVersion),
+      bunVersion: numericVersion(context.bunVersion),
+      runtime: allowedString(context.runtime, ['bun', 'node']),
     },
     breadcrumbs,
   });

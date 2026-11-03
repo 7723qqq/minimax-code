@@ -23,7 +23,7 @@ repository with a product build's source tree.
   and guidance for reading more. This does not upload memory or change its storage.
 
 The root and TUI source versions are 0.5.5. This source update does not republish
-the existing npm package or move an existing release tag.
+the existing registry package or move an existing release tag.
 
 ## Privacy and publication decisions
 

@@ -4,7 +4,7 @@ All automatic telemetry uploads are disabled by default and each requires its ow
 
 ## Turn it on or off
 
-Add this to the active profile's `config.yaml`, then restart MCode. Builds from this repository and the published npm CLI `@minimax-ai/code@0.6.9` default to `~/.minimax/config.yaml` (or `~/.minimax-<profile>/config.yaml` when a profile is selected). Overrides can change this path; see [Accounts and data](installation.md#accounts-and-data) to locate it. The telemetry controls below describe this repository's source build and are not a guarantee of feature parity with that npm release.
+Add this to the active profile's `config.yaml`, then restart MCode. Builds from this repository and the published `@minimax-ai/code@0.6.9` default to `~/.minimax/config.yaml` (or `~/.minimax-<profile>/config.yaml` when a profile is selected). Overrides can change this path; see [Accounts and data](installation.md#accounts-and-data) to locate it. The telemetry controls below describe this repository's source build and are not a guarantee of feature parity with that published release.
 
 ```yaml
 telemetry:
@@ -50,7 +50,7 @@ Every `properties` object includes:
 | Field         | Value                                                        |
 | ------------- | ------------------------------------------------------------ |
 | `surface`     | `tui`                                                        |
-| `os`          | Node.js platform name, such as `darwin`, `linux`, or `win32` |
+| `os`          | Platform name (`process.platform`), such as `darwin`, `linux`, or `win32` |
 | `region`      | `cn` or `en`                                                 |
 | `build_env`   | `dev`, `test`, `staging`, or `prod`                          |
 | `app_version` | MCode version                                                |

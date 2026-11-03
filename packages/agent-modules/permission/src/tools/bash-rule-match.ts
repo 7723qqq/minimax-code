@@ -8,9 +8,9 @@
  *
  * Rule shapes:
  *   - `git status`      → exact match
- *   - `npm:*`           → prefix match (literal `command === prefix`
+ *   - `bun:*`           → prefix match (literal `command === prefix`
  *                         OR `command.startsWith(prefix + ' ')`)
- *   - `npm run *`       → wildcard match (case-insensitive, `*` → `.*`,
+ *   - `bun run *`       → wildcard match (case-insensitive, `*` → `.*`,
  *                         `\*` literal `*`, `\\` literal `\`)
  */
 
@@ -65,8 +65,8 @@ function tryDecodeArgvPrefix(ruleContent: string): string[] | undefined {
  * |---------------------------------|-------------|
  * | `["cargo","build"]` (JSON argv) | argvPrefix  |
  * | `git status`                    | exact       |
- * | `npm:*`                         | prefix      |
- * | `npm run *`                     | wildcard    |
+ * | `bun:*`                         | prefix      |
+ * | `bun run *`                     | wildcard    |
  */
 export function parseShellRule(ruleContent: string): ShellPermissionRule {
   // Codex-aligned argv-prefix rule: a JSON array of command tokens.

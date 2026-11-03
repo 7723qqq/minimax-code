@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -121,7 +120,7 @@ export interface LegacyAgentRow {
 type LegacyAgentNameFingerprint = `sha256:${string}`;
 
 function fingerprintLegacyAgentName(raw: string): LegacyAgentNameFingerprint {
-  return `sha256:${createHash('sha256').update(raw, 'utf8').digest('hex').slice(0, 16)}`;
+  return `sha256:${new Bun.CryptoHasher('sha256').update(raw).digest('hex').slice(0, 16)}`;
 }
 
 type LegacyAgentTimestampRecoveryReason = 'malformed' | 'binary' | 'nonfinite' | 'empty';

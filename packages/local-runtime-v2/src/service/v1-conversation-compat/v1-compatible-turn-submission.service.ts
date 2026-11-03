@@ -1,4 +1,3 @@
-import { createHash } from 'node:crypto';
 
 import type {
   ConversationMessageInput,
@@ -223,7 +222,7 @@ function isTrustedBackgroundDelivery(input: ConversationSteerInput): boolean {
 }
 
 function digest(value: unknown): string {
-  return `sha256:${createHash('sha256')
+  return `sha256:${new Bun.CryptoHasher('sha256')
     .update(JSON.stringify(canonicalValue(value)))
     .digest('hex')}`;
 }

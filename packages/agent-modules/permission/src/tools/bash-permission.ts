@@ -72,7 +72,7 @@ import {
  * loop.
  *
  * Uses {@link LOCAL_SCRIPT_INTERPRETERS_RE} so the pre-scan recognises
- * scripting interpreters (`; node ./build.mjs`, `&& python script.py`)
+ * scripting interpreters (`; bun ./build.mjs`, `&& python script.py`)
  * symmetrically with the shells (`; bash <script>`). The local-script
  * relaxation downstream uses {@link extractLocalScriptArg} +
  * {@link isAllowableLocalScript} on whatever script-token follows the
@@ -376,7 +376,7 @@ export function parseRmTargetsWithMetadata(
  * including `~` and `$HOME`. Both POSIX bash and Windows PowerShell /
  * Git Bash single-quote a literal `~`; the trash script then either
  * silently fabricates a wrong absolute path (bash `cd` fallback) or
- * reports a bogus missing-file (Node `path.resolve` on Windows). The
+ * reports a bogus missing-file (the `node:path` resolve on Windows). The
  * fix has to happen BEFORE quoting — in the permission-layer rewrite —
  * so downstream sees an absolute path it can trust.
  *

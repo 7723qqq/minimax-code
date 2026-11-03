@@ -57,7 +57,7 @@ export type TurnAdmissionPriority =
  * Session-owned ordering decision used by Turn admission in the same SQLite
  * transaction as the lease and receipt writes.
  *
- * TODO(session-system): bind this contract to Queue row order. The Turn owner
+ * Bound to Queue row order by the session-system queue fence; the Turn owner
  * must not inspect Queue tables or infer priority from the submission source.
  */
 export interface TurnAdmissionPriorityFence {
@@ -101,9 +101,6 @@ export interface TurnAdmissionPriorityFence {
 /**
  * Session-owned Queue dispatch seam. Its implementation wraps Queue storage,
  * committed facts and exact claim acknowledgement; Turn never sees the repo.
- *
- * TODO(session-system): bind this facade to the existing Queue repository and
- * claim-recovery implementation when production composition is enabled.
  */
 export interface QueueDispatchCapability {
   listPendingSessionIds(): Promise<readonly string[]>;

@@ -1,7 +1,7 @@
 /**
  * Access to assets compiled into a packaged executable.
  *
- * A source or npm build reads these from `dist/` on disk. A packaged build has no
+ * A source or registry build reads these from `dist/` on disk. A packaged build has no
  * such directory: `bun build --compile` moves every asset into the executable
  * image, where the only handle is the table the packager generated. Directory
  * structure is not preserved, because the imports are flat — `readFile` can open

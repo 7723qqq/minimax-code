@@ -4,7 +4,7 @@ import type { ShellTranslations } from './copy.en.js';
  * Simplified Chinese copy for the shell chrome.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  *
  * Chinese is denser than English, so several compact status-line forms carry
  * the same wording as their full form. The keys stay apart because the English

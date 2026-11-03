@@ -895,26 +895,26 @@ export function resolveRestartArguments(
   sessionId?: string,
   initialPrompt?: string,
 ): string[] {
-  const nodeExecutable = isNodeExecutable(executable);
-  const userArgs = argv.slice(nodeExecutable ? 2 : 1);
+  const interpreter = isInterpreterExecutable(executable);
+  const userArgs = argv.slice(interpreter ? 2 : 1);
   const startupEnvironment = resolveTuiStartupEnvironmentOption(userArgs, true);
   const environmentArgs = startupEnvironment ? ['--env', startupEnvironment] : [];
   const resumeArgs = sessionId ? ['--session', sessionId] : [];
   const systemPromptArgs = systemPromptRestartArguments(userArgs);
   const promptArgs = initialPrompt ? [initialPrompt] : [];
-  if (!nodeExecutable) {
+  if (!interpreter) {
     return [...environmentArgs, ...systemPromptArgs, ...resumeArgs, ...promptArgs];
   }
   const entryFile = argv[1];
   if (!entryFile || !isExistingFile(entryFile)) {
-    throw new Error('Unable to restart MCode because its Node.js entry file is unavailable.');
+    throw new Error('Unable to restart MCode because its entry file is unavailable.');
   }
   return [entryFile, ...environmentArgs, ...systemPromptArgs, ...resumeArgs, ...promptArgs];
 }
 
-function isNodeExecutable(executable: string): boolean {
+function isInterpreterExecutable(executable: string): boolean {
   const base = path.basename(executable).toLocaleLowerCase();
-  return base === 'node' || base === 'node.exe';
+  return base === 'node' || base === 'node.exe' || base === 'bun' || base === 'bun.exe';
 }
 
 function isVitestRuntime(): boolean {

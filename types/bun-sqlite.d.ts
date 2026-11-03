@@ -115,8 +115,6 @@ declare namespace Bun {
     stdin?: StdioKind;
     stdout?: StdioKind;
     stderr?: StdioKind;
-    /** Runs the command through the platform shell. */
-    shell?: boolean | string;
     windowsHide?: boolean;
     windowsVerbatimArguments?: boolean;
     detached?: boolean;
@@ -179,6 +177,32 @@ declare namespace Bun {
 
   /** A file handle for reading. Directories report `exists() === false`. */
   function file(path: string | URL): BunFile;
+
+  /**
+   * Decompresses gzip data in one call, replacing node:zlib's `gunzipSync`.
+   *
+   * Returns `Uint8Array`, not the `Buffer` node:zlib produced: callers that
+   * decode text must wrap the result before calling `toString(encoding)`.
+   */
+  function gunzipSync(data: Uint8Array): Uint8Array;
+
+  /**
+   * Incremental hasher, used in place of node:crypto's `createHash`. Only the
+   * members the sources call are declared, per this file's header.
+   */
+  class CryptoHasher {
+    /**
+     * Bun 1.4.4 takes an optional HMAC key as the second constructor argument.
+     * Unlike node:crypto, it accepts only a string or Buffer, not a KeyObject.
+     */
+    constructor(algorithm: string, hmacKey?: string | Uint8Array);
+    update(data: string | Uint8Array): CryptoHasher;
+    /** Snapshot of the current state; the original stays usable afterwards. */
+    copy(): CryptoHasher;
+    /** Raw digest bytes. Bun returns a Buffer here, as node:crypto did. */
+    digest(): Buffer;
+    digest(encoding: 'hex' | 'base64' | 'base64url'): string;
+  }
 }
 
 interface ImportMeta {

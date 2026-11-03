@@ -4,7 +4,7 @@ import type { TuiUpdateCopyKey } from './copy.en.js';
  * Simplified Chinese copy for the TUI update and prefix-activation surface.
  *
  * The `satisfies` clause is the completeness check: a key present in the
- * English catalog but absent here fails `pnpm typecheck`.
+ * English catalog but absent here fails `bun run typecheck`.
  */
 export const ZH_HANS_TUI_UPDATE_COPY = {
   'update.prefix.activationScheduled': '已暂存的 MCode 更新将在当前进程退出后生效。',
