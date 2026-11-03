@@ -1,9 +1,4 @@
 import { createProductionRunawayGuardExtension } from './runaway-guard/extension.js';
-import {
-  ImageProcessorUnavailableError,
-  formatDimensionNote,
-  resizeImage,
-} from '@earendil-works/pi-coding-agent/image-resize';
 import { streamSimple, type Api, type Context, type Model, type Tool } from '@earendil-works/pi-ai';
 import type {
   AgentExtension,
@@ -12,7 +7,7 @@ import type {
 } from '@mavis/agent-runtime';
 import {
   sessionReportExtension,
-  requestMediaEncodingExtension,
+  requestMediaExtension,
   toolOutputBudgetExtension,
   type ToolOutputArtifactInput,
 } from '@mavis/agent-extension';
@@ -560,7 +555,7 @@ function createHostNormalExtensions<TAgent extends AgentExecutionSnapshot>(
             reason: safeErrorReason(error),
           }),
       }),
-      requestMediaEncodingExtension({
+      requestMediaExtension({
         getImageEncoding: () => {
           const image =
             options.product.preparation.configBuilder.config().requestMedia?.image ??
@@ -570,26 +565,6 @@ function createHostNormalExtensions<TAgent extends AgentExecutionSnapshot>(
             maxHeight: image.max_height,
             maxBase64Bytes: image.max_base64_bytes,
           };
-        },
-        encodeImage: async (bytes, mimeType, encoding) => {
-          try {
-            const resized = await resizeImage(bytes, mimeType, {
-              maxWidth: encoding.maxWidth,
-              maxHeight: encoding.maxHeight,
-              maxBytes: encoding.maxBase64Bytes,
-            });
-            if (!resized?.wasResized) return { kind: 'unchanged' };
-            const dimensionNote = formatDimensionNote(resized);
-            return {
-              kind: 'resized',
-              data: resized.data,
-              mimeType: resized.mimeType,
-              ...(dimensionNote ? { dimensionNote } : {}),
-            };
-          } catch (error) {
-            if (error instanceof ImageProcessorUnavailableError) return { kind: 'unavailable' };
-            throw error;
-          }
         },
       }),
     ],

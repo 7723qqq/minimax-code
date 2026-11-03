@@ -44,7 +44,6 @@ import type {
   IRuntimeStopReason,
   IRuntimeUsage,
 } from '@mavis/protocol';
-import type { TurnLifecycleKind } from '@mavis/shared/turn-message-class';
 
 // ── Legacy-name aliases for agent-core internal use ───────────────────
 //
@@ -99,7 +98,17 @@ export type DebugTraceEvent = IRuntimeEvent;
 // local to agent-core.
 
 export type RuntimeRole = 'user' | 'assistant' | 'system';
-export type RuntimeMessageKind = 'assistant' | 'summary' | TurnLifecycleKind;
+export type RuntimeMessageKind =
+  | 'assistant'
+  | 'summary'
+  | 'compaction_start'
+  | 'compaction'
+  | 'compaction_failed'
+  | 'review_start'
+  | 'review_result'
+  | 'review_failed'
+  | 'review_aborted'
+  | 'review_interrupted';
 export type RuntimeSessionStatus = 'running' | 'waiting_action' | 'idle' | 'failed' | 'aborted';
 export type RuntimeTerminalStatus = 'completed' | 'failed' | 'aborted';
 /**
@@ -135,6 +144,8 @@ export interface RuntimeProtocolError extends Omit<IProtocolError, 'code'> {
 export interface RuntimeToolCall {
   tool_name: string;
   tool_call_id: string;
+  /** Optional parent run_code id for a host-executed PTC child call. */
+  parent_tool_call_id?: string;
   status: RuntimeToolCallStatus;
   args?: Record<string, unknown>;
   /**

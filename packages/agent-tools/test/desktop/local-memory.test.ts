@@ -1,4 +1,4 @@
-import { describe, expect, it, mock } from 'bun:test';
+import { describe, expect, it, vi } from 'vitest';
 
 import { LocalMemoryTool } from '../../src/desktop/local-memory.js';
 import { MEMORY_TOOL_OUTPUT_MAX_BYTES } from '@mavis/shared/memory-limits';
@@ -16,7 +16,7 @@ describe('LocalMemoryTool output limit', () => {
     'bounds oversized %s reads in both model-facing fields',
     async (target) => {
       const text = 'FIRST_FACT\n' + '记忆🙂'.repeat(20_000) + '\nLATEST_FACT';
-      const execute = mock(async () => ({ text, details: { ok: true, target } }));
+      const execute = vi.fn(async () => ({ text, details: { ok: true, target } }));
       const tool = new LocalMemoryTool({ execute });
       const input = { target, operation: 'read' as const, topicName: 'work' };
       const result = await tool.execute(context, input);
@@ -58,6 +58,19 @@ describe('LocalMemoryTool output limit', () => {
       expect(result.text).toBe(text);
       expect(result.content).toEqual([{ type: 'text', text }]);
       expect(result.details).toEqual({ kind: 'memory', ok: true });
+      expect(result.isError).toBeUndefined();
     },
   );
+
+  it('marks a failed operation as an error result with unchanged text and details', async () => {
+    const text = 'memory tool failed [MISSING_FIELD]: query is required';
+    const tool = new LocalMemoryTool({
+      execute: async () => ({ text, details: { ok: false, code: 'MISSING_FIELD' } }),
+    });
+    const result = await tool.execute(context, { target: 'main', operation: 'search' });
+    expect(result.isError).toBe(true);
+    expect(result.text).toBe(text);
+    expect(result.content).toEqual([{ type: 'text', text }]);
+    expect(result.details).toEqual({ kind: 'memory', ok: false, code: 'MISSING_FIELD' });
+  });
 });

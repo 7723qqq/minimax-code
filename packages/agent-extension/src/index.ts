@@ -31,6 +31,7 @@ export {
   type ToolOutputArtifactInput,
   type ToolOutputBudgetExtensionOptions,
 } from './tool-output-budget.js';
+export { requestMediaExtension, type RequestMediaExtensionOptions } from './request-media.js';
 export {
   runawayGuardExtension,
   runawayGuardShadowExtension,
@@ -52,11 +53,10 @@ export {
   type TerminalResponseRecoveryExtensionOptions,
 } from './terminal-response-recovery.js';
 export {
-  requestMediaEncodingExtension,
-  type RequestMediaEncodeResult,
-  type RequestMediaEncodingExtensionOptions,
-  type RequestMediaImageEncoding,
-} from './request-media-encoding.js';
+  outputLimitRecoveryExtension,
+  type OutputLimitRecoveryExtensionOptions,
+  type OutputLimitRecoveryObservation,
+} from './output-limit-recovery.js';
 export {
   appSourceAdapter,
   fileSourceAdapter,

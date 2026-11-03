@@ -57,68 +57,12 @@ export type ShellPermissionRule =
 // Decision Reason
 // ---------------------------------------------------------------------------
 
-/**
- * One template of a structured, localizable decision-reason body.
- *
- * Producers state a catalog key plus placeholder values instead of a finished
- * English sentence, so the formatter can render the body in the reader's
- * locale. `action` names the label that prefixes the body ("Allowed" /
- * "Needs confirmation" / "Blocked"); when it is set, the legacy English
- * `description` carries the same label.
- */
-export type PermissionReasonBodyPart = {
-  /** Catalog key of the template. */
-  key: string;
-  /** Placeholder values for the template. */
-  values?: Readonly<Record<string, string>>;
-  /** Action label that prefixes this body. */
-  action?: PermissionBehavior;
-};
-
-/**
- * The `{description}` half of the "Blocked: {description}" wrapper, expressed
- * as catalog keys instead of a finished sentence.
- */
-export type PermissionReasonBody = PermissionReasonBodyPart & {
-  /**
-   * Optional trailing sentence appended after the body.
-   *
-   * The suffix template carries its own leading separator — the English entry
-   * starts with a space, the Chinese entry does not — so the two languages
-   * join without a locale-specific rule.
-   */
-  suffix?: PermissionReasonBodyPart;
-};
-
-/**
- * Reason of a safety check.
- *
- * `description` stays the English text: the model reads it (classifier input)
- * and telemetry records it. `body` carries the localizable form; the formatter
- * renders it in the reader's locale and derives the wrapper from the decision
- * behavior.
- */
-export type SafetyCheckReason = {
-  type: 'safetyCheck';
-  description: string;
-  classifierApprovable?: boolean;
-  category?: string;
-  /** Localizable body; when present it replaces `description` in user-facing output. */
-  body?: PermissionReasonBody;
-  /**
-   * Whether this check is a hard (irrecoverable) safety boundary.
-   *
-   * Consumers read this flag instead of matching the rendered text, so the
-   * "hard blocked" signal survives localization in every language.
-   */
-  hardBlocked?: boolean;
-};
-
 export type DecisionReason =
   | { type: 'rule'; rule: PermissionRule }
-  | SafetyCheckReason
+  | { type: 'safetyCheck'; description: string; classifierApprovable?: boolean; category?: string }
   | { type: 'workingDirectory'; path: string }
   | { type: 'internalWhitelist'; path: string }
+  | { type: 'sessionOwnedReadablePath'; path: string }
   | { type: 'trustedExactWrite'; path: string }
   | { type: 'tempDirectory'; path: string }
   | { type: 'sandbox' }
@@ -263,6 +207,22 @@ export type PathCheckContext = {
   homeDir?: string;
   agentName?: string;
   trustedExactWritePaths?: readonly string[];
+  /**
+   * Absolute directories or exact files the active Session owns and may READ:
+   * paths the runtime itself hands the Agent, e.g. the Session's workspace
+   * when the runtime allocated it inside its data directory, the user's
+   * attachments, recoverable tool-output artifacts and compaction snapshots.
+   *
+   * The host injects them; this engine never derives a path from a Session
+   * id, so the runtime layout stays owned by the runtime. A root only counts
+   * when it is strictly inside the private runtime tree (`dataDir` /
+   * `~/.minimax`) and reached without any symlink below that root; anything
+   * else is ignored. Everything else under the tree stays protected: another
+   * Session's artifacts, configuration and credentials are never included.
+   *
+   * Read-only. Writes inside these roots follow the ordinary write rules.
+   */
+  sessionOwnedReadablePaths?: readonly string[];
 };
 
 // ---------------------------------------------------------------------------
@@ -303,7 +263,7 @@ export type PermissionUpdate =
  * {
  *   "allow": ["bash(git:*)", "edit", "read"],
  *   "deny":  ["bash(rm -rf:*)"],
- *   "ask":   ["bash(bun publish:*)"],
+ *   "ask":   ["bash(npm publish:*)"],
  *   "defaultMode": "default"
  * }
  * ```

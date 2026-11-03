@@ -40,11 +40,11 @@ import {
   getShellPermissionCheckSurface,
 } from './bash-safety-scan.js';
 import { commandHasIoRedirect, evaluateWriteTarget } from './bash-write-target.js';
-import { pureReadFirstWord, hardBlockedBashReasonBody } from './bash-fast-allow.js';
+import { pureReadFirstWord, formatHardBlockedBashReason } from './bash-fast-allow.js';
 import { detectSlowCommand } from './slow-command-scan.js';
 import { parseWindowsNativeDelete } from './windows-native-delete.js';
-import { resolvePermissionPath } from '../path-resolver.js';
-import { safetyCheckReason } from '../reason-format.js';
+import { resolvePermissionPath, type PermissionPathResolutionContext } from '../path-resolver.js';
+import type { PathValue, ShellFamily } from '../permission-core.js';
 
 // ---------------------------------------------------------------------------
 // Rule parsing
@@ -72,7 +72,7 @@ import {
  * loop.
  *
  * Uses {@link LOCAL_SCRIPT_INTERPRETERS_RE} so the pre-scan recognises
- * scripting interpreters (`; bun ./build.mjs`, `&& python script.py`)
+ * scripting interpreters (`; node ./build.mjs`, `&& python script.py`)
  * symmetrically with the shells (`; bash <script>`). The local-script
  * relaxation downstream uses {@link extractLocalScriptArg} +
  * {@link isAllowableLocalScript} on whatever script-token follows the
@@ -316,24 +316,52 @@ export function parseRmTargetsWithMetadata(
   command: string,
   platform: NodeJS.Platform = process.platform,
 ): Array<{ value: string; quoted: boolean }> {
+  return parseRmCommand(command, platform).targets;
+}
+
+/** Preserve force and literal FD redirects without evaluating shell expressions. */
+export function parseRmCommand(
+  command: string,
+  platform: NodeJS.Platform = process.platform,
+): {
+  targets: Array<{ value: string; quoted: boolean }>;
+  force: boolean;
+  redirects: string[];
+} {
   const shellTokens = shellTokenizeWithMetadata(command);
   const tokens = shellTokens.map((token) => token.value);
   const rmIdx = findRmTokenIndex(tokens);
-  if (rmIdx === -1) return [];
+  if (rmIdx === -1) return { targets: [], force: false, redirects: [] };
   const targets: Array<{ value: string; quoted: boolean }> = [];
   let pastDoubleDash = false;
+  let force = false;
+  const redirects: string[] = [];
 
   // Start AFTER the rm token (wrappers + rm itself are already stripped).
   for (let i = rmIdx + 1; i < tokens.length; i++) {
     const token = tokens[i] ?? '';
     const tokenMeta = shellTokens[i];
     const quoted = tokenMeta?.quoted ?? false;
+    // -- ends option parsing, not shell redirection parsing. Only copy literal
+    // descriptor redirects; this does not re-enable variable/command expansion.
+    if (!quoted && /^(?:\d+)?[<>]&(?:\d+|-)$/.test(token)) {
+      redirects.push(token);
+      continue;
+    }
     if (!pastDoubleDash && !quoted && tokenStopsRmTargetScan(token)) break;
     if (token === '--') {
       pastDoubleDash = true;
       continue;
     }
     if (!pastDoubleDash && token.startsWith('-')) {
+      if (token === '--force') force = true;
+      else if (token === '--interactive' || token.startsWith('--interactive=')) force = false;
+      else if (!token.startsWith('--')) {
+        for (const flag of token.slice(1)) {
+          if (flag === 'f') force = true;
+          else if (flag === 'i' || flag === 'I') force = false;
+        }
+      }
       continue; // skip flags
     }
     let value = token;
@@ -360,13 +388,20 @@ export function parseRmTargetsWithMetadata(
     targets.push({ value, quoted });
   }
 
-  return targets;
+  // Dynamic operands still use the existing literal-quoting rewrite. Passing
+  // -f for them would hide failed expansion as a successful deletion.
+  const staticTargets =
+    targets.length > 0 &&
+    targets.every(
+      ({ value }) => !/[$`*?[\]{}]/.test(value) && !value.includes('<(') && !value.includes('>('),
+    );
+  return { targets, force: force && staticTargets, redirects };
 }
 
 
 /**
  * Resolve a shell-level HOME reference in an rm target to the runtime's
- * `os.homedir()` absolute path. Handles the three common forms an agent
+ * supplied home directory (defaults to `os.homedir()`). Handles the three common forms an agent
  * may emit — `~/foo`, bare `~`, and `$HOME/foo` / `${HOME}/foo` — before
  * the target gets single-quoted by `buildTrashCommand`.
  *
@@ -376,7 +411,7 @@ export function parseRmTargetsWithMetadata(
  * including `~` and `$HOME`. Both POSIX bash and Windows PowerShell /
  * Git Bash single-quote a literal `~`; the trash script then either
  * silently fabricates a wrong absolute path (bash `cd` fallback) or
- * reports a bogus missing-file (the `node:path` resolve on Windows). The
+ * reports a bogus missing-file (Node `path.resolve` on Windows). The
  * fix has to happen BEFORE quoting — in the permission-layer rewrite —
  * so downstream sees an absolute path it can trust.
  *
@@ -391,10 +426,11 @@ export function parseRmTargetsWithMetadata(
  *   POSIX-style `$HOME` is already covered which is what LLMs typically
  *   generate.
  */
-export function resolveHomeInTarget(target: string): string {
-  if (target === '~') return os.homedir();
+export function resolveHomeInTarget(target: string, homeDir = os.homedir()): string {
+  const pathApi = /^(?:[A-Za-z]:[\\/]|\\\\)/.test(homeDir) ? path.win32 : path;
+  if (target === '~') return homeDir;
   if (target.startsWith('~/')) {
-    return path.join(os.homedir(), target.slice(2));
+    return pathApi.join(homeDir, target.slice(2));
   }
   // NB: these string literals contain a literal `${...}` — the eslint
   // `no-template-curly-in-string` rule assumes any `${...}` inside a
@@ -402,16 +438,54 @@ export function resolveHomeInTarget(target: string): string {
   // matching the shell's own `${HOME}` syntax, which really is a plain
   // string on the JS side.
   // eslint-disable-next-line no-template-curly-in-string
-  if (target === '$HOME' || target === '${HOME}') return os.homedir();
+  if (target === '$HOME' || target === '${HOME}') return homeDir;
   if (target.startsWith('$HOME/')) {
-    return path.join(os.homedir(), target.slice('$HOME/'.length));
+    return pathApi.join(homeDir, target.slice('$HOME/'.length));
   }
   // eslint-disable-next-line no-template-curly-in-string
   if (target.startsWith('${HOME}/')) {
     // eslint-disable-next-line no-template-curly-in-string
-    return path.join(os.homedir(), target.slice('${HOME}/'.length));
+    return pathApi.join(homeDir, target.slice('${HOME}/'.length));
   }
   return target;
+}
+
+/** Resolve each rm operand using quote metadata from the parser that accepted it. */
+export function resolveRmCommandPaths(
+  command: string,
+  context: PermissionPathResolutionContext = {},
+  shell: ShellFamily = 'unknown',
+): PathValue[] {
+  const native = shell === 'powershell' ? parseWindowsNativeDelete(command, shell) : undefined;
+  const targets =
+    native?.targetTokens ??
+    parseRmTargetsWithMetadata(
+      command,
+      shell === 'cmd' || shell === 'powershell' ? 'win32' : undefined,
+    );
+  return targets.map((target) => resolveRmTargetPath(target, context, shell));
+}
+
+/** Resolve an rm operand without losing the parser's quote/escape contract. */
+export function resolveRmTargetPath(
+  target: { value: string; quoted: boolean },
+  context: PermissionPathResolutionContext = {},
+  shell: ShellFamily = 'unknown',
+): PathValue {
+  const expanded =
+    !target.quoted && context.homeDir
+      ? resolveHomeInTarget(target.value, context.homeDir)
+      : target.value;
+  // Prefix a shell-protected tilde with ./ so the generic path resolver sees
+  // a literal cwd-relative name. Quoted $HOME retains its conservative dynamic
+  // classification; do not evaluate it or reinterpret the parser's metadata.
+  const literal =
+    target.quoted && (expanded === '~' || expanded.startsWith('~/')) ? `./${expanded}` : expanded;
+  return {
+    ...resolvePermissionPath(literal, context, shell),
+    raw: target.value,
+    ...(expanded !== target.value ? { resolution: 'home' as const } : {}),
+  };
 }
 
 /**
@@ -432,6 +506,7 @@ export function resolveHomeInTarget(target: string): string {
 export function buildTrashCommand(
   trashBinPath: string,
   targets: string[] | Array<{ value: string; quoted: boolean }>,
+  force = false,
 ): string {
   if (targets.length === 0) return trashBinPath;
   // Normalise: string[] input is treated as all-unquoted (preserves the
@@ -444,7 +519,7 @@ export function buildTrashCommand(
   );
   const shellQuoted = resolved.map((t) => shellQuote(t));
   // Always insert `--` so filenames starting with `-` are not mistaken for flags.
-  return `${trashBinPath} -- ${shellQuoted.join(' ')}`;
+  return `${trashBinPath}${force ? ' -f' : ''} -- ${shellQuoted.join(' ')}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -799,14 +874,11 @@ export function evaluateBashStatic(
     const reasons = new Map<string, SubcommandResult>();
     reasons.set(trimmedLower, {
       behavior: 'deny',
-      reason: safetyCheckReason(
-        {
-          key: 'body.bash.catastrophicCommand',
-          values: { command: trimmedLower },
-          action: 'deny',
-        },
-        { category: 'catastrophic-standalone', hardBlocked: true },
-      ),
+      reason: {
+        type: 'safetyCheck',
+        description: `Blocked: catastrophic command has no recoverable safe use case. Command: ${trimmedLower}`,
+        category: 'catastrophic-standalone',
+      },
     });
     return { verdict: 'deny', reason: { type: 'subcommandResults', reasons } };
   }
@@ -824,24 +896,32 @@ export function evaluateBashStatic(
   // compound commands attribute the verdict to the right subcommand.
   // ===================================================================
   const recoverableWindowsDelete =
+    !bashCtx?.nativeDelete &&
     bashCtx?.platform === 'win32' &&
     (bashCtx.shellFamily === 'cmd' || bashCtx.shellFamily === 'powershell')
       ? parseWindowsNativeDelete(command, bashCtx.shellFamily)
       : undefined;
   for (const candidate of getUnwrappedCommandCandidates()) {
-    const hardHit = matchHardBlockedBash(getShellPermissionCheckSurface(candidate));
+    const hardHit = matchHardBlockedBash(getShellPermissionCheckSurface(candidate), {
+      nativeDelete: bashCtx?.nativeDelete,
+      recoverableWindowsDelete: Boolean(recoverableWindowsDelete),
+    });
     if (!hardHit) continue;
-    if (hardHit.category === 'windows-delete' && recoverableWindowsDelete) continue;
     if (!hardBlockedCategoryIsFinalDeny(hardHit.category)) continue;
     logWholeLayer('hard-final-deny-prescan', 'deny', hardHit.category);
     const wholeCommandKey = command.trim();
     const reasons = new Map<string, SubcommandResult>();
     reasons.set(wholeCommandKey, {
       behavior: 'deny',
-      reason: safetyCheckReason(
-        hardBlockedBashReasonBody(command.trim(), hardHit.category, hardHit.description),
-        { category: hardHit.category, hardBlocked: true },
-      ),
+      reason: {
+        type: 'safetyCheck',
+        description: formatHardBlockedBashReason(
+          command.trim(),
+          hardHit.category,
+          hardHit.description,
+        ),
+        category: hardHit.category,
+      },
     });
     return { verdict: 'deny', reason: { type: 'subcommandResults', reasons } };
   }
@@ -959,7 +1039,7 @@ export function evaluateBashStatic(
       const reasons = new Map<string, SubcommandResult>();
       reasons.set(wholeCommandKey, {
         behavior: 'ask',
-        reason: safetyCheckReason({ key: 'body.bash.pipeToShell' }),
+        reason: { type: 'safetyCheck', description: 'pipe to shell' },
       });
       return {
         verdict,
@@ -1008,10 +1088,11 @@ export function evaluateBashStatic(
       const reasons = new Map<string, SubcommandResult>();
       reasons.set(trimmed, {
         behavior: 'allow',
-        reason: safetyCheckReason(
-          { key: 'body.bash.helpFlagFastAllow', values: { command: firstWord } },
-          { category: 'helpFlagFastAllow' },
-        ),
+        reason: {
+          type: 'safetyCheck',
+          description: `Help/version flag fast-allow: \`${firstWord} <help-flag>\` has no side effects.`,
+          category: 'helpFlagFastAllow',
+        },
       });
       return {
         verdict: 'allow',
@@ -1162,6 +1243,7 @@ function evaluateSingleSubcommand(
   }
 
   const recoverableWindowsDelete =
+    !bashCtx?.nativeDelete &&
     bashCtx?.platform === 'win32' &&
     (bashCtx.shellFamily === 'cmd' || bashCtx.shellFamily === 'powershell')
       ? parseWindowsNativeDelete(command, bashCtx.shellFamily)
@@ -1173,15 +1255,18 @@ function evaluateSingleSubcommand(
   // get matched as a real read against the sensitive path. Aligned with the
   // STEP 0b whole-command HARD prescan above (line ~877).
   for (const surface of getPermissionSurfaces()) {
-    const hardHit = matchHardBlockedBash(surface);
-    if (hardHit?.category === 'windows-delete' && recoverableWindowsDelete) continue;
+    const hardHit = matchHardBlockedBash(surface, {
+      nativeDelete: bashCtx?.nativeDelete,
+      recoverableWindowsDelete: Boolean(recoverableWindowsDelete),
+    });
     if (hardHit && hardBlockedCategoryIsFinalDeny(hardHit.category)) {
       return logLayer('hard-final-deny', {
         verdict: 'deny',
-        reason: safetyCheckReason(
-          hardBlockedBashReasonBody(command, hardHit.category, hardHit.description),
-          { category: hardHit.category, hardBlocked: true },
-        ),
+        reason: {
+          type: 'safetyCheck',
+          description: formatHardBlockedBashReason(command, hardHit.category, hardHit.description),
+          category: hardHit.category,
+        },
       });
     }
   }
@@ -1231,7 +1316,7 @@ function evaluateSingleSubcommand(
         reason: { type: 'recoverableDeleteRewrite', targets: recoverableWindowsDelete.targets },
       });
     }
-    if (isRmCommand(command)) {
+    if (!bashCtx?.nativeDelete && isRmCommand(command)) {
       return logLayer('rm-rewrite', {
         verdict: 'allow',
         reason: { type: 'rmRewrite', rewrittenCommand: command },
@@ -1261,26 +1346,28 @@ function evaluateSingleSubcommand(
     // text happens to mention a delete verb can unbypass for that call.
     const bypassSniffTargets = [command, ...unwrapCommandWrappers(command)];
     if (
+      !bashCtx?.nativeDelete &&
       !recoverableWindowsDelete &&
       bypassSniffTargets.some((s) => BYPASS_DELETE_VERB_SNIFF.test(s))
     ) {
       return logLayer('bypass-delete-sniff-deny', {
         verdict: 'deny',
-        reason: safetyCheckReason(
-          {
-            key: 'body.bash.bypassDeleteSniff',
-            suffix: { key: 'body.bash.recoverableRemovalHint' },
-          },
-          { category: 'bypassDeleteSniff' },
-        ),
+        reason: {
+          type: 'safetyCheck',
+          description:
+            'bypass mode does not auto-run delete-like commands. ' +
+            'Use `mavis-trash <path>` for recoverable removal, or drop bypass for this call.',
+          category: 'bypassDeleteSniff',
+        },
       });
     }
     return logLayer('bypass-allow', {
       verdict: 'allow',
-      reason: safetyCheckReason(
-        { key: 'body.bash.bypassAllow' },
-        { category: 'bypassAllow' },
-      ),
+      reason: {
+        type: 'safetyCheck',
+        description: 'bypass mode: passed user deny + user ask + HARD final-deny common layer',
+        category: 'bypassAllow',
+      },
     });
   }
 
@@ -1291,16 +1378,19 @@ function evaluateSingleSubcommand(
   // documentation example like `cat /etc/shadow` inside an MR description
   // heredoc trips sensitive-read even though the body is data, not shell.
   for (const surface of getPermissionSurfaces()) {
-    const hardHit = matchHardBlockedBash(surface);
+    const hardHit = matchHardBlockedBash(surface, {
+      nativeDelete: bashCtx?.nativeDelete,
+      recoverableWindowsDelete: Boolean(recoverableWindowsDelete),
+    });
     if (!hardHit) continue;
-    if (hardHit.category === 'windows-delete' && recoverableWindowsDelete) continue;
     // final-deny already handled in step 3; non-final-deny falls here.
     return logLayer('hard-sensitive-read', {
       verdict: mode === 'auto' ? 'undecided' : 'ask',
-      reason: safetyCheckReason(
-        hardBlockedBashReasonBody(command, hardHit.category, hardHit.description),
-        { category: hardHit.category, hardBlocked: true },
-      ),
+      reason: {
+        type: 'safetyCheck',
+        description: formatHardBlockedBashReason(command, hardHit.category, hardHit.description),
+        category: hardHit.category,
+      },
     });
   }
 
@@ -1324,10 +1414,12 @@ function evaluateSingleSubcommand(
   if (writeTargetVerdict === 'allow') {
     return logLayer('write-target-authorized', {
       verdict: 'allow',
-      reason: safetyCheckReason(
-        { key: 'body.bash.writeAuthorizedTarget' },
-        { category: 'writeAuthorizedTarget' },
-      ),
+      reason: {
+        type: 'safetyCheck',
+        description:
+          'Write target is inside a write-authorized location (workspace / allowed working path).',
+        category: 'writeAuthorizedTarget',
+      },
     });
   }
 
@@ -1336,10 +1428,11 @@ function evaluateSingleSubcommand(
     if (pattern.test(command)) {
       return logLayer('subcommand-dangerous', {
         verdict: mode === 'auto' ? 'undecided' : 'ask',
-        reason: safetyCheckReason(
-          { key: 'body.bash.subcommandGradedDanger', values: { category } },
-          { category },
-        ),
+        reason: {
+          type: 'safetyCheck',
+          description: `Subcommand-graded danger: ${category}`,
+          category,
+        },
       });
     }
   }
@@ -1354,10 +1447,11 @@ function evaluateSingleSubcommand(
     if (secretReadCategory) {
       return logLayer('secret-read-form', {
         verdict: mode === 'auto' ? 'undecided' : 'ask',
-        reason: safetyCheckReason(
-          { key: 'body.bash.environmentSecretRead', values: { category: secretReadCategory } },
-          { category: 'secret-read' },
-        ),
+        reason: {
+          type: 'safetyCheck',
+          description: `Environment secret read: ${secretReadCategory}`,
+          category: 'secret-read',
+        },
       });
     }
   }
@@ -1382,16 +1476,17 @@ function evaluateSingleSubcommand(
   if (sourceTarget && isAllowableLocalScript(sourceTarget, bashCtx)) {
     return logLayer('source-local-allow', {
       verdict: 'allow',
-      reason: safetyCheckReason(
-        { key: 'body.bash.sourcingLocalFile', values: { target: sourceTarget } },
-        { category: 'sourceLocalAllow' },
-      ),
+      reason: {
+        type: 'safetyCheck',
+        description: `Sourcing local file: ${sourceTarget} (temp/workspace/written)`,
+        category: 'sourceLocalAllow',
+      },
     });
   }
 
   // Step 7: SOFT pre-scan (per-subcommand) — bashCommandIsSafe + dangerousPatterns
   // Skipped for rm commands (they get rewritten at step 8).
-  if (!isRmCommand(command) && !recoverableWindowsDelete) {
+  if (bashCtx?.nativeDelete || (!isRmCommand(command) && !recoverableWindowsDelete)) {
     const safetyIssue = bashCommandIsSafe(command);
     if (safetyIssue) {
       return logLayer('soft-prescan', {
@@ -1401,7 +1496,7 @@ function evaluateSingleSubcommand(
     }
 
     for (const candidate of getUnwrappedCandidates()) {
-      const dangerousMatch = checkDangerousPatterns(candidate);
+      const dangerousMatch = checkDangerousPatterns(candidate, bashCtx);
       if (!dangerousMatch) continue;
       return logLayer('soft-prescan', {
         verdict: mode === 'auto' ? 'undecided' : 'ask',
@@ -1431,7 +1526,7 @@ function evaluateSingleSubcommand(
   // to the runtime-managed shim, so the sandbox sees an ordinary in-cage
   // delete and enforces `unlinkAllowOnly` in the kernel. Permission therefore
   // stays a pure judgement here — no sandbox-shaped scope gate.
-  if (isRmCommand(command)) {
+  if (!bashCtx?.nativeDelete && isRmCommand(command)) {
     return logLayer('rm-rewrite', {
       verdict: 'allow',
       reason: { type: 'rmRewrite', rewrittenCommand: command },
@@ -1447,10 +1542,11 @@ function evaluateSingleSubcommand(
       'fast-allow-first-word',
       {
         verdict: 'allow',
-        reason: safetyCheckReason(
-          { key: 'body.bash.defaultFastAllow', values: { word: firstWord } },
-          { category: 'pureReadFastAllow' },
-        ),
+        reason: {
+          type: 'safetyCheck',
+          description: `Default fast-allow: first word "${firstWord}" is non-deletion.`,
+          category: 'pureReadFastAllow',
+        },
       },
       { firstWord },
     );
@@ -1459,10 +1555,11 @@ function evaluateSingleSubcommand(
   // -------- TAIL --------
   return logLayer('tail', {
     verdict: mode === 'auto' ? 'undecided' : 'ask',
-    reason: safetyCheckReason(
-      { key: 'body.bash.noMatchingPermissionRule', values: { command } },
-      { category: 'noMatchingPermissionRule' },
-    ),
+    reason: {
+      type: 'safetyCheck',
+      description: `No matching permission rule for command: ${command}`,
+      category: 'noMatchingPermissionRule',
+    },
   });
 }
 
@@ -1503,6 +1600,6 @@ export {
   evaluateWriteTarget,
   isWriteAuthorizedTarget,
 } from './bash-write-target.js';
-export { pureReadFirstWord, hardBlockedBashReasonBody } from './bash-fast-allow.js';
+export { pureReadFirstWord, formatHardBlockedBashReason } from './bash-fast-allow.js';
 export { consumeShellWrapperPrefix } from './bash-wrapper-unwrap.js';
 export { unwrapCommandWrappers };

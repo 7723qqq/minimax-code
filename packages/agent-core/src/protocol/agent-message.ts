@@ -19,8 +19,6 @@
  * before reporting upstream).
  */
 
-import type { TurnLifecycleKind } from '@mavis/shared/turn-message-class';
-
 /**
  * Logical type tag for `RespData` envelope frames. Daemon SSE wraps each
  * frame in `{ type, agent_message?, agent_message_chunk? }` and the type
@@ -60,6 +58,8 @@ export type ToolCallStatus = (typeof ToolCallStatus)[keyof typeof ToolCallStatus
 export interface ToolCall {
   tool_name: string;
   tool_call_id: string;
+  /** Optional parent run_code id for a host-executed PTC child call. */
+  parent_tool_call_id?: string;
   tool_call_status: ToolCallStatus;
   /** JSON string of the argument object the model produced. */
   tool_call_args?: string;
@@ -95,11 +95,16 @@ export interface ToolCall {
  * All three frames share one `msg_id` (compactionId). Persistence upserts by msg_id, replacing the
  * previous frame in place, so the session ultimately contains one compaction message whose kind is
  * the latest state.
- *
- * The literal union is owned by `@mavis/shared/turn-message-class` so the wire type, the TUI
- * projection and every consumer classify frames from one definition.
  */
-export type MessageKind = TurnLifecycleKind;
+export type MessageKind =
+  | 'compaction_start'
+  | 'compaction'
+  | 'compaction_failed'
+  | 'review_start'
+  | 'review_result'
+  | 'review_failed'
+  | 'review_aborted'
+  | 'review_interrupted';
 
 /** Speaker role on a message. */
 export const Role = {
@@ -166,6 +171,8 @@ export interface AgentMessageChunk {
   msg_id: string;
   parent_msg_id?: string;
   msg_content?: string;
+  /** Set when `msg_content` is runtime-authored rather than model output. */
+  msg_content_source?: 'system_error';
   tool_calls?: ToolCall[];
   thinking_content?: string;
   thinking_duration_ms?: number;
@@ -188,6 +195,8 @@ export interface AgentMessage {
   /** Unix-ms timestamp produced by the source runtime. */
   timestamp?: number;
   msg_content?: string;
+  /** Set when `msg_content` is runtime-authored rather than model output. */
+  msg_content_source?: 'system_error';
   msg_type?: MsgType;
   role?: Role;
   thinking_content?: string;

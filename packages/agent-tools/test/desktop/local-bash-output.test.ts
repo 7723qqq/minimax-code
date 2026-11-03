@@ -1,4 +1,3 @@
-import { afterEach, beforeEach, describe, expect, it, spyOn } from 'bun:test';
 /**
  * Real foreground commands verify bounded head/tail previews and complete
  * persisted output across the Pi executor and Desktop tool boundary.
@@ -8,15 +7,34 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { LocalBashTool } from '../../src/desktop/local-pi-tools.js';
 import { DESKTOP_BASH_MAX_BYTES } from '../../src/desktop/output-limit.js';
 import { readPluginHookCompatibleToolResponse } from '../../src/plugin-hooks/vendor-tool-response.js';
 import type { LocalRuntimeToolContext } from '../../src/desktop/types.js';
 
-const SESSION_CTX = {
-  sessionId: 'sess-test',
-  turnId: 'turn-test',
-} satisfies LocalRuntimeToolContext;
+// LocalBashTool builds the Pi bash tool per invocation; tests swap its execute.
+// Bun semantics: Bun 1.4.4 gives mock factories no importOriginal, and its
+// mock.module mutates the already-loaded module namespace in place, so the
+// original function and the export spread are captured before registration.
+const piBashExecute: { override: undefined | ((...args: unknown[]) => Promise<unknown>) } = {
+  override: undefined,
+};
+
+beforeAll(async () => {
+  const real = await import('@earendil-works/pi-coding-agent/tools');
+  const realCreateBashTool = real.createBashTool;
+  const realExports = { ...real };
+  vi.mock('@earendil-works/pi-coding-agent/tools', () => ({
+    ...realExports,
+    createBashTool: (...args: Parameters<typeof realCreateBashTool>) => {
+      const tool = realCreateBashTool(...args);
+      const override = piBashExecute.override;
+      return override ? { ...tool, execute: override } : tool;
+    },
+  }));
+});
 
 /**
  * Build a foreground command that runs a runtime script through whatever shell
@@ -36,6 +54,11 @@ function runtimeCommand(script: string): string {
   return `'${exe.replaceAll("'", "'\\''")}' -e '${script.replaceAll("'", "'\\''")}'`;
 }
 
+const SESSION_CTX = {
+  sessionId: 'sess-test',
+  turnId: 'turn-test',
+} satisfies LocalRuntimeToolContext;
+
 describe('LocalBashTool — foreground output truncation', () => {
   let workspace: string;
 
@@ -43,6 +66,7 @@ describe('LocalBashTool — foreground output truncation', () => {
     workspace = await mkdtemp(join(tmpdir(), 'bash-output-'));
   });
   afterEach(async () => {
+    piBashExecute.override = undefined;
     await rm(workspace, { recursive: true, force: true });
   });
 
@@ -102,12 +126,12 @@ describe('LocalBashTool — foreground output truncation', () => {
 
   it('caps a thrown timeout result while preserving the error ToolResult status', async () => {
     const tool = new LocalBashTool(workspace, undefined, { mode: 'off' });
-    const innerExecute = spyOn((tool as unknown as { tool: { execute: unknown } }).tool, 'execute')
-      .mockRejectedValue(
-        new Error(
-          `${'timeout-output\n'.repeat(2_000)}\n\nCommand timed out after 1 seconds`,
-        ),
+    const innerExecute = vi.fn(async () => {
+      throw new Error(
+        `${'timeout-output\n'.repeat(2_000)}\n\nCommand timed out after 1 seconds`,
       );
+    });
+    piBashExecute.override = innerExecute;
 
     const result = await tool.execute(SESSION_CTX, { command: 'ignored', timeout: 1 });
 
@@ -133,12 +157,10 @@ describe('LocalBashTool — foreground output truncation', () => {
   it('still propagates an active AbortSignal instead of converting cancellation to a tool result', async () => {
     const tool = new LocalBashTool(workspace, undefined, { mode: 'off' });
     const controller = new AbortController();
-    spyOn((tool as unknown as { tool: { execute: unknown } }).tool, 'execute').mockImplementation(
-      async () => {
-        controller.abort();
-        throw new Error('Command aborted');
-      },
-    );
+    piBashExecute.override = async () => {
+      controller.abort();
+      throw new Error('Command aborted');
+    };
 
     await expect(
       tool.execute(SESSION_CTX, { command: 'ignored' }, controller.signal),

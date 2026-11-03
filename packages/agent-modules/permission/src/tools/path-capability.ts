@@ -11,7 +11,6 @@ import type {
 import { getContentRulesForTool, hasWholeToolRule } from '../context.js';
 import { matchHardBlockedFsRead } from '../classifier/dangerous-patterns.js';
 import { matchesMcpServerRuntimeName } from '../mcp-runtime-name.js';
-import { safetyCheckReason, type PermissionReasonBodyInput } from '../reason-format.js';
 import { shellTokenize } from './shell-tokenize.js';
 import { splitCommand, findHeredocBodyRanges } from './bash-split.js';
 import { extractSourceTarget } from './bash-permission.js';
@@ -76,6 +75,7 @@ export function evaluatePathCapability(
     homeDir: context.homeDir,
     agentName: context.agentName,
     trustedExactWritePaths: [...context.trustedExactWritePaths],
+    sessionOwnedReadablePaths: [...context.sessionOwnedReadablePaths],
   };
 
   // Two-step match:
@@ -112,28 +112,45 @@ export function evaluatePathCapability(
     if (originVerdict === 'deny') {
       return {
         behavior: 'deny',
-        reason: safetyCheckReason(
-          hardBlockedFsReasonBody(hardHit.category, hardHit.description, candidatePath),
-          { category: hardHit.category, hardBlocked: true },
-        ),
+        reason: {
+          type: 'safetyCheck',
+          description: formatHardBlockedFsReason(
+            hardHit.category,
+            hardHit.description,
+            candidatePath,
+          ),
+          category: hardHit.category,
+        },
         ...buildPathRuleSuggestion(filePath, action, context),
       };
     }
     if (originVerdict === 'allow') {
       return {
         behavior: 'allow',
-        reason: safetyCheckReason(
-          hardBlockedFsReasonBody(hardHit.category, hardHit.description, candidatePath),
-          { category: hardHit.category, classifierApprovable: true, hardBlocked: true },
-        ),
+        reason: {
+          type: 'safetyCheck',
+          description: formatHardBlockedFsReason(
+            hardHit.category,
+            hardHit.description,
+            candidatePath,
+          ),
+          category: hardHit.category,
+          classifierApprovable: true,
+        },
       };
     }
     return {
       behavior: 'ask',
-      reason: safetyCheckReason(
-        hardBlockedFsReasonBody(hardHit.category, hardHit.description, candidatePath),
-        { category: hardHit.category, classifierApprovable: true, hardBlocked: true },
-      ),
+      reason: {
+        type: 'safetyCheck',
+        description: formatHardBlockedFsReason(
+          hardHit.category,
+          hardHit.description,
+          candidatePath,
+        ),
+        category: hardHit.category,
+        classifierApprovable: true,
+      },
       bypassImmune: true,
       ...buildPathRuleSuggestion(filePath, action, context),
     };
@@ -151,10 +168,11 @@ export function evaluatePathCapability(
   if (action === 'execute' && !isStaticPathToken(filePath)) {
     return {
       behavior: 'ask',
-      reason: safetyCheckReason(
-        { key: 'body.path.dynamicScript', values: { path: filePath } },
-        { classifierApprovable: true },
-      ),
+      reason: {
+        type: 'safetyCheck',
+        description: `Running a script from an unresolved dynamic path (${filePath}) requires confirmation.`,
+        classifierApprovable: true,
+      },
     };
   }
 
@@ -469,7 +487,7 @@ export function generateSuggestionRules(
   workingDirectory?: string,
   homeDir = os.homedir(),
 ): string[] {
-  // Shell-aware resolution is required here: the `node:path` resolve treats `~/x`
+  // Shell-aware resolution is required here: Node's path.resolve treats `~/x`
   // as a relative path and would persist `<workingDirectory>/~/x/**`, which is
   // not the path the shell checked or executed. Keep this adapter conservative
   // and expand only the unquoted-looking home forms supplied by this API.
@@ -526,22 +544,15 @@ export function generateSuggestionRules(
   return [`${dir}/**`];
 }
 
-/**
- * Reason body for a HARD_BLOCKED filesystem read.
- *
- * Both variants ask for confirmation, so the body carries the "needs
- * confirmation" label itself.
- */
-function hardBlockedFsReasonBody(
+function formatHardBlockedFsReason(
   category: string,
   description: string,
   resolvedPath: string,
-): PermissionReasonBodyInput {
-  const values = { path: resolvedPath, reason: description };
+): string {
   if (category === 'system-secret') {
-    return { key: 'body.path.systemSecretAccess', values, action: 'ask' };
+    return `Needs confirmation: system secret access requires LLM review and explicit approval if the LLM cannot allow it. Path: ${resolvedPath}. Reason: ${description}.`;
   }
-  return { key: 'body.path.credentialAccess', values, action: 'ask' };
+  return `Needs confirmation: credential or private-key access requires LLM review and explicit approval if the LLM cannot allow it. Path: ${resolvedPath}. Reason: ${description}.`;
 }
 
 function isLikelyLocalPath(value: string): boolean {
@@ -1044,7 +1055,11 @@ export function decideUnknownToolPathCapabilities(
       // mode still means the user opted out of all prompts.
       return {
         behavior: 'ask',
-        reason: safetyCheckReason({ key: 'body.path.applyPatchUnparsed' }),
+        reason: {
+          type: 'safetyCheck',
+          description:
+            'apply_patch payload could not be parsed for path-capability checks; manual confirmation required.',
+        },
       };
     }
     return undefined;
@@ -1089,9 +1104,10 @@ export function decideUnknownToolPathCapabilities(
   return sawAllow
     ? {
         behavior: 'allow',
-        reason: safetyCheckReason(
-          { key: 'body.path.capabilityAllow', values: { tool: toolName } },
-        ),
+        reason: {
+          type: 'safetyCheck',
+          description: `Path capability allow for tool "${toolName}"`,
+        },
       }
     : undefined;
 }

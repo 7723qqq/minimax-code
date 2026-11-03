@@ -121,16 +121,23 @@ viSurface.unstubAllGlobals ??= unstubAllGlobals;
 // transform; executing the factory in place is sufficient when the value is
 // only read inside mock factories' closures, which run after module evaluation.
 viSurface.hoisted ??= <T>(factory: () => T): T => factory();
+viSurface.waitFor ??= waitFor;
 
 // Vitest's `vi.mock` factory receives an `importOriginal` callback; Bun's
-// `mock.module` passes nothing. Capture the unmocked module before
-// registering the mock: an import that starts before registration resolves to
-// the original, while imports after registration resolve to the mock.
+// `mock.module` passes nothing and its registry canonicalizes a specifier and
+// its resolved file to the same entry, so a generic importOriginal emulation
+// either recurses into the mock or poisons it. Only builtins are bridged (they
+// are already in the registry before any mock registers); module mocks go to
+// Bun unchanged, and suites needing an original import take the beforeAll
+// late-registration pattern instead.
 const bunMockModule = mock.module.bind(mock);
 viSurface.mock = (specifier: string, factory?: (importOriginal: () => Promise<unknown>) => unknown) => {
   if (factory === undefined) return bunMockModule(specifier, () => ({}));
-  const originalPromise = import(specifier);
-  return bunMockModule(specifier, () => factory(() => originalPromise));
+  if (specifier.startsWith('node:')) {
+    const originalPromise = import(specifier);
+    return bunMockModule(specifier, () => factory(() => originalPromise));
+  }
+  return bunMockModule(specifier, factory);
 };
 
 /**
@@ -244,3 +251,4 @@ export function resolveFixtureNodeAndNpmCli(): { node: string; npmCli: string } 
   if (!existsSync(npmCli)) throw new Error(`no npm CLI found beside ${node}`);
   return { node, npmCli };
 }
+

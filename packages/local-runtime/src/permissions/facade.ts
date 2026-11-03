@@ -104,6 +104,7 @@ function permissionReasonLogFields(
     safetyCheck: 'safety_check',
     workingDirectory: 'working_directory_boundary',
     internalWhitelist: 'internal_whitelist',
+    sessionOwnedReadablePath: 'session_owned_readable_path',
     trustedExactWrite: 'trusted_exact_write',
     tempDirectory: 'temp_directory',
     sandbox: 'sandbox',

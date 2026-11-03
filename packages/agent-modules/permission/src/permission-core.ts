@@ -6,8 +6,6 @@ import {
   isInteractiveTool,
   type ToolPermissionContext,
 } from './context.js';
-import { permissionReasonText, safetyCheckReason } from './reason-format.js';
-import type { UserLocaleHint } from './locale-detect.js';
 import type {
   DecisionReason,
   PermissionBehavior,
@@ -102,13 +100,17 @@ export type PermissionEvidence =
   | { kind: 'legacy-reason'; value: unknown }
   | { kind: 'legacy-deny'; reason: string };
 
-export type ExecutionTransform = { type: 'recoverable-delete'; targets: string[] };
+export type ExecutionTransform =
+  | { type: 'recoverable-delete'; targets: string[] }
+  | { type: 'recoverable-shell-delete'; launcher: string };
 
 export type ExecutionPlan = {
   originalInput: Record<string, unknown>;
   effectiveInput: Record<string, unknown>;
   intents: CommandIntent[];
   transforms: ExecutionTransform[];
+  /** Permission.nativeDelete captured when the decision was made. */
+  nativeDelete?: boolean;
 };
 
 export type PermissionModeProfile = {
@@ -128,11 +130,6 @@ export type PermissionEvaluationInput = {
   evidence: PermissionEvidence[];
   executionPlan?: ExecutionPlan;
   mode: PermissionModeProfile;
-  /**
-   * Locale of the reader. The evaluation reason is a plain string on the
-   * wire, so it is resolved here rather than by a later formatter.
-   */
-  locale?: UserLocaleHint;
   context: {
     workingDirectory: string;
     homeDir: string;
@@ -203,9 +200,7 @@ export function reducePermissionDecision(input: PermissionCoreDecisionInput): Pe
   if (input.checkerError) {
     return {
       behavior: 'ask',
-      reason: safetyCheckReason(
-        { key: 'body.tool.checkerError', values: { error: input.checkerError } },
-      ),
+      reason: { type: 'safetyCheck', description: `Tool checker error: ${input.checkerError}` },
       ruleContents: resolveRuleContents(toolName, input.input),
     };
   }
@@ -213,9 +208,10 @@ export function reducePermissionDecision(input: PermissionCoreDecisionInput): Pe
   if (isInteractiveTool(context, toolName)) {
     return {
       behavior: 'ask',
-      reason: safetyCheckReason(
-        { key: 'body.tool.requiresUserInteraction', values: { tool: toolName } },
-      ),
+      reason: {
+        type: 'safetyCheck',
+        description: `Tool "${toolName}" requires user interaction`,
+      },
       ruleContents: resolveRuleContents(toolName, input.input, checkerResult),
       ruleMatchers: resolveRuleMatchers(checkerResult),
       candidateScopes: resolveCandidateScopes(checkerResult),
@@ -230,6 +226,7 @@ export function reducePermissionDecision(input: PermissionCoreDecisionInput): Pe
       ruleMatchers: resolveRuleMatchers(checkerResult),
       candidateScopes: resolveCandidateScopes(checkerResult),
       bypassImmune: true,
+      rewrittenInput: checkerResult.rewrittenInput,
       skipAutoClassifier: checkerResult.skipAutoClassifier,
     };
   }
@@ -287,17 +284,19 @@ export function reducePermissionDecision(input: PermissionCoreDecisionInput): Pe
   if (!input.checkerRegistered) {
     return {
       behavior: 'allow',
-      reason: safetyCheckReason(
-        { key: 'body.tool.noCheckerRegistered', values: { tool: toolName } },
-      ),
+      reason: {
+        type: 'safetyCheck',
+        description: `No permission checker registered for tool "${toolName}", allowing by default`,
+      },
     };
   }
 
   return {
     behavior: 'ask',
-    reason: safetyCheckReason(
-      { key: 'body.tool.noMatchingRule', values: { tool: toolName } },
-    ),
+    reason: {
+      type: 'safetyCheck',
+      description: `No permission rule matched for tool "${toolName}"`,
+    },
     ruleContents: resolveRuleContents(toolName, input.input, checkerResult),
     ruleMatchers: resolveRuleMatchers(checkerResult),
     candidateScopes: resolveCandidateScopes(checkerResult),
@@ -395,7 +394,6 @@ function resolveRuleMatchers(checkerResult?: ToolCheckResult): PermissionDecisio
 
 export function reducePermissionEvaluation(input: PermissionEvaluationInput): PermissionEvaluation {
   const evidence = input.evidence;
-  const locale = input.locale;
   const hostDeny = evidence.find((item) => item.kind === 'host-deny');
   if (hostDeny?.kind === 'host-deny') return { outcome: 'deny', reason: hostDeny.reason };
 
@@ -403,11 +401,7 @@ export function reducePermissionEvaluation(input: PermissionEvaluationInput): Pe
     (item) => item.kind === 'user-rule' && item.behavior === 'deny',
   );
   if (explicitDeny?.kind === 'user-rule') {
-    return {
-      outcome: 'deny',
-      reason:
-        explicitDeny.ruleContent ?? permissionReasonText('eval.explicitUserDeny', locale),
-    };
+    return { outcome: 'deny', reason: explicitDeny.ruleContent ?? 'explicit user deny' };
   }
 
   const legacyDeny = evidence.find((item) => item.kind === 'legacy-deny');
@@ -436,7 +430,7 @@ export function reducePermissionEvaluation(input: PermissionEvaluationInput): Pe
   ) {
     return {
       outcome: 'deny',
-      reason: permissionReasonText('eval.noApprovalChannel', locale),
+      reason: 'permission requires user confirmation but no approval channel is available',
     };
   }
 
@@ -469,15 +463,15 @@ export function reducePermissionEvaluation(input: PermissionEvaluationInput): Pe
         allow.kind === 'built-in-allow' ||
         allow.kind === 'classifier-result'
           ? allow.kind === 'user-rule'
-            ? (allow.ruleContent ?? permissionReasonText('eval.explicitUserAllow', locale))
+            ? (allow.ruleContent ?? 'explicit user allow')
             : allow.reason
-          : permissionReasonText('eval.permissionAllowed', locale),
+          : 'permission allowed',
       ...(input.executionPlan ? { executionPlan: input.executionPlan } : {}),
     };
   }
 
   if (input.mode.interaction === 'neverAsk' && input.mode.enforcement === 'strict') {
-    return { outcome: 'deny', reason: permissionReasonText('eval.interactionDisabled', locale) };
+    return { outcome: 'deny', reason: 'permission interaction is disabled' };
   }
 
   return {
@@ -516,7 +510,7 @@ function buildApprovalRequest(
     ...(input.context.agentName ? { agentName: input.context.agentName } : {}),
     toolName: input.toolName,
     toolInput: formatToolInput(input.input),
-    reason: permissionReasonText('eval.requiresApproval', input.locale),
+    reason: 'permission requires approval',
     ruleContents,
     allowAlwaysSupported: true,
   };

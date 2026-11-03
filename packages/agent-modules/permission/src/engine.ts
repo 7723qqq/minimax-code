@@ -32,7 +32,6 @@ import {
 } from './context.js';
 import { decideUnknownToolPathCapabilities } from './tools/path-capability.js';
 import { reducePermissionDecision, type PermissionCheckOptions } from './permission-core.js';
-import { safetyCheckReason } from './reason-format.js';
 
 export type { ToolCheckResult } from './types.js';
 
@@ -341,9 +340,10 @@ export class PermissionEngine {
     if (checkerError) {
       return {
         behavior: 'ask',
-        reason: safetyCheckReason(
-          { key: 'body.tool.checkerError', values: { error: checkerError } },
-        ),
+        reason: {
+          type: 'safetyCheck',
+          description: `Tool checker error: ${checkerError}`,
+        },
         ruleContents: this.resolveRuleContents(toolName, input),
       };
     }
@@ -353,9 +353,10 @@ export class PermissionEngine {
       logger.debug(ctx, `Step 1e: Tool requires user interaction: toolName=${toolName}`);
       return {
         behavior: 'ask',
-        reason: safetyCheckReason(
-          { key: 'body.tool.requiresUserInteraction', values: { tool: toolName } },
-        ),
+        reason: {
+          type: 'safetyCheck',
+          description: `Tool "${toolName}" requires user interaction`,
+        },
         ruleContents: this.resolveRuleContents(toolName, input, toolCheckResult),
         ruleMatchers: this.resolveRuleMatchers(toolCheckResult),
         candidateScopes: this.resolveCandidateScopes(toolCheckResult),
@@ -372,6 +373,7 @@ export class PermissionEngine {
         ruleMatchers: this.resolveRuleMatchers(toolCheckResult),
         candidateScopes: this.resolveCandidateScopes(toolCheckResult),
         bypassImmune: true,
+        rewrittenInput: toolCheckResult.rewrittenInput,
         skipAutoClassifier: toolCheckResult.skipAutoClassifier,
       };
     }
@@ -485,9 +487,10 @@ export class PermissionEngine {
       logger.debug(ctx, `Step 3: No checker registered, allowing by default: toolName=${toolName}`);
       return {
         behavior: 'allow',
-        reason: safetyCheckReason(
-          { key: 'body.tool.noCheckerRegistered', values: { tool: toolName } },
-        ),
+        reason: {
+          type: 'safetyCheck',
+          description: `No permission checker registered for tool "${toolName}", allowing by default`,
+        },
       };
     }
 
@@ -498,10 +501,11 @@ export class PermissionEngine {
     );
     return {
       behavior: 'ask',
-      reason: safetyCheckReason(
-        { key: 'body.tool.noMatchingRule', values: { tool: toolName } },
-        { category: 'noMatchingPermissionRule' },
-      ),
+      reason: {
+        type: 'safetyCheck',
+        description: `No permission rule matched for tool "${toolName}"`,
+        category: 'noMatchingPermissionRule',
+      },
       ruleContents: this.resolveRuleContents(toolName, input, toolCheckResult),
       ruleMatchers: this.resolveRuleMatchers(toolCheckResult),
       candidateScopes: this.resolveCandidateScopes(toolCheckResult),

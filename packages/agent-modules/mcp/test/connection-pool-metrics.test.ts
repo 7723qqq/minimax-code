@@ -17,7 +17,7 @@
  * `Server` so `client.connect` performs a genuine MCP handshake; only
  * `createTransport` is mocked (it normally spawns stdio children).
  */
-import { afterAll, afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -32,24 +32,13 @@ import type {
   ResolvedMcpServer,
 } from '../src/runtime/types.js';
 
-// `bun test` runs every file of a suite in one process, and `mock.module()`
-// replaces the module for that whole process. Snapshot the real module before
-// replacing it and put it back in `afterAll`, so the replacement never leaks
-// into the files that run after this one.
-const actualTransportFactory = { ...(await import('../src/runtime/transport/factory.js')) };
-
-// `mock.module()` replaces the transport factory for the whole module graph.
-// Bun evaluates the factory lazily, so the plain `const` is picked up as-is.
-const createTransportMock = mock<(config: unknown, overrides?: unknown) => Transport>();
-
-mock.module('../src/runtime/transport/factory.js', () => ({
-  ...actualTransportFactory,
-  createTransport: createTransportMock,
+const { createTransportMock } = vi.hoisted(() => ({
+  createTransportMock: vi.fn<(config: unknown, overrides?: unknown) => Transport>(),
 }));
 
-afterAll(() => {
-  mock.module('../src/runtime/transport/factory.js', () => actualTransportFactory);
-});
+vi.mock('../src/runtime/transport/factory.js', () => ({
+  createTransport: createTransportMock,
+}));
 
 interface MetricEvent {
   kind: 'incr' | 'latency';
@@ -154,10 +143,10 @@ describe('McpConnectionPool — metrics emission', () => {
     createTransportMock.mockImplementation(() => clientTransport);
 
     const { events, metrics } = makeRecorder();
-    const info = mock();
+    const info = vi.fn();
     pool = new McpConnectionPool(stubLookup(stdioServer), {
       metrics,
-      logger: { info, warn: mock(), error: mock() },
+      logger: { info, warn: vi.fn(), error: vi.fn() },
     });
 
     const result = await pool.callTool('demo', 'ping', {});
@@ -237,7 +226,7 @@ describe('McpConnectionPool — metrics emission', () => {
     );
 
     const { events, metrics } = makeRecorder();
-    const logger = { info: mock(), warn: mock(), error: mock() };
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
     pool = new McpConnectionPool(stubLookup(stdioServer), { metrics, logger });
 
     await expect(pool.callTool('demo', 'ping', {})).rejects.toThrow(/Failed to connect/);
@@ -296,6 +285,23 @@ describe('McpConnectionPool — metrics emission', () => {
     expect(events).toEqual([
       { kind: 'incr', name: 'mcp_tool_call_total', tags: { status: 'aborted' } },
     ]);
+  });
+
+  it('keeps the original protocol error as the cause of the wrapped call failure', async () => {
+    pool = new McpConnectionPool(stubLookup(stdioServer));
+    const protocolError = Object.assign(new Error('MCP error -32602: Invalid params'), {
+      name: 'McpError',
+      code: -32602,
+      data: { field: 'query' },
+    });
+    seedFakeConnection(pool, 'demo', async () => {
+      throw protocolError;
+    });
+
+    const failure = await pool.callTool('demo', 'ping', {}).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect((failure as Error).message).toBe('MCP tool call failed: MCP error -32602: Invalid params');
+    expect((failure as Error).cause).toBe(protocolError);
   });
 
   it('does not count pre-dispatch aborts (never acquired a permit)', async () => {
