@@ -144,6 +144,7 @@
       "packages/tui/test/unit/tui-workspace-status-line.test.ts",
       "packages/tui/test/unit/tui/controller/product/model-state.test.ts",
       "packages/tui/test/unit/tui/features/composer/attachments.test.ts",
+      "packages/tui/test/unit/tui/features/composer/prompt-suggestion.test.ts",
       "packages/tui/test/unit/tui/features/interaction/plan-path.test.ts",
       "packages/tui/test/unit/tui/features/settings/status-line-picker.test.ts",
       "packages/tui/test/unit/tui-feature-catalogs.test.ts",

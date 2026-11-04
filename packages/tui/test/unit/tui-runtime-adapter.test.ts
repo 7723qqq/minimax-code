@@ -460,7 +460,7 @@ describe("TuiRuntimeAdapter process-local facades", () => {
             displayName: "Calendar",
             installExists: false,
             enabled: false,
-            capabilities: { appCount: 1, mcpServerCount: 0, skillCount: 0 },
+            capabilities: { appCount: 1, mcpServerCount: 0, skillCount: 0, agentCount: 2 },
           },
         ],
         hasMore: false,
@@ -491,7 +491,7 @@ describe("TuiRuntimeAdapter process-local facades", () => {
         marketplace: "local",
         installed: false,
         enabled: false,
-        capabilities: { appCount: 1, mcpServerCount: 0, skillCount: 0 },
+        capabilities: { appCount: 1, mcpServerCount: 0, skillCount: 0, agentCount: 2 },
       },
     ]);
     expect(cliService.listInstalledPlugins).toHaveBeenCalledWith({

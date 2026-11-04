@@ -18,6 +18,7 @@
 export const EN_PLUGIN_COPY = {
   browsePlugins: 'Browse MiniMax Official and Local plugins · Installed {installed} of {total}',
   noMatchingPlugins: 'No matching plugins',
+  capabilitySubagents: ' · {count} subagents',
   footerActions: 'Enter install · Space enable/disable · Delete remove · Ctrl+R refresh',
   authRequiredNextStep: 'Run /login, then retry.',
   detailsNextStep: 'Retry or run mcode plugin for details.',

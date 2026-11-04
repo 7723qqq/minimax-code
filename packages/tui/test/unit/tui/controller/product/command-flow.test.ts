@@ -1088,6 +1088,112 @@ describe("TuiCommandFlow", () => {
     });
   });
 
+  describe('while another MCode process runs the Session', () => {
+    function createElsewhereFlow(afterRefresh: {
+      state: 'running' | 'idle';
+      runningElsewhere?: true;
+    }) {
+      let snapshot: Record<string, unknown> = {
+        sessionId: 'session-1',
+        state: 'running',
+        runningElsewhere: true,
+        actions: { steer: false },
+      };
+      const activeRunFlow = {
+        currentSnapshot: mock(() => snapshot),
+        refresh: mock(async () => {
+          snapshot = { sessionId: 'session-1', actions: { steer: false }, ...afterRefresh };
+        }),
+        steer: mock(async () => false),
+      };
+      const controller = {
+        snapshot: mock(() => ({
+          status: 'idle' as const,
+          sessions: [],
+          session: { sessionId: 'session-1' },
+        })),
+        hasInProcessRun: mock(() => false),
+        reconcileOwnerHistory: mock(async () => true),
+        requireLoginForAgentAction: mock(async () => undefined),
+        projectOptimisticUserMessage: mock(),
+        removeOptimisticUserMessage: mock(),
+      };
+      const queueFlow = {
+        beginAdmission: mock(),
+        cancelAdmission: mock(),
+        enqueue: mock(async () => undefined),
+      };
+      const runProjection = {
+        snapshot: () => ({ queuedCount: 0 }),
+        reconcileRuntimeTurn: mock(),
+      };
+      const editor = { setText: mock() };
+      const setHint = mock();
+      const flow = new TuiCommandFlow({
+        workspaceDir: '/workspace',
+        controller: controller as never,
+        activeRunFlow: activeRunFlow as never,
+        featureFlow: createFeatureFlowMock() as never,
+        feedbackFlow: {} as never,
+        updateFlow: {} as never,
+        interactionFlow: {
+          handleCommand: mock(async () => false),
+          hasPending: mock(() => false),
+        } as never,
+        sessionFlow: {} as never,
+        queueFlow: queueFlow as never,
+        composerDraft: { hasContent: mock(() => false) } as never,
+        workspaceRoots: { additionalDirectories: () => [] } as never,
+        runProjection: runProjection as never,
+        editor: editor as never,
+        surface: {} as never,
+        surfaceHost: { setChatFocus: mock() } as never,
+        queueEnabled: true,
+        liveRunId: () => 'session:session-1',
+        runtimeStopping: () => false,
+        abortLiveTurn: mock(async () => false),
+        leaveUi: mock(async () => undefined),
+        whenReady: mock(async () => undefined),
+        append: mock(),
+        setHint,
+        onChanged: mock(),
+      });
+      return { activeRunFlow, controller, editor, flow, queueFlow, runProjection, setHint };
+    }
+
+    it('keeps the draft instead of steering or queueing', async () => {
+      const harness = createElsewhereFlow({ state: 'running', runningElsewhere: true });
+
+      await expect(
+        harness.flow.submit('also check the tests', undefined, { busyAction: 'steer' }),
+      ).resolves.toBe('retained');
+
+      expect(harness.activeRunFlow.refresh).toHaveBeenCalledWith(true);
+      expect(harness.activeRunFlow.steer).not.toHaveBeenCalled();
+      expect(harness.queueFlow.enqueue).not.toHaveBeenCalled();
+      expect(harness.runProjection.reconcileRuntimeTurn).not.toHaveBeenCalled();
+      expect(harness.editor.setText).toHaveBeenCalledWith('also check the tests');
+      expect(harness.setHint).toHaveBeenLastCalledWith(
+        'This Session is running in another MCode process and is read-only here. Your draft is preserved.',
+      );
+    });
+
+    it('refreshes the Session once the other run ends and waits for an explicit resend', async () => {
+      const harness = createElsewhereFlow({ state: 'idle' });
+
+      await expect(harness.flow.submit('also check the tests')).resolves.toBe('retained');
+
+      expect(harness.runProjection.reconcileRuntimeTurn).toHaveBeenCalledWith(undefined);
+      expect(harness.controller.reconcileOwnerHistory).toHaveBeenCalledTimes(1);
+      expect(harness.activeRunFlow.steer).not.toHaveBeenCalled();
+      expect(harness.queueFlow.enqueue).not.toHaveBeenCalled();
+      expect(harness.editor.setText).toHaveBeenCalledWith('also check the tests');
+      expect(harness.setHint).toHaveBeenLastCalledWith(
+        'The other MCode process finished; Session refreshed. Press Enter to send your draft.',
+      );
+    });
+  });
+
   it.each([
     ["accepts the handoff", false, "queue-item-1"],
     ["rejects the handoff", true, undefined],

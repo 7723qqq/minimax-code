@@ -95,6 +95,8 @@ export const ZH_HANS_CONTROLLER_PRODUCT_COPY = {
   'command.waitBeforeShell': '请等待当前回复或交互结束后，再运行 Shell 命令',
   'command.sessionChangedResubmitShell': '会话已切换，请重新提交该 Shell 命令',
   'command.resolvePendingInteraction': '请先处理待完成的 Agent 交互。',
+  'command.runningElsewhere': '该会话正在另一个 MCode 进程中运行，此处为只读。你的草稿已保留。',
+  'command.runningElsewhereFinished': '另一个 MCode 进程已结束；会话已刷新。请按 Enter 发送草稿。',
   'command.guidanceSendFailed': '无法向当前回复发送引导。',
   'command.waitOrInterrupt': '请等待当前回复结束，或按 Esc 中断',
   'command.goalUnavailable': '当前环境不支持 Goal。',

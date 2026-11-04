@@ -174,9 +174,9 @@ export function redactTuiCredentials(value: string): string {
 }
 
 /**
- * Session export keeps user turns and model responses. Lifecycle frames are
- * rendered separately as Activity lines, so they must not also appear as an
- * `### Assistant` section carrying their internal placeholder text.
+ * Session export keeps user turns and assistant-role messages. Lifecycle frames
+ * with that role are not filtered out, so their content may appear in an
+ * `### Assistant` section while activity metadata is rendered separately.
  */
 function isUserFacingSessionMessage(message: TuiMessage): boolean {
   return message.role === 'user' || message.role === 'assistant';

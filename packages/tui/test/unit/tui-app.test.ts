@@ -3361,6 +3361,57 @@ describe("createTuiApp", () => {
     await submitting;
   });
 
+  it("leaves delegated agents running when Esc stops the root and conversation.stopSubAgent is off", async () => {
+    const dataDir = await mkdtemp(join(tmpdir(), "mcode-stop-subagent-off-"));
+    await writeFile(
+      join(dataDir, "config.yaml"),
+      "conversation:\n  stopSubAgent: false\n  stopAsyncBash: true\n",
+    );
+    stubEnv("MINIMAX_DATA_DIR", dataDir);
+    const terminal = new FakeTerminal();
+    const runtime = createRuntime();
+    let finishTurn: (() => void) | undefined;
+    mocked(runtime.sendMessage).mockImplementation(async function* sendMessage() {
+      yield {
+        type: "delta",
+        turnId: "turn-delegating",
+        role: "assistant",
+        content: "Delegating",
+      };
+      await new Promise<void>((resolve) => {
+        finishTurn = resolve;
+      });
+      yield { type: "done", turnId: "turn-delegating" };
+    });
+    const app = createTuiApp({
+      runtime,
+      terminal,
+      version: "0.1.0",
+      workspaceDir: "/workspace",
+    });
+
+    app.start();
+    await app.ready;
+    const submitting = app.submit("Delegate, then keep going");
+    try {
+      await waitFor(() => expect(app.controller.snapshot().status).toBe("running"));
+
+      await app.abortTurn();
+
+      // The real config reader sees the opt-out, so only the root Run is aborted.
+      expect(runtime.abortSession).toHaveBeenCalledWith(
+        expect.objectContaining({ id: "session-1" }),
+      );
+      expect(runtime.stopDelegation).not.toHaveBeenCalled();
+    } finally {
+      finishTurn?.();
+      await submitting;
+      await app.stop();
+      unstubAllEnvs();
+      await rm(dataDir, { recursive: true, force: true });
+    }
+  });
+
   it("resumes a launcher-selected Session and exposes its ID for the exit hint", async () => {
     const terminal = new FakeTerminal();
     const runtime = createRuntime();
@@ -5236,9 +5287,9 @@ describe("createTuiApp", () => {
     );
     await waitFor(() => expect(app.interaction.isActive()).toBe(true));
     // The compact panel owns the decision; the frozen plan is projected to the Transcript.
-    expect(app.interaction.current()?.render?.(100).join("\n")).toContain(
-      "Plan complete. What would you like to do?",
-    );
+    const reviewPanel = app.interaction.current()?.render?.(100).join("\n") ?? "";
+    expect(reviewPanel).toContain("Plan complete. What would you like to do?");
+    expect(reviewPanel).toContain("Ctrl+O");
     expect(app.tui.render(100).join("\n")).toContain("Frozen plan");
 
     terminal.input?.("\x1b[Z");
@@ -15852,5 +15903,332 @@ describe("regular-mode native history during a live run", () => {
     } finally {
       await run.app.stop();
     }
+  });
+});
+
+describe('TUI next-message suggestion', () => {
+  function startWithEventFeed(
+    options: {
+      readonly businessTelemetry?: McodeBusinessTelemetry;
+      readonly configure?: (runtime: TuiRuntime) => void;
+    } = {},
+  ) {
+    const terminal = new FakeTerminal();
+    const runtime = createRuntime();
+    options.configure?.(runtime);
+    const pending: TuiRuntimeEvent[] = [];
+    let wake: (() => void) | undefined;
+    const emit = (raw: RawTuiRuntimeEvent) => {
+      pending.push(runtimeEvent(raw));
+      wake?.();
+    };
+    mocked(runtime.listSessions).mockResolvedValue([
+      { sessionId: 'session-1', title: 'Fix the bug', workspaceDir: '/workspace' },
+    ]);
+    mocked(runtime.watchEvents).mockImplementation(async function* watchEvents(signal) {
+      while (!signal.aborted) {
+        const next = pending.shift();
+        if (next) {
+          yield next;
+          continue;
+        }
+        await new Promise<void>((resolve) => {
+          wake = resolve;
+          signal.addEventListener('abort', () => resolve(), { once: true });
+        });
+      }
+    });
+    const app = createTuiApp({
+      runtime,
+      terminal,
+      terminalCapabilities: TERMINAL_CAPABILITIES,
+      version: '0.1.0',
+      workspaceDir: '/workspace',
+      ...(options.businessTelemetry ? { businessTelemetry: options.businessTelemetry } : {}),
+    });
+    return { app, terminal, emit };
+  }
+
+  function recordSuggestionMetrics() {
+    const events: McodeBusinessEvent[] = [];
+    const businessTelemetry: McodeBusinessTelemetry = {
+      track: (event, properties) => events.push({ event, properties } as McodeBusinessEvent),
+      flush: async () => undefined,
+    };
+    const actions = () =>
+      events
+        .filter((item) => item.event === 'prompt_suggestion')
+        .map((item) => {
+          const properties = item.properties as { action: string; edited?: boolean };
+          return properties.edited === undefined
+            ? properties.action
+            : `${properties.action}:${properties.edited ? 'edited' : 'as-is'}`;
+        });
+    return { businessTelemetry, actions };
+  }
+
+  const generated = (turnId: string, suggestion: string): RawTuiRuntimeEvent => ({
+    type: 'turn.prompt_suggestion.generated',
+    timestamp: Date.now(),
+    source: 'runtime',
+    payload: { sessionId: 'session-1', turnId, suggestion, promptVersion: 'task-next-action-v2' },
+  });
+
+  it('shows the suggestion in the empty composer after a turn and fills it on Tab', async () => {
+    const { app, terminal, emit } = startWithEventFeed();
+    app.start();
+    await app.ready;
+    await app.submit('Fix the failing parser');
+
+    emit(generated('turn-1', 'Run the parser tests and fix any failures'));
+
+    await waitFor(() =>
+      expect(renderTerminalViewport(app, terminal)).toContain(
+        'Run the parser tests and fix any failures',
+      ),
+    );
+    expect(renderTerminalViewport(app, terminal)).toContain('Tab accept');
+    expect(app.editor.getText()).toBe('');
+
+    terminal.input?.('\t');
+
+    await waitFor(() =>
+      expect(app.editor.getText()).toBe('Run the parser tests and fix any failures'),
+    );
+    expect(renderTerminalViewport(app, terminal)).not.toContain('Tab accept');
+    await app.stop();
+  });
+
+  it('drops a suggestion once a newer turn starts in the session', async () => {
+    const { app, terminal, emit } = startWithEventFeed();
+    app.start();
+    await app.ready;
+    await app.submit('Fix the failing parser');
+    emit(generated('turn-1', 'Run the parser tests and fix any failures'));
+    await waitFor(() => expect(renderTerminalViewport(app, terminal)).toContain('Tab accept'));
+
+    emit({
+      type: 'session.start',
+      timestamp: Date.now(),
+      source: 'runtime',
+      payload: { sessionId: 'session-1', turnId: 'turn-2' },
+    });
+    emit({
+      type: 'session.finish',
+      timestamp: Date.now(),
+      source: 'runtime',
+      payload: { sessionId: 'session-1', turnId: 'turn-2' },
+    });
+    // A late result for the superseded turn must not come back either; the
+    // following turn-2 result proves the late one was already processed.
+    emit(generated('turn-1', 'Run the parser tests and fix any failures'));
+    emit(generated('turn-2', 'Commit the parser fix'));
+
+    await waitFor(() =>
+      expect(renderTerminalViewport(app, terminal)).toContain('Commit the parser fix'),
+    );
+    expect(renderTerminalViewport(app, terminal)).not.toContain(
+      'Run the parser tests and fix any failures',
+    );
+    terminal.input?.('\t');
+    await waitFor(() => expect(app.editor.getText()).toBe('Commit the parser fix'));
+    await app.stop();
+  });
+
+  it('counts an accepted suggestion as sent only after the Runtime admits it', async () => {
+    const metrics = recordSuggestionMetrics();
+    let rejectNextSend = false;
+    const { app, terminal, emit } = startWithEventFeed({
+      businessTelemetry: metrics.businessTelemetry,
+      configure: (runtime) => {
+        const send = mocked(runtime.sendMessage).getMockImplementation()!;
+        mocked(runtime.sendMessage).mockImplementation((request, signal, options) => {
+          if (rejectNextSend) {
+            rejectNextSend = false;
+            throw new Error('runtime unavailable');
+          }
+          return send(request, signal, options);
+        });
+      },
+    });
+    app.start();
+    await app.ready;
+    await app.submit('Fix the failing parser');
+
+    emit(generated('turn-1', 'Run the parser tests'));
+    await waitFor(() => expect(renderTerminalViewport(app, terminal)).toContain('Tab accept'));
+    terminal.input?.('\t');
+    await waitFor(() => expect(app.editor.getText()).toBe('Run the parser tests'));
+    rejectNextSend = true;
+    terminal.input?.('\r');
+    await waitFor(() => expect(app.editor.getText()).toBe('Run the parser tests'));
+    expect(metrics.actions()).toEqual(['shown', 'accepted']);
+
+    emit(generated('turn-2', 'Commit the parser fix'));
+    app.editor.setText('');
+    await waitFor(() =>
+      expect(renderTerminalViewport(app, terminal)).toContain('Commit the parser fix'),
+    );
+    terminal.input?.('\t');
+    await waitFor(() => expect(app.editor.getText()).toBe('Commit the parser fix'));
+    terminal.input?.('\r');
+
+    await waitFor(() =>
+      expect(metrics.actions()).toEqual(['shown', 'accepted', 'shown', 'accepted', 'sent:as-is']),
+    );
+    await app.stop();
+  });
+
+  it('turns suggestions off globally with /suggestions and hides the visible one', async () => {
+    let enabled = true;
+    const setPromptSuggestionEnabled = mock(async (next: boolean) => {
+      enabled = next;
+      return enabled;
+    });
+    const { app, terminal, emit } = startWithEventFeed({
+      configure: (runtime) => {
+        runtime.getPromptSuggestionEnabled = mock(async () => enabled);
+        runtime.setPromptSuggestionEnabled = setPromptSuggestionEnabled;
+      },
+    });
+    app.start();
+    await app.ready;
+    await app.submit('Fix the failing parser');
+    emit(generated('turn-1', 'Run the parser tests'));
+    await waitFor(() => expect(renderTerminalViewport(app, terminal)).toContain('Tab accept'));
+
+    await app.submit('/suggestions');
+    expect(renderTerminalViewport(app, terminal)).toContain('Next-message suggestions on');
+
+    await app.submit('/suggestions off');
+
+    expect(setPromptSuggestionEnabled).toHaveBeenCalledWith(false);
+    const screen = renderTerminalViewport(app, terminal);
+    expect(screen).toContain('Next-message suggestions off');
+    expect(screen).not.toContain('Run the parser tests');
+
+    await app.submit('/suggestions maybe');
+    expect(setPromptSuggestionEnabled).toHaveBeenCalledTimes(1);
+    expect(renderTerminalViewport(app, terminal)).toContain('Usage: /suggestions [on | off]');
+
+    await app.submit('/suggestions on');
+    expect(setPromptSuggestionEnabled).toHaveBeenLastCalledWith(true);
+    expect(renderTerminalViewport(app, terminal)).toContain('Next-message suggestions on');
+
+    setPromptSuggestionEnabled.mockRejectedValueOnce(new Error('config.yaml is locked'));
+    await app.submit('/suggestions off');
+    expect(renderTerminalViewport(app, terminal)).toContain(
+      "Couldn't save the next-message suggestion setting",
+    );
+    expect(enabled).toBe(true);
+    await app.stop();
+  });
+
+  it('switches Programmatic Tool Calling in /settings and says where it applies', async () => {
+    let enabled = false;
+    const setPtcEnabled = mock(async (next: boolean) => {
+      enabled = next;
+      return { enabled, saved: enabled, launchOverride: false };
+    });
+    const { app, terminal } = startWithEventFeed({
+      configure: (runtime) => {
+        runtime.getPtcSetting = mock(async () => ({ enabled, saved: enabled, launchOverride: false }));
+        runtime.setPtcEnabled = setPtcEnabled;
+      },
+    });
+    app.start();
+    await app.ready;
+
+    await app.submit('/settings');
+    await waitFor(() =>
+      expect(app.surfaceHost.render(100).join('\n')).toContain('Programmatic Tool Calling (Beta)'),
+    );
+    let panel = app.surfaceHost.render(100).join('\n');
+    expect(panel).toContain('○ off');
+    expect(panel).toContain('Applies to new Sessions and after /compact');
+    expect(setPtcEnabled).not.toHaveBeenCalled();
+
+    // The switch is the last row; Up from the active TUI mode wraps onto it.
+    terminal.input?.('\u001b[A');
+    terminal.input?.('\r');
+    await waitFor(() => expect(setPtcEnabled).toHaveBeenCalledWith(true));
+    await waitFor(() => expect(app.surfaceHost.render(100).join('\n')).toContain('● on'));
+    expect(app.interaction.isActive()).toBe(true);
+
+    setPtcEnabled.mockRejectedValueOnce(new Error('config.yaml is locked'));
+    terminal.input?.(' ');
+    await waitFor(() =>
+      expect(app.surfaceHost.render(100).join('\n')).toContain("Couldn't save beta.ptc"),
+    );
+    panel = app.surfaceHost.render(100).join('\n');
+    expect(panel).toContain('● on');
+    expect(enabled).toBe(true);
+    await app.stop();
+  });
+
+  it('flips the saved PTC choice in /settings while --ptc keeps this process on', async () => {
+    let saved = false;
+    const setPtcEnabled = mock(async (next: boolean) => {
+      saved = next;
+      return { enabled: true, saved, launchOverride: true };
+    });
+    const { app, terminal } = startWithEventFeed({
+      configure: (runtime) => {
+        runtime.getPtcSetting = mock(async () => ({ enabled: true, saved, launchOverride: true }));
+        runtime.setPtcEnabled = setPtcEnabled;
+      },
+    });
+    app.start();
+    await app.ready;
+
+    await app.submit('/settings');
+    await waitFor(() =>
+      expect(app.surfaceHost.render(100).join('\n')).toContain('--ptc keeps PTC on in this process'),
+    );
+    expect(app.surfaceHost.render(100).join('\n')).toContain('○ off');
+
+    terminal.input?.('\u001b[A');
+    terminal.input?.('\r');
+    await waitFor(() => expect(setPtcEnabled).toHaveBeenLastCalledWith(true));
+    await waitFor(() => expect(app.surfaceHost.render(100).join('\n')).toContain('● on'));
+
+    terminal.input?.(' ');
+    await waitFor(() => expect(setPtcEnabled).toHaveBeenLastCalledWith(false));
+    await waitFor(() => expect(app.surfaceHost.render(100).join('\n')).toContain('○ off'));
+    expect(saved).toBe(false);
+    await app.stop();
+  });
+
+  it('leaves the PTC row out of /settings when the Runtime has no PTC switch', async () => {
+    const { app } = startWithEventFeed({});
+    app.start();
+    await app.ready;
+
+    await app.submit('/settings');
+    expect(app.surfaceHost.render(100).join('\n')).toContain('TUI mode · Regular');
+    expect(app.surfaceHost.render(100).join('\n')).not.toContain('Programmatic Tool Calling');
+    await app.stop();
+  });
+
+  it('says /suggestions is unavailable when the Runtime cannot read or persist the switch', async () => {
+    const setPromptSuggestionEnabled = mock(async () => undefined);
+    const { app, terminal } = startWithEventFeed({
+      configure: (runtime) => {
+        runtime.getPromptSuggestionEnabled = mock(async () => undefined);
+        runtime.setPromptSuggestionEnabled = setPromptSuggestionEnabled;
+      },
+    });
+    app.start();
+    await app.ready;
+
+    await app.submit('/suggestions');
+    expect(renderTerminalViewport(app, terminal)).toContain(
+      'Next-message suggestions are unavailable in this host.',
+    );
+    await app.submit('/suggestions off');
+    expect(setPromptSuggestionEnabled).toHaveBeenCalledWith(false);
+    const screen = renderTerminalViewport(app, terminal);
+    expect(screen).not.toContain('Next-message suggestions off');
+    await app.stop();
   });
 });

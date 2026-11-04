@@ -24,6 +24,7 @@ function createHarness(
     source: "cli" | "vscode";
   },
   inSideSession = false,
+  acceptPromptSuggestion?: () => boolean,
 ) {
   let inputListener: ((data: string) => unknown) | undefined;
   let currentInput = input;
@@ -185,6 +186,7 @@ function createHarness(
     onSubmissionSettled,
     requestProcessSuspend,
     requestInteractionRender: mock(),
+    ...(acceptPromptSuggestion ? { acceptPromptSuggestion } : {}),
   });
   flow.attach();
   return {
@@ -1172,4 +1174,45 @@ describe("shell cancellation", () => {
       expect(harness.editor.setText).not.toHaveBeenCalled();
     },
   );
+});
+
+describe('TuiInputFlow next-message suggestion', () => {
+  const idleHarness = (input: string, accept: () => boolean, attachments: unknown[] = []) =>
+    createHarness(
+      input,
+      { attachments },
+      false,
+      false,
+      false,
+      'consumed',
+      false,
+      mock(() => false),
+      undefined,
+      false,
+      accept,
+    );
+
+  it('fills an empty composer with the visible suggestion on Tab', () => {
+    const accept = mock(() => true);
+    const harness = idleHarness('', accept);
+
+    expect(harness.inputListener?.('\t')).toEqual({ consume: true });
+    expect(accept).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves Tab to normal completion when no suggestion is visible', () => {
+    const accept = mock(() => false);
+    const harness = idleHarness('', accept);
+
+    expect(harness.inputListener?.('\t')).toBeUndefined();
+    expect(accept).toHaveBeenCalledTimes(1);
+  });
+
+  it('never replaces a draft or attachments with the suggestion', () => {
+    const accept = mock(() => true);
+
+    expect(idleHarness('my own words', accept).inputListener?.('\t')).toBeUndefined();
+    expect(idleHarness('', accept, [{ type: 'image' }]).inputListener?.('\t')).toBeUndefined();
+    expect(accept).not.toHaveBeenCalled();
+  });
 });

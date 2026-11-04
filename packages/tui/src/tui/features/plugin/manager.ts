@@ -311,6 +311,7 @@ function renderPluginRow(plugin: McodePluginView, selected: boolean, width: numb
 }
 
 function capabilitySummary(plugin: McodePluginView): string {
-  const { appCount, mcpServerCount, skillCount } = plugin.capabilities;
-  return `${appCount} apps · ${mcpServerCount} MCP · ${skillCount} skills`;
+  const { appCount, mcpServerCount, skillCount, agentCount } = plugin.capabilities;
+  const agents = agentCount ? pluginText('capabilitySubagents', { count: agentCount }) : '';
+  return `${appCount} apps · ${mcpServerCount} MCP · ${skillCount} skills${agents}`;
 }

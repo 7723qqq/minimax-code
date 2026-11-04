@@ -871,7 +871,8 @@ export class TuiInteractionFlow {
 
   private planFullViewShortcut(): string | undefined {
     const keybindings = this.options.keybindings;
-    return keybindings && keybindings.keys('interaction.view-plan').length > 0
+    if (!keybindings) return formatTuiKeybinding('interaction.view-plan');
+    return keybindings.keys('interaction.view-plan').length > 0
       ? formatTuiKeybinding('interaction.view-plan', keybindings)
       : undefined;
   }

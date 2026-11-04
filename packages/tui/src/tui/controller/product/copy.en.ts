@@ -101,6 +101,10 @@ export const EN_CONTROLLER_PRODUCT_COPY = {
     'Wait for the current response or interaction before running a shell command',
   'command.sessionChangedResubmitShell': 'Session changed; submit the shell command again',
   'command.resolvePendingInteraction': 'Resolve the pending Agent interaction first.',
+  'command.runningElsewhere':
+    'This Session is running in another MCode process and is read-only here. Your draft is preserved.',
+  'command.runningElsewhereFinished':
+    'The other MCode process finished; Session refreshed. Press Enter to send your draft.',
   'command.guidanceSendFailed': "Couldn't send guidance to the active response.",
   'command.waitOrInterrupt': 'Wait for the current response or press Esc to interrupt',
   'command.goalUnavailable': 'Goal support is unavailable in this host.',
