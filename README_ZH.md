@@ -272,7 +272,7 @@ bun run mcode
 bun /absolute/path/to/minimax-code/dist/cli.js
 ```
 
-本仓库目标为 **0.6.5 源码预览**。安装已发布的包与构建本仓库是两条独立路径，版本一致不代表构建来源完全相同，详见[版本与证据基线](docs/open-source-status.md#version-and-evidence-baseline)。
+本仓库目标为 **0.7.2 源码预览**。安装已发布的包与构建本仓库是两条独立路径，版本一致不代表构建来源完全相同，详见[版本与证据基线](docs/open-source-status.md#version-and-evidence-baseline)。
 
 ## 文档与贡献
 

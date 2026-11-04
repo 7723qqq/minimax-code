@@ -275,7 +275,7 @@ From the source directory, use `bun run mcode` in place of `mcode` in the exampl
 bun /absolute/path/to/minimax-code/dist/cli.js
 ```
 
-This repository targets the **0.6.5 source preview**. Installing the published package and building this checkout are separate paths. Matching versions do not prove identical build provenance; see the [version and evidence baseline](docs/open-source-status.md#version-and-evidence-baseline).
+This repository targets the **0.7.2 source preview**. Installing the published package and building this checkout are separate paths. Matching versions do not prove identical build provenance; see the [version and evidence baseline](docs/open-source-status.md#version-and-evidence-baseline).
 
 ## Documentation and contributing
 
