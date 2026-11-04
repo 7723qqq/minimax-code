@@ -1,5 +1,3 @@
-import { isTurnTranscriptResponseMessage } from '@mavis/shared/turn-message-class';
-
 import type { TuiMessage, TuiStreamEvent, TuiToolCall } from '../runtime/stream-events.js';
 import type {
   ExecError,
@@ -174,7 +172,7 @@ function projectItems(event: TuiStreamEvent): ProjectedItem[] {
       })),
     ];
   }
-  if (event.type !== 'message' || !isTurnTranscriptResponseMessage(event.message)) return [];
+  if (event.type !== 'message' || event.message.role !== 'assistant') return [];
   return completedMessageItems(event.message);
 }
 

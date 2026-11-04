@@ -1,5 +1,3 @@
-import { isTurnTranscriptResponseMessage } from '@mavis/shared/turn-message-class';
-
 import { formatContextWindow } from '../../features/model/context-window.js';
 import type {
   TuiConfigurationPort,
@@ -313,11 +311,7 @@ export class TuiFeatureFlow {
     try {
       const messages = await loadAllSessionMessages(this.options.runtime, sessionId);
       if (!this.isCurrentSession(sessionId, sessionGeneration)) return;
-      if (
-        !messages.some(
-          (message) => message.role === 'user' || isTurnTranscriptResponseMessage(message),
-        )
-      ) {
+      if (!messages.some((message) => message.role === 'user' || message.role === 'assistant')) {
         throw new Error(controllerProductText('feature.exportNoContent'));
       }
       const exportedAtMs = Date.now();

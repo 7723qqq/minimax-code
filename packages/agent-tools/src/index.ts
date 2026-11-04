@@ -41,7 +41,6 @@ export { inferReadVideoMimeType } from "./shared/read-video.js";
 export { withPermissionExecutionPlan } from "./desktop/permission-execution.js";
 export {
   filterCanonicalNativeToolCeiling,
-  filterCanonicalBuiltinMcpEntries,
   isCanonicalBuiltinTurn,
 } from "./desktop/canonical-tool-policy.js";
 

@@ -1,5 +1,3 @@
-import { isTurnResponseMessage } from '@mavis/shared/turn-message-class';
-
 import type { TuiMessage, TuiStreamEvent, TuiToolCall } from '../../../runtime/port.js';
 import type { TranscriptCellStatus } from '../../transcript/model.js';
 import type { TranscriptStore } from '../../transcript/store.js';
@@ -83,11 +81,7 @@ export class TuiLiveTurnProjection {
       return;
     }
     if (message.content) {
-      // Lifecycle frames are persisted with `role: 'assistant'`; rendering their
-      // content here would put internal placeholder prose in the transcript.
-      if (isTurnResponseMessage(message)) {
-        this.setAssistantMessage(turnId, message.content, timestamp, message.id);
-      }
+      this.setAssistantMessage(turnId, message.content, timestamp, message.id);
       if (message.kind === 'preamble') {
         const projection = this.getTurn(turnId);
         const id = message.id ? projection.assistantByMessageId.get(message.id) : undefined;

@@ -1,5 +1,3 @@
-import { isCompactionKind, isTurnResponseMessage } from '@mavis/shared/turn-message-class';
-
 import type { TuiMessage } from '../runtime/stream-events.js';
 import type { TuiTurnResponseUsage, TuiTurnRunUsage } from './turn-run-outcome.js';
 
@@ -15,8 +13,9 @@ const USAGE_FIELDS = [
 /** Compaction display markers do not expose their auxiliary provider usage here. */
 export function isTurnCompactionMessage(message: TuiMessage, turnId: string): boolean {
   return (
-    isCompactionKind(message.kind) &&
-    (message.turnId === undefined || message.turnId === turnId)
+    message.role === 'assistant' &&
+    (message.turnId === undefined || message.turnId === turnId) &&
+    message.kind?.startsWith('compaction') === true
   );
 }
 
@@ -24,12 +23,10 @@ export function responseUsageFromMessage(
   message: TuiMessage,
   turnId: string,
 ): TuiTurnResponseUsage | undefined {
-  // One predicate decides whether this frame is model output. Lifecycle frames
-  // (compaction, review) are persisted with `role: 'assistant'`, so `role`
-  // alone would let them contribute usage and response identity.
   if (
-    !isTurnResponseMessage(message) ||
-    (message.turnId !== undefined && message.turnId !== turnId)
+    message.role !== 'assistant' ||
+    (message.turnId !== undefined && message.turnId !== turnId) ||
+    isTurnCompactionMessage(message, turnId)
   )
     return undefined;
   const usage = Object.fromEntries(

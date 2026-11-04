@@ -1,7 +1,5 @@
 import { randomUUID } from 'node:crypto';
 
-import { isTurnResponseMessage } from '@mavis/shared/turn-message-class';
-
 import { controllerText } from './copy.js';
 import type {
   TuiMessage,
@@ -130,8 +128,7 @@ function findForkableAssistant(
     const message = messages[index];
     if (!message) continue;
     if (message.role === 'user') return undefined;
-    // A fork action only ever marks real model output, never a lifecycle frame.
-    if (isTurnResponseMessage(message) && message.id && message.actions?.fork === true) {
+    if (message.role === 'assistant' && message.id && message.actions?.fork === true) {
       return message.id;
     }
   }

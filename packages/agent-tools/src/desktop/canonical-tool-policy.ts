@@ -1,5 +1,4 @@
 import type { RuntimeTool } from '@mavis/agent-core/tools';
-import { MatrixWebSearchToolDef } from '../cloud/matrix-tools/tool-defs.js';
 
 import { isCanonicalSubagentRole } from './subagent-roles.js';
 
@@ -56,22 +55,3 @@ export function isCanonicalBuiltinTurn(canonicalRole?: string, builtinAgent?: bo
   );
 }
 
-// Fork extension (no upstream equivalent): for the explore/verifier canonical
-// subagent roles, MCP entries collapse to the builtin matrix web search only.
-// Consumed by local-runtime-v2's turn tool catalog; re-evaluate at the v2 batch.
-export function filterCanonicalBuiltinMcpEntries<
-  T extends { readonly source: string; readonly tool: RuntimeTool },
->(entries: readonly T[], canonicalRole?: string, builtinAgent?: boolean): T[] {
-  if (
-    builtinAgent !== true ||
-    canonicalRole === undefined ||
-    !isCanonicalSubagentRole(canonicalRole) ||
-    (canonicalRole !== 'explore' && canonicalRole !== 'verifier')
-  ) {
-    return [...entries];
-  }
-  return entries.filter(
-    (entry) =>
-      entry.source === 'builtin-matrix' && entry.tool.def.name === MatrixWebSearchToolDef.name,
-  );
-}

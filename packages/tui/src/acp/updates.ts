@@ -1,5 +1,4 @@
 import type * as acp from '@agentclientprotocol/sdk';
-import { isTurnTranscriptResponseMessage } from '@mavis/shared/turn-message-class';
 
 import {
   buildTuiMessageParts,
@@ -49,9 +48,7 @@ export class TuiAcpUpdateProjector {
   private projectMessage(
     message: Extract<TuiStreamEvent, { type: 'message' }>['message'],
   ): acp.SessionUpdate[] {
-    // Lifecycle frames share the message store with responses; only real model
-    // output may become agent_message/agent_thought chunks for the client.
-    if (!isTurnTranscriptResponseMessage(message)) return [];
+    if (message.role !== 'assistant') return [];
     if (message.id && this.streamedMessageIds.has(message.id)) return [];
     if (message.id) this.streamedMessageIds.add(message.id);
     return buildTuiMessageParts(message).flatMap((part): acp.SessionUpdate[] => {

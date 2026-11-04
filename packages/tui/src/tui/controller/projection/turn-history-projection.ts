@@ -1,5 +1,3 @@
-import { compactionLifecycleState, isCompactionKind } from '@mavis/shared/turn-message-class';
-
 import type { TuiMessage } from '../../../runtime/port.js';
 import { buildTuiMessageParts } from '../../../runtime/stream-events.js';
 import type { TranscriptStore } from '../../transcript/store.js';
@@ -44,13 +42,16 @@ export function hydrateTuiHistory(options: HydrateTuiHistoryOptions): void {
       return;
     }
     if (isCompactionMessage(message)) {
-      const state = compactionLifecycleState(message.kind);
       const status =
-        state === 'running' ? 'running' : state === 'failed' ? 'failed' : 'succeeded';
+        message.kind === 'compaction_start'
+          ? 'running'
+          : message.kind === 'compaction_failed'
+            ? 'failed'
+            : 'succeeded';
       const title =
-        state === 'running'
+        message.kind === 'compaction_start'
           ? transcriptText('cell.title.compacting')
-          : state === 'failed'
+          : message.kind === 'compaction_failed'
             ? transcriptText('cell.title.compactionFailed')
             : transcriptText('cell.title.contextCompacted');
       transcript.upsert({
@@ -175,5 +176,9 @@ function parseDurableSystemEvent(
 }
 
 function isCompactionMessage(message: TuiMessage): boolean {
-  return isCompactionKind(message.kind);
+  return (
+    message.kind === 'compaction_start' ||
+    message.kind === 'compaction' ||
+    message.kind === 'compaction_failed'
+  );
 }

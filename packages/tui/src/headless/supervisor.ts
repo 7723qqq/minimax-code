@@ -1,5 +1,4 @@
 import type { CliSendMessageReq } from '@mavis/local-runtime-v2/cli-service';
-import { isTurnResponseMessage } from '@mavis/shared/turn-message-class';
 
 import type {
   TuiActiveRunControlPort,
@@ -255,18 +254,13 @@ function rememberMessage(state: StreamState, event: TuiStreamEvent): void {
   state.afterMsgId = event.message.id;
 }
 
-const FINAL_FINISH_REASONS = new Set(['stop', 'end_turn', 'stop_sequence']);
-
-/**
- * A compaction/review frame is persisted with `role: 'assistant'` and never
- * carries `finish_reason`, so the shared classifier keeps lifecycle activity
- * from being mistaken for the turn's final answer.
- */
 function isFinalAssistantMessage(message: TuiMessage): boolean {
-  if (!isTurnResponseMessage(message)) return false;
   return (
-    message.kind === 'final' ||
-    (message.finishReason !== undefined && FINAL_FINISH_REASONS.has(message.finishReason))
+    message.role === 'assistant' &&
+    (message.kind === 'final' ||
+      message.finishReason === 'stop' ||
+      message.finishReason === 'end_turn' ||
+      message.finishReason === 'stop_sequence')
   );
 }
 

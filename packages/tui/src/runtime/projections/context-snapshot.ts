@@ -1,5 +1,3 @@
-import { compactionLifecycleState } from '@mavis/shared/turn-message-class';
-
 import type { TuiContextSnapshotResponse } from '../port.js';
 
 interface ContextMessageView {
@@ -95,10 +93,15 @@ function readContextUsage(
 function projectCompaction(
   message: Pick<ContextMessageView, 'kind' | 'timestamp'>,
 ): TuiContextSnapshotResponse['compaction'] | undefined {
-  const lifecycle = compactionLifecycleState(message.kind);
-  if (lifecycle === undefined) return undefined;
   const state =
-    lifecycle === 'running' ? 'running' : lifecycle === 'completed' ? 'completed' : 'failed';
+    message.kind === 'compaction_start'
+      ? 'running'
+      : message.kind === 'compaction'
+        ? 'completed'
+        : message.kind === 'compaction_failed'
+          ? 'failed'
+          : undefined;
+  if (!state) return undefined;
   return {
     state,
     ...(message.timestamp !== undefined && Number.isFinite(Number(message.timestamp))
