@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "sourceRevision": "9b9885e42a3cf1a3df1cfa52a46e4fdb034cfcee",
+  "sourceRevision": "a5a05c23cd9ffe2ef4b5c339e165a9aa8220efcd",
   "packageRoots": [
     "packages/agent-core",
     "packages/agent-extension",

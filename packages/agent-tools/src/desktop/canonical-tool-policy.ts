@@ -54,4 +54,3 @@ export function isCanonicalBuiltinTurn(canonicalRole?: string, builtinAgent?: bo
     builtinAgent === true && canonicalRole !== undefined && isCanonicalSubagentRole(canonicalRole)
   );
 }
-
